@@ -1,1 +1,105 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg
+*.eggs
+*.env
+.env
+.venv
+venv/
+ENV/
+env/
+*.env
+*.venv
+*.envrc
 .qodo
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Test/coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# PDF/Images
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.svg
+
+# Misc
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Ignore dataset files
+*.csv
+*.tsv
+*.xls
+*.xlsx
+
+# Ignore research artifacts
+RESEARCH/*.pyc
+
+# Ignore gesture control artifacts
+gesture_control/**/__pycache__/
+gesture_control/**/.ipynb_checkpoints
+
+# Ignore sr artifacts
+sr/__pycache__/
+
+# Ignore TOOL artifacts
+TOOL/__pycache__/
+
+# Ignore webstoken artifacts
+webstoken/__pycache__/
+
+# Ignore AGENTS artifacts
+AGENTS/__pycache__/
+
+# Ignore config artifacts
+config/__pycache__/
+
+# Ignore EXTRA artifacts
+EXTRA/__pycache__/
+
+# Ignore jprinter artifacts
+jprinter/__pycache__/
