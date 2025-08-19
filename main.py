@@ -5,7 +5,8 @@ from AGENTS.functioncall import FunctionCallingAgent, Fn
 import inspect
 from rich import print as rprint
 from dataset import DatasetBuilder
-from EXTRA.conversation import JARVISConversation
+from conversation import JARVISConversation
+from conversation.config import ConversationConfig, EmbeddingConfig, EmbeddingBackend
 from TOOL.main import ask_website, check_internet_speed, get_news, process_pdf, websearch # Import the tools
 from config.config import Config
 
@@ -27,7 +28,17 @@ for name, obj in local_vars.items():
 class JARVIS:
     def __init__(self):
         self.dataset_builder = DatasetBuilder(filepath=Config.DATASET_FILE)  # Initialize DatasetBuilder
-        self.conversation = JARVISConversation()  # Initialize JARVISConversation
+        
+        # Initialize enhanced conversation system
+        conversation_config = ConversationConfig()
+        # You can configure embedding backend here:
+        # conversation_config.embedding = EmbeddingConfig(
+        #     backend=EmbeddingBackend.SENTENCE_TRANSFORMERS,  # or EmbeddingBackend.OPENAI or EmbeddingBackend.NONE
+        #     model_name="all-MiniLM-L6-v2",  # for sentence-transformers
+        #     api_key="your-openai-api-key"  # for OpenAI
+        # )
+        
+        self.conversation = JARVISConversation(config=conversation_config)  # Initialize enhanced conversation
         self.agent = FunctionCallingAgent(tools=functions) #pass the list of tools to the agent class
         self.ai = C4ai(
             is_conversation=False,
@@ -39,18 +50,16 @@ class JARVIS:
         """
         Executes a tool based on user input using the FunctionCallingAgent and provides a response.
         """
-        #add history to the chat
         try:
-            # rprint(f"User Input: {user_input}")
+            # Get enhanced prompt with conversation context
+            enhanced_prompt = self.conversation.generate_complete_prompt(user_input)
             
-            self.conversation._add_message("User", user_input) # Use conversation class to add message
-            
-            function_call_data = self.agent.function_call_handler(user_input)
+            function_call_data = self.agent.function_call_handler(enhanced_prompt)
             
             if "error" in function_call_data:
                 error_message = f"I've encountered an error: {function_call_data['error']}"
                 rprint(f"[bold red]JARVIS:[/] {error_message}")
-                self.conversation._add_message("JARVIS", error_message) # Add error to conversation history
+                self.conversation.add_message("JARVIS", error_message, importance=0.3)
                 return
             
             tool_calls = function_call_data.get("tool_calls", [])
@@ -70,32 +79,22 @@ class JARVIS:
                          tool_output = function_to_call(**arguments) # Execute the function
                          tool_outputs.append({"name": function_name, "output": tool_output, "arguments": arguments})
                          rprint(f"[bold blue]Tool:[/] Executed tool '{function_name}'")
-                         self.conversation._add_message("Tool" + function_name, f"Executed with output: {tool_output}") # Add tool output to conversation history
                          
                     except Exception as e:
                         rprint(f"[bold red]JARVIS:[/] Error executing tool '{function_name}': {e}")
                         tool_outputs.append({"name": function_name, "output": f"Error: {e}", "arguments": arguments})
-                        self.conversation._add_message(function_name, f"Error: {e}") # Add error to conversation history
                 else:
                     rprint(f"[bold red]JARVIS:[/] Tool '{function_name}' not found in JARVIS class.")
                     tool_outputs.append({"name": function_name, "output": f"Tool not found", "arguments": arguments})
-                    self.conversation._add_message("JARVIS", f"Tool not found: {function_name}") # Add error to conversation history
                     
-            # Generate a response using the LLM
-            
+            # Generate enhanced response using the improved conversation system
             if tool_outputs:
-                ai_prompt = f"""
-                You are JARVIS, a helpful AI assistant. You have access to tools, and a user has just asked: '{user_input}'.
-
-                Here are the results from using the specified tools:
-                {tool_outputs}
-
-                Your response: 
-                """
-                ai_prompt = self.conversation.gen_complete_prompt(ai_prompt) # Use conversation history for prompt
+                ai_prompt = self.conversation.generate_tool_response_prompt(user_input, tool_outputs)
                 llm_response = "".join(self.ai.chat(ai_prompt))
                 rprint(f"[bold green]JARVIS:[/] {llm_response}")
-                self.conversation._add_message("JARVIS", llm_response) # Add LLM response to conversation history
+                
+                # Process the complete interaction for memory and context
+                self.conversation.process_interaction(user_input, llm_response, tool_outputs)
 
                 # Add datapoint to the dataset
                 self.dataset_builder.add_datapoint(
@@ -104,11 +103,13 @@ class JARVIS:
                     response=llm_response
                 )
             else:
-               rprint("[bold red]JARVIS: No valid tool outputs to construct an AI response.[/]")
-               self.conversation._add_message("JARVIS", "No valid tool outputs.") # Add to conversation history
+               error_msg = "No valid tool outputs to construct an AI response."
+               rprint(f"[bold red]JARVIS: {error_msg}[/]")
+               self.conversation.add_message("JARVIS", error_msg, importance=0.3)
         except Exception as e:
-            rprint(f"[bold red]An unexpected error occurred: {e}[/]")
-            self.conversation._add_message("JARVIS", f"An unexpected error occurred: {e}") # Add error to conversation history
+            error_msg = f"An unexpected error occurred: {e}"
+            rprint(f"[bold red]{error_msg}[/]")
+            self.conversation.add_message("JARVIS", error_msg, importance=0.3)
 ########################################
 # Tool Wrappers
 ########################################
