@@ -1,6 +1,3 @@
-.qodo
-
-# Python cache and temporary files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -44,12 +41,94 @@ venv.bak/
 # OS files
 .DS_Store
 Thumbs.db
+=======
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
 
-# Logs
-*.log
+# VS Code
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+
 
 # Temporary files
 *.tmp
 *.temp
 .tmp/
 .temp/
+=======
+# Test/coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# PDF/Images
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.svg
+
+# Misc
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Ignore dataset files
+*.csv
+*.tsv
+*.xls
+*.xlsx
+
+# Ignore research artifacts
+RESEARCH/*.pyc
+
+# Ignore gesture control artifacts
+gesture_control/**/__pycache__/
+gesture_control/**/.ipynb_checkpoints
+
+# Ignore sr artifacts
+sr/__pycache__/
+
+# Ignore TOOL artifacts
+TOOL/__pycache__/
+
+# Ignore webstoken artifacts
+webstoken/__pycache__/
+
+# Ignore AGENTS artifacts
+AGENTS/__pycache__/
+
+# Ignore config artifacts
+config/__pycache__/
+
+# Ignore EXTRA artifacts
+EXTRA/__pycache__/
+
+# Ignore jprinter artifacts
+jprinter/__pycache__/
+
