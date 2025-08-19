@@ -114,155 +114,213 @@ class FunctionCallingAgent:
 
 
     def function_call_handler(self, message_text: str) -> FunctionCallData:
-        response_generator = self.ai.chat(message_text, stream=True)  # Set stream to True
+        """Enhanced function call handler with retry logic"""
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                response_generator = self.ai.chat(message_text, stream=True)
+                response: str = ''.join(response_generator)
+                
+                result = self._parse_function_call(response)
+                
+                # If parsing successful and we have tool calls, return
+                if "tool_calls" in result and result["tool_calls"]:
+                    return result
+                
+                # If no tool calls but no error, might be a general response
+                if "error" not in result:
+                    # Try to extract a general_ai call from the response
+                    general_call = self._create_general_ai_fallback(message_text, response)
+                    if general_call:
+                        return general_call
+                
+                # If we have an error and retries left, try again with clarification
+                if attempt < max_retries and "error" in result:
+                    message_text = self._create_retry_prompt(message_text, result.get("error", ""))
+                    continue
+                
+                return result
+                
+            except Exception as e:
+                if attempt < max_retries:
+                    logging.warning(f"Function call attempt {attempt + 1} failed: {e}")
+                    continue
+                else:
+                    logging.error(f"All function call attempts failed: {e}")
+                    return {"error": f"Failed to process function call: {e}"}
+        
+        return {"error": "Maximum retries exceeded"}
+    
+    def _create_retry_prompt(self, original_prompt: str, error: str) -> str:
+        """Create a retry prompt with error context"""
+        return f"""
+{original_prompt}
 
-        # Collect the full response from the generator
-        response: str = ''.join(response_generator)
-        # jp(response)  # Print the full response for debugging
+Previous attempt failed with error: {error}
 
-        return self._parse_function_call(response)
+Please provide a valid tool call response using the exact format specified in the instructions.
+Use the `general_ai` tool if the request doesn't match any specific tools.
+"""
+    
+    def _create_general_ai_fallback(self, original_prompt: str, ai_response: str) -> Optional[FunctionCallData]:
+        """Create a general_ai fallback when no specific tools are identified"""
+        # If the AI response doesn't contain tool calls but seems to be trying to help,
+        # create a general_ai call
+        if len(ai_response) > 10 and not any(tag in ai_response.lower() for tag in ["<tool_call>", "error", "cannot"]):
+            return {
+                "tool_calls": [{
+                    "name": "general_ai",
+                    "arguments": {
+                        "question": original_prompt
+                    }
+                }]
+            }
+        return None
     
     def _generate_system_message(self) -> str:
         tools_description: str = ""
         for tool in self.tools:
-            tools_description += f"- {tool['function']['name']}: {tool['function'].get('description', '')}\n"
+            tools_description += f"- **{tool['function']['name']}**: {tool['function'].get('description', '')}\n"
             tools_description += "    Parameters:\n"
             for key, value in tool['function']['parameters']['properties'].items():
-                tools_description += f"      - {key}: {value.get('description', '')} ({value.get('type')})\n"
-                # print(f"Tool: {tool['function']['name']}, Description: {tool['function'].get('description', '')}, Parameters: {tool['function']['parameters']['properties']}")
+                required = key in tool['function']['parameters'].get('required', [])
+                req_indicator = " (required)" if required else " (optional)"
+                tools_description += f"      - {key}: {value.get('description', '')} ({value.get('type')}){req_indicator}\n"
+        
         current_date: str = date.today().strftime("%B %d, 2024")
         return f"""<purpose>
-    You are JARVIS, an advanced AI system created by {name}.
-    Your mission is to assist {name} by executing commands efficiently and effectively using the available tools.
+    You are JARVIS, an advanced AI assistant created by {name}.
+    Your mission is to assist {name} by intelligently selecting and executing the most appropriate tools 
+    for each request. You excel at understanding context, intent, and providing comprehensive solutions.
 </purpose>
+
+<capabilities>
+    <tool_selection>
+        - Analyze user requests to determine the best tools needed
+        - Execute multiple tools in sequence when beneficial
+        - Handle tool errors gracefully and suggest alternatives
+        - Provide clear feedback on tool execution
+    </tool_selection>
+    
+    <intelligence>
+        - Use context from conversation history to improve tool selection
+        - Anticipate user needs and suggest proactive tool usage
+        - Combine tool outputs to provide comprehensive responses
+        - Learn from successful tool usage patterns
+    </intelligence>
+</capabilities>
 
 <instructions>
     **Core Directives:**
-    - Follow the instructions provided precisely.
-    - Use JSON objects to communicate tool actions.
-    - **Always enclose your responses within `<tool_call>[` and `]</tool_call>` tags.**
-    - Only use the tools listed below; do not invent new tools or parameters.
-    - If a user request does not match any available tool, use the "general_ai" tool.
+    1. **Understand Intent**: Carefully analyze what {name} wants to accomplish
+    2. **Select Optimal Tools**: Choose the most effective tools for the task
+    3. **Execute Efficiently**: Use tools in the most logical order
+    4. **Handle Errors**: Provide alternatives when tools fail
+    5. **Respond Structured**: Always use the specified JSON format within `<tool_call>` tags
 
-    **Operational Guidelines:**
-    1. **Identify the Command:** Determine what {name} wants to achieve.
-    2. **Match the Tool:** Find the appropriate tools that match the command.
-    3. **Extract Parameters:** Gather all necessary parameters for each tool.
-    4. **Respond in JSON:** Format your response strictly as a JSON object within `<tool_call>` tags containing a list of tool calls.
+    **Tool Selection Guidelines:**
+    - For web searches: Use `websearch` for current information
+    - For specific websites: Use `ask_website` to extract information from URLs
+    - For news: Use `get_news` for recent news articles
+    - For PDFs: Use `process_pdf` for document processing
+    - For system info: Use `check_internet_speed` for network diagnostics
+    - For general AI tasks: Use `general_ai` for questions not requiring external tools
     
-    **Example Response Structure:**
+    **Multi-tool Usage:**
+    - Combine tools when it provides better results
+    - For research tasks, consider using both `websearch` and `ask_website`
+    - When processing documents, you might need `process_pdf` followed by analysis
+    
+    **Response Format:**
+    Always respond with a JSON array within `<tool_call>` tags:
+    
     <tool_call>[
         {{
-            "name": "tool_name_here",
+            "name": "tool_name",
             "arguments": {{
                 "parameter1": "value1",
                 "parameter2": "value2"
             }}
-        }},
-        {{
-            "name": "another_tool",
-            "arguments": {{
-                "paramA": "valueA"
-            }}
         }}
     ]</tool_call>
 
-    **Important:** Do **NOT** add any explanations or additional text outside the `<tool_call>` tags.
+    **Error Handling:**
+    - If a request is unclear, use `general_ai` to ask for clarification
+    - If no tools match, use `general_ai` with the original question
+    - Never invent tools or parameters not in the available list
 </instructions>
 
 <examples>
     <example>
-        <user>JARVIS, search the web for the latest AI trends and get user details for Alice aged 28.</user>
+        <user>JARVIS, find the latest AI research papers and summarize them</user>
         <jarvis_response>
         <tool_call>[
             {{
-                "name": "web_search",
+                "name": "websearch",
                 "arguments": {{
-                    "query": "latest AI trends"
-                }}
-            }},
-            {{
-                "name": "get_user_detail",
-                "arguments": {{
-                    "name": "Alice",
-                    "age": 28
+                    "query": "latest AI research papers 2024 arxiv"
                 }}
             }}
         ]</tool_call>
         </jarvis_response>
     </example>
+    
     <example>
-        <user>JARVIS, tell me a joke.</user>
+        <user>JARVIS, check my internet speed and then search for faster internet plans</user>
+        <jarvis_response>
+        <tool_call>[
+            {{
+                "name": "check_internet_speed",
+                "arguments": {{}}
+            }},
+            {{
+                "name": "websearch",
+                "arguments": {{
+                    "query": "fast internet plans comparison 2024"
+                }}
+            }}
+        ]</tool_call>
+        </jarvis_response>
+    </example>
+    
+    <example>
+        <user>JARVIS, what's happening in tech news today?</user>
+        <jarvis_response>
+        <tool_call>[
+            {{
+                "name": "get_news",
+                "arguments": {{
+                    "topic": "technology",
+                    "max_results": 5
+                }}
+            }}
+        ]</tool_call>
+        </jarvis_response>
+    </example>
+    
+    <example>
+        <user>JARVIS, tell me about yourself</user>
         <jarvis_response>
         <tool_call>[
             {{
                 "name": "general_ai",
                 "arguments": {{
-                    "question": "tell me a joke"
+                    "question": "tell me about yourself as JARVIS AI assistant"
                 }}
             }}
         ]</tool_call>
         </jarvis_response>
     </example>
+    
     <example>
-        <user>JARVIS, open Google Chrome and search for weather updates.</user>
+        <user>JARVIS, extract information from this PDF and then search for related topics</user>
         <jarvis_response>
         <tool_call>[
             {{
-                "name": "open_app",
+                "name": "process_pdf",
                 "arguments": {{
-                    "app_name": "Google Chrome"
-                }}
-            }},
-            {{
-                "name": "web_search",
-                "arguments": {{
-                    "query": "weather updates"
-                }}
-            }}
-        ]</tool_call>
-        </jarvis_response>
-    </example>
-        <example>
-        <user>JARVIS, what is today's date?</user>
-        <jarvis_response>
-        <tool_call>[
-            {{
-                "name": "general_ai",
-                "arguments": {{
-                   "question": "what is today's date?"
-               }}
-            }}
-        ]</tool_call>
-        </jarvis_response>
-    </example>
-    <example>
-        <user>JARVIS, search for dog toys.</user>
-        <jarvis_response>
-        <tool_call>[
-           {{
-               "name": "web_search",
-               "arguments": {{
-                  "query": "dog toys"
-               }}
-            }}
-        ]</tool_call>
-        </jarvis_response>
-    </example>
-    <example>
-        <user>JARVIS, open Spotify and play some music</user>
-        <jarvis_response>
-        <tool_call>[
-           {{
-               "name": "open_app",
-               "arguments": {{
-                  "app_name": "Spotify"
-               }}
-            }},
-            {{
-                "name": "general_ai",
-                "arguments": {{
-                    "question": "play some music"
+                    "input_path": "document.pdf",
+                    "output_mode": "text"
                 }}
             }}
         ]</tool_call>
@@ -273,6 +331,7 @@ class FunctionCallingAgent:
 <system_info>
     **Today's Date:** {current_date}
     **Knowledge Cutoff:** {self.knowledge_cutoff}
+    **Available Tools:** {len(self.tools)}
 </system_info>
 
 <tools_list>
@@ -282,7 +341,8 @@ class FunctionCallingAgent:
 </tools_list>
 
 <response_instructions>
-Respond ONLY with a JSON object following the specified `<tool_call>` structure. Do NOT add any explanations or additional text outside the tags.
+Analyze the user's request carefully, select the most appropriate tools, and respond ONLY with the JSON structure within `<tool_call>` tags. 
+Consider tool combinations for complex requests and always prioritize user intent over literal interpretation.
 </response_instructions>
 """
         

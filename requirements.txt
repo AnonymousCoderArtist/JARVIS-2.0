@@ -24,3 +24,7 @@ pyaudio>=0.2.11
 numpy>=1.19.5
 html2text
 speedtest-cli
+# Optional dependencies for enhanced conversation system
+# Install with: pip install sentence-transformers openai
+# sentence-transformers  # for local embeddings
+# openai  # for OpenAI embeddings
