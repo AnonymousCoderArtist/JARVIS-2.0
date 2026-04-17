@@ -107,27 +107,14 @@ dist/
 # Ignore research artifacts
 RESEARCH/*.pyc
 
-# Ignore gesture control artifacts
-gesture_control/**/__pycache__/
-gesture_control/**/.ipynb_checkpoints
-
-# Ignore sr artifacts
-sr/__pycache__/
-
 # Ignore TOOL artifacts
 TOOL/__pycache__/
-
-# Ignore webstoken artifacts
-webstoken/__pycache__/
 
 # Ignore AGENTS artifacts
 AGENTS/__pycache__/
 
 # Ignore config artifacts
 config/__pycache__/
-
-# Ignore EXTRA artifacts
-EXTRA/__pycache__/
 
 # Ignore jprinter artifacts
 jprinter/__pycache__/

@@ -1,30 +1,15 @@
 rich
-opencv-python
-pywhatkit
-pyaudio
-yaspin
-colorlog
-lxml_html_clean
-huggingface_hub
 webscout
-pygame
 requests
-schedule
-datetime
-pyautogui
 PyPDF2
-AppOpener
-keyboard
-numpy
-edge-tts
-sentence-transformers
-librosa>=0.8.1
-tensorflow>=2.6.0
-pyaudio>=0.2.11
-numpy>=1.19.5
 html2text
 speedtest-cli
-# Optional dependencies for enhanced conversation system
-# Install with: pip install sentence-transformers openai
-# sentence-transformers  # for local embeddings
-# openai  # for OpenAI embeddings
+sentence-transformers
+pandas
+pyarrow
+datasets
+colorama
+pygments
+executing
+python-dotenv
+beautifulsoup4
