@@ -95,23 +95,14 @@ class CLIInterface:
 
     def _show_banner(self):
         """Display the welcome banner."""
-        self.console.print(Panel(
-            Text.from_markup(f"[bold cyan]JARVIS 2.0[/bold cyan]\n[dim]The professional AI engineering assistant[/dim]\n\n[cyan]Provider:[/cyan] {self._current_provider_id or 'None'}\n[cyan]Model:[/cyan] {self._current_model_id or 'None'}\n[cyan]Tools:[/cyan] {len(self.tool_registry.list_tools())}"),
-            border_style="cyan",
-            padding=(1, 2)
-        ))
+        self.console.print()
+        self.console.print(f"[bold cyan]JARVIS 2.0[/bold cyan] [dim]— The professional AI engineering assistant[/dim]")
+        self.console.print(f"[dim]Provider:[/dim] [bold cyan]{self._current_provider_id or 'None'}[/bold cyan]   [dim]Model:[/dim] [bold cyan]{self._current_model_id or 'None'}[/bold cyan]   [dim]Tools:[/dim] [bold cyan]{len(self.tool_registry.list_tools())}[/bold cyan]")
+        self.console.print()
 
     def _show_help(self):
         """Display available commands."""
-        help_text = """
-[bold cyan]Commands:[/bold cyan]
-  [bold white]/help[/bold white]       - Show this help
-  [bold white]/status[/bold white]     - Show system status
-  [bold white]/clear[/bold white]      - Clear the screen
-  [bold white]/exit[/bold white]       - Exit JARVIS
-  [bold white]! <cmd>[/bold white]     - Run shell command
-"""
-        self.console.print(help_text)
+        self.console.print("[dim]Commands: /help, /status, /clear, /exit, !<cmd>[/dim]")
 
     async def _handle_submit(self, text: str):
         """Process user input."""
@@ -127,32 +118,59 @@ class CLIInterface:
             self.console.print("[red]Error: Agent coordinator not initialized.[/red]")
             return
 
-        # Set up callbacks for streaming
-        self.console.print("\n[bold cyan]JARVIS[/bold cyan] › ", end="")
+        # Show user input
+        self.console.print()
+        self.console.print(f"[bold orange1]❯[/bold orange1] {text}")
         
         full_response = ""
+        thinking = True
+        response_started = False
         
         def stream_callback(chunk: str):
-            nonlocal full_response
+            nonlocal full_response, thinking, response_started
+            if thinking:
+                thinking = False
+                self.console.print()  # End thinking line
+            if not response_started:
+                response_started = True
+                self.console.print(f"[bold cyan]🤖[/bold cyan] ", end="")
             full_response += chunk
             self.console.print(chunk, end="")
 
         def tool_call_callback(tool_name: str, tool_args: dict):
-            self.console.print(f"\n[magenta]🛠️  Using {tool_name}...[/magenta]")
+            nonlocal thinking, response_started
+            if thinking:
+                thinking = False
+                self.console.print()  # End thinking line
+            if response_started:
+                self.console.print()  # New line before tool call
+            # Format tool args for display
+            args_str = ", ".join(f"{k}={repr(v)}" for k, v in tool_args.items())
+            self.console.print(f"[bold cyan]>[/bold cyan] [dim]{tool_name}({args_str})[/dim]")
 
         def tool_result_callback(tool_name: str, tool_args: dict, result: Any):
             if hasattr(result, "success") and not result.success:
                 self.console.print(f"[red]❌ Tool Error: {result.error}[/red]")
             else:
-                self.console.print("[green]✅ Success[/green]")
+                pass  # Success is implicit in the result
 
         self.agent_coordinator.stream_callback = stream_callback
         self.agent_coordinator.tool_call_callback = tool_call_callback
         self.agent_coordinator.tool_result_callback = tool_result_callback
 
         try:
+            # Show thinking indicator
+            self.console.print("[bold cyan]>[/bold cyan] [dim]Thinking...[/dim]", end="")
+            
             await self.agent_coordinator.execute_task(text)
-            self.console.print() # Final newline
+            
+            # Ensure final newline if response was printed
+            if response_started:
+                self.console.print()
+            elif thinking:
+                # If still thinking, no response was generated
+                self.console.print()
+                
         except Exception as e:
             self.console.print(f"\n[red]Error: {e}[/red]")
 
@@ -188,14 +206,13 @@ class CLIInterface:
 
     async def run(self):
         """Start the CLI loop."""
-        self.console.clear()
         self._show_banner()
         self._show_help()
         
         while True:
             try:
                 # Use standard input for now, could be upgraded to prompt_toolkit
-                user_input = self.console.input("\n[bold orange1]YOU[/bold orange1] [dim]›[/dim] ")
+                user_input = self.console.input("\n[bold orange1]❯[/bold orange1] ")
                 if not user_input.strip():
                     continue
                 await self._handle_submit(user_input)
