@@ -8,6 +8,8 @@ from typing import Any
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.live import Live
+from rich.spinner import Spinner
 
 from core.agents.base import BaseAgent
 from core.agents.coding_agent import CodingAgent
@@ -45,12 +47,10 @@ class CLIInterface:
         self._initialize_systems()
 
     def _initialize_systems(self):
-        """Initialize all components."""
         self._initialize_tools()
         self._initialize_agents()
 
     def _initialize_tools(self):
-        """Register all available tools."""
         self.tool_registry.register(FileReadTool())
         self.tool_registry.register(FileWriteTool())
         self.tool_registry.register(ReplaceTool())
@@ -70,7 +70,6 @@ class CLIInterface:
         self.tool_registry.register(ReadPDFTool())
 
     def _initialize_agents(self):
-        """Initialize LLM providers and agents."""
         provider_id = self.settings.selected_provider_id
         if not provider_id or not self.settings.is_provider_enabled(provider_id):
             return
@@ -96,11 +95,6 @@ class CLIInterface:
         """Render markdown text."""
         self.console.print(Markdown(text))
 
-    def _sep(self, char: str = "-", style: str = "dim"):
-        """Print a separator line."""
-        width = self.console.width or 80
-        self.console.print(f"[{style}]{char * width}[/{style}]")
-
     def _show_banner(self):
         """Display the welcome banner."""
         self.console.print()
@@ -110,7 +104,6 @@ class CLIInterface:
         self.console.print(f"  [cyan]Provider:[/cyan] {self._current_provider_id or 'not configured'}")
         self.console.print(f"  [cyan]Model:[/cyan]    {self._current_model_id or 'not configured'}")
         self.console.print(f"  [cyan]Tools:[/cyan]    {len(self.tool_registry.list_tools())}")
-        self._sep()
         self.console.print()
 
     def _show_help(self):
@@ -138,8 +131,8 @@ class CLIInterface:
 
         if args_lines:
             args_text = ",\n".join(args_lines)
-            return f"**tool call:** `{tool_name}({args_text})`"
-        return f"**tool call:** `{tool_name}()`"
+            return f"### tool: {tool_name}\n\n```text\n{tool_name}(\n{args_text}\n)\n```"
+        return f"### tool: {tool_name}\n\n`{tool_name}()`"
 
     def _tool_result_md(self, tool_name: str, result: Any) -> str:
         """Build markdown for a tool result."""
@@ -147,20 +140,20 @@ class CLIInterface:
         error = getattr(result, "error", None)
 
         if not success:
-            return f"**error:** {error or 'Tool failed'}"
+            return f"### error\n\n{error or 'Tool failed'}"
 
         payload = getattr(result, "result", "")
         metadata = getattr(result, "metadata", None) or {}
 
         # Check for diff
         if isinstance(payload, str) and payload.strip().startswith("diff --git"):
-            return f"**{tool_name}:**\n\n```diff\n{payload}\n```"
+            return f"### {tool_name}\n\n```diff\n{payload}\n```"
 
         results = metadata.get("results") if isinstance(metadata, dict) else None
         if isinstance(results, list) and results:
             diff_text = results[0].get("unified_diff") or results[0].get("diff")
             if isinstance(diff_text, str) and diff_text:
-                return f"**{tool_name}:**\n\n```diff\n{diff_text}\n```"
+                return f"### {tool_name}\n\n```diff\n{diff_text}\n```"
 
         # Truncate long output
         if isinstance(payload, str) and len(payload) > 500:
@@ -172,17 +165,17 @@ class CLIInterface:
             if stripped.startswith("{") or stripped.startswith("["):
                 try:
                     json.loads(stripped)
-                    return f"**{tool_name}:**\n\n```json\n{payload}\n```"
+                    return f"### {tool_name}\n\n```json\n{payload}\n```"
                 except (json.JSONDecodeError, ValueError):
                     pass
 
             if any(kw in payload for kw in ["def ", "import ", "class "]) and "\n" in payload:
-                return f"**{tool_name}:**\n\n```python\n{payload}\n```"
+                return f"### {tool_name}\n\n```python\n{payload}\n```"
 
         if isinstance(payload, str) and ("#" in payload or "**" in payload or "`" in payload):
-            return f"**{tool_name}:**\n\n{payload}"
+            return f"### {tool_name}\n\n{payload}"
 
-        return f"**{tool_name}:** {payload or 'Done'}"
+        return f"### {tool_name}\n\n{payload or 'Done'}"
 
     async def _handle_submit(self, text: str):
         """Process user input."""
@@ -198,27 +191,19 @@ class CLIInterface:
             self.console.print("[red]Error: Agent coordinator not initialized.[/red]")
             return
 
-        # User message
+        # User message (prompt already shows 'YOU >')
+        # Do not re-print the user's input to avoid echoing it in the transcript.
         self.console.print()
-        self._sep("-", "orange1")
-        self.console.print("[bold orange1]You[/bold orange1]")
-        self._md(text)
         self.console.print()
 
-        # JARVIS header
-        self._sep("-", "cyan")
-        self.console.print("[bold cyan]JARVIS[/bold cyan]")
-        self.console.print()
-
+        # Show spinner while JARVIS is thinking
         full_response = ""
         response_started = False
 
         def stream_callback(chunk: str):
             nonlocal full_response, response_started
             full_response += chunk
-            # Print a dot to show progress during streaming
             if not response_started:
-                self.console.print("[dim]...[/dim]", end="")
                 response_started = True
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
@@ -240,16 +225,20 @@ class CLIInterface:
         self.agent_coordinator.tool_call_callback = tool_call_callback
         self.agent_coordinator.tool_result_callback = tool_result_callback
 
-        try:
-            await self.agent_coordinator.execute_task(text)
-            # Render final response as markdown
-            if full_response.strip():
-                self.console.print()
-                self._md(full_response)
-            elif not response_started:
-                self.console.print("[dim](no response)[/dim]")
-        except Exception as e:
-            self.console.print(f"\n[red]Error: {e}[/red]")
+        # Show spinner during processing
+        with Live(Spinner("dots", text="[cyan]JARVIS is thinking...[/cyan]"), transient=True):
+            try:
+                await self.agent_coordinator.execute_task(text)
+            except Exception as e:
+                self.console.print(f"\n[red]Error: {e}[/red]")
+                return
+
+        # Render final response as markdown
+        if full_response.strip():
+            self.console.print()
+            self._md(full_response)
+        elif not response_started:
+            self.console.print("[dim](no response)[/dim]")
 
         self.console.print()
 
@@ -267,7 +256,6 @@ class CLIInterface:
             tool_count = len(self.tool_registry.list_tools())
             self.console.print()
             self.console.print("[bold cyan]Status[/bold cyan]")
-            self._sep()
             self.console.print(f"  [cyan]Provider:[/cyan] {self._current_provider_id or 'none'}")
             self.console.print(f"  [cyan]Model:[/cyan]    {self._current_model_id or 'none'}")
             self.console.print(f"  [cyan]Tools:[/cyan]    {tool_count}")
@@ -282,8 +270,7 @@ class CLIInterface:
         if not command:
             return
         self.console.print()
-        self._sep("-", "dim")
-        self.console.print(f"[dim]shell[/dim]")
+        self.console.print("[dim]shell[/dim]")
         self.console.print(f"[dim]$ {command}[/dim]")
         self.console.print()
         process = await asyncio.create_subprocess_shell(
@@ -310,7 +297,9 @@ class CLIInterface:
 
         while True:
             try:
-                user_input = self.console.input("[bold orange1]YOU[/bold orange1] [dim]>[/dim] ")
+                # Print prompt separately to avoid double-printing
+                self.console.print("[bold orange1]YOU[/bold orange1] [dim]>[/dim] ", end="")
+                user_input = input()
                 if not user_input.strip():
                     continue
                 await self._handle_submit(user_input)
