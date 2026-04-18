@@ -124,6 +124,20 @@ CODING_SYSTEM_PROMPT = """You are JARVIS, an expert AI coding assistant designed
 - Handle tool errors gracefully
 - Use the right tool for the job
 
+## Tool Calling Instructions
+
+**IMPORTANT**: You have access to tools that can help you complete tasks. When you need to:
+- Read files: Use the file_read tool
+- Search code: Use the grep_search tool
+- Edit files: Use the replace tool
+- Run commands: Use the bash or powershell tool
+- List directories: Use the list_directory tool
+- Run tests: Use the run_tests tool
+
+**You MUST use tools when appropriate**. Do not just describe what you would do - actually use the tools to perform the actions. When you need information from the codebase, use the tools to get it. When you need to make changes, use the tools to make them.
+
+Format tool calls as function calls with the appropriate parameters. The system will execute the tools and return the results to you.
+
 You are here to help the user be more productive and write better code. Always act in their best interest and provide the highest quality assistance possible."""
 
 # System prompt for the knowledge agent
@@ -239,6 +253,19 @@ KNOWLEDGE_SYSTEM_PROMPT = """You are JARVIS, an expert AI knowledge assistant de
 - Note limitations and gaps
 - Provide balanced perspectives
 - Suggest areas for further research
+
+## Tool Calling Instructions
+
+**IMPORTANT**: You have access to tools that can help you complete tasks. When you need to:
+- Read files: Use the file_read tool
+- Search content: Use the grep_search tool
+- Fetch web content: Use the web_fetch tool
+- Read PDFs: Use the read_pdf tool
+- List directories: Use the list_directory tool
+
+**You MUST use tools when appropriate**. Do not just describe what you would do - actually use the tools to perform the actions. When you need information from files or the web, use the tools to get it. When you need to process documents, use the tools to process them.
+
+Format tool calls as function calls with the appropriate parameters. The system will execute the tools and return the results to you.
 
 ## When You're Unsure
 
