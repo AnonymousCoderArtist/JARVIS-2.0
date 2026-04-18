@@ -110,12 +110,66 @@ class AnthropicSDK(BaseLLMSDK):
             logger.error(f"Anthropic streaming failed: {str(e)}")
             raise RuntimeError(f"Anthropic streaming failed: {str(e)}")
 
+    async def _stream_response_with_tools(self, payload: Dict[str, Any]) -> AsyncGenerator:
+        """Stream response from Anthropic API with tool calling support"""
+        try:
+            content_buffer = ""
+            tool_calls = []
+            current_tool_call = None
+
+            async for line in self.client.stream("messages", payload, self._get_headers()):
+                if line.startswith("data: "):
+                    data_str = line[6:].strip()
+                    try:
+                        chunk = json.loads(data_str)
+
+                        if chunk["type"] == "content_block_start":
+                            if chunk["content_block"]["type"] == "text":
+                                pass  # Starting text block
+                            elif chunk["content_block"]["type"] == "tool_use":
+                                current_tool_call = {
+                                    "id": chunk["content_block"]["id"],
+                                    "name": chunk["content_block"]["name"],
+                                    "arguments": ""
+                                }
+
+                        elif chunk["type"] == "content_block_delta":
+                            if chunk["delta"]["type"] == "text_delta":
+                                text_chunk = chunk["delta"]["text"]
+                                content_buffer += text_chunk
+                                yield {"type": "text", "content": text_chunk}
+                            elif chunk["delta"]["type"] == "input_json_delta":
+                                if current_tool_call:
+                                    current_tool_call["arguments"] += chunk["delta"]["partial_json"]
+
+                        elif chunk["type"] == "content_block_stop":
+                            if current_tool_call:
+                                tool_call = ToolCall(
+                                    id=current_tool_call["id"],
+                                    name=current_tool_call["name"],
+                                    arguments=current_tool_call["arguments"],
+                                )
+                                tool_calls.append(tool_call)
+                                yield {"type": "tool_call", "tool_call": tool_call}
+                                current_tool_call = None
+
+                        elif chunk["type"] == "message_stop":
+                            break
+
+                    except json.JSONDecodeError:
+                        continue
+
+        except Exception as e:
+            logger.error(f"Anthropic streaming with tools failed: {str(e)}")
+            raise RuntimeError(f"Anthropic streaming with tools failed: {str(e)}")
+
     async def generate_with_tools(
         self,
         messages: List[Message],
         tools: List[Dict],
         config: GenerationConfig,
-    ) -> GenerationResponse:
+        stream: bool = False,
+    ) -> Union[GenerationResponse, AsyncGenerator]:
         """Generate response with tool calling using curl_cffi"""
         try:
             system_prompt = ""
@@ -148,38 +202,42 @@ class AnthropicSDK(BaseLLMSDK):
                 "tools": anthropic_tools,
                 "max_tokens": max_tokens,
                 "temperature": config.temperature,
+                "stream": stream
             }
             if system_prompt:
                 payload["system"] = system_prompt
 
-            response_data = await self.client.post("messages", payload, self._get_headers())
-            
-            content = response_data["content"]
-            result_content = ""
-            tool_calls = []
+            if stream:
+                return self._stream_response_with_tools(payload)
+            else:
+                response_data = await self.client.post("messages", payload, self._get_headers())
 
-            for block in content:
-                if block["type"] == "text":
-                    result_content += block["text"]
-                elif block["type"] == "tool_use":
-                    tool_calls.append(
-                        ToolCall(
-                            id=block["id"],
-                            name=block["name"],
-                            arguments=json.dumps(block["input"]),
+                content = response_data["content"]
+                result_content = ""
+                tool_calls = []
+
+                for block in content:
+                    if block["type"] == "text":
+                        result_content += block["text"]
+                    elif block["type"] == "tool_use":
+                        tool_calls.append(
+                            ToolCall(
+                                id=block["id"],
+                                name=block["name"],
+                                arguments=json.dumps(block["input"]),
+                            )
                         )
-                    )
 
-            return GenerationResponse(
-                content=result_content,
-                model=response_data["model"],
-                finish_reason=response_data["stop_reason"],
-                tool_calls=tool_calls if tool_calls else None,
-                usage={
-                    "input_tokens": response_data["usage"]["input_tokens"],
-                    "output_tokens": response_data["usage"]["output_tokens"],
-                },
-            )
+                return GenerationResponse(
+                    content=result_content,
+                    model=response_data["model"],
+                    finish_reason=response_data["stop_reason"],
+                    tool_calls=tool_calls if tool_calls else None,
+                    usage={
+                        "input_tokens": response_data["usage"]["input_tokens"],
+                        "output_tokens": response_data["usage"]["output_tokens"],
+                    },
+                )
 
         except Exception as e:
             logger.error(f"Anthropic tool generation failed: {str(e)}")

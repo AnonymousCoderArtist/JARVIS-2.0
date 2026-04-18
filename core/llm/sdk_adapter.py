@@ -56,7 +56,7 @@ class SDKAdapter(BaseLLMProvider):
         tools: List[Dict],
         model: str,
         **kwargs
-    ) -> Dict:
+    ) -> Union[Dict, AsyncGenerator]:
         """Generate with tools using SDK with adapter interface"""
         # Convert dict messages to SDK Message objects, filtering out empty messages
         sdk_messages = [
@@ -72,25 +72,31 @@ class SDKAdapter(BaseLLMProvider):
             max_tokens=kwargs.get("max_tokens"),
         )
 
+        stream = kwargs.get("stream", False)
+
         # Call SDK
-        result = await self.sdk.generate_with_tools(sdk_messages, tools, config)
+        result = await self.sdk.generate_with_tools(sdk_messages, tools, config, stream=stream)
 
-        # Convert tool calls back to expected format
-        tool_calls = []
-        if result.tool_calls:
-            for tc in result.tool_calls:
-                tool_calls.append({
-                    "id": tc.id,
-                    "function": {
-                        "name": tc.name,
-                        "arguments": tc.arguments,
-                    },
-                })
+        if stream:
+            # Return the generator as-is
+            return result
+        else:
+            # Convert tool calls back to expected format
+            tool_calls = []
+            if result.tool_calls:
+                for tc in result.tool_calls:
+                    tool_calls.append({
+                        "id": tc.id,
+                        "function": {
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                        },
+                    })
 
-        return {
-            "content": result.content,
-            "tool_calls": tool_calls,
-        }
+            return {
+                "content": result.content,
+                "tool_calls": tool_calls,
+            }
 
     def get_available_models(self) -> List[str]:
         """Get available models from SDK"""

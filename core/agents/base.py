@@ -132,47 +132,64 @@ class BaseAgent(ABC):
         if use_tools:
             tool_definitions = self.tools.get_function_definitions()
 
-            # When using tools, we can't stream during the tool call itself
-            # But we can stream the content before and after
+            # Try to use streaming with tools
             if stream and self.stream_callback:
-                # Get the response with tools
-                response = await self.llm.generate_with_tools(
-                    messages=messages,
-                    tools=tool_definitions,
-                    model=self.model,
-                    **kwargs
-                )
+                full_response = ""
+                tool_calls = []
+                try:
+                    # Use the streaming endpoint with tools
+                    async for chunk in self.llm.generate_with_tools(
+                        messages=messages,
+                        tools=tool_definitions,
+                        model=self.model,
+                        stream=True,
+                        **kwargs
+                    ):
+                        if isinstance(chunk, dict):
+                            if chunk["type"] == "text":
+                                full_response += chunk["content"]
+                                self.stream_callback(chunk["content"])
+                            elif chunk["type"] == "tool_call":
+                                tool_calls.append(chunk["tool_call"])
+                        else:
+                            # Fallback for string chunks
+                            full_response += chunk
+                            self.stream_callback(chunk)
 
-                # Stream the initial content
-                initial_content = response.get("content", "")
-                if initial_content:
-                    self.stream_callback(initial_content)
+                    # If tool calls were encountered, execute them
+                    if tool_calls:
+                        # Create a response object with the tool calls
+                        response = {
+                            "content": full_response,
+                            "tool_calls": [{"function": {"name": tc.name, "arguments": tc.arguments}} for tc in tool_calls]
+                        }
+                        final_response = await self._handle_tool_calls(response, messages, full_response)
+                        return final_response
 
-                # Handle tool calls if present
-                if response.get("tool_calls"):
-                    final_response = await self._handle_tool_calls(response, messages, initial_content)
-                    # Stream the final response
-                    if final_response and final_response != initial_content:
-                        self.stream_callback(final_response[len(initial_content):])
-                    return final_response
+                    return full_response
+                except Exception:
+                    # If streaming fails, fall back to non-streaming
+                    pass
 
-                return initial_content
-            else:
-                response = await self.llm.generate_with_tools(
-                    messages=messages,
-                    tools=tool_definitions,
-                    model=self.model,
-                    **kwargs
-                )
+            # Non-streaming fallback
+            response = await self.llm.generate_with_tools(
+                messages=messages,
+                tools=tool_definitions,
+                model=self.model,
+                **kwargs
+            )
 
-                # Handle tool calls if present
-                if response.get("tool_calls"):
-                    return await self._handle_tool_calls(response, messages)
+            content = response.get("content", "")
+            if stream and self.stream_callback and content:
+                self.stream_callback(content)
 
-                return response.get("content", "")
+            if response.get("tool_calls"):
+                return await self._handle_tool_calls(response, messages, content)
+
+            return content
         else:
             if stream and self.stream_callback:
-                # Stream the response
+                # Stream the response character by character
                 full_response = ""
                 async for chunk in self.llm.generate(
                     messages=messages,
