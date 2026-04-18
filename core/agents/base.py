@@ -26,6 +26,7 @@ class BaseAgent(ABC):
         # Callbacks for streaming and tool calls
         self.stream_callback: Optional[callable] = None
         self.tool_call_callback: Optional[callable] = None
+        self.tool_result_callback: Optional[callable] = None
 
     @abstractmethod
     async def process(self, input: str, context: Optional[Dict] = None) -> str:
@@ -260,6 +261,8 @@ class BaseAgent(ABC):
                 self.tool_call_callback(tool_name, tool_args)
 
             result = await self.tools.execute_tool(tool_name, tool_args)
+            if self.tool_result_callback:
+                self.tool_result_callback(tool_name, tool_args, result)
             tool_results.append({
                 "tool": tool_name,
                 "success": result.success,

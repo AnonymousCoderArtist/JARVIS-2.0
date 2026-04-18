@@ -249,12 +249,19 @@ class CLIInterface:
             args_str = json.dumps(tool_args, indent=2)
             self.console.print()
             self.console.print(f"> {tool_name}({args_str})", style="cyan")
-            self.console.print("... (tool output) ...", style="dim")
+
+        def tool_result_callback(tool_name: str, tool_args: dict, result):
+            """Callback for tool results"""
+            if result.success:
+                self.console.print(f"... (tool output): {result.result[:200]}...", style="dim")
+            else:
+                self.console.print(f"... (tool error): {result.error}", style="red")
             self.console.print()
 
         # Set callbacks on coordinator
         self.agent_coordinator.stream_callback = stream_callback
         self.agent_coordinator.tool_call_callback = tool_call_callback
+        self.agent_coordinator.tool_result_callback = tool_result_callback
 
         try:
             response = await self.agent_coordinator.execute_task(user_input)

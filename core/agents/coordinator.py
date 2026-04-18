@@ -24,6 +24,7 @@ class AgentCoordinator:
         # Callbacks for streaming and tool calls
         self.stream_callback: Optional[callable] = None
         self.tool_call_callback: Optional[callable] = None
+        self.tool_result_callback: Optional[callable] = None
         
         # Initialize conversation manager with auto-summarization
         self.conversation_manager = ConversationManager(
@@ -83,6 +84,7 @@ class AgentCoordinator:
             # Set callbacks on agent
             agent.stream_callback = self.stream_callback
             agent.tool_call_callback = self.tool_call_callback
+            agent.tool_result_callback = self.tool_result_callback
 
             # Pass conversation history to agent if supported
             agent_context = context or {}
