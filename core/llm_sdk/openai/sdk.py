@@ -29,7 +29,8 @@ class OpenAISDK(BaseLLMSDK):
     def client(self) -> HTTPClient:
         """Lazy load the custom HTTP client"""
         if self._http_client is None:
-            self._http_client = HTTPClient(self.base_url, self.api_key)
+            base_url = self.base_url or "https://api.openai.com/v1"
+            self._http_client = HTTPClient(base_url, self.api_key)
         return self._http_client
 
     def _get_headers(self) -> dict[str, str]:
@@ -221,21 +222,15 @@ class OpenAISDK(BaseLLMSDK):
             logger.error(f"OpenAI tool generation failed: {str(e)}")
             raise RuntimeError(f"OpenAI tool generation failed: {str(e)}") from e
 
-    async def get_available_models(self) -> list[str]:
-        """Get available OpenAI models using httpx as requested"""
-        try:
-            response_data = await self.client.fetch_models("models", self._get_headers())
-            models = [m["id"] for m in response_data.get("data", []) if "gpt" in m["id"]]
-            return sorted(models)
-        except Exception as e:
-            logger.warning(f"Failed to fetch OpenAI models: {e}. Using fallback list.")
-            return [
-                "gpt-4o",
-                "gpt-4o-mini",
-                "gpt-4-turbo",
-                "gpt-4",
-                "gpt-3.5-turbo",
-            ]
+    def get_available_models(self) -> list[str]:
+        """Get available OpenAI models."""
+        return [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4-turbo",
+            "gpt-4",
+            "gpt-3.5-turbo",
+        ]
 
     def convert_messages_to_dict(self, messages: list[Message]) -> list[dict]:
         """Convert Message objects to dictionaries"""

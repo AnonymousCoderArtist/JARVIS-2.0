@@ -47,6 +47,30 @@ class FileReadTool(BaseTool):
             limit = getattr(input_data, "limit", None)
             encoding = getattr(input_data, "encoding", "utf-8")
 
+            if not isinstance(file_path, str) or not file_path:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid file path"
+                )
+
+            if offset is not None and not isinstance(offset, int):
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid offset"
+                )
+
+            if limit is not None and not isinstance(limit, int):
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid limit"
+                )
+
+            if not isinstance(encoding, str):
+                encoding = "utf-8"
+
             if not os.path.exists(file_path):
                 return ToolOutput(
                     success=False,
@@ -129,6 +153,20 @@ class FileWriteTool(BaseTool):
             file_path = getattr(input_data, "filePath", None)
             content = getattr(input_data, "content", None)
 
+            if not isinstance(file_path, str) or not file_path:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid file path"
+                )
+
+            if not isinstance(content, str):
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid file content"
+                )
+
             # Check if file already exists
             if os.path.exists(file_path):
                 return ToolOutput(
@@ -179,6 +217,9 @@ class ListDirectoryTool(BaseTool):
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
             path = getattr(input_data, "path", None)
+
+            if not isinstance(path, str) or not path:
+                return ToolOutput(success=False, result=None, error="Invalid directory path")
 
             if not os.path.exists(path):
                 return ToolOutput(success=False, result=None, error=f"Directory not found: {path}")
@@ -233,6 +274,16 @@ class GlobTool(BaseTool):
         try:
             query = getattr(input_data, "query", None)
             max_results = getattr(input_data, "maxResults", None)
+
+            if not isinstance(query, str) or not query:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid glob query"
+                )
+
+            if max_results is not None and not isinstance(max_results, int):
+                max_results = 0
 
             import glob
 

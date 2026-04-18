@@ -34,6 +34,13 @@ class InvokeAgentTool(BaseTool):
         agent_name = getattr(input_data, "agent_name", None)
         prompt = getattr(input_data, "prompt", None)
 
+        if not isinstance(agent_name, str) or not isinstance(prompt, str):
+            return ToolOutput(
+                success=False,
+                result=None,
+                error="Invalid agent invocation input",
+            )
+
         # This tool requires integration with the AgentCoordinator
         # In a real system, it would call coordinator.execute_task
 
@@ -63,6 +70,13 @@ class ActivateSkillTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         skill_name = getattr(input_data, "name", None)
+
+        if not isinstance(skill_name, str) or not skill_name:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error="Invalid skill name",
+            )
 
         # This tool would load specialized instructions for the agent
 

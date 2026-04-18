@@ -64,12 +64,21 @@ class ProviderRegistry:
 
             # Register rate limits if configured
             if known_config.rate_limit:
-                if known_config.rate_limit.default:
-                    self._rate_limits[provider_id] = known_config.rate_limit.default
-                elif known_config.rate_limit.openai and known_config.sdk_mode.value == "openai":
-                    self._rate_limits[provider_id] = known_config.rate_limit.openai
-                elif known_config.rate_limit.anthropic and known_config.sdk_mode.value == "anthropic":
-                    self._rate_limits[provider_id] = known_config.rate_limit.anthropic
+                if known_config.rate_limit.default is not None:
+                    self._rate_limits[provider_id] = RateLimitConfig(
+                        requests_per_second=known_config.rate_limit.default.requests_per_second,
+                        window_ms=known_config.rate_limit.default.window_ms,
+                    )
+                elif known_config.rate_limit.openai is not None and known_config.sdk_mode.value == "openai":
+                    self._rate_limits[provider_id] = RateLimitConfig(
+                        requests_per_second=known_config.rate_limit.openai.requests_per_second,
+                        window_ms=known_config.rate_limit.openai.window_ms,
+                    )
+                elif known_config.rate_limit.anthropic is not None and known_config.sdk_mode.value == "anthropic":
+                    self._rate_limits[provider_id] = RateLimitConfig(
+                        requests_per_second=known_config.rate_limit.anthropic.requests_per_second,
+                        window_ms=known_config.rate_limit.anthropic.window_ms,
+                    )
 
     def register_provider_config(self, config: ProviderConfig):
         """

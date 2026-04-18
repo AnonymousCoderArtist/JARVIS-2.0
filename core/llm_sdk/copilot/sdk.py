@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import re
 from collections.abc import AsyncGenerator
@@ -125,8 +126,10 @@ class CopilotSDK(BaseLLMSDK):
         )
 
     async def _send(self, messages: list[Message], config: GenerationConfig, tools: list[dict[str, Any]] | None = None) -> str:
-        from copilot import CopilotClient
-        from copilot.session import PermissionHandler
+        copilot_module = importlib.import_module("copilot")
+        session_module = importlib.import_module("copilot.session")
+        CopilotClient = getattr(copilot_module, "CopilotClient")
+        PermissionHandler = getattr(session_module, "PermissionHandler")
 
         prompt = self._build_prompt(messages, config, tools)
         async with CopilotClient(**self._client_kwargs()) as client:
@@ -138,9 +141,13 @@ class CopilotSDK(BaseLLMSDK):
             return self._response_text(response)
 
     async def _stream(self, messages: list[Message], config: GenerationConfig, tools: list[dict[str, Any]] | None = None) -> AsyncGenerator[str, None]:
-        from copilot import CopilotClient
-        from copilot.generated.session_events import AssistantMessageDeltaData, SessionIdleData
-        from copilot.session import PermissionHandler
+        copilot_module = importlib.import_module("copilot")
+        events_module = importlib.import_module("copilot.generated.session_events")
+        session_module = importlib.import_module("copilot.session")
+        CopilotClient = getattr(copilot_module, "CopilotClient")
+        AssistantMessageDeltaData = getattr(events_module, "AssistantMessageDeltaData")
+        SessionIdleData = getattr(events_module, "SessionIdleData")
+        PermissionHandler = getattr(session_module, "PermissionHandler")
 
         prompt = self._build_prompt(messages, config, tools)
         queue: asyncio.Queue[str] = asyncio.Queue()

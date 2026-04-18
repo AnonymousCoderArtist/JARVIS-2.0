@@ -33,6 +33,16 @@ class ReadPDFTool(BaseTool):
             path = getattr(input_data, "path", None)
             pages = getattr(input_data, "pages", "all")
 
+            if not isinstance(path, str) or not path:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid PDF path",
+                )
+
+            if not isinstance(pages, str):
+                pages = "all"
+
             if not os.path.exists(path):
                 return ToolOutput(
                     success=False,

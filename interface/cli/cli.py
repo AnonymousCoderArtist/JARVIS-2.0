@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from core.agents.base import BaseAgent
 from core.agents.coding_agent import CodingAgent
 from core.agents.coordinator import AgentCoordinator
 from core.agents.knowledge_agent import KnowledgeAgent
@@ -82,7 +83,7 @@ class CLIInterface:
         active_model = self.settings.selected_model_id or "gpt-4o"
         provider = SDKAdapter(sdk, provider_id)
 
-        agents = {
+        agents: dict[str, BaseAgent] = {
             "coding": CodingAgent(provider, self.tool_registry, model=active_model),
             "knowledge": KnowledgeAgent(provider, self.tool_registry, model=active_model),
         }

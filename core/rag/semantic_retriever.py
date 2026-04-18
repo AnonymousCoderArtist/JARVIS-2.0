@@ -1,6 +1,7 @@
 """Semantic retriever using embeddings"""
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -12,7 +13,7 @@ class RetrievalResult:
     """Result from a retrieval operation"""
     document: Document
     score: float
-    metadata: dict = None
+    metadata: dict[str, Any] | None = None
 
 
 class SemanticRetriever:
@@ -104,4 +105,6 @@ class SemanticRetriever:
 
         for doc in documents:
             if doc.embedding is None:
-                doc.embedding = self._get_embedding(doc.content)
+                embedding = self._get_embedding(doc.content)
+                if embedding is not None:
+                    doc.embedding = embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)

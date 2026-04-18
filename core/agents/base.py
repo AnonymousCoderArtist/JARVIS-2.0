@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from collections.abc import Callable
-from typing import Any
+from collections.abc import AsyncGenerator, Callable
+from typing import Any, cast
 
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
@@ -26,7 +26,7 @@ class BaseAgent(ABC):
         self.tools = tool_registry
         self.system_prompt = system_prompt
         self.model = model or "gpt-4"  # Use provided model or default
-        self.memory: list[dict] = []
+        self.memory: list[dict[str, Any]] = []
         self.context: dict[str, Any] = {}
         # Callbacks for streaming and tool calls
         self.stream_callback: Callable | None = None
@@ -34,7 +34,7 @@ class BaseAgent(ABC):
         self.tool_result_callback: Callable | None = None
 
     @abstractmethod
-    async def process(self, input: str, context: dict | None = None) -> str:
+    async def process(self, input: str, context: dict[str, Any] | None = None) -> str:
         """
         Process a user input and generate a response
 
@@ -48,7 +48,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    async def plan(self, task: str) -> list[dict]:
+    async def plan(self, task: str) -> list[dict[str, Any]]:
         """
         Plan the execution of a task
 
@@ -60,7 +60,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    def add_to_memory(self, entry: dict):
+    def add_to_memory(self, entry: dict[str, Any]):
         """
         Add an entry to agent memory
 
@@ -118,10 +118,10 @@ class BaseAgent(ABC):
 
     async def generate_response(
         self,
-        messages: list[dict],
+        messages: list[dict[str, Any]],
         use_tools: bool = False,
         stream: bool = False,
-        **kwargs
+        **kwargs: Any
     ) -> str:
         """
         Generate a response using the LLM
@@ -144,12 +144,15 @@ class BaseAgent(ABC):
                 tool_calls = []
                 try:
                     # Use the streaming endpoint with tools - await first, then iterate
-                    stream_result = await self.llm.generate_with_tools(
+                    stream_result = cast(
+                        AsyncGenerator[Any, None],
+                        await self.llm.generate_with_tools(
                         messages=messages,
                         tools=tool_definitions,
                         model=self.model,
                         stream=True,
                         **kwargs
+                        ),
                     )
                     async for chunk in stream_result:
                         if isinstance(chunk, dict):
@@ -188,12 +191,13 @@ class BaseAgent(ABC):
                     pass
 
             # Non-streaming fallback
-            response = await self.llm.generate_with_tools(
+            raw_response = await self.llm.generate_with_tools(
                 messages=messages,
                 tools=tool_definitions,
                 model=self.model,
                 **kwargs
             )
+            response = cast(dict[str, Any], raw_response)
 
             content = response.get("content", "")
             if stream and self.stream_callback and content:
@@ -207,26 +211,38 @@ class BaseAgent(ABC):
             if stream and self.stream_callback:
                 # Stream the response character by character
                 full_response = ""
-                async for chunk in self.llm.generate(
+                stream_result = cast(
+                    AsyncGenerator[Any, None],
+                    await self.llm.generate(
                     messages=messages,
                     model=self.model,
                     stream=True,
                     **kwargs
-                ):
-                    full_response += chunk
-                    self.stream_callback(chunk)
+                    ),
+                )
+                async for chunk in stream_result:
+                    chunk_text = chunk if isinstance(chunk, str) else str(chunk)
+                    full_response += chunk_text
+                    self.stream_callback(chunk_text)
                 return full_response
             else:
-                return await self.llm.generate(
+                result = await self.llm.generate(
                     messages=messages,
                     model=self.model,
                     **kwargs
                 )
+                if isinstance(result, str):
+                    return result
+
+                full_response = ""
+                async for chunk in cast(AsyncGenerator[Any, None], result):
+                    full_response += chunk if isinstance(chunk, str) else str(chunk)
+                return full_response
 
     async def _handle_tool_calls(
         self,
-        response: dict,
-        messages: list[dict],
+        response: dict[str, Any],
+        messages: list[dict[str, Any]],
         existing_content: str = ""
     ) -> str:
         """
@@ -255,8 +271,8 @@ class BaseAgent(ABC):
         })
 
         # Execute tool calls
-        tool_calls = response.get("tool_calls", [])
-        tool_results = []
+        tool_calls = cast(list[dict[str, Any]], response.get("tool_calls", []))
+        tool_results: list[dict[str, Any]] = []
 
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
@@ -297,9 +313,6 @@ class BaseAgent(ABC):
             tools=tool_definitions,
             model=self.model
         )
-
-        # next_response may be a dict (immediate) or AsyncGenerator (streaming)
-        from typing import Any, cast
 
         if isinstance(next_response, dict):
             resp = cast(dict[str, Any], next_response)

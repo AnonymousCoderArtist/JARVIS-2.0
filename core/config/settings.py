@@ -1,13 +1,15 @@
 """Configuration settings using TOML config file"""
 
+import importlib
 from pathlib import Path
 from typing import Any
 
-try:
-    import tomllib
-except ImportError:
-    # Python < 3.11 fallback
-    import tomli as tomllib  # type: ignore[import-not-found,assignment]
+
+def _load_toml_module() -> Any:
+    try:
+        return importlib.import_module("tomllib")
+    except ImportError:
+        return importlib.import_module("tomli")
 
 
 class Settings:
@@ -22,8 +24,9 @@ class Settings:
         """Load configuration from TOML file"""
         if self.config_path.exists():
             try:
+                toml_module = _load_toml_module()
                 with open(self.config_path, "rb") as f:
-                    self._config = tomllib.load(f)
+                    self._config = toml_module.load(f)
             except Exception as e:
                 print(f"Warning: Failed to load config from {self.config_path}: {e}")
                 self._config = self._get_default_config()
@@ -90,13 +93,12 @@ class Settings:
         """Save configuration to TOML file"""
         try:
             try:
-                import tomli_w
+                toml_writer = importlib.import_module("tomli_w")
             except ImportError:
-                import tomli_w as _tomli_w  # type: ignore[import-not-found,assignment]
+                print("Warning: tomli_w not installed, cannot save config")
+                return
             with open(self.config_path, "wb") as f:
-                _tomli_w.dump(self._config, f)  # type: ignore[undefined-variable]
-        except ImportError:
-            print("Warning: tomli_w not installed, cannot save config")
+                toml_writer.dump(self._config, f)
         except Exception as e:
             print(f"Warning: Failed to save config: {e}")
 

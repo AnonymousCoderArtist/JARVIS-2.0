@@ -46,6 +46,19 @@ class BashTool(BaseTool):
             delay_ms = getattr(input_data, "delay_ms", 0)
             timeout = getattr(input_data, "timeout", 30)
 
+            if not isinstance(command, str) or not command:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid command"
+                )
+
+            if not isinstance(delay_ms, int):
+                delay_ms = 0
+
+            if not isinstance(timeout, int):
+                timeout = 30
+
             if is_background:
                 process = await asyncio.create_subprocess_shell(
                     command,
@@ -138,6 +151,19 @@ class RunTestsTool(BaseTool):
             framework = getattr(input_data, "framework", "pytest")
             args = getattr(input_data, "args", "")
 
+            if not isinstance(path, str) or not path:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid test path"
+                )
+
+            if not isinstance(framework, str):
+                framework = "pytest"
+
+            if not isinstance(args, str):
+                args = ""
+
             if framework == "pytest":
                 command = f"pytest {path} {args}"
             elif framework == "unittest":
@@ -152,15 +178,14 @@ class RunTestsTool(BaseTool):
             process = await asyncio.create_subprocess_shell(
                 command,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                text=True
+                stderr=asyncio.subprocess.PIPE
             )
 
             stdout, stderr = await process.communicate()
 
-            output = stdout
+            output = stdout.decode() if stdout else ""
             if stderr:
-                output += f"\nErrors:\n{stderr}"
+                output += f"\nErrors:\n{stderr.decode()}"
 
             return ToolOutput(
                 success=process.returncode == 0,

@@ -103,6 +103,12 @@ venv/
 # JetBrains
 .idea/
 
+# PyCharm
+*.iml
+*.iws
+*.ipr
+.idea/
+
 # macOS
 .DS_Store
 

@@ -29,7 +29,8 @@ class AnthropicSDK(BaseLLMSDK):
     def client(self) -> HTTPClient:
         """Lazy load the custom HTTP client"""
         if self._http_client is None:
-            self._http_client = HTTPClient(self.base_url, self.api_key)
+            base_url = self.base_url or "https://api.anthropic.com/v1"
+            self._http_client = HTTPClient(base_url, self.api_key)
         return self._http_client
 
     def _get_headers(self) -> dict[str, str]:
@@ -245,7 +246,7 @@ class AnthropicSDK(BaseLLMSDK):
             logger.error(f"Anthropic tool generation failed: {str(e)}")
             raise RuntimeError(f"Anthropic tool generation failed: {str(e)}") from e
 
-    async def get_available_models(self) -> list[str]:
+    def get_available_models(self) -> list[str]:
         """Get available Anthropic models using httpx as requested"""
         # Note: Anthropic doesn't have a public models endpoint like OpenAI.
         # However, for consistency we try or return the known list.

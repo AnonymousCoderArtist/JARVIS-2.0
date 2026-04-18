@@ -1,6 +1,7 @@
 """Keyword-based retriever"""
 
-from .document_indexer import Document, RetrievalResult
+from .document_indexer import Document
+from .semantic_retriever import RetrievalResult
 
 
 class KeywordRetriever:

@@ -32,6 +32,16 @@ class WebFetchTool(BaseTool):
         urls = getattr(input_data, "urls", None)
         query = getattr(input_data, "query", None)
 
+        if not isinstance(urls, list) or not urls or not all(isinstance(url, str) for url in urls):
+            return ToolOutput(
+                success=False,
+                result=None,
+                error="Invalid URL list"
+            )
+
+        if not isinstance(query, str):
+            query = ""
+
         results = []
         try:
             async with httpx.AsyncClient(follow_redirects=True) as client:

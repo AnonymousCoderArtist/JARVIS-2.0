@@ -46,6 +46,19 @@ class PowerShellTool(BaseTool):
             delay_ms = getattr(input_data, "delay_ms", 0)
             timeout = getattr(input_data, "timeout", 30)
 
+            if not isinstance(command, str) or not command:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid command"
+                )
+
+            if not isinstance(delay_ms, int):
+                delay_ms = 0
+
+            if not isinstance(timeout, int):
+                timeout = 30
+
             if is_background:
                 process = await asyncio.create_subprocess_exec(
                     "powershell",

@@ -29,6 +29,19 @@ class REPLTool(BaseTool):
             session_id = getattr(input_data, "session_id", "default")
             timeout = getattr(input_data, "timeout", 30)
 
+            if not isinstance(code, str) or not code:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid code"
+                )
+
+            if not isinstance(session_id, str) or not session_id:
+                session_id = "default"
+
+            if not isinstance(timeout, int):
+                timeout = 30
+
             # Get or create session
             if session_id not in self._sessions:
                 self._sessions[session_id] = {

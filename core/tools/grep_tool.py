@@ -182,6 +182,22 @@ class GrepSearchTool(BaseTool):
             include_pattern = getattr(input_data, "includePattern", None)
             max_results = getattr(input_data, "maxResults", None)
 
+            if not isinstance(query, str) or not query:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid search query"
+                )
+
+            if not isinstance(is_regexp, bool):
+                is_regexp = False
+
+            if not isinstance(include_pattern, str):
+                include_pattern = ""
+
+            if not isinstance(max_results, int):
+                max_results = 0
+
             # Try ripgrep first for faster results
             if self._check_ripgrep_available():
                 results, total_matches, error = await self._search_with_ripgrep(query, is_regexp, include_pattern, max_results)

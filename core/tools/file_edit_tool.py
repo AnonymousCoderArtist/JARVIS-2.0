@@ -46,7 +46,7 @@ class ReplaceTool(BaseTool):
         try:
             replacements = getattr(input_data, "replacements", None)
 
-            if not replacements:
+            if not isinstance(replacements, list) or not replacements:
                 return ToolOutput(
                     success=False,
                     result=None,
@@ -71,7 +71,15 @@ class ReplaceTool(BaseTool):
                 old_string = replacement.get("old_string")
                 new_string = replacement.get("new_string")
 
-                if not all([file_path, old_string, new_string]):
+                if not isinstance(file_path, str) or not file_path:
+                    errors.append(f"Replacement {i + 1}: Missing required parameters")
+                    continue
+
+                if not isinstance(old_string, str) or not old_string:
+                    errors.append(f"Replacement {i + 1}: Missing required parameters")
+                    continue
+
+                if not isinstance(new_string, str):
                     errors.append(f"Replacement {i + 1}: Missing required parameters")
                     continue
 

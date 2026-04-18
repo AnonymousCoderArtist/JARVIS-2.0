@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from typing import Any, cast
 
 from core.llm_sdk.context_length_manager import context_length_manager
@@ -23,8 +23,8 @@ class AgentCoordinator:
     ):
         self.agents = agents
         self.tool_registry = tool_registry
-        self.task_history: list[dict] = []
-        self.current_task: dict | None = None
+        self.task_history: list[dict[str, Any]] = []
+        self.current_task: dict[str, Any] | None = None
         self.model = model or "claude-3-5-sonnet-20241022"
         # Callbacks for streaming and tool calls
         self.stream_callback: Callable | None = None
@@ -47,7 +47,7 @@ class AgentCoordinator:
             if hasattr(agent, "update_context"):
                 agent.update_context("coordinator", self)
 
-    async def execute_task(self, task: str, context: dict | None = None) -> str:
+    async def execute_task(self, task: str, context: dict[str, Any] | None = None) -> str:
         """
         Execute a task by coordinating agents with conversation history
 
@@ -92,19 +92,24 @@ class AgentCoordinator:
             agent.tool_result_callback = self.tool_result_callback
 
             # Pass conversation history to agent if supported
-            agent_context = context or {}
+            agent_context = dict(context) if context else {}
             agent_context["conversation_history"] = conversation_history
 
             result = await agent.process(task, agent_context)
 
             # Extract token count if available from LLM response
-            token_count = None
-            if hasattr(result, 'usage') and result.usage:
-                token_count = result.usage.get('total_tokens')
-            elif isinstance(result, dict) and 'usage' in result:
-                token_count = result['usage'].get('total_tokens')
-            elif isinstance(result, dict) and 'token_count' in result:
-                token_count = result['token_count']
+            token_count: int | None = None
+            result_data: Any = result
+            if isinstance(result_data, dict):
+                usage = result_data.get("usage")
+                if isinstance(usage, dict):
+                    total_tokens = usage.get("total_tokens")
+                    if isinstance(total_tokens, int):
+                        token_count = total_tokens
+
+                token_value = result_data.get("token_count")
+                if token_count is None and isinstance(token_value, int):
+                    token_count = token_value
 
             task_entry["status"] = "completed"
             task_entry["result"] = result
@@ -132,7 +137,7 @@ class AgentCoordinator:
 
             return error_msg
 
-    async def _generate_summary(self, messages: list[dict]) -> tuple:
+    async def _generate_summary(self, messages: list[dict[str, Any]]) -> tuple[str, int]:
         """
         Generate a summary of conversation history using the LLM
 
@@ -168,20 +173,17 @@ class AgentCoordinator:
                 model=self.model,
                 max_tokens=1000,
                 temperature=0.3,
-                return_usage=True
             )
 
-            # Extract token count if available (handle dict or object responses)
             token_count = 0
-            if isinstance(response, dict):
-                if 'usage' in response:
-                    usage = cast(dict[str, Any], response['usage'])
-                    if isinstance(usage, dict):
-                        token_count = usage.get('total_tokens', 0)
-            elif hasattr(response, 'usage') and isinstance(getattr(response, 'usage', None), dict):
-                token_count = getattr(response, 'usage').get('total_tokens', 0)
+            if isinstance(response, str):
+                summary_text = response
+                return summary_text, token_count
 
-            summary_text = str(response) if not isinstance(response, str) else response
+            summary_chunks: list[str] = []
+            async for chunk in cast(AsyncGenerator[Any, None], response):
+                summary_chunks.append(chunk if isinstance(chunk, str) else str(chunk))
+            summary_text = "".join(summary_chunks)
             return summary_text, token_count
 
         except Exception as e:
@@ -243,11 +245,11 @@ class AgentCoordinator:
         """List all registered agent names"""
         return list(self.agents.keys())
 
-    def get_conversation_stats(self) -> dict:
+    def get_conversation_stats(self) -> dict[str, Any]:
         """Get conversation statistics including context usage"""
         return self.conversation_manager.get_stats()
 
-    def get_conversation_history(self, limit: int | None = None) -> list[dict]:
+    def get_conversation_history(self, limit: int | None = None) -> list[dict[str, Any]]:
         """
         Get conversation history
 
