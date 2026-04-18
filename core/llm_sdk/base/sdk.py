@@ -1,9 +1,10 @@
 """Base SDK class for LLM providers"""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, AsyncGenerator, Union, Any
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class SdkMode(Enum):
@@ -19,7 +20,7 @@ class Message:
     """Message for LLM conversation"""
     role: str
     content: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
@@ -27,11 +28,11 @@ class GenerationConfig:
     """Configuration for text generation"""
     model: str
     temperature: float = 0.7
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = None
-    frequency_penalty: Optional[float] = None
-    presence_penalty: Optional[float] = None
-    stop_sequences: Optional[List[str]] = None
+    max_tokens: int | None = None
+    top_p: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    stop_sequences: list[str] | None = None
 
 
 @dataclass
@@ -47,16 +48,16 @@ class GenerationResponse:
     """Response from text generation"""
     content: str
     model: str
-    finish_reason: Optional[str] = None
-    tool_calls: Optional[List[ToolCall]] = None
-    usage: Optional[Dict[str, int]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    finish_reason: str | None = None
+    tool_calls: list[ToolCall] | None = None
+    usage: dict[str, int] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class BaseLLMSDK(ABC):
     """Base class for LLM SDK implementations"""
 
-    def __init__(self, api_key: str, base_url: Optional[str] = None):
+    def __init__(self, api_key: str, base_url: str | None = None):
         self.api_key = api_key
         self.base_url = base_url
         self._client = None
@@ -70,10 +71,10 @@ class BaseLLMSDK(ABC):
     @abstractmethod
     async def generate(
         self,
-        messages: List[Message],
+        messages: list[Message],
         config: GenerationConfig,
         stream: bool = False,
-    ) -> Union[GenerationResponse, AsyncGenerator]:
+    ) -> GenerationResponse | AsyncGenerator:
         """
         Generate text response
 
@@ -90,11 +91,11 @@ class BaseLLMSDK(ABC):
     @abstractmethod
     async def generate_with_tools(
         self,
-        messages: List[Message],
-        tools: List[Dict],
+        messages: list[Message],
+        tools: list[dict],
         config: GenerationConfig,
         stream: bool = False,
-    ) -> Union[GenerationResponse, AsyncGenerator]:
+    ) -> GenerationResponse | AsyncGenerator:
         """
         Generate response with tool calling
 
@@ -110,11 +111,11 @@ class BaseLLMSDK(ABC):
         pass
 
     @abstractmethod
-    def get_available_models(self) -> List[str]:
+    def get_available_models(self) -> list[str]:
         """Get list of available models"""
         pass
 
-    def convert_messages_to_dict(self, messages: List[Message]) -> List[Dict]:
+    def convert_messages_to_dict(self, messages: list[Message]) -> list[dict]:
         """Convert Message objects to dictionaries"""
         return [
             {
@@ -125,7 +126,7 @@ class BaseLLMSDK(ABC):
             for msg in messages
         ]
 
-    def convert_dict_to_messages(self, messages: List[Dict]) -> List[Message]:
+    def convert_dict_to_messages(self, messages: list[dict]) -> list[Message]:
         """Convert dictionaries to Message objects"""
         return [
             Message(

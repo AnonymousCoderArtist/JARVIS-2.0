@@ -1,12 +1,13 @@
 """Provider-specific configuration management"""
 
-from typing import Dict, Optional
-from .settings import Settings
+
 from core.llm_sdk.known_providers import (
     KnownProviders,
-    get_provider_models,
     get_provider_model_config,
+    get_provider_models,
 )
+
+from .settings import Settings
 
 
 class ProviderConfig:
@@ -14,9 +15,9 @@ class ProviderConfig:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._provider_configs: Dict[str, Dict] = {}
+        self._provider_configs: dict[str, dict] = {}
 
-    def get_provider_config(self, provider_name: str) -> Optional[Dict]:
+    def get_provider_config(self, provider_name: str) -> dict | None:
         """
         Get configuration for a specific provider
 
@@ -56,7 +57,7 @@ class ProviderConfig:
 
         return config
 
-    def set_provider_config(self, provider_name: str, config: Dict):
+    def set_provider_config(self, provider_name: str, config: dict):
         """
         Set configuration for a provider
 
@@ -100,7 +101,7 @@ class ProviderConfig:
         self.settings.set("model", "selected", {"id": model})
         self.settings.save()
 
-    def get_default_provider(self) -> Optional[str]:
+    def get_default_provider(self) -> str | None:
         """
         Get the default provider name
 

@@ -1,7 +1,7 @@
 """Document processing tools"""
 
 import os
-from typing import Dict, List
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -22,7 +22,7 @@ class ReadPDFTool(BaseTool):
                 "type": "string",
                 "description": "Page range to extract: 'all' for entire document, '1-5' for range, or '3' for single page",
                 "default": "all",
-                "pattern": "^(all|\d+(-\d+)?)$"
+                "pattern": r"^(all|\d+(-\d+)?)$"
             }
         },
         "required": ["path"]
@@ -30,7 +30,7 @@ class ReadPDFTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            path = input_data.path
+            path = getattr(input_data, "path", None)
             pages = getattr(input_data, "pages", "all")
 
             if not os.path.exists(path):

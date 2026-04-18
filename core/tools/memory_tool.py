@@ -1,9 +1,8 @@
 """Memory management tool"""
 
-import os
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -31,7 +30,7 @@ class SaveMemoryTool(BaseTool):
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        fact = input_data.fact
+        fact = getattr(input_data, "fact", None)
         scope = getattr(input_data, "scope", "global")
 
         try:
@@ -39,21 +38,21 @@ class SaveMemoryTool(BaseTool):
             # In JARVIS, we might use a dedicated memory folder
             memory_dir = Path("core/memory/storage")
             memory_dir.mkdir(parents=True, exist_ok=True)
-            
+
             memory_file = memory_dir / f"{scope}_memory.json"
-            
+
             # Load existing memory
             memories = []
             if memory_file.exists():
-                with open(memory_file, 'r', encoding='utf-8') as f:
+                with open(memory_file, encoding='utf-8') as f:
                     memories = json.load(f)
-            
+
             # Add new fact
             memories.append({
                 "fact": fact,
                 "timestamp": __import__("datetime").datetime.now().isoformat()
             })
-            
+
             # Save back
             with open(memory_file, 'w', encoding='utf-8') as f:
                 json.dump(memories, f, indent=2)

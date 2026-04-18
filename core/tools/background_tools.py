@@ -1,12 +1,13 @@
 """Background process management tools"""
 
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Any
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 # Global registry for background processes
 # In a real system, this might be handled by a more robust manager
-_background_processes: Dict[int, Dict[str, Any]] = {}
+_background_processes: dict[int, dict[str, Any]] = {}
 
 def register_background_process(process: asyncio.subprocess.Process, command: str) -> int:
     pid = process.pid
@@ -16,7 +17,7 @@ def register_background_process(process: asyncio.subprocess.Process, command: st
         "stdout": [],
         "stderr": []
     }
-    
+
     # Start background task to capture output
     asyncio.create_task(_capture_output(pid))
     return pid
@@ -25,9 +26,9 @@ async def _capture_output(pid: int):
     process_info = _background_processes.get(pid)
     if not process_info:
         return
-    
+
     process = process_info["process"]
-    
+
     async def read_stream(stream, target_list):
         while True:
             line = await stream.readline()
@@ -62,7 +63,7 @@ class ListBackgroundProcessesTool(BaseTool):
                 "command": info["command"],
                 "status": status
             })
-        
+
         return ToolOutput(
             success=True,
             result=results,
@@ -93,7 +94,7 @@ class ReadBackgroundOutputTool(BaseTool):
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        pid = input_data.pid
+        pid = getattr(input_data, "pid", None)
         limit = getattr(input_data, "lines", 100)
 
         if pid not in _background_processes:
@@ -109,7 +110,7 @@ class ReadBackgroundOutputTool(BaseTool):
 
         output = "\n".join(stdout)
         if stderr:
-            output += f"\nErrors:\n" + "\n".join(stderr)
+            output += "\nErrors:\n" + "\n".join(stderr)
 
         return ToolOutput(
             success=True,

@@ -1,9 +1,10 @@
 """Provider registry system for managing LLM SDKs"""
 
-from typing import Dict, Optional, Type, List, Any
 from dataclasses import dataclass, field
-from .base.sdk import BaseLLMSDK, GenerationConfig, Message
-from .known_providers import KnownProviders, KnownProviderConfig, get_known_provider, ProviderCategory
+from typing import Any
+
+from .base.sdk import BaseLLMSDK
+from .known_providers import KnownProviders, ProviderCategory, get_known_provider
 
 
 @dataclass
@@ -13,11 +14,11 @@ class ProviderConfig:
     name: str
     category: ProviderCategory
     api_key_env_var: str
-    base_url_env_var: Optional[str] = None
+    base_url_env_var: str | None = None
     default_model: str = ""
-    models: List[str] = field(default_factory=list)
+    models: list[str] = field(default_factory=list)
     enabled: bool = True
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -31,9 +32,9 @@ class ProviderRegistry:
     """Registry for managing LLM providers"""
 
     def __init__(self):
-        self._providers: Dict[str, ProviderConfig] = {}
-        self._sdk_instances: Dict[str, BaseLLMSDK] = {}
-        self._rate_limits: Dict[str, RateLimitConfig] = {}
+        self._providers: dict[str, ProviderConfig] = {}
+        self._sdk_instances: dict[str, BaseLLMSDK] = {}
+        self._rate_limits: dict[str, RateLimitConfig] = {}
         self._initialize_from_known_providers()
 
     def _initialize_from_known_providers(self):
@@ -60,7 +61,7 @@ class ProviderRegistry:
                 }
             )
             self._providers[provider_id] = provider_config
-            
+
             # Register rate limits if configured
             if known_config.rate_limit:
                 if known_config.rate_limit.default:
@@ -79,7 +80,7 @@ class ProviderRegistry:
         """
         self._providers[config.id] = config
 
-    def get_provider_config(self, provider_id: str) -> Optional[ProviderConfig]:
+    def get_provider_config(self, provider_id: str) -> ProviderConfig | None:
         """
         Get provider configuration by ID
 
@@ -91,7 +92,7 @@ class ProviderRegistry:
         """
         return self._providers.get(provider_id)
 
-    def list_providers(self) -> List[ProviderConfig]:
+    def list_providers(self) -> list[ProviderConfig]:
         """
         List all registered providers
 
@@ -100,7 +101,7 @@ class ProviderRegistry:
         """
         return list(self._providers.values())
 
-    def get_enabled_providers(self) -> List[ProviderConfig]:
+    def get_enabled_providers(self) -> list[ProviderConfig]:
         """
         Get all enabled providers
 
@@ -132,9 +133,9 @@ class ProviderRegistry:
     def get_sdk_instance(
         self,
         provider_id: str,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-    ) -> Optional[BaseLLMSDK]:
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ) -> BaseLLMSDK | None:
         """
         Get or create an SDK instance for a provider
 
@@ -169,9 +170,9 @@ class ProviderRegistry:
     def _create_sdk_instance(
         self,
         config: ProviderConfig,
-        api_key: Optional[str],
-        base_url: Optional[str],
-    ) -> Optional[BaseLLMSDK]:
+        api_key: str | None,
+        base_url: str | None,
+    ) -> BaseLLMSDK | None:
         """Create an SDK instance based on provider category"""
         try:
             if config.category == ProviderCategory.ANTHROPIC:
@@ -199,7 +200,7 @@ class ProviderRegistry:
         """
         self._rate_limits[provider_id] = rate_limit
 
-    def get_rate_limit(self, provider_id: str) -> Optional[RateLimitConfig]:
+    def get_rate_limit(self, provider_id: str) -> RateLimitConfig | None:
         """
         Get rate limit for a provider
 
@@ -224,7 +225,7 @@ class ProviderRegistry:
     def add_known_provider(self, provider_id: str):
         """
         Add a single provider from known_providers to the registry
-        
+
         Args:
             provider_id: Provider ID to add
         """

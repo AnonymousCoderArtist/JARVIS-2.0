@@ -1,8 +1,7 @@
 """Code execution and analysis tools"""
 
-import subprocess
 import asyncio
-from typing import Dict, List
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -42,7 +41,7 @@ class BashTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            command = input_data.command
+            command = getattr(input_data, "command", None)
             is_background = getattr(input_data, "is_background", False)
             delay_ms = getattr(input_data, "delay_ms", 0)
             timeout = getattr(input_data, "timeout", 30)
@@ -53,14 +52,14 @@ class BashTool(BaseTool):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                
+
                 # Register background process
                 from .background_tools import register_background_process
                 pid = register_background_process(process, command)
-                
+
                 if delay_ms > 0:
                     await asyncio.sleep(delay_ms / 1000.0)
-                
+
                 return ToolOutput(
                     success=True,
                     result=f"Command started in background with PID {pid}",
@@ -135,7 +134,7 @@ class RunTestsTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            path = input_data.path
+            path = getattr(input_data, "path", None)
             framework = getattr(input_data, "framework", "pytest")
             args = getattr(input_data, "args", "")
 

@@ -1,8 +1,8 @@
 """File editing tool for text replacement"""
 
-import os
 import difflib
-from typing import Dict, List, Optional, Any
+import os
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -45,57 +45,57 @@ class ReplaceTool(BaseTool):
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
             replacements = getattr(input_data, "replacements", None)
-            
+
             if not replacements:
                 return ToolOutput(
                     success=False,
                     result=None,
                     error="No replacements provided. Use the 'replacements' array with at least one item."
                 )
-            
+
             return await self._execute_multiple_replacements(replacements)
 
         except Exception as e:
             return ToolOutput(
                 success=False, result=None, error=f"Failed to replace text: {str(e)}"
             )
-    
-    async def _execute_multiple_replacements(self, replacements: List[Dict[str, str]]) -> ToolOutput:
+
+    async def _execute_multiple_replacements(self, replacements: list[dict[str, str]]) -> ToolOutput:
         """Execute multiple replacement operations in a single call"""
         results = []
         errors = []
-        
+
         for i, replacement in enumerate(replacements):
             try:
                 file_path = replacement.get("file_path")
                 old_string = replacement.get("old_string")
                 new_string = replacement.get("new_string")
-                
+
                 if not all([file_path, old_string, new_string]):
                     errors.append(f"Replacement {i + 1}: Missing required parameters")
                     continue
-                
+
                 if not os.path.exists(file_path):
                     errors.append(f"Replacement {i + 1}: File not found: {file_path}")
                     continue
-                
-                with open(file_path, "r", encoding="utf-8") as f:
+
+                with open(file_path, encoding="utf-8") as f:
                     content = f.read()
-                
+
                 count = content.count(old_string)
                 if count == 0:
                     errors.append(f"Replacement {i + 1}: Could not find 'old_string' in {file_path}")
                     continue
-                
+
                 if count > 1:
                     errors.append(f"Replacement {i + 1}: Found {count} occurrences in {file_path}. Use allow_multiple for bulk replacements.")
                     continue
-                
+
                 new_content = content.replace(old_string, new_string, 1)
-                
+
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(new_content)
-                
+
                 diff_output = self._generate_diff(content, new_content, file_path)
                 results.append({
                     "file": file_path,
@@ -103,15 +103,15 @@ class ReplaceTool(BaseTool):
                     "occurrences_replaced": 1,
                     "diff": diff_output[:500] + "..." if len(diff_output) > 500 else diff_output
                 })
-                
+
             except Exception as e:
                 errors.append(f"Replacement {i + 1}: {str(e)}")
-        
+
         success = len(errors) == 0
         result_message = f"Completed {len(results)} replacements successfully"
         if errors:
             result_message += f"\nErrors: {len(errors)} replacements failed\n" + "\n".join(errors)
-        
+
         return ToolOutput(
             success=success,
             result=result_message,

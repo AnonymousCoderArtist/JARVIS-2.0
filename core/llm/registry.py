@@ -1,9 +1,9 @@
 """LLM Provider Registry for managing multiple providers"""
 
-from typing import Dict, Optional, Type
 import importlib.util
 import sys
 from pathlib import Path
+
 from .base import BaseLLMProvider
 
 
@@ -11,8 +11,8 @@ class LLMProviderRegistry:
     """Registry for managing LLM providers"""
 
     def __init__(self):
-        self._providers: Dict[str, BaseLLMProvider] = {}
-        self._provider_classes: Dict[str, Type[BaseLLMProvider]] = {}
+        self._providers: dict[str, BaseLLMProvider] = {}
+        self._provider_classes: dict[str, type[BaseLLMProvider]] = {}
 
     def register(self, name: str, provider: BaseLLMProvider):
         """
@@ -24,7 +24,7 @@ class LLMProviderRegistry:
         """
         self._providers[name] = provider
 
-    def register_class(self, name: str, provider_class: Type[BaseLLMProvider]):
+    def register_class(self, name: str, provider_class: type[BaseLLMProvider]):
         """
         Register an LLM provider class for later instantiation
 
@@ -34,7 +34,7 @@ class LLMProviderRegistry:
         """
         self._provider_classes[name] = provider_class
 
-    def get(self, name: str) -> Optional[BaseLLMProvider]:
+    def get(self, name: str) -> BaseLLMProvider | None:
         """
         Get a registered provider by name
 
@@ -46,7 +46,7 @@ class LLMProviderRegistry:
         """
         return self._providers.get(name)
 
-    def instantiate(self, name: str, **kwargs) -> Optional[BaseLLMProvider]:
+    def instantiate(self, name: str, **kwargs) -> BaseLLMProvider | None:
         """
         Instantiate a provider from a registered class
 
@@ -110,4 +110,4 @@ class LLMProviderRegistry:
             raise ImportError(f"No valid provider class found in {plugin_path}")
 
         except Exception as e:
-            raise RuntimeError(f"Failed to load plugin {plugin_path}: {str(e)}")
+            raise RuntimeError(f"Failed to load plugin {plugin_path}: {str(e)}") from e

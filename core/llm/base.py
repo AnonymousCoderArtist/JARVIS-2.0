@@ -1,7 +1,7 @@
 """Abstract base class for LLM providers"""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, AsyncGenerator, Union
+from collections.abc import AsyncGenerator
 
 
 class BaseLLMProvider(ABC):
@@ -10,12 +10,12 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def generate(
         self,
-        messages: List[Dict],
+        messages: list[dict],
         model: str,
         temperature: float = 0.7,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         stream: bool = False,
-    ) -> Union[str, AsyncGenerator]:
+    ) -> str | AsyncGenerator:
         """
         Generate a response from the LLM
 
@@ -34,11 +34,11 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def generate_with_tools(
         self,
-        messages: List[Dict],
-        tools: List[Dict],
+        messages: list[dict],
+        tools: list[dict],
         model: str,
         **kwargs
-    ) -> Dict:
+    ) -> dict | AsyncGenerator:
         """
         Generate a response with tool calling support
 
@@ -54,7 +54,7 @@ class BaseLLMProvider(ABC):
         pass
 
     @abstractmethod
-    def get_available_models(self) -> List[str]:
+    def get_available_models(self) -> list[str]:
         """
         Get list of available models for this provider
 

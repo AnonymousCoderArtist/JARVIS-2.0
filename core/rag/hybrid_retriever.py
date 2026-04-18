@@ -1,26 +1,26 @@
 """Hybrid retriever combining semantic and keyword search"""
 
-from typing import List, Optional
-from .semantic_retriever import SemanticRetriever, RetrievalResult
-from .keyword_retriever import KeywordRetriever
+
 from .document_indexer import Document
+from .keyword_retriever import KeywordRetriever
+from .semantic_retriever import RetrievalResult, SemanticRetriever
 
 
 class HybridRetriever:
     """Combines semantic and keyword retrieval with re-ranking"""
 
-    def __init__(self, embedding_backend: Optional[str] = None):
+    def __init__(self, embedding_backend: str | None = None):
         self.semantic_retriever = SemanticRetriever(embedding_backend)
         self.keyword_retriever = KeywordRetriever()
 
     async def retrieve(
         self,
         query: str,
-        documents: List[Document],
+        documents: list[Document],
         limit: int = 10,
         semantic_weight: float = 0.6,
         keyword_weight: float = 0.4
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """
         Retrieve documents using hybrid search
 
@@ -73,12 +73,12 @@ class HybridRetriever:
 
         # Calculate combined scores
         final_results = []
-        for doc_id, data in combined_scores.items():
+        for _doc_id, data in combined_scores.items():
             combined_score = (
                 data["semantic_score"] * semantic_weight +
                 data["keyword_score"] * keyword_weight
             )
-            
+
             final_results.append(RetrievalResult(
                 document=data["document"],
                 score=combined_score,
@@ -93,6 +93,6 @@ class HybridRetriever:
         final_results.sort(key=lambda x: x.score, reverse=True)
         return final_results[:limit]
 
-    def index_documents(self, documents: List):
+    def index_documents(self, documents: list):
         """Index documents with embeddings"""
         self.semantic_retriever.index_documents(documents)

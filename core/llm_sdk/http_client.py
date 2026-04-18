@@ -1,24 +1,25 @@
+import logging
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import httpx
 from curl_cffi.requests import AsyncSession
-from typing import Dict, Any, Optional, AsyncGenerator
-import json
-import logging
 
 logger = logging.getLogger(__name__)
 
 class HTTPClient:
     """
-    Custom HTTP Client using httpx for simple requests and 
+    Custom HTTP Client using httpx for simple requests and
     curl_cffi for LLM interactions to handle TLS fingerprints.
     """
-    
+
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.httpx_client = httpx.AsyncClient(base_url=self.base_url)
         self.curl_session = AsyncSession(impersonate="chrome110")
 
-    async def fetch_models(self, endpoint: str, headers: Dict[str, str]) -> Dict[str, Any]:
+    async def fetch_models(self, endpoint: str, headers: dict[str, str]) -> dict[str, Any]:
         """Fetch models using httpx as requested."""
         try:
             response = await self.httpx_client.get(endpoint, headers=headers)
@@ -28,7 +29,7 @@ class HTTPClient:
             logger.error(f"Error fetching models from {endpoint}: {e}")
             raise
 
-    async def post(self, endpoint: str, json_data: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+    async def post(self, endpoint: str, json_data: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
         """Post request using curl_cffi."""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         response = await self.curl_session.post(url, json=json_data, headers=headers)
@@ -36,15 +37,15 @@ class HTTPClient:
             raise Exception(f"HTTP {response.status_code}: {response.text}")
         return response.json()
 
-    async def stream(self, endpoint: str, json_data: Dict[str, Any], headers: Dict[str, str]) -> AsyncGenerator[str, None]:
+    async def stream(self, endpoint: str, json_data: dict[str, Any], headers: dict[str, str]) -> AsyncGenerator[str, None]:
         """Streaming post request using curl_cffi."""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        
+
         # curl_cffi stream handling
         response = await self.curl_session.post(url, json=json_data, headers=headers, stream=True)
         if response.status_code >= 400:
             raise Exception(f"HTTP {response.status_code}: {response.text}")
-            
+
         async for line in response.aiter_lines():
             if line:
                 yield line.decode("utf-8")
@@ -55,7 +56,7 @@ class HTTPClient:
             await self.httpx_client.aclose()
         except Exception as e:
             logger.debug(f"Error closing httpx client: {e}")
-            
+
         try:
             # curl_cffi AsyncSession doesn't have aclose but close
             self.curl_session.close()

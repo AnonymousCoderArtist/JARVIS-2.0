@@ -1,10 +1,9 @@
 """Safety manager for permission system and checkpoint management"""
 
-from typing import Dict, List, Optional
-from datetime import datetime
-from dataclasses import dataclass, field
 import json
 import os
+from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
@@ -12,8 +11,8 @@ class Checkpoint:
     """A system checkpoint for undo functionality"""
     id: str
     timestamp: datetime = field(default_factory=datetime.now)
-    state: Dict = field(default_factory=dict)
-    metadata: Dict = field(default_factory=dict)
+    state: dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
 
 class SafetyManager:
@@ -23,13 +22,13 @@ class SafetyManager:
         self.require_confirmation = require_confirmation
         self.auto_checkpoint = auto_checkpoint
         self.max_checkpoints = max_checkpoints
-        self.checkpoints: List[Checkpoint] = []
+        self.checkpoints: list[Checkpoint] = []
         self.destructive_keywords = [
             "delete", "remove", "erase", "format", "wipe",
             "overwrite", "replace", "truncate", "drop"
         ]
 
-    async def check_action(self, action: Dict) -> bool:
+    async def check_action(self, action: dict) -> bool:
         """
         Check if an action requires confirmation
 
@@ -45,7 +44,7 @@ class SafetyManager:
             return True
         return True
 
-    def _is_destructive(self, action: Dict) -> bool:
+    def _is_destructive(self, action: dict) -> bool:
         """
         Detect if an action is destructive
 
@@ -56,7 +55,7 @@ class SafetyManager:
             True if destructive, False otherwise
         """
         action_str = str(action).lower()
-        
+
         # Check for destructive keywords
         for keyword in self.destructive_keywords:
             if keyword in action_str:
@@ -69,7 +68,7 @@ class SafetyManager:
 
         return False
 
-    async def _request_confirmation(self, action: Dict) -> bool:
+    async def _request_confirmation(self, action: dict) -> bool:
         """
         Request user confirmation for a destructive action
 
@@ -82,10 +81,10 @@ class SafetyManager:
         action_desc = self._describe_action(action)
         print(f"\n⚠️  Destructive action detected: {action_desc}")
         response = input("Do you want to proceed? (yes/no): ").strip().lower()
-        
+
         return response in ["yes", "y"]
 
-    def _describe_action(self, action: Dict) -> str:
+    def _describe_action(self, action: dict) -> str:
         """
         Generate a human-readable description of an action
 
@@ -99,7 +98,7 @@ class SafetyManager:
         params = action.get("parameters", {})
         return f"{tool} with parameters {params}"
 
-    def create_checkpoint(self, state: Dict, metadata: Optional[Dict] = None) -> str:
+    def create_checkpoint(self, state: dict, metadata: dict | None = None) -> str:
         """
         Create a checkpoint for undo functionality
 
@@ -128,7 +127,7 @@ class SafetyManager:
 
         return checkpoint_id
 
-    async def restore_checkpoint(self, checkpoint_id: str) -> Optional[Dict]:
+    async def restore_checkpoint(self, checkpoint_id: str) -> dict | None:
         """
         Restore system state from a checkpoint
 
@@ -143,7 +142,7 @@ class SafetyManager:
                 return checkpoint.state.copy()
         return None
 
-    def list_checkpoints(self) -> List[Dict]:
+    def list_checkpoints(self) -> list[dict]:
         """
         List all available checkpoints
 
@@ -209,7 +208,7 @@ class SafetyManager:
         if not os.path.exists(filepath):
             return
 
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             checkpoint_data = json.load(f)
 
         self.checkpoints = [
@@ -222,7 +221,7 @@ class SafetyManager:
             for cp in checkpoint_data
         ]
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get safety manager statistics"""
         return {
             "require_confirmation": self.require_confirmation,

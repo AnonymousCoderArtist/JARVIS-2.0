@@ -1,9 +1,8 @@
 """Document indexer for RAG system"""
 
-from typing import Dict, List, Optional
-from datetime import datetime
-from dataclasses import dataclass, field
 import hashlib
+from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
@@ -11,22 +10,22 @@ class Document:
     """A document in the index"""
     id: str
     content: str
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
-    embedding: Optional[List[float]] = None
+    embedding: list[float] | None = None
 
 
 class DocumentIndexer:
     """Manages document storage, indexing, and retrieval"""
 
     def __init__(self):
-        self.documents: Dict[str, Document] = {}
-        self.keyword_index: Dict[str, List[str]] = {}
+        self.documents: dict[str, Document] = {}
+        self.keyword_index: dict[str, list[str]] = {}
 
     def add_document(
         self,
         content: str,
-        metadata: Optional[Dict] = None
+        metadata: dict | None = None
     ) -> str:
         """
         Add a document to the index
@@ -39,16 +38,16 @@ class DocumentIndexer:
             Document ID
         """
         doc_id = self._generate_id(content)
-        
+
         document = Document(
             id=doc_id,
             content=content,
             metadata=metadata or {}
         )
-        
+
         self.documents[doc_id] = document
         self._update_keyword_index(doc_id, content)
-        
+
         return doc_id
 
     def _generate_id(self, content: str) -> str:
@@ -68,8 +67,8 @@ class DocumentIndexer:
     def update_document(
         self,
         doc_id: str,
-        content: Optional[str] = None,
-        metadata: Optional[Dict] = None
+        content: str | None = None,
+        metadata: dict | None = None
     ) -> bool:
         """
         Update a document
@@ -91,7 +90,7 @@ class DocumentIndexer:
             # Remove old keyword entries
             old_content = document.content
             self._remove_from_keyword_index(doc_id, old_content)
-            
+
             document.content = content
             self._update_keyword_index(doc_id, content)
 
@@ -129,7 +128,7 @@ class DocumentIndexer:
 
         return True
 
-    def get_document(self, doc_id: str) -> Optional[Document]:
+    def get_document(self, doc_id: str) -> Document | None:
         """
         Get a document by ID
 
@@ -145,7 +144,7 @@ class DocumentIndexer:
         self,
         query: str,
         limit: int = 10
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Search documents by keyword
 
@@ -176,7 +175,7 @@ class DocumentIndexer:
             for doc_id, _ in sorted_docs[:limit]
         ]
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get index statistics"""
         return {
             "total_documents": len(self.documents),

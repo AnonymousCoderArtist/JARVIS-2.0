@@ -2,9 +2,9 @@
 
 import json
 import os
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 
 class SdkMode(Enum):
@@ -32,10 +32,10 @@ class RateLimitConfig:
 @dataclass
 class RateLimitSelection:
     """Rate limit selection with SDK-specific overrides"""
-    default: Optional[RateLimitConfig] = None
-    openai: Optional[RateLimitConfig] = None
-    anthropic: Optional[RateLimitConfig] = None
-    responses: Optional[RateLimitConfig] = None
+    default: RateLimitConfig | None = None
+    openai: RateLimitConfig | None = None
+    anthropic: RateLimitConfig | None = None
+    responses: RateLimitConfig | None = None
 
 
 @dataclass
@@ -45,45 +45,45 @@ class KnownProviderConfig:
     id: str
     display_name: str
     category: ProviderCategory
-    
+
     # SDK configuration
     sdk_mode: SdkMode = SdkMode.STANDARD
-    base_url: Optional[str] = None
+    base_url: str | None = None
 
     # Per-SDK configuration (use nested dicts like {"base_url": "..."})
-    openai: Optional[Dict[str, Any]] = None
-    anthropic: Optional[Dict[str, Any]] = None
-    responses: Optional[Dict[str, Any]] = None
+    openai: dict[str, Any] | None = None
+    anthropic: dict[str, Any] | None = None
+    responses: dict[str, Any] | None = None
 
     # Model configuration
     default_model: str = ""
-    models: List[str] = field(default_factory=list)
+    models: list[str] = field(default_factory=list)
     fetch_models: bool = False
-    models_endpoint: Optional[str] = None
-    
+    models_endpoint: str | None = None
+
     # API configuration
     api_key_env_var: str = ""
-    api_key_template: Optional[str] = None
-    supports_api_key: Optional[bool] = None
+    api_key_template: str | None = None
+    supports_api_key: bool | None = None
 
     # Headers and other provider-specific options
-    custom_header: Dict[str, Any] = field(default_factory=dict)
+    custom_header: dict[str, Any] = field(default_factory=dict)
 
     # Rate limiting
-    rate_limit: Optional[RateLimitSelection] = None
-    
+    rate_limit: RateLimitSelection | None = None
+
     # Token limits (overrides context_length_manager defaults)
-    max_input_tokens: Optional[int] = None
-    max_output_tokens: Optional[int] = None
-    total_context_tokens: Optional[int] = None
-    
+    max_input_tokens: int | None = None
+    max_output_tokens: int | None = None
+    total_context_tokens: int | None = None
+
     # Additional metadata
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # Known providers data structure
 # Add new providers here to auto-register them in the system
-KnownProviders: Dict[str, KnownProviderConfig] = {
+KnownProviders: dict[str, KnownProviderConfig] = {
     "anthropic": KnownProviderConfig(
         id="anthropic",
         display_name="Anthropic Claude",
@@ -710,17 +710,17 @@ KnownProviders: Dict[str, KnownProviderConfig] = {
 }
 
 
-def get_known_provider(provider_id: str) -> Optional[KnownProviderConfig]:
+def get_known_provider(provider_id: str) -> KnownProviderConfig | None:
     """Get a known provider configuration by ID"""
     return KnownProviders.get(provider_id)
 
 
-def list_known_providers() -> List[KnownProviderConfig]:
+def list_known_providers() -> list[KnownProviderConfig]:
     """List all known providers"""
     return list(KnownProviders.values())
 
 
-def get_known_providers_by_category(category: ProviderCategory) -> List[KnownProviderConfig]:
+def get_known_providers_by_category(category: ProviderCategory) -> list[KnownProviderConfig]:
     """Get all providers in a specific category"""
     return [p for p in KnownProviders.values() if p.category == category]
 
@@ -728,7 +728,7 @@ def get_known_providers_by_category(category: ProviderCategory) -> List[KnownPro
 def register_known_provider(config: KnownProviderConfig):
     """
     Register a new known provider programmatically
-    
+
     Args:
         config: Provider configuration to register
     """
@@ -738,7 +738,7 @@ def register_known_provider(config: KnownProviderConfig):
 def unregister_known_provider(provider_id: str):
     """
     Unregister a known provider
-    
+
     Args:
         provider_id: Provider ID to unregister
     """
@@ -746,38 +746,38 @@ def unregister_known_provider(provider_id: str):
         del KnownProviders[provider_id]
 
 
-def load_static_models(provider_id: str) -> Optional[Dict[str, Any]]:
+def load_static_models(provider_id: str) -> dict[str, Any] | None:
     """
     Load static models from a JSON file for a provider
-    
+
     Args:
         provider_id: Provider ID to load models for
-        
+
     Returns:
         Dictionary with models data or None if file not found
     """
     # Try to load from provider/models/<provider_id>.json
     current_dir = os.path.dirname(__file__)
     models_file_path = os.path.join(current_dir, "provider", "models", f"{provider_id}.json")
-    
+
     if not os.path.exists(models_file_path):
         return None
-    
+
     try:
-        with open(models_file_path, 'r', encoding='utf-8') as f:
+        with open(models_file_path, encoding='utf-8') as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f"Failed to load static models for {provider_id}: {e}")
         return None
 
 
-def get_provider_models(provider_id: str) -> List[str]:
+def get_provider_models(provider_id: str) -> list[str]:
     """
     Get models for a provider, using static models file if available
-    
+
     Args:
         provider_id: Provider ID
-        
+
     Returns:
         List of model IDs
     """
@@ -786,36 +786,36 @@ def get_provider_models(provider_id: str) -> List[str]:
     if static_data and "models" in static_data:
         # Handle aether-style format with models array
         return [model["id"] for model in static_data["models"]]
-    
+
     # Fall back to provider config models
     provider = get_known_provider(provider_id)
     if provider:
         return provider.models
-    
+
     return []
 
 
-def get_provider_model_config(provider_id: str) -> Optional[Dict[str, Any]]:
+def get_provider_model_config(provider_id: str) -> dict[str, Any] | None:
     """
     Get full model configuration for a provider from static file
-    
+
     Args:
         provider_id: Provider ID
-        
+
     Returns:
         Full config dictionary or None
     """
     return load_static_models(provider_id)
 
 
-async def fetch_provider_models(provider_id: str, api_key: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+async def fetch_provider_models(provider_id: str, api_key: str | None = None) -> list[dict[str, Any]] | None:
     """
     Fetch models for a provider with caching and fallback
-    
+
     Args:
         provider_id: Provider ID
         api_key: Optional API key for authenticated requests
-        
+
     Returns:
         List of model configs or None
     """
@@ -823,14 +823,15 @@ async def fetch_provider_models(provider_id: str, api_key: Optional[str] = None)
     return await model_fetcher.fetch_models(provider_id, api_key)
 
 
-def fetch_provider_models_background(provider_id: str, api_key: Optional[str] = None):
+def fetch_provider_models_background(provider_id: str, api_key: str | None = None):
     """
     Fetch models for a provider in background
-    
+
     Args:
         provider_id: Provider ID
         api_key: Optional API key
     """
     import asyncio
+
     from .model_fetcher import model_fetcher
     asyncio.create_task(model_fetcher.fetch_background(provider_id, api_key))

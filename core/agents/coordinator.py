@@ -1,5 +1,10 @@
 """Agent Coordinator for multi-agent orchestration"""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, cast
+
 from core.llm_sdk.context_length_manager import context_length_manager
 from core.memory.conversation_manager import ConversationManager
 from core.tools.registry import ToolRegistry
@@ -22,9 +27,9 @@ class AgentCoordinator:
         self.current_task: dict | None = None
         self.model = model or "claude-3-5-sonnet-20241022"
         # Callbacks for streaming and tool calls
-        self.stream_callback: callable | None = None
-        self.tool_call_callback: callable | None = None
-        self.tool_result_callback: callable | None = None
+        self.stream_callback: Callable | None = None
+        self.tool_call_callback: Callable | None = None
+        self.tool_result_callback: Callable | None = None
 
         # Initialize conversation manager with auto-summarization
         self.conversation_manager = ConversationManager(
@@ -166,12 +171,15 @@ class AgentCoordinator:
                 return_usage=True
             )
 
-            # Extract token count if available
+            # Extract token count if available (handle dict or object responses)
             token_count = 0
-            if hasattr(response, 'usage') and response.usage:
-                token_count = response.usage.get('total_tokens', 0)
-            elif isinstance(response, dict) and 'usage' in response:
-                token_count = response['usage'].get('total_tokens', 0)
+            if isinstance(response, dict):
+                if 'usage' in response:
+                    usage = cast(dict[str, Any], response['usage'])
+                    if isinstance(usage, dict):
+                        token_count = usage.get('total_tokens', 0)
+            elif hasattr(response, 'usage') and isinstance(getattr(response, 'usage', None), dict):
+                token_count = getattr(response, 'usage').get('total_tokens', 0)
 
             summary_text = str(response) if not isinstance(response, str) else response
             return summary_text, token_count
@@ -224,7 +232,8 @@ class AgentCoordinator:
                 return "coding"
             return list(self.agents.keys())[0] if self.agents else None
 
-        return max(scores, key=scores.get)
+        # Return the key with highest score
+        return max(scores.items(), key=lambda kv: kv[1])[0]
 
     def get_agent(self, name: str) -> BaseAgent | None:
         """Get an agent by name"""

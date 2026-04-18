@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any
 
 from ..base.sdk import BaseLLMSDK, GenerationConfig, GenerationResponse, Message, ToolCall
 
@@ -17,7 +17,7 @@ class CopilotSDK(BaseLLMSDK):
 
     FALLBACK_MODELS = ["gpt-5", "claude-sonnet-4.5", "gpt-4.1"]
 
-    def __init__(self, github_token: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, github_token: str | None = None, base_url: str | None = None):
         super().__init__(api_key=github_token or "", base_url=base_url)
         self.github_token = github_token or None
         self._cwd = str(Path.cwd())
@@ -29,19 +29,19 @@ class CopilotSDK(BaseLLMSDK):
     def validate_api_key(self) -> bool:
         return True
 
-    def get_available_models(self) -> List[str]:
+    def get_available_models(self) -> list[str]:
         return list(self.FALLBACK_MODELS)
 
-    def _client_kwargs(self) -> Dict[str, Any]:
-        kwargs: Dict[str, Any] = {"cwd": self._cwd}
+    def _client_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"cwd": self._cwd}
         if self.github_token:
             kwargs["github_token"] = self.github_token
         else:
             kwargs["use_logged_in_user"] = True
         return kwargs
 
-    def _build_prompt(self, messages: List[Message], config: GenerationConfig, tools: Optional[List[Dict[str, Any]]] = None) -> str:
-        parts: List[str] = []
+    def _build_prompt(self, messages: list[Message], config: GenerationConfig, tools: list[dict[str, Any]] | None = None) -> str:
+        parts: list[str] = []
         for message in messages:
             content = message.content or ""
             if message.role == "system":
@@ -86,8 +86,8 @@ class CopilotSDK(BaseLLMSDK):
             return text
         return str(data) if data is not None else ""
 
-    def _parse_tool_calls(self, payload: Dict[str, Any]) -> List[ToolCall]:
-        tool_calls: List[ToolCall] = []
+    def _parse_tool_calls(self, payload: dict[str, Any]) -> list[ToolCall]:
+        tool_calls: list[ToolCall] = []
         for index, item in enumerate(payload.get("tool_calls", []) or []):
             function = item.get("function", {}) if isinstance(item, dict) else {}
             arguments = function.get("arguments", {})
@@ -124,7 +124,7 @@ class CopilotSDK(BaseLLMSDK):
             metadata={"provider": "copilot"},
         )
 
-    async def _send(self, messages: List[Message], config: GenerationConfig, tools: Optional[List[Dict[str, Any]]] = None) -> str:
+    async def _send(self, messages: list[Message], config: GenerationConfig, tools: list[dict[str, Any]] | None = None) -> str:
         from copilot import CopilotClient
         from copilot.session import PermissionHandler
 
@@ -137,7 +137,7 @@ class CopilotSDK(BaseLLMSDK):
             response = await session.send_and_wait(prompt)
             return self._response_text(response)
 
-    async def _stream(self, messages: List[Message], config: GenerationConfig, tools: Optional[List[Dict[str, Any]]] = None) -> AsyncGenerator[str, None]:
+    async def _stream(self, messages: list[Message], config: GenerationConfig, tools: list[dict[str, Any]] | None = None) -> AsyncGenerator[str, None]:
         from copilot import CopilotClient
         from copilot.generated.session_events import AssistantMessageDeltaData, SessionIdleData
         from copilot.session import PermissionHandler
@@ -174,7 +174,7 @@ class CopilotSDK(BaseLLMSDK):
 
     async def generate(
         self,
-        messages: List[Message],
+        messages: list[Message],
         config: GenerationConfig,
         stream: bool = False,
     ) -> Any:
@@ -185,8 +185,8 @@ class CopilotSDK(BaseLLMSDK):
 
     async def generate_with_tools(
         self,
-        messages: List[Message],
-        tools: List[Dict[str, Any]],
+        messages: list[Message],
+        tools: list[dict[str, Any]],
         config: GenerationConfig,
         stream: bool = False,
     ) -> Any:

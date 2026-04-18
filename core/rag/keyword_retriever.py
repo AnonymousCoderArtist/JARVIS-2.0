@@ -1,7 +1,5 @@
 """Keyword-based retriever"""
 
-from typing import List, Dict
-from dataclasses import dataclass
 from .document_indexer import Document, RetrievalResult
 
 
@@ -11,9 +9,9 @@ class KeywordRetriever:
     def retrieve(
         self,
         query: str,
-        documents: List[Document],
+        documents: list[Document],
         limit: int = 10
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """
         Retrieve documents using keyword matching
 
@@ -33,15 +31,15 @@ class KeywordRetriever:
 
         for doc in documents:
             doc_words = set(doc.content.lower().split())
-            
+
             # Calculate keyword score
             matching_words = query_words.intersection(doc_words)
             score = len(matching_words) / len(query_words) if query_words else 0
-            
+
             # Boost score for exact phrase matches
             if query.lower() in doc.content.lower():
                 score += 0.5
-            
+
             if score > 0:
                 doc_scores.append(RetrievalResult(
                     document=doc,

@@ -1,7 +1,11 @@
 """Base agent architecture"""
 
+from __future__ import annotations
+
 import json
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import Any
 
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
@@ -23,11 +27,11 @@ class BaseAgent(ABC):
         self.system_prompt = system_prompt
         self.model = model or "gpt-4"  # Use provided model or default
         self.memory: list[dict] = []
-        self.context: dict[str, any] = {}
+        self.context: dict[str, Any] = {}
         # Callbacks for streaming and tool calls
-        self.stream_callback: callable | None = None
-        self.tool_call_callback: callable | None = None
-        self.tool_result_callback: callable | None = None
+        self.stream_callback: Callable | None = None
+        self.tool_call_callback: Callable | None = None
+        self.tool_result_callback: Callable | None = None
 
     @abstractmethod
     async def process(self, input: str, context: dict | None = None) -> str:
@@ -85,7 +89,7 @@ class BaseAgent(ABC):
 
         return "Relevant context:\n" + "\n".join(context_parts)
 
-    def update_context(self, key: str, value: any):
+    def update_context(self, key: str, value: Any):
         """
         Update the agent's context
 
@@ -95,7 +99,7 @@ class BaseAgent(ABC):
         """
         self.context[key] = value
 
-    def get_context(self, key: str, default: any = None) -> any:
+    def get_context(self, key: str, default: Any = None) -> Any:
         """
         Get a value from context
 
@@ -294,13 +298,31 @@ class BaseAgent(ABC):
             model=self.model
         )
 
-        # Check if there are more tool calls
-        if next_response.get("tool_calls"):
-            # Continue the recursive loop
-            return await self._handle_tool_calls(next_response, updated_messages, existing_content)
-        else:
+        # next_response may be a dict (immediate) or AsyncGenerator (streaming)
+        from typing import Any, cast
+
+        if isinstance(next_response, dict):
+            resp = cast(dict[str, Any], next_response)
+            # Check for further tool calls in the dict response
+            if resp.get("tool_calls"):
+                return await self._handle_tool_calls(resp, updated_messages, existing_content)
+
             # No more tool calls, stream and return final content
-            final_content = next_response.get("content", "")
+            final_content = resp.get("content", "")
             if self.stream_callback and final_content:
                 self.stream_callback(final_content)
             return existing_content + final_content
+        else:
+            # Streaming generator: iterate and handle streamed chunks
+            async for chunk in next_response:
+                if isinstance(chunk, dict) and chunk.get("type") == "text":
+                    text = chunk.get("content", "")
+                    if self.stream_callback and text:
+                        self.stream_callback(text)
+                    existing_content += text
+
+                # If tool calls appear in stream, recurse using the dict form
+                if isinstance(chunk, dict) and chunk.get("type") == "tool_calls":
+                    return await self._handle_tool_calls(chunk, updated_messages, existing_content)
+
+            return existing_content

@@ -1,8 +1,9 @@
 """Base classes for tool system"""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel
 
 
 class ToolInput(BaseModel):
@@ -17,8 +18,8 @@ class ToolOutput(BaseModel):
 
     success: bool
     result: Any
-    error: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    error: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class BaseTool(ABC):
@@ -26,7 +27,7 @@ class BaseTool(ABC):
 
     name: str = ""
     description: str = ""
-    input_schema: Dict[str, Any] = {}
+    input_schema: dict[str, Any] = {}
 
     def __init__(self):
         if not self.name:
@@ -47,7 +48,7 @@ class BaseTool(ABC):
         """
         pass
 
-    def validate_input(self, input_data: Dict) -> bool:
+    def validate_input(self, input_data: dict) -> bool:
         """
         Validate input data against the tool's schema
 
@@ -63,7 +64,7 @@ class BaseTool(ABC):
         except Exception:
             return False
 
-    def get_function_definition(self) -> Dict[str, Any]:
+    def get_function_definition(self) -> dict[str, Any]:
         """
         Get the tool definition in OpenAI function calling format
 
@@ -79,7 +80,7 @@ class BaseTool(ABC):
             },
         }
 
-    async def safe_execute(self, input_data: Dict) -> ToolOutput:
+    async def safe_execute(self, input_data: dict) -> ToolOutput:
         """
         Safely execute the tool with error handling
 

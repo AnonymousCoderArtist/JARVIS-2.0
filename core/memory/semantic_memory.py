@@ -1,8 +1,8 @@
 """Semantic memory system with embeddings"""
 
-from typing import List, Dict, Optional
-from datetime import datetime
 from dataclasses import dataclass, field
+from datetime import datetime
+
 import numpy as np
 
 
@@ -12,15 +12,15 @@ class MemoryEntry:
     content: str
     importance: float  # 0.0 to 1.0
     timestamp: datetime = field(default_factory=datetime.now)
-    embedding: Optional[np.ndarray] = None
-    metadata: Dict = field(default_factory=dict)
+    embedding: np.ndarray | None = None
+    metadata: dict = field(default_factory=dict)
 
 
 class SemanticMemory:
     """Semantic memory system with embeddings"""
 
-    def __init__(self, embedding_backend: Optional[str] = None):
-        self.entries: List[MemoryEntry] = []
+    def __init__(self, embedding_backend: str | None = None):
+        self.entries: list[MemoryEntry] = []
         self.embedding_backend = embedding_backend
         self._embedding_model = None
         self._initialize_embeddings()
@@ -35,7 +35,7 @@ class SemanticMemory:
                 print("⚠ sentence-transformers not installed. Install with: pip install sentence-transformers")
                 self.embedding_backend = None
 
-    def _get_embedding(self, text: str) -> Optional[np.ndarray]:
+    def _get_embedding(self, text: str) -> np.ndarray | None:
         """Get embedding for text"""
         if self._embedding_model:
             return self._embedding_model.encode(text)
@@ -45,7 +45,7 @@ class SemanticMemory:
         self,
         content: str,
         importance: float = 0.5,
-        metadata: Optional[Dict] = None
+        metadata: dict | None = None
     ) -> str:
         """
         Add a memory entry
@@ -59,14 +59,14 @@ class SemanticMemory:
             Memory entry ID (index in list)
         """
         embedding = self._get_embedding(content) if self.embedding_backend else None
-        
+
         entry = MemoryEntry(
             content=content,
             importance=importance,
             embedding=embedding,
             metadata=metadata or {}
         )
-        
+
         self.entries.append(entry)
         return str(len(self.entries) - 1)
 
@@ -75,7 +75,7 @@ class SemanticMemory:
         query: str,
         limit: int = 5,
         importance_threshold: float = 0.0
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """
         Retrieve relevant memories using semantic search
 
@@ -128,7 +128,7 @@ class SemanticMemory:
         norm_b = np.linalg.norm(b)
         return dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
 
-    async def cleanup(self, threshold: float = 0.3, max_entries: Optional[int] = None):
+    async def cleanup(self, threshold: float = 0.3, max_entries: int | None = None):
         """
         Clean up low-importance memories
 
@@ -161,7 +161,7 @@ class SemanticMemory:
         except (ValueError, IndexError):
             pass
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get memory statistics"""
         if not self.entries:
             return {

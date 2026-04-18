@@ -1,16 +1,21 @@
 """Configuration settings using TOML config file"""
 
-import tomllib
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any
+
+try:
+    import tomllib
+except ImportError:
+    # Python < 3.11 fallback
+    import tomli as tomllib  # type: ignore[import-not-found,assignment]
 
 
 class Settings:
     """Application settings loaded from config.toml"""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         self.config_path = config_path or Path("config.toml")
-        self._config: Dict[str, Any] = {}
+        self._config: dict[str, Any] = {}
         self._load_config()
 
     def _load_config(self):
@@ -25,7 +30,7 @@ class Settings:
         else:
             self._config = self._get_default_config()
 
-    def _get_default_config(self) -> Dict[str, Any]:
+    def _get_default_config(self) -> dict[str, Any]:
         """Get default configuration"""
         return {
             "app": {
@@ -71,7 +76,7 @@ class Settings:
         section_data = self._config.get(section, {})
         return section_data.get(key, default)
 
-    def get_section(self, section: str) -> Dict[str, Any]:
+    def get_section(self, section: str) -> dict[str, Any]:
         """Get an entire configuration section"""
         return self._config.get(section, {})
 
@@ -84,9 +89,12 @@ class Settings:
     def save(self):
         """Save configuration to TOML file"""
         try:
-            import tomli_w
+            try:
+                import tomli_w
+            except ImportError:
+                import tomli_w as _tomli_w  # type: ignore[import-not-found,assignment]
             with open(self.config_path, "wb") as f:
-                tomli_w.dump(self._config, f)
+                _tomli_w.dump(self._config, f)  # type: ignore[undefined-variable]
         except ImportError:
             print("Warning: tomli_w not installed, cannot save config")
         except Exception as e:
@@ -110,15 +118,15 @@ class Settings:
         return self.get("provider", "selected", {}).get("id", "openai")
 
     @property
-    def selected_model_id(self) -> Optional[str]:
+    def selected_model_id(self) -> str | None:
         return self.get("model", "selected", {}).get("id")
 
-    def get_provider_config(self, provider_id: str) -> Dict[str, Any]:
+    def get_provider_config(self, provider_id: str) -> dict[str, Any]:
         """Get configuration for a specific provider"""
         providers = self.get("provider", "providers", {})
         return providers.get(provider_id, {})
 
-    def get_provider_api_key(self, provider_id: str) -> Optional[str]:
+    def get_provider_api_key(self, provider_id: str) -> str | None:
         """Get API key for a provider"""
         config = self.get_provider_config(provider_id)
         return config.get("api_key")

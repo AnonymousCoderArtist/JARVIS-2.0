@@ -1,6 +1,5 @@
 """Agent and Skill management tools"""
 
-from typing import Dict, List, Optional, Any
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -32,12 +31,12 @@ class InvokeAgentTool(BaseTool):
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        agent_name = input_data.agent_name
-        prompt = input_data.prompt
-        
+        agent_name = getattr(input_data, "agent_name", None)
+        prompt = getattr(input_data, "prompt", None)
+
         # This tool requires integration with the AgentCoordinator
         # In a real system, it would call coordinator.execute_task
-        
+
         return ToolOutput(
             success=True,
             result=f"Invoked agent '{agent_name}' with prompt: {prompt[:50]}...",
@@ -63,10 +62,10 @@ class ActivateSkillTool(BaseTool):
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        skill_name = input_data.name
-        
+        skill_name = getattr(input_data, "name", None)
+
         # This tool would load specialized instructions for the agent
-        
+
         return ToolOutput(
             success=True,
             result=f"Activated skill: {skill_name}. Specialized guidance is now active.",

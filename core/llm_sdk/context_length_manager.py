@@ -1,6 +1,5 @@
 """Context length manager for managing token limits across different models"""
 
-from typing import Dict, Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -77,7 +76,7 @@ class ContextLengthManager:
     QWEN35_1M_MAX_INPUT_TOKENS = QWEN35_1M_TOTAL_TOKENS - QWEN35_1M_MAX_OUTPUT_TOKENS
 
     def __init__(self):
-        self._model_limits: Dict[str, TokenLimits] = {}
+        self._model_limits: dict[str, TokenLimits] = {}
         self._initialize_default_limits()
 
     def _initialize_default_limits(self):
@@ -184,7 +183,7 @@ class ContextLengthManager:
         model: str,
         max_input_tokens: int,
         max_output_tokens: int,
-        total_context_tokens: Optional[int] = None
+        total_context_tokens: int | None = None
     ):
         """
         Register custom token limits for a model
@@ -207,9 +206,9 @@ class ContextLengthManager:
     def resolve_token_limits(
         self,
         model: str,
-        default_context_length: Optional[int] = None,
-        default_max_output_tokens: Optional[int] = None,
-        min_reserved_input_tokens: Optional[int] = None
+        default_context_length: int | None = None,
+        default_max_output_tokens: int | None = None,
+        min_reserved_input_tokens: int | None = None
     ) -> TokenLimits:
         """
         Resolve token limits with fallbacks

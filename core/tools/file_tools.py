@@ -1,9 +1,9 @@
 """File operation tools"""
 
 import os
+
 import aiofiles
-from pathlib import Path
-from typing import Dict, List, Optional
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -42,7 +42,7 @@ class FileReadTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            file_path = input_data.filePath
+            file_path = getattr(input_data, "filePath", None)
             offset = getattr(input_data, "offset", None)
             limit = getattr(input_data, "limit", None)
             encoding = getattr(input_data, "encoding", "utf-8")
@@ -54,34 +54,34 @@ class FileReadTool(BaseTool):
                     error=f"File not found: {file_path}"
                 )
 
-            async with aiofiles.open(file_path, "r", encoding=encoding) as f:
+            async with aiofiles.open(file_path, encoding=encoding) as f:
                 lines = await f.readlines()
                 total_lines = len(lines)
-                
+
                 # Apply offset and limit (1-indexed to 0-indexed)
                 start_idx = (offset - 1) if offset is not None else 0
                 if limit is not None:
                     end_idx = start_idx + limit
                 else:
                     end_idx = len(lines)
-                
+
                 # Truncate at 2000 lines like Copilot Chat
                 if end_idx - start_idx > 2000:
                     end_idx = start_idx + 2000
-                
+
                 # Ensure indices are within bounds
                 start_idx = max(0, min(start_idx, total_lines))
                 end_idx = max(0, min(end_idx, total_lines))
-                
+
                 content = "".join(lines[start_idx:end_idx])
-                
+
                 metadata = {
                     "filePath": file_path,
                     "size": len(content),
                     "total_lines": total_lines,
                     "lines_returned": end_idx - start_idx
                 }
-                
+
                 if offset is not None:
                     metadata["offset"] = offset
                 if limit is not None:
@@ -126,8 +126,8 @@ class FileWriteTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            file_path = input_data.filePath
-            content = input_data.content
+            file_path = getattr(input_data, "filePath", None)
+            content = getattr(input_data, "content", None)
 
             # Check if file already exists
             if os.path.exists(file_path):
@@ -178,7 +178,7 @@ class ListDirectoryTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            path = input_data.path
+            path = getattr(input_data, "path", None)
 
             if not os.path.exists(path):
                 return ToolOutput(success=False, result=None, error=f"Directory not found: {path}")
@@ -231,7 +231,7 @@ class GlobTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            query = input_data.query
+            query = getattr(input_data, "query", None)
             max_results = getattr(input_data, "maxResults", None)
 
             import glob

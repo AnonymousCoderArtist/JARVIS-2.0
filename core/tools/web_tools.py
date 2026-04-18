@@ -1,7 +1,8 @@
 """Web fetch tool for extracting information from URLs"""
 
+
 import httpx
-from typing import Dict, List, Optional, Any
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -28,8 +29,8 @@ class WebFetchTool(BaseTool):
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        urls = input_data.urls
-        query = input_data.query
+        urls = getattr(input_data, "urls", None)
+        query = getattr(input_data, "query", None)
 
         results = []
         try:
@@ -38,10 +39,10 @@ class WebFetchTool(BaseTool):
                     try:
                         response = await client.get(url, timeout=30.0)
                         response.raise_for_status()
-                        
+
                         # Return the text content
                         content = response.text
-                        
+
                         results.append({
                             "url": url,
                             "content": content[:2000] + "..." if len(content) > 2000 else content,

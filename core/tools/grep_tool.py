@@ -1,11 +1,11 @@
 """Grep tool for searching file contents"""
 
+import asyncio
+import fnmatch
 import os
 import re
-import fnmatch
 import subprocess
-import asyncio
-from typing import Dict, List, Optional, Any
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -52,47 +52,47 @@ class GrepSearchTool(BaseTool):
         try:
             # Build ripgrep command
             cmd = ["rg"]
-            
+
             # Case insensitive search (Copilot Chat default)
             cmd.append("-i")
-            
+
             # Add pattern
             if is_regexp:
                 cmd.append(query)
             else:
                 cmd.append(re.escape(query))
-            
+
             # Include pattern
             if include_pattern:
                 cmd.extend(["-g", include_pattern])
-            
+
             # Output format: file path, line number, and content
             cmd.extend(["--no-heading", "--no-column", "--line-number", "--color=never"])
-            
+
             # Limit results
             if max_results:
                 cmd.extend(["-m", str(max_results)])
-            
+
             # Search from current directory
             cmd.append(".")
-            
+
             # Run ripgrep
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
-            
+
             if process.returncode != 0 and process.returncode != 1:  # 1 means no matches found
                 error = stderr.decode() if stderr else "Unknown error"
                 return [], 0, error
-            
+
             # Parse output
             results = []
             output = stdout.decode('utf-8', errors='ignore')
-            
+
             for line in output.splitlines():
                 if not line.strip():
                     continue
@@ -110,9 +110,9 @@ class GrepSearchTool(BaseTool):
                         })
                     except ValueError:
                         continue
-            
+
             return results, len(results), None
-            
+
         except asyncio.TimeoutError:
             return [], 0, "Ripgrep search timed out"
         except Exception as e:
@@ -137,18 +137,18 @@ class GrepSearchTool(BaseTool):
             # Search from current working directory (workspace root)
             search_path = os.getcwd()
 
-            for root, dirs, files in os.walk(search_path):
+            for root, _dirs, files in os.walk(search_path):
                 for filename in files:
                     filepath = os.path.join(root, filename)
-                    
+
                     # Filter by include_pattern
                     if include_pattern:
                         rel_path = os.path.relpath(filepath, search_path)
                         if not fnmatch.fnmatch(rel_path, include_pattern):
                             continue
-                    
+
                     try:
-                        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        with open(filepath, encoding='utf-8', errors='ignore') as f:
                             lines = f.readlines()
                             for i, line in enumerate(lines):
                                 if search_re.search(line):
@@ -158,15 +158,15 @@ class GrepSearchTool(BaseTool):
                                         "line": i + 1,
                                         "content": line.strip()
                                     })
-                                    
+
                                     if max_results and total_matches >= max_results:
                                         break
                     except Exception:
                         pass
-                    
+
                     if max_results and total_matches >= max_results:
                         break
-                
+
                 if max_results and total_matches >= max_results:
                     break
 
@@ -177,7 +177,7 @@ class GrepSearchTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            query = input_data.query
+            query = getattr(input_data, "query", None)
             is_regexp = getattr(input_data, "isRegexp", False)
             include_pattern = getattr(input_data, "includePattern", None)
             max_results = getattr(input_data, "maxResults", None)

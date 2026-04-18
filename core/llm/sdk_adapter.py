@@ -1,11 +1,13 @@
 """SDK adapter to bridge new SDK pattern with existing agent interface"""
 
-from typing import Dict, List, Optional, AsyncGenerator, Union
+from collections.abc import AsyncGenerator
+from typing import cast
+
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import (
     BaseLLMSDK,
-    Message,
     GenerationConfig,
+    Message,
     GenerationResponse,
 )
 
@@ -19,12 +21,12 @@ class SDKAdapter(BaseLLMProvider):
 
     async def generate(
         self,
-        messages: List[Dict],
+        messages: list[dict],
         model: str,
         temperature: float = 0.7,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         stream: bool = False,
-    ) -> Union[str, AsyncGenerator]:
+    ) -> str | AsyncGenerator:
         """Generate using SDK with adapter interface"""
         # Convert dict messages to SDK Message objects, filtering out empty messages
         sdk_messages = [
@@ -44,19 +46,20 @@ class SDKAdapter(BaseLLMProvider):
         result = await self.sdk.generate(sdk_messages, config, stream)
 
         if stream:
-            # Return generator as-is
-            return result
+            # SDK returns an AsyncGenerator when streaming; return as-is
+            return cast(AsyncGenerator, result)
         else:
-            # Return content string
-            return result.content
+            # SDK returns a GenerationResponse when not streaming; cast and return content
+            gen = cast(GenerationResponse, result)
+            return gen.content
 
     async def generate_with_tools(
         self,
-        messages: List[Dict],
-        tools: List[Dict],
+        messages: list[dict],
+        tools: list[dict],
         model: str,
         **kwargs
-    ) -> Union[Dict, AsyncGenerator]:
+    ) -> dict | AsyncGenerator:
         """Generate with tools using SDK with adapter interface"""
         # Convert dict messages to SDK Message objects, filtering out empty messages
         sdk_messages = [
@@ -78,13 +81,13 @@ class SDKAdapter(BaseLLMProvider):
         result = await self.sdk.generate_with_tools(sdk_messages, tools, config, stream=stream)
 
         if stream:
-            # Return the generator as-is
-            return result
+            return cast(AsyncGenerator, result)
         else:
             # Convert tool calls back to expected format
+            gen = cast(GenerationResponse, result)
             tool_calls = []
-            if result.tool_calls:
-                for tc in result.tool_calls:
+            if gen.tool_calls:
+                for tc in gen.tool_calls:
                     tool_calls.append({
                         "id": tc.id,
                         "function": {
@@ -94,10 +97,10 @@ class SDKAdapter(BaseLLMProvider):
                     })
 
             return {
-                "content": result.content,
+                "content": gen.content,
                 "tool_calls": tool_calls,
             }
 
-    def get_available_models(self) -> List[str]:
+    def get_available_models(self) -> list[str]:
         """Get available models from SDK"""
         return self.sdk.get_available_models()

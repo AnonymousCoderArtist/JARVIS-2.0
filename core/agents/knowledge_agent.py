@@ -1,6 +1,6 @@
 """Knowledge Agent - Claude Coworker style"""
 
-from typing import Dict, List, Optional
+
 from .base import BaseAgent
 from .system_prompts import KNOWLEDGE_SYSTEM_PROMPT
 
@@ -10,10 +10,10 @@ class KnowledgeAgent(BaseAgent):
 
     SYSTEM_PROMPT = KNOWLEDGE_SYSTEM_PROMPT
 
-    def __init__(self, llm_provider, tool_registry, model: Optional[str] = None):
+    def __init__(self, llm_provider, tool_registry, model: str | None = None):
         super().__init__(llm_provider, tool_registry, self.SYSTEM_PROMPT, model)
 
-    async def process(self, input: str, context: Optional[Dict] = None) -> str:
+    async def process(self, input: str, context: dict | None = None) -> str:
         """
         Process a knowledge work request
 
@@ -48,7 +48,7 @@ class KnowledgeAgent(BaseAgent):
 
         return response
 
-    def _build_prompt(self, input: str, context: Optional[Dict]) -> str:
+    def _build_prompt(self, input: str, context: dict | None) -> str:
         """Build the prompt for the knowledge task"""
         prompt = f"Task: {input}\n\n"
 
@@ -62,7 +62,7 @@ class KnowledgeAgent(BaseAgent):
 
         return prompt
 
-    async def plan(self, task: str) -> List[Dict]:
+    async def plan(self, task: str) -> list[dict]:
         """
         Plan the execution of a knowledge task
 
@@ -83,11 +83,11 @@ class KnowledgeAgent(BaseAgent):
         steps = self._parse_plan(response)
         return steps
 
-    def _parse_plan(self, plan_text: str) -> List[Dict]:
+    def _parse_plan(self, plan_text: str) -> list[dict]:
         """Parse plan text into structured steps"""
         steps = []
         lines = plan_text.split('\n')
-        
+
         for line in lines:
             line = line.strip()
             if line and (line[0].isdigit() or line.startswith('-')):
@@ -95,10 +95,10 @@ class KnowledgeAgent(BaseAgent):
                     "description": line,
                     "completed": False
                 })
-        
+
         return steps
 
-    async def organize_files(self, criteria: Dict) -> bool:
+    async def organize_files(self, criteria: dict) -> bool:
         """
         Organize files based on criteria
 
@@ -112,7 +112,7 @@ class KnowledgeAgent(BaseAgent):
         # For now, return a placeholder
         return False
 
-    async def prepare_document(self, sources: List[str], template: str) -> str:
+    async def prepare_document(self, sources: list[str], template: str) -> str:
         """
         Prepare a document from source files
 
@@ -127,7 +127,7 @@ class KnowledgeAgent(BaseAgent):
         # For now, return a placeholder
         return "Document preparation not yet implemented"
 
-    async def synthesize_research(self, sources: List[str]) -> str:
+    async def synthesize_research(self, sources: list[str]) -> str:
         """
         Synthesize research from multiple sources
 
@@ -141,7 +141,7 @@ class KnowledgeAgent(BaseAgent):
         # For now, return a placeholder
         return "Research synthesis not yet implemented"
 
-    async def extract_data(self, source: str, schema: Dict) -> List[Dict]:
+    async def extract_data(self, source: str, schema: dict) -> list[dict]:
         """
         Extract structured data from unstructured files
 

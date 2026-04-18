@@ -1,8 +1,9 @@
 """Semantic retriever using embeddings"""
 
-from typing import List, Optional, Dict
 from dataclasses import dataclass
+
 import numpy as np
+
 from .document_indexer import Document
 
 
@@ -11,13 +12,13 @@ class RetrievalResult:
     """Result from a retrieval operation"""
     document: Document
     score: float
-    metadata: Dict = None
+    metadata: dict = None
 
 
 class SemanticRetriever:
     """Embedding-based semantic search"""
 
-    def __init__(self, embedding_backend: Optional[str] = None):
+    def __init__(self, embedding_backend: str | None = None):
         self.embedding_backend = embedding_backend
         self._embedding_model = None
         self._initialize_embeddings()
@@ -32,7 +33,7 @@ class SemanticRetriever:
                 print("⚠ sentence-transformers not installed. Install with: pip install sentence-transformers")
                 self.embedding_backend = None
 
-    def _get_embedding(self, text: str) -> Optional[np.ndarray]:
+    def _get_embedding(self, text: str) -> np.ndarray | None:
         """Get embedding for text"""
         if self._embedding_model:
             return self._embedding_model.encode(text)
@@ -41,10 +42,10 @@ class SemanticRetriever:
     def retrieve(
         self,
         query: str,
-        documents: List[Document],
+        documents: list[Document],
         limit: int = 10,
         threshold: float = 0.0
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """
         Retrieve documents using semantic search
 
@@ -91,7 +92,7 @@ class SemanticRetriever:
         norm_b = np.linalg.norm(b)
         return dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
 
-    def index_documents(self, documents: List[Document]):
+    def index_documents(self, documents: list[Document]):
         """
         Add embeddings to documents
 

@@ -1,9 +1,10 @@
 """Tool Registry for managing tools"""
 
-from typing import Dict, List, Optional
 import importlib.util
 import sys
 from pathlib import Path
+from typing import Any
+
 from .base import BaseTool, ToolOutput
 
 
@@ -11,7 +12,7 @@ class ToolRegistry:
     """Registry for managing tools"""
 
     def __init__(self):
-        self._tools: Dict[str, BaseTool] = {}
+        self._tools: dict[str, BaseTool] = {}
 
     def register(self, tool: BaseTool):
         """
@@ -22,7 +23,7 @@ class ToolRegistry:
         """
         self._tools[tool.name] = tool
 
-    def get(self, name: str) -> Optional[BaseTool]:
+    def get(self, name: str) -> BaseTool | None:
         """
         Get a registered tool by name
 
@@ -34,7 +35,7 @@ class ToolRegistry:
         """
         return self._tools.get(name)
 
-    def list_tools(self) -> List[Dict[str, Any]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         """
         List all registered tools
 
@@ -50,7 +51,7 @@ class ToolRegistry:
             for tool in self._tools.values()
         ]
 
-    def get_function_definitions(self) -> List[Dict[str, Any]]:
+    def get_function_definitions(self) -> list[dict[str, Any]]:
         """
         Get all tools in OpenAI function calling format
 
@@ -59,7 +60,7 @@ class ToolRegistry:
         """
         return [tool.get_function_definition() for tool in self._tools.values()]
 
-    async def execute_tool(self, name: str, input_data: Dict) -> ToolOutput:
+    async def execute_tool(self, name: str, input_data: dict) -> ToolOutput:
         """
         Execute a tool by name
 
@@ -123,4 +124,4 @@ class ToolRegistry:
                 raise ImportError(f"No valid tool class found in {plugin_path}")
 
         except Exception as e:
-            raise RuntimeError(f"Failed to load tool plugin {plugin_path}: {str(e)}")
+            raise RuntimeError(f"Failed to load tool plugin {plugin_path}: {str(e)}") from e

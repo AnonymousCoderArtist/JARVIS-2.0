@@ -3,13 +3,11 @@
 import asyncio
 import shlex
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
-from rich.live import Live
 
 from core.agents.coding_agent import CodingAgent
 from core.agents.coordinator import AgentCoordinator
@@ -39,10 +37,10 @@ class CLIInterface:
         self.settings = Settings()
         self.provider_registry = provider_registry
         self.tool_registry = ToolRegistry()
-        self.agent_coordinator: Optional[AgentCoordinator] = None
-        self._current_provider_id: Optional[str] = None
-        self._current_model_id: Optional[str] = None
-        
+        self.agent_coordinator: AgentCoordinator | None = None
+        self._current_provider_id: str | None = None
+        self._current_model_id: str | None = None
+
         self._initialize_systems()
 
     def _initialize_systems(self):
@@ -129,9 +127,9 @@ class CLIInterface:
 
         # Set up callbacks for streaming
         self.console.print("\n[bold cyan]JARVIS[/bold cyan] › ", end="")
-        
+
         full_response = ""
-        
+
         def stream_callback(chunk: str):
             nonlocal full_response
             full_response += chunk
@@ -161,7 +159,7 @@ class CLIInterface:
     async def _handle_command(self, text: str):
         parts = shlex.split(text)
         cmd = parts[0].lstrip("/").lower()
-        
+
         if cmd == "help":
             self._show_help()
         elif cmd == "clear":
@@ -177,7 +175,8 @@ class CLIInterface:
             self.console.print(f"[red]Unknown command: {cmd}[/red]")
 
     async def _run_shell_command(self, command: str):
-        if not command: return
+        if not command:
+            return
         self.console.print(f"[dim]> {command}[/dim]")
         process = await asyncio.create_subprocess_shell(
             command,
@@ -185,15 +184,17 @@ class CLIInterface:
             stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await process.communicate()
-        if stdout: self.console.print(stdout.decode())
-        if stderr: self.console.print(stderr.decode(), style="red")
+        if stdout:
+            self.console.print(stdout.decode())
+        if stderr:
+            self.console.print(stderr.decode(), style="red")
 
     async def run(self):
         """Start the CLI loop."""
         self.console.clear()
         self._show_banner()
         self._show_help()
-        
+
         while True:
             try:
                 # Use standard input for now, could be upgraded to prompt_toolkit

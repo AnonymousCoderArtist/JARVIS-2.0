@@ -2,15 +2,17 @@
 
 import json
 import logging
-from typing import Dict, List, Optional, AsyncGenerator, Union, Any
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from ...llm_sdk.context_length_manager import context_length_manager
 from ..base.sdk import (
     BaseLLMSDK,
-    Message,
     GenerationConfig,
     GenerationResponse,
+    Message,
     ToolCall,
 )
-from ...llm_sdk.context_length_manager import context_length_manager
 from ..http_client import HTTPClient
 
 logger = logging.getLogger(__name__)
@@ -18,10 +20,10 @@ logger = logging.getLogger(__name__)
 class OpenAISDK(BaseLLMSDK):
     """OpenAI GPT SDK implementation using curl_cffi and httpx"""
 
-    def __init__(self, api_key: str, base_url: Optional[str] = None):
+    def __init__(self, api_key: str, base_url: str | None = None):
         super().__init__(api_key, base_url or "https://api.openai.com/v1")
         self.sdk_mode = "messages"
-        self._http_client: Optional[HTTPClient] = None
+        self._http_client: HTTPClient | None = None
 
     @property
     def client(self) -> HTTPClient:
@@ -30,7 +32,7 @@ class OpenAISDK(BaseLLMSDK):
             self._http_client = HTTPClient(self.base_url, self.api_key)
         return self._http_client
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -38,10 +40,10 @@ class OpenAISDK(BaseLLMSDK):
 
     async def generate(
         self,
-        messages: List[Message],
+        messages: list[Message],
         config: GenerationConfig,
         stream: bool = False,
-    ) -> Union[GenerationResponse, AsyncGenerator]:
+    ) -> GenerationResponse | AsyncGenerator:
         """Generate response using OpenAI API via curl_cffi"""
         try:
             openai_messages = self.convert_messages_to_dict(messages)
@@ -64,7 +66,7 @@ class OpenAISDK(BaseLLMSDK):
                 return self._stream_response(payload)
             else:
                 response_data = await self.client.post("chat/completions", payload, self._get_headers())
-                
+
                 return GenerationResponse(
                     content=response_data["choices"][0]["message"]["content"] or "",
                     model=response_data["model"],
@@ -78,9 +80,9 @@ class OpenAISDK(BaseLLMSDK):
 
         except Exception as e:
             logger.error(f"OpenAI generation failed: {str(e)}")
-            raise RuntimeError(f"OpenAI generation failed: {str(e)}")
+            raise RuntimeError(f"OpenAI generation failed: {str(e)}") from e
 
-    async def _stream_response(self, payload: Dict[str, Any]) -> AsyncGenerator:
+    async def _stream_response(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from OpenAI API using curl_cffi and manual SSE parsing"""
         try:
             async for line in self.client.stream("chat/completions", payload, self._get_headers()):
@@ -88,7 +90,7 @@ class OpenAISDK(BaseLLMSDK):
                     data_str = line[6:].strip()
                     if data_str == "[DONE]":
                         break
-                    
+
                     try:
                         chunk = json.loads(data_str)
                         if chunk["choices"] and chunk["choices"][0]["delta"].get("content"):
@@ -97,34 +99,33 @@ class OpenAISDK(BaseLLMSDK):
                         continue
         except Exception as e:
             logger.error(f"OpenAI streaming failed: {str(e)}")
-            raise RuntimeError(f"OpenAI streaming failed: {str(e)}")
+            raise RuntimeError(f"OpenAI streaming failed: {str(e)}") from e
 
-    async def _stream_response_with_tools(self, payload: Dict[str, Any]) -> AsyncGenerator:
+    async def _stream_response_with_tools(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from OpenAI API with tool calling support"""
         try:
             content_buffer = ""
             tool_calls = []
-            current_tool_call = None
 
             async for line in self.client.stream("chat/completions", payload, self._get_headers()):
                 if line.startswith("data: "):
                     data_str = line[6:].strip()
                     if data_str == "[DONE]":
                         break
-                    
+
                     try:
                         chunk = json.loads(data_str)
                         if not chunk.get("choices"):
                             continue
-                        
+
                         delta = chunk["choices"][0].get("delta", {})
-                        
+
                         # Stream text content
                         if delta.get("content"):
                             text_chunk = delta["content"]
                             content_buffer += text_chunk
                             yield {"type": "text", "content": text_chunk}
-                        
+
                         # Handle tool calls in streaming
                         if delta.get("tool_calls"):
                             for tc_delta in delta["tool_calls"]:
@@ -133,17 +134,17 @@ class OpenAISDK(BaseLLMSDK):
                                     # Ensure tool_calls list has enough elements
                                     while len(tool_calls) <= index:
                                         tool_calls.append({"id": "", "name": "", "arguments": ""})
-                                    
+
                                     if tc_delta.get("id"):
                                         tool_calls[index]["id"] = tc_delta["id"]
-                                    
+
                                     if tc_delta.get("function"):
                                         func = tc_delta["function"]
                                         if func.get("name"):
                                             tool_calls[index]["name"] = func["name"]
                                         if func.get("arguments"):
                                             tool_calls[index]["arguments"] += func["arguments"]
-                    
+
                     except json.JSONDecodeError:
                         continue
 
@@ -153,15 +154,15 @@ class OpenAISDK(BaseLLMSDK):
 
         except Exception as e:
             logger.error(f"OpenAI streaming with tools failed: {str(e)}")
-            raise RuntimeError(f"OpenAI streaming with tools failed: {str(e)}")
+            raise RuntimeError(f"OpenAI streaming with tools failed: {str(e)}") from e
 
     async def generate_with_tools(
         self,
-        messages: List[Message],
-        tools: List[Dict],
+        messages: list[Message],
+        tools: list[dict],
         config: GenerationConfig,
         stream: bool = False,
-    ) -> Union[GenerationResponse, AsyncGenerator]:
+    ) -> GenerationResponse | AsyncGenerator:
         """Generate response with tool calling using curl_cffi"""
         try:
             openai_messages = self.convert_messages_to_dict(messages)
@@ -178,7 +179,7 @@ class OpenAISDK(BaseLLMSDK):
             }
 
             logger.debug(f"Sending request to {self.base_url}/chat/completions with model {config.model}")
-            
+
             if stream:
                 return self._stream_response_with_tools(payload)
             else:
@@ -218,9 +219,9 @@ class OpenAISDK(BaseLLMSDK):
 
         except Exception as e:
             logger.error(f"OpenAI tool generation failed: {str(e)}")
-            raise RuntimeError(f"OpenAI tool generation failed: {str(e)}")
+            raise RuntimeError(f"OpenAI tool generation failed: {str(e)}") from e
 
-    async def get_available_models(self) -> List[str]:
+    async def get_available_models(self) -> list[str]:
         """Get available OpenAI models using httpx as requested"""
         try:
             response_data = await self.client.fetch_models("models", self._get_headers())
@@ -236,7 +237,7 @@ class OpenAISDK(BaseLLMSDK):
                 "gpt-3.5-turbo",
             ]
 
-    def convert_messages_to_dict(self, messages: List[Message]) -> List[Dict]:
+    def convert_messages_to_dict(self, messages: list[Message]) -> list[dict]:
         """Convert Message objects to dictionaries"""
         return [
             {

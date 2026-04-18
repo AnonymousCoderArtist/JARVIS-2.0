@@ -1,7 +1,7 @@
 """REPL tool for interactive Python execution (OpenClaude style)"""
 
 import asyncio
-from typing import Dict, List, Optional
+
 from .base import BaseTool, ToolInput, ToolOutput
 
 
@@ -21,11 +21,11 @@ class REPLTool(BaseTool):
     }
 
     # Class-level session storage
-    _sessions: Dict[str, Dict] = {}
+    _sessions: dict[str, dict] = {}
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            code = input_data.code
+            code = getattr(input_data, "code", None)
             session_id = getattr(input_data, "session_id", "default")
             timeout = getattr(input_data, "timeout", 30)
 
@@ -45,11 +45,11 @@ class REPLTool(BaseTool):
             try:
                 # Capture output
                 output_buffer = []
-                
+
                 # Custom print function to capture output
                 def custom_print(*args, **kwargs):
                     output_buffer.append(' '.join(str(arg) for arg in args))
-                
+
                 exec_globals['print'] = custom_print
 
                 # Execute code with timeout
@@ -91,6 +91,6 @@ class REPLTool(BaseTool):
         if session_id in self._sessions:
             del self._sessions[session_id]
 
-    def list_sessions(self) -> List[str]:
+    def list_sessions(self) -> list[str]:
         """List all active REPL sessions"""
         return list(self._sessions.keys())

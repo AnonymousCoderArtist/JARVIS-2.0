@@ -1,5 +1,5 @@
 """Safety Package"""
 
-from .safety_manager import SafetyManager, Checkpoint
+from .safety_manager import Checkpoint, SafetyManager
 
 __all__ = ["SafetyManager", "Checkpoint"]

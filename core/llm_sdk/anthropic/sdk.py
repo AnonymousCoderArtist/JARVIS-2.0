@@ -2,15 +2,17 @@
 
 import json
 import logging
-from typing import Dict, List, Optional, AsyncGenerator, Union, Any
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from ...llm_sdk.context_length_manager import context_length_manager
 from ..base.sdk import (
     BaseLLMSDK,
-    Message,
     GenerationConfig,
     GenerationResponse,
+    Message,
     ToolCall,
 )
-from ...llm_sdk.context_length_manager import context_length_manager
 from ..http_client import HTTPClient
 
 logger = logging.getLogger(__name__)
@@ -18,10 +20,10 @@ logger = logging.getLogger(__name__)
 class AnthropicSDK(BaseLLMSDK):
     """Anthropic Claude SDK implementation using curl_cffi and httpx"""
 
-    def __init__(self, api_key: str, base_url: Optional[str] = None):
+    def __init__(self, api_key: str, base_url: str | None = None):
         super().__init__(api_key, base_url or "https://api.anthropic.com/v1")
         self.sdk_mode = "messages"
-        self._http_client: Optional[HTTPClient] = None
+        self._http_client: HTTPClient | None = None
 
     @property
     def client(self) -> HTTPClient:
@@ -30,7 +32,7 @@ class AnthropicSDK(BaseLLMSDK):
             self._http_client = HTTPClient(self.base_url, self.api_key)
         return self._http_client
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         return {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -39,10 +41,10 @@ class AnthropicSDK(BaseLLMSDK):
 
     async def generate(
         self,
-        messages: List[Message],
+        messages: list[Message],
         config: GenerationConfig,
         stream: bool = False,
-    ) -> Union[GenerationResponse, AsyncGenerator]:
+    ) -> GenerationResponse | AsyncGenerator:
         """Generate response using Anthropic API via curl_cffi"""
         try:
             system_prompt = ""
@@ -76,7 +78,7 @@ class AnthropicSDK(BaseLLMSDK):
                 return self._stream_response(payload)
             else:
                 response_data = await self.client.post("messages", payload, self._get_headers())
-                
+
                 return GenerationResponse(
                     content=response_data["content"][0]["text"],
                     model=response_data["model"],
@@ -89,9 +91,9 @@ class AnthropicSDK(BaseLLMSDK):
 
         except Exception as e:
             logger.error(f"Anthropic generation failed: {str(e)}")
-            raise RuntimeError(f"Anthropic generation failed: {str(e)}")
+            raise RuntimeError(f"Anthropic generation failed: {str(e)}") from e
 
-    async def _stream_response(self, payload: Dict[str, Any]) -> AsyncGenerator:
+    async def _stream_response(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from Anthropic API using curl_cffi and manual SSE parsing"""
         try:
             async for line in self.client.stream("messages", payload, self._get_headers()):
@@ -108,9 +110,9 @@ class AnthropicSDK(BaseLLMSDK):
                         continue
         except Exception as e:
             logger.error(f"Anthropic streaming failed: {str(e)}")
-            raise RuntimeError(f"Anthropic streaming failed: {str(e)}")
+            raise RuntimeError(f"Anthropic streaming failed: {str(e)}") from e
 
-    async def _stream_response_with_tools(self, payload: Dict[str, Any]) -> AsyncGenerator:
+    async def _stream_response_with_tools(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from Anthropic API with tool calling support"""
         try:
             content_buffer = ""
@@ -161,15 +163,15 @@ class AnthropicSDK(BaseLLMSDK):
 
         except Exception as e:
             logger.error(f"Anthropic streaming with tools failed: {str(e)}")
-            raise RuntimeError(f"Anthropic streaming with tools failed: {str(e)}")
+            raise RuntimeError(f"Anthropic streaming with tools failed: {str(e)}") from e
 
     async def generate_with_tools(
         self,
-        messages: List[Message],
-        tools: List[Dict],
+        messages: list[Message],
+        tools: list[dict],
         config: GenerationConfig,
         stream: bool = False,
-    ) -> Union[GenerationResponse, AsyncGenerator]:
+    ) -> GenerationResponse | AsyncGenerator:
         """Generate response with tool calling using curl_cffi"""
         try:
             system_prompt = ""
@@ -241,9 +243,9 @@ class AnthropicSDK(BaseLLMSDK):
 
         except Exception as e:
             logger.error(f"Anthropic tool generation failed: {str(e)}")
-            raise RuntimeError(f"Anthropic tool generation failed: {str(e)}")
+            raise RuntimeError(f"Anthropic tool generation failed: {str(e)}") from e
 
-    async def get_available_models(self) -> List[str]:
+    async def get_available_models(self) -> list[str]:
         """Get available Anthropic models using httpx as requested"""
         # Note: Anthropic doesn't have a public models endpoint like OpenAI.
         # However, for consistency we try or return the known list.
@@ -255,7 +257,7 @@ class AnthropicSDK(BaseLLMSDK):
             "claude-3-haiku-20240307",
         ]
 
-    def convert_messages_to_dict(self, messages: List[Message]) -> List[Dict]:
+    def convert_messages_to_dict(self, messages: list[Message]) -> list[dict]:
         """Convert Message objects to dictionaries"""
         return [
             {
