@@ -1,13 +1,13 @@
 """Command-line interface for JARVIS"""
 
 import asyncio
+import json
 import shlex
 import sys
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
+from rich.markdown import Markdown
 
 from core.agents.base import BaseAgent
 from core.agents.coding_agent import CodingAgent
@@ -34,7 +34,7 @@ class CLIInterface:
     """Enhanced CLI interface for JARVIS."""
 
     def __init__(self):
-        self.console = Console()
+        self.console = Console(markup=True, emoji=False)
         self.settings = Settings()
         self.provider_registry = provider_registry
         self.tool_registry = ToolRegistry()
@@ -92,25 +92,97 @@ class CLIInterface:
         self._current_provider_id = provider_id
         self._current_model_id = active_model
 
+    def _md(self, text: str):
+        """Render markdown text."""
+        self.console.print(Markdown(text))
+
+    def _sep(self, char: str = "-", style: str = "dim"):
+        """Print a separator line."""
+        width = self.console.width or 80
+        self.console.print(f"[{style}]{char * width}[/{style}]")
+
     def _show_banner(self):
         """Display the welcome banner."""
-        self.console.print(Panel(
-            Text.from_markup(f"[bold cyan]JARVIS 2.0[/bold cyan]\n[dim]The professional AI engineering assistant[/dim]\n\n[cyan]Provider:[/cyan] {self._current_provider_id or 'None'}\n[cyan]Model:[/cyan] {self._current_model_id or 'None'}\n[cyan]Tools:[/cyan] {len(self.tool_registry.list_tools())}"),
-            border_style="cyan",
-            padding=(1, 2)
-        ))
+        self.console.print()
+        self.console.print("[bold cyan]JARVIS 2.0[/bold cyan]")
+        self.console.print("[dim]The professional AI engineering assistant[/dim]")
+        self.console.print()
+        self.console.print(f"  [cyan]Provider:[/cyan] {self._current_provider_id or 'not configured'}")
+        self.console.print(f"  [cyan]Model:[/cyan]    {self._current_model_id or 'not configured'}")
+        self.console.print(f"  [cyan]Tools:[/cyan]    {len(self.tool_registry.list_tools())}")
+        self._sep()
+        self.console.print()
 
     def _show_help(self):
         """Display available commands."""
-        help_text = """
-[bold cyan]Commands:[/bold cyan]
-  [bold white]/help[/bold white]       - Show this help
-  [bold white]/status[/bold white]     - Show system status
-  [bold white]/clear[/bold white]      - Clear the screen
-  [bold white]/exit[/bold white]       - Exit JARVIS
-  [bold white]! <cmd>[/bold white]     - Run shell command
-"""
-        self.console.print(help_text)
+        self._md(
+            "### Commands\n"
+            "- `/help` - Show this help\n"
+            "- `/status` - Show system status\n"
+            "- `/clear` - Clear the screen\n"
+            "- `/exit` - Exit JARVIS\n"
+            "- `! <cmd>` - Run shell command\n\n"
+            "Just type your message and press Enter to chat with JARVIS."
+        )
+        self.console.print()
+
+    def _tool_call_md(self, tool_name: str, tool_args: dict[str, Any]) -> str:
+        """Build markdown for a tool call."""
+        args_lines = []
+        for k, v in tool_args.items():
+            if isinstance(v, str):
+                display_v = v[:100] + "..." if len(v) > 100 else v
+                args_lines.append(f'  {k}="{display_v}"')
+            else:
+                args_lines.append(f"  {k}={v!r}")
+
+        if args_lines:
+            args_text = ",\n".join(args_lines)
+            return f"**tool call:** `{tool_name}({args_text})`"
+        return f"**tool call:** `{tool_name}()`"
+
+    def _tool_result_md(self, tool_name: str, result: Any) -> str:
+        """Build markdown for a tool result."""
+        success = getattr(result, "success", True)
+        error = getattr(result, "error", None)
+
+        if not success:
+            return f"**error:** {error or 'Tool failed'}"
+
+        payload = getattr(result, "result", "")
+        metadata = getattr(result, "metadata", None) or {}
+
+        # Check for diff
+        if isinstance(payload, str) and payload.strip().startswith("diff --git"):
+            return f"**{tool_name}:**\n\n```diff\n{payload}\n```"
+
+        results = metadata.get("results") if isinstance(metadata, dict) else None
+        if isinstance(results, list) and results:
+            diff_text = results[0].get("unified_diff") or results[0].get("diff")
+            if isinstance(diff_text, str) and diff_text:
+                return f"**{tool_name}:**\n\n```diff\n{diff_text}\n```"
+
+        # Truncate long output
+        if isinstance(payload, str) and len(payload) > 500:
+            payload = payload[:500] + "\n... (truncated)"
+
+        # Detect language
+        if isinstance(payload, str):
+            stripped = payload.strip()
+            if stripped.startswith("{") or stripped.startswith("["):
+                try:
+                    json.loads(stripped)
+                    return f"**{tool_name}:**\n\n```json\n{payload}\n```"
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            if any(kw in payload for kw in ["def ", "import ", "class "]) and "\n" in payload:
+                return f"**{tool_name}:**\n\n```python\n{payload}\n```"
+
+        if isinstance(payload, str) and ("#" in payload or "**" in payload or "`" in payload):
+            return f"**{tool_name}:**\n\n{payload}"
+
+        return f"**{tool_name}:** {payload or 'Done'}"
 
     async def _handle_submit(self, text: str):
         """Process user input."""
@@ -126,26 +198,43 @@ class CLIInterface:
             self.console.print("[red]Error: Agent coordinator not initialized.[/red]")
             return
 
-        # Set up callbacks for streaming
-        self.console.print("\n[bold cyan]JARVIS[/bold cyan] › ", end="")
+        # User message
+        self.console.print()
+        self._sep("-", "orange1")
+        self.console.print("[bold orange1]You[/bold orange1]")
+        self._md(text)
+        self.console.print()
+
+        # JARVIS header
+        self._sep("-", "cyan")
+        self.console.print("[bold cyan]JARVIS[/bold cyan]")
+        self.console.print()
 
         full_response = ""
+        response_started = False
 
         def stream_callback(chunk: str):
-            nonlocal full_response
+            nonlocal full_response, response_started
             full_response += chunk
-            self.console.print(chunk, end="")
+            # Print a dot to show progress during streaming
+            if not response_started:
+                self.console.print("[dim]...[/dim]", end="")
+                response_started = True
 
-        def tool_call_callback(tool_name: str, tool_args: dict):
-            # Format tool call like: grep(pattern="TODO", path=".")
-            args_str = ", ".join(f'{k}="{v}"' if isinstance(v, str) else f'{k}={v}' for k, v in tool_args.items())
-            self.console.print(f"\n[dim]{tool_name}({args_str})[/dim]")
+        def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
+            nonlocal full_response
+            # Render accumulated response before tool call
+            if full_response.strip():
+                self.console.print()
+                self._md(full_response)
+                full_response = ""
+            self.console.print()
+            self._md(self._tool_call_md(tool_name, tool_args))
+            self.console.print()
 
-        def tool_result_callback(tool_name: str, tool_args: dict, result: Any):
-            if hasattr(result, "success") and not result.success:
-                self.console.print(f"[red]❌ Tool Error: {result.error}[/red]")
-            else:
-                self.console.print("[green]✅ Success[/green]")
+        def tool_result_callback(tool_name: str, tool_args: dict[str, Any], result: Any):
+            self._md(self._tool_result_md(tool_name, result))
+            self.console.print()
 
         self.agent_coordinator.stream_callback = stream_callback
         self.agent_coordinator.tool_call_callback = tool_call_callback
@@ -153,9 +242,16 @@ class CLIInterface:
 
         try:
             await self.agent_coordinator.execute_task(text)
-            self.console.print() # Final newline
+            # Render final response as markdown
+            if full_response.strip():
+                self.console.print()
+                self._md(full_response)
+            elif not response_started:
+                self.console.print("[dim](no response)[/dim]")
         except Exception as e:
             self.console.print(f"\n[red]Error: {e}[/red]")
+
+        self.console.print()
 
     async def _handle_command(self, text: str):
         parts = shlex.split(text)
@@ -166,9 +262,16 @@ class CLIInterface:
         elif cmd == "clear":
             self.console.clear()
             self._show_banner()
+            self._show_help()
         elif cmd == "status":
-            self.console.print(f"[cyan]Provider:[/cyan] {self._current_provider_id}")
-            self.console.print(f"[cyan]Model:[/cyan] {self._current_model_id}")
+            tool_count = len(self.tool_registry.list_tools())
+            self.console.print()
+            self.console.print("[bold cyan]Status[/bold cyan]")
+            self._sep()
+            self.console.print(f"  [cyan]Provider:[/cyan] {self._current_provider_id or 'none'}")
+            self.console.print(f"  [cyan]Model:[/cyan]    {self._current_model_id or 'none'}")
+            self.console.print(f"  [cyan]Tools:[/cyan]    {tool_count}")
+            self.console.print()
         elif cmd in ["exit", "quit"]:
             self.console.print("[green]Goodbye![/green]")
             sys.exit(0)
@@ -178,7 +281,11 @@ class CLIInterface:
     async def _run_shell_command(self, command: str):
         if not command:
             return
-        self.console.print(f"[dim]> {command}[/dim]")
+        self.console.print()
+        self._sep("-", "dim")
+        self.console.print(f"[dim]shell[/dim]")
+        self.console.print(f"[dim]$ {command}[/dim]")
+        self.console.print()
         process = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -186,9 +293,14 @@ class CLIInterface:
         )
         stdout, stderr = await process.communicate()
         if stdout:
-            self.console.print(stdout.decode())
+            output = stdout.decode()
+            if output.strip():
+                self.console.print(output)
         if stderr:
-            self.console.print(stderr.decode(), style="red")
+            self.console.print()
+            self.console.print("[bold red]stderr[/bold red]")
+            self.console.print(f"[red]{stderr.decode()}[/red]")
+        self.console.print()
 
     async def run(self):
         """Start the CLI loop."""
@@ -198,8 +310,7 @@ class CLIInterface:
 
         while True:
             try:
-                # Use standard input for now, could be upgraded to prompt_toolkit
-                user_input = self.console.input("\n[bold orange1]YOU[/bold orange1] [dim]›[/dim] ")
+                user_input = self.console.input("[bold orange1]YOU[/bold orange1] [dim]>[/dim] ")
                 if not user_input.strip():
                     continue
                 await self._handle_submit(user_input)
