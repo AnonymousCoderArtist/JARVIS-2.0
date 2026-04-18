@@ -4,6 +4,7 @@ import json
 from abc import ABC, abstractmethod
 
 from core.llm.base import BaseLLMProvider
+from core.llm_sdk.base.sdk import ToolCall
 from core.tools.registry import ToolRegistry
 
 
@@ -156,7 +157,16 @@ class BaseAgent(ABC):
                             if chunk["type"] == "text":
                                 full_response += chunk["content"]
                                 self.stream_callback(chunk["content"])
+                            elif chunk["type"] == "tool_calls":
+                                # Handle tool_calls from OpenAI SDK streaming
+                                for tc in chunk.get("tool_calls", []):
+                                    tool_calls.append(ToolCall(
+                                        id=tc.get("id", ""),
+                                        name=tc.get("name", ""),
+                                        arguments=tc.get("arguments", "")
+                                    ))
                             elif chunk["type"] == "tool_call":
+                                # Handle tool_call from Anthropic SDK streaming
                                 tool_calls.append(chunk["tool_call"])
                         else:
                             # Fallback for string chunks
