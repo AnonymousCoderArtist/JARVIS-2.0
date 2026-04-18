@@ -137,6 +137,7 @@ class BaseAgent(ABC):
 
             # Try to use streaming with tools
             if stream and self.stream_callback:
+                print(f"[DEBUG] Using streaming with tools")
                 full_response = ""
                 tool_calls = []
                 try:
@@ -148,7 +149,9 @@ class BaseAgent(ABC):
                         stream=True,
                         **kwargs
                     )
+                    print(f"[DEBUG] Streaming result obtained, iterating...")
                     async for chunk in stream_result:
+                        print(f"[DEBUG] Chunk: {chunk}")
                         if isinstance(chunk, dict):
                             if chunk["type"] == "text":
                                 full_response += chunk["content"]
@@ -160,6 +163,7 @@ class BaseAgent(ABC):
                             full_response += chunk
                             self.stream_callback(chunk)
 
+                    print(f"[DEBUG] Streaming complete. Tool calls: {len(tool_calls)}")
                     # If tool calls were encountered, execute them
                     if tool_calls:
                         # Create a response object with the tool calls
