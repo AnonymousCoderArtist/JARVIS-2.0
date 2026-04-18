@@ -1,0 +1,123 @@
+"""Background process management tools"""
+
+import asyncio
+from typing import Dict, List, Optional, Any
+from .base import BaseTool, ToolInput, ToolOutput
+
+# Global registry for background processes
+# In a real system, this might be handled by a more robust manager
+_background_processes: Dict[int, Dict[str, Any]] = {}
+
+def register_background_process(process: asyncio.subprocess.Process, command: str) -> int:
+    pid = process.pid
+    _background_processes[pid] = {
+        "process": process,
+        "command": command,
+        "stdout": [],
+        "stderr": []
+    }
+    
+    # Start background task to capture output
+    asyncio.create_task(_capture_output(pid))
+    return pid
+
+async def _capture_output(pid: int):
+    process_info = _background_processes.get(pid)
+    if not process_info:
+        return
+    
+    process = process_info["process"]
+    
+    async def read_stream(stream, target_list):
+        while True:
+            line = await stream.readline()
+            if not line:
+                break
+            target_list.append(line.decode().strip())
+
+    await asyncio.gather(
+        read_stream(process.stdout, process_info["stdout"]),
+        read_stream(process.stderr, process_info["stderr"])
+    )
+    await process.wait()
+
+class ListBackgroundProcessesTool(BaseTool):
+    """Tool for listing active background processes"""
+
+    name = "list_background_processes"
+    description = "List all active and recently completed background processes"
+    input_schema = {
+        "type": "object",
+        "properties": {},
+        "description": "Lists all active and recently completed background processes"
+    }
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        results = []
+        for pid, info in _background_processes.items():
+            process = info["process"]
+            status = "running" if process.returncode is None else f"finished (code {process.returncode})"
+            results.append({
+                "pid": pid,
+                "command": info["command"],
+                "status": status
+            })
+        
+        return ToolOutput(
+            success=True,
+            result=results,
+            metadata={"count": len(results)}
+        )
+
+class ReadBackgroundOutputTool(BaseTool):
+    """Tool for reading output of a background process"""
+
+    name = "read_background_output"
+    description = "Read the output log of a background shell process"
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "pid": {
+                "type": "integer",
+                "description": "Process ID (PID) of the background process to read output from",
+                "minimum": 1
+            },
+            "lines": {
+                "type": "integer",
+                "description": "Number of lines to read from the end of the output log",
+                "default": 100,
+                "minimum": 1
+            }
+        },
+        "required": ["pid"]
+    }
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        pid = input_data.pid
+        limit = getattr(input_data, "lines", 100)
+
+        if pid not in _background_processes:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"No background process found with PID {pid}"
+            )
+
+        info = _background_processes[pid]
+        stdout = info["stdout"][-limit:]
+        stderr = info["stderr"][-limit:]
+
+        output = "\n".join(stdout)
+        if stderr:
+            output += f"\nErrors:\n" + "\n".join(stderr)
+
+        return ToolOutput(
+            success=True,
+            result=output,
+            metadata={
+                "pid": pid,
+                "command": info["command"],
+                "stdout_lines": len(stdout),
+                "stderr_lines": len(stderr)
+            }
+        )
