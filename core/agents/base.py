@@ -2,7 +2,7 @@
 
 import json
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
+
 from core.llm.base import BaseLLMProvider
 from core.tools.registry import ToolRegistry
 
@@ -15,21 +15,21 @@ class BaseAgent(ABC):
         llm_provider: BaseLLMProvider,
         tool_registry: ToolRegistry,
         system_prompt: str,
-        model: Optional[str] = None,
+        model: str | None = None,
     ):
         self.llm = llm_provider
         self.tools = tool_registry
         self.system_prompt = system_prompt
         self.model = model or "gpt-4"  # Use provided model or default
-        self.memory: List[Dict] = []
-        self.context: Dict[str, any] = {}
+        self.memory: list[dict] = []
+        self.context: dict[str, any] = {}
         # Callbacks for streaming and tool calls
-        self.stream_callback: Optional[callable] = None
-        self.tool_call_callback: Optional[callable] = None
-        self.tool_result_callback: Optional[callable] = None
+        self.stream_callback: callable | None = None
+        self.tool_call_callback: callable | None = None
+        self.tool_result_callback: callable | None = None
 
     @abstractmethod
-    async def process(self, input: str, context: Optional[Dict] = None) -> str:
+    async def process(self, input: str, context: dict | None = None) -> str:
         """
         Process a user input and generate a response
 
@@ -43,7 +43,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    async def plan(self, task: str) -> List[Dict]:
+    async def plan(self, task: str) -> list[dict]:
         """
         Plan the execution of a task
 
@@ -55,7 +55,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    def add_to_memory(self, entry: Dict):
+    def add_to_memory(self, entry: dict):
         """
         Add an entry to agent memory
 
@@ -113,7 +113,7 @@ class BaseAgent(ABC):
 
     async def generate_response(
         self,
-        messages: List[Dict],
+        messages: list[dict],
         use_tools: bool = False,
         stream: bool = False,
         **kwargs
@@ -211,8 +211,8 @@ class BaseAgent(ABC):
 
     async def _handle_tool_calls(
         self,
-        response: Dict,
-        messages: List[Dict],
+        response: dict,
+        messages: list[dict],
         existing_content: str = ""
     ) -> str:
         """
@@ -233,13 +233,13 @@ class BaseAgent(ABC):
             Final response after recursive tool execution
         """
         updated_messages = messages.copy()
-        
+
         # Add assistant response to history
         updated_messages.append({
             "role": "assistant",
             "content": response.get("content", "")
         })
-        
+
         # Execute tool calls
         tool_calls = response.get("tool_calls", [])
         tool_results = []
@@ -275,7 +275,7 @@ class BaseAgent(ABC):
             "role": "user",
             "content": f"Tool results: {json.dumps(tool_results, indent=2)}"
         })
-        
+
         # Recursive loop: call LLM again with updated history
         tool_definitions = self.tools.get_function_definitions()
         next_response = await self.llm.generate_with_tools(

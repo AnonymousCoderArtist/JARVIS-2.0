@@ -99,12 +99,69 @@ class OpenAISDK(BaseLLMSDK):
             logger.error(f"OpenAI streaming failed: {str(e)}")
             raise RuntimeError(f"OpenAI streaming failed: {str(e)}")
 
+    async def _stream_response_with_tools(self, payload: Dict[str, Any]) -> AsyncGenerator:
+        """Stream response from OpenAI API with tool calling support"""
+        try:
+            content_buffer = ""
+            tool_calls = []
+            current_tool_call = None
+
+            async for line in self.client.stream("chat/completions", payload, self._get_headers()):
+                if line.startswith("data: "):
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    
+                    try:
+                        chunk = json.loads(data_str)
+                        if not chunk.get("choices"):
+                            continue
+                        
+                        delta = chunk["choices"][0].get("delta", {})
+                        
+                        # Stream text content
+                        if delta.get("content"):
+                            text_chunk = delta["content"]
+                            content_buffer += text_chunk
+                            yield {"type": "text", "content": text_chunk}
+                        
+                        # Handle tool calls in streaming
+                        if delta.get("tool_calls"):
+                            for tc_delta in delta["tool_calls"]:
+                                if tc_delta.get("index") is not None:
+                                    index = tc_delta["index"]
+                                    # Ensure tool_calls list has enough elements
+                                    while len(tool_calls) <= index:
+                                        tool_calls.append({"id": "", "name": "", "arguments": ""})
+                                    
+                                    if tc_delta.get("id"):
+                                        tool_calls[index]["id"] = tc_delta["id"]
+                                    
+                                    if tc_delta.get("function"):
+                                        func = tc_delta["function"]
+                                        if func.get("name"):
+                                            tool_calls[index]["name"] = func["name"]
+                                        if func.get("arguments"):
+                                            tool_calls[index]["arguments"] += func["arguments"]
+                    
+                    except json.JSONDecodeError:
+                        continue
+
+            # Yield final tool calls if any
+            if tool_calls:
+                yield {"type": "tool_calls", "tool_calls": tool_calls}
+
+        except Exception as e:
+            logger.error(f"OpenAI streaming with tools failed: {str(e)}")
+            raise RuntimeError(f"OpenAI streaming with tools failed: {str(e)}")
+
     async def generate_with_tools(
         self,
         messages: List[Message],
         tools: List[Dict],
         config: GenerationConfig,
-    ) -> GenerationResponse:
+        stream: bool = False,
+    ) -> Union[GenerationResponse, AsyncGenerator]:
         """Generate response with tool calling using curl_cffi"""
         try:
             openai_messages = self.convert_messages_to_dict(messages)
@@ -117,42 +174,47 @@ class OpenAISDK(BaseLLMSDK):
                 "tools": tools,
                 "temperature": config.temperature,
                 "max_tokens": max_tokens,
+                "stream": stream
             }
 
             logger.debug(f"Sending request to {self.base_url}/chat/completions with model {config.model}")
-            response_data = await self.client.post("chat/completions", payload, self._get_headers())
-            logger.debug(f"Response data: {response_data}")
+            
+            if stream:
+                return self._stream_response_with_tools(payload)
+            else:
+                response_data = await self.client.post("chat/completions", payload, self._get_headers())
+                logger.debug(f"Response data: {response_data}")
 
-            if not response_data:
-                raise ValueError("No response data received from API")
+                if not response_data:
+                    raise ValueError("No response data received from API")
 
-            if "choices" not in response_data or not response_data["choices"]:
-                raise ValueError(f"Response missing 'choices': {response_data}")
+                if "choices" not in response_data or not response_data["choices"]:
+                    raise ValueError(f"Response missing 'choices': {response_data}")
 
-            message = response_data["choices"][0]["message"]
-            tool_calls = []
+                message = response_data["choices"][0]["message"]
+                tool_calls = []
 
-            if "tool_calls" in message and message["tool_calls"]:
-                for tc in message["tool_calls"]:
-                    tool_calls.append(
-                        ToolCall(
-                            id=tc["id"],
-                            name=tc["function"]["name"],
-                            arguments=tc["function"]["arguments"],
+                if "tool_calls" in message and message["tool_calls"]:
+                    for tc in message["tool_calls"]:
+                        tool_calls.append(
+                            ToolCall(
+                                id=tc["id"],
+                                name=tc["function"]["name"],
+                                arguments=tc["function"]["arguments"],
+                            )
                         )
-                    )
 
-            return GenerationResponse(
-                content=message.get("content") or "",
-                model=response_data.get("model", config.model),
-                finish_reason=response_data["choices"][0].get("finish_reason", "unknown"),
-                tool_calls=tool_calls if tool_calls else None,
-                usage={
-                    "input_tokens": response_data.get("usage", {}).get("prompt_tokens", 0),
-                    "output_tokens": response_data.get("usage", {}).get("completion_tokens", 0),
-                    "total_tokens": response_data.get("usage", {}).get("total_tokens", 0),
-                },
-            )
+                return GenerationResponse(
+                    content=message.get("content") or "",
+                    model=response_data.get("model", config.model),
+                    finish_reason=response_data["choices"][0].get("finish_reason", "unknown"),
+                    tool_calls=tool_calls if tool_calls else None,
+                    usage={
+                        "input_tokens": response_data.get("usage", {}).get("prompt_tokens", 0),
+                        "output_tokens": response_data.get("usage", {}).get("completion_tokens", 0),
+                        "total_tokens": response_data.get("usage", {}).get("total_tokens", 0),
+                    },
+                )
 
         except Exception as e:
             logger.error(f"OpenAI tool generation failed: {str(e)}")

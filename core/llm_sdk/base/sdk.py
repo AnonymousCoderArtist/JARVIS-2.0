@@ -93,7 +93,8 @@ class BaseLLMSDK(ABC):
         messages: List[Message],
         tools: List[Dict],
         config: GenerationConfig,
-    ) -> GenerationResponse:
+        stream: bool = False,
+    ) -> Union[GenerationResponse, AsyncGenerator]:
         """
         Generate response with tool calling
 
@@ -101,9 +102,10 @@ class BaseLLMSDK(ABC):
             messages: List of conversation messages
             tools: List of tool definitions
             config: Generation configuration
+            stream: Whether to stream the response
 
         Returns:
-            GenerationResponse with tool calls
+            GenerationResponse or AsyncGenerator if streaming
         """
         pass
 

@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -24,6 +25,32 @@ class DummyCoordinator:
     async def execute_task(self, task: str) -> str:
         self.calls.append(task)
         return f"echo:{task}"
+
+
+class StreamingToolCoordinator:
+    def __init__(self):
+        self.calls = []
+        self.task_history = []
+        self.stream_callback = None
+        self.tool_call_callback = None
+        self.tool_result_callback = None
+
+    async def execute_task(self, task: str) -> str:
+        self.calls.append(task)
+        self.task_history.append({"agent": "coding"})
+        if self.stream_callback:
+            self.stream_callback("hello ")
+        if self.tool_call_callback:
+            self.tool_call_callback("bash", {"command": "echo hi"})
+        if self.tool_result_callback:
+            self.tool_result_callback(
+                "bash",
+                {"command": "echo hi"},
+                SimpleNamespace(success=True, result="hi", error=None, metadata={"return_code": 0}),
+            )
+        if self.stream_callback:
+            self.stream_callback("world")
+        return "hello world"
 
 
 @pytest.mark.asyncio
@@ -50,6 +77,22 @@ async def test_commands_and_text_submission(monkeypatch):
         assert app.agent_coordinator.calls == ["hello from test"]
         assert any(
             entry.get("role") == "assistant" and "echo:hello from test" in entry.get("content", "")
+            for entry in transcript.entries
+            if entry.get("role") == "assistant"
+        )
+
+
+@pytest.mark.asyncio
+async def test_streaming_and_tool_events_render(monkeypatch):
+    monkeypatch.setattr(JARVISApp, "_initialize_systems", _stub_initialize_systems)
+    app = JARVISApp()
+    app.agent_coordinator = StreamingToolCoordinator()
+    async with app.run_test():
+        await app._handle_submit("run a tool")
+        transcript = app.query_one("#transcript-panel", ChatPanel)
+        assert any(entry["kind"] == "tool" and entry["metadata"].get("result") == "hi" for entry in transcript.entries)
+        assert any(
+            entry.get("role") == "assistant" and entry.get("content", "").strip() == "hello world"
             for entry in transcript.entries
             if entry.get("role") == "assistant"
         )

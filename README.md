@@ -1,6 +1,6 @@
 # JARVIS 2.0 - Fully Agentic AI Assistant
 
-JARVIS 2.0 is a fully agentic AI assistant with Claude Code-style coding capabilities and Claude Coworker-style knowledge work features. It supports multiple LLM providers with a text-first interface and future voice extensibility.
+JARVIS 2.0 is a fully agentic AI assistant with Claude Code-style coding capabilities and Claude Coworker-style knowledge work features. It now launches a Textual TUI by default with streaming assistant output, inline tool calls, slash commands, and provider/model status.
 
 ## Features
 
@@ -88,6 +88,16 @@ if __name__ == "__main__":
 - `providers` - List configured LLM providers
 - `tools` - List available tools
 - `exit` / `quit` - Exit JARVIS
+
+### TUI Commands
+
+- `/help` - Show TUI help
+- `/status` - Show runtime status
+- `/providers` - List configured providers
+- `/tools` - List available tools
+- `/model <name>` - Switch the active model
+- `/provider <name>` - Switch the active provider
+- `/clear` - Clear the transcript
 
 ### Basic Usage
 

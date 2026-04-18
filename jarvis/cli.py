@@ -1,4 +1,4 @@
-"""JARVIS CLI entry point"""
+"""JARVIS launcher entry point"""
 
 import sys
 from pathlib import Path
@@ -7,7 +7,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from main import main as _main
+from main import main as _main  # noqa: E402
+
 
 def main():
     """Entry point for jarvis command"""

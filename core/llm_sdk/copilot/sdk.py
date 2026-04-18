@@ -188,7 +188,10 @@ class CopilotSDK(BaseLLMSDK):
         messages: List[Message],
         tools: List[Dict[str, Any]],
         config: GenerationConfig,
-    ) -> GenerationResponse:
+        stream: bool = False,
+    ) -> Any:
+        if stream:
+            return self._stream(messages, config, tools)
         text = await self._send(messages, config, tools)
         return self._build_response(text, config)
 

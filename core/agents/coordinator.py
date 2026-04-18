@@ -1,10 +1,10 @@
 """Agent Coordinator for multi-agent orchestration"""
 
-from typing import Dict, List, Optional, Any
-from .base import BaseAgent
-from core.tools.registry import ToolRegistry
-from core.memory.conversation_manager import ConversationManager
 from core.llm_sdk.context_length_manager import context_length_manager
+from core.memory.conversation_manager import ConversationManager
+from core.tools.registry import ToolRegistry
+
+from .base import BaseAgent
 
 
 class AgentCoordinator:
@@ -12,37 +12,37 @@ class AgentCoordinator:
 
     def __init__(
         self,
-        agents: Dict[str, BaseAgent],
-        tool_registry: Optional[ToolRegistry] = None,
-        model: Optional[str] = None
+        agents: dict[str, BaseAgent],
+        tool_registry: ToolRegistry | None = None,
+        model: str | None = None
     ):
         self.agents = agents
         self.tool_registry = tool_registry
-        self.task_history: List[Dict] = []
-        self.current_task: Optional[Dict] = None
+        self.task_history: list[dict] = []
+        self.current_task: dict | None = None
         self.model = model or "claude-3-5-sonnet-20241022"
         # Callbacks for streaming and tool calls
-        self.stream_callback: Optional[callable] = None
-        self.tool_call_callback: Optional[callable] = None
-        self.tool_result_callback: Optional[callable] = None
-        
+        self.stream_callback: callable | None = None
+        self.tool_call_callback: callable | None = None
+        self.tool_result_callback: callable | None = None
+
         # Initialize conversation manager with auto-summarization
         self.conversation_manager = ConversationManager(
             max_history=50,
             context_threshold=0.75,  # Summarize at 75% context usage
             summarization_callback=self._generate_summary
         )
-        
+
         # Set max context tokens based on model
         token_limits = context_length_manager.get_token_limits(self.model)
         self.conversation_manager.set_max_context_tokens(token_limits.max_input_tokens)
-        
+
         # Link coordinator to agents if they support it
         for agent in self.agents.values():
             if hasattr(agent, "update_context"):
                 agent.update_context("coordinator", self)
 
-    async def execute_task(self, task: str, context: Optional[Dict] = None) -> str:
+    async def execute_task(self, task: str, context: dict | None = None) -> str:
         """
         Execute a task by coordinating agents with conversation history
 
@@ -55,10 +55,10 @@ class AgentCoordinator:
         """
         # Add user message to conversation history
         self.conversation_manager.add_message("user", task, context or {})
-        
+
         # 1. Analyze task and select appropriate agent
         agent_name = self.select_agent(task)
-        
+
         if not agent_name or agent_name not in self.agents:
             error_msg = "No suitable agent found for this task"
             self.conversation_manager.add_message("assistant", error_msg)
@@ -78,7 +78,7 @@ class AgentCoordinator:
 
         # 3. Get conversation history for context
         conversation_history = self.conversation_manager.get_messages()
-        
+
         # 4. Execute task with the selected agent
         try:
             # Set callbacks on agent
@@ -91,7 +91,7 @@ class AgentCoordinator:
             agent_context["conversation_history"] = conversation_history
 
             result = await agent.process(task, agent_context)
-            
+
             # Extract token count if available from LLM response
             token_count = None
             if hasattr(result, 'usage') and result.usage:
@@ -100,34 +100,34 @@ class AgentCoordinator:
                 token_count = result['usage'].get('total_tokens')
             elif isinstance(result, dict) and 'token_count' in result:
                 token_count = result['token_count']
-            
+
             task_entry["status"] = "completed"
             task_entry["result"] = result
             task_entry["token_count"] = token_count
-            
+
             self.task_history.append(task_entry)
             self.current_task = None
-            
+
             # Add assistant response to conversation history with token count
             result_text = str(result) if not isinstance(result, str) else result
             self.conversation_manager.add_message("assistant", result_text, token_count=token_count)
-            
+
             return result
-            
+
         except Exception as e:
             error_msg = f"Task execution failed: {str(e)}"
             task_entry["status"] = "failed"
             task_entry["error"] = str(e)
-            
+
             self.task_history.append(task_entry)
             self.current_task = None
-            
+
             # Add error to conversation history
             self.conversation_manager.add_message("assistant", error_msg)
-            
+
             return error_msg
 
-    async def _generate_summary(self, messages: List[Dict]) -> tuple:
+    async def _generate_summary(self, messages: list[dict]) -> tuple:
         """
         Generate a summary of conversation history using the LLM
 
@@ -141,7 +141,7 @@ class AgentCoordinator:
         agent = next(iter(self.agents.values()), None)
         if not agent:
             return "Summary unavailable: No agent available", 0
-        
+
         # Create summarization prompt
         summary_prompt = [
             {
@@ -150,12 +150,12 @@ class AgentCoordinator:
             },
             {
                 "role": "user",
-                "content": f"Summarize this conversation:\n\n" + "\n\n".join([
+                "content": "Summarize this conversation:\n\n" + "\n\n".join([
                     f"{m['role']}: {m['content']}" for m in messages
                 ])
             }
         ]
-        
+
         try:
             # Try to get response with usage information
             response = await agent.llm.generate(
@@ -165,22 +165,22 @@ class AgentCoordinator:
                 temperature=0.3,
                 return_usage=True
             )
-            
+
             # Extract token count if available
             token_count = 0
             if hasattr(response, 'usage') and response.usage:
                 token_count = response.usage.get('total_tokens', 0)
             elif isinstance(response, dict) and 'usage' in response:
                 token_count = response['usage'].get('total_tokens', 0)
-            
+
             summary_text = str(response) if not isinstance(response, str) else response
             return summary_text, token_count
-            
+
         except Exception as e:
             print(f"Failed to generate summary: {e}")
             return f"Summary generation failed. Original conversation had {len(messages)} messages.", 0
 
-    def select_agent(self, task: str) -> Optional[str]:
+    def select_agent(self, task: str) -> str | None:
         """
         Select the best agent for a task using keyword scoring
 
@@ -204,15 +204,15 @@ class AgentCoordinator:
             ]
         }
 
-        scores = {name: 0 for name in self.agents.keys()}
-        
+        scores = dict.fromkeys(self.agents.keys(), 0)
+
         for agent_name in scores.keys():
             # Check domain keywords
             if agent_name in keywords:
                 for kw in keywords[agent_name]:
                     if kw in task_lower:
                         scores[agent_name] += 1
-            
+
             # Bonus for explicit mentions
             if agent_name in task_lower:
                 scores[agent_name] += 5
@@ -226,19 +226,19 @@ class AgentCoordinator:
 
         return max(scores, key=scores.get)
 
-    def get_agent(self, name: str) -> Optional[BaseAgent]:
+    def get_agent(self, name: str) -> BaseAgent | None:
         """Get an agent by name"""
         return self.agents.get(name)
 
-    def list_agents(self) -> List[str]:
+    def list_agents(self) -> list[str]:
         """List all registered agent names"""
         return list(self.agents.keys())
 
-    def get_conversation_stats(self) -> Dict:
+    def get_conversation_stats(self) -> dict:
         """Get conversation statistics including context usage"""
         return self.conversation_manager.get_stats()
 
-    def get_conversation_history(self, limit: Optional[int] = None) -> List[Dict]:
+    def get_conversation_history(self, limit: int | None = None) -> list[dict]:
         """
         Get conversation history
 
