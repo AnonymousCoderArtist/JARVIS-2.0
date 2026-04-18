@@ -1,5 +1,6 @@
 """Conversation manager for chat history and context"""
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -129,7 +130,7 @@ class ConversationManager:
 
         # Check if we need to summarize
         if self._should_summarize():
-            self._summarize_history()
+            asyncio.create_task(self._summarize_history())
 
         self._trim_history()
 

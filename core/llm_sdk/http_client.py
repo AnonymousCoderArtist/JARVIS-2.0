@@ -59,7 +59,7 @@ class HTTPClient:
 
         try:
             # curl_cffi AsyncSession doesn't have aclose but close
-            self.curl_session.close()
+            await self.curl_session.close()
         except Exception as e:
             logger.debug(f"Error closing curl session: {e}")
 

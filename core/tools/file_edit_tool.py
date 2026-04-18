@@ -107,9 +107,11 @@ class ReplaceTool(BaseTool):
                 diff_output = self._generate_diff(content, new_content, file_path)
                 results.append({
                     "file": file_path,
+                    "file_path": file_path,
                     "status": "success",
                     "occurrences_replaced": 1,
-                    "diff": diff_output[:500] + "..." if len(diff_output) > 500 else diff_output
+                    "diff": diff_output,
+                    "unified_diff": diff_output,
                 })
 
             except Exception as e:

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jarvis"
 version = "2.0.0"
-description = "JARVIS AI Assistant - Multi-agent system with TUI and CLI interfaces"
+description = "JARVIS AI Assistant - Multi-agent system with CLI interface"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -37,7 +37,6 @@ dependencies = [
     "tomli-w>=1.2.0",
     "curl-cffi>=0.7.0",
     "aiofiles>=24.1.0",
-    "textual>=0.50.0",
     # LLM Providers (using curl_cffi)
     # Async support
     # Configuration
@@ -75,7 +74,10 @@ Repository = "https://github.com/OEvortex/JARVIS"
 Issues = "https://github.com/OEvortex/JARVIS/issues"
 
 [tool.setuptools]
-packages = ["core", "jarvis"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["core*", "jarvis*", "interface*"]
 
 [tool.black]
 line-length = 100

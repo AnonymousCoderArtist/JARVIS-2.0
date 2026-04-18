@@ -1,11 +1,11 @@
-"""Main entry point for JARVIS 2.0"""
+"""Main entry point for JARVIS 2.0."""
 
-from interface.cli.cli import main as cli_main
+from jarvis.cli import main as jarvis_main
 
 
-def main():
-    """Main entry point - CLI interface"""
-    cli_main()
+def main() -> None:
+    """Main entry point for the default JARVIS launcher."""
+    jarvis_main()
 
 
 if __name__ == "__main__":
