@@ -133,12 +133,9 @@ class BaseAgent(ABC):
         """
         if use_tools:
             tool_definitions = self.tools.get_function_definitions()
-            print(f"[DEBUG] Tool definitions count: {len(tool_definitions)}")
-            print(f"[DEBUG] Tool definitions: {tool_definitions[:2] if tool_definitions else 'None'}...")
 
             # Try to use streaming with tools
             if stream and self.stream_callback:
-                print(f"[DEBUG] Using streaming with tools")
                 full_response = ""
                 tool_calls = []
                 try:
@@ -150,9 +147,7 @@ class BaseAgent(ABC):
                         stream=True,
                         **kwargs
                     )
-                    print(f"[DEBUG] Streaming result obtained, iterating...")
                     async for chunk in stream_result:
-                        print(f"[DEBUG] Chunk: {chunk}")
                         if isinstance(chunk, dict):
                             if chunk["type"] == "text":
                                 full_response += chunk["content"]
@@ -173,7 +168,6 @@ class BaseAgent(ABC):
                             full_response += chunk
                             self.stream_callback(chunk)
 
-                    print(f"[DEBUG] Streaming complete. Tool calls: {len(tool_calls)}")
                     # If tool calls were encountered, execute them
                     if tool_calls:
                         # Create a response object with the tool calls
@@ -185,9 +179,8 @@ class BaseAgent(ABC):
                         return final_response
 
                     return full_response
-                except Exception as e:
+                except Exception:
                     # If streaming fails, fall back to non-streaming
-                    print(f"[DEBUG] Streaming with tools failed: {e}, falling back to non-streaming")
                     pass
 
             # Non-streaming fallback
@@ -198,16 +191,13 @@ class BaseAgent(ABC):
                 **kwargs
             )
 
-            print(f"[DEBUG] LLM response: {response}")
             content = response.get("content", "")
             if stream and self.stream_callback and content:
                 self.stream_callback(content)
 
             if response.get("tool_calls"):
-                print(f"[DEBUG] Tool calls detected: {response.get('tool_calls')}")
                 return await self._handle_tool_calls(response, messages, content)
 
-            print(f"[DEBUG] No tool calls in response")
             return content
         else:
             if stream and self.stream_callback:
@@ -262,7 +252,6 @@ class BaseAgent(ABC):
 
         # Execute tool calls
         tool_calls = response.get("tool_calls", [])
-        print(f"[DEBUG] Executing {len(tool_calls)} tool calls")
         tool_results = []
 
         for tool_call in tool_calls:
@@ -277,14 +266,11 @@ class BaseAgent(ABC):
             except json.JSONDecodeError:
                 tool_args = {}
 
-            print(f"[DEBUG] Calling tool: {tool_name} with args: {tool_args}")
-
             # Invoke tool call callback if set
             if self.tool_call_callback:
                 self.tool_call_callback(tool_name, tool_args)
 
             result = await self.tools.execute_tool(tool_name, tool_args)
-            print(f"[DEBUG] Tool result: success={result.success}, result={result.result[:100] if result.result else None}...")
             if self.tool_result_callback:
                 self.tool_result_callback(tool_name, tool_args, result)
             tool_results.append({
@@ -307,8 +293,6 @@ class BaseAgent(ABC):
             tools=tool_definitions,
             model=self.model
         )
-
-        print(f"[DEBUG] Next response has tool calls: {bool(next_response.get('tool_calls'))}")
 
         # Check if there are more tool calls
         if next_response.get("tool_calls"):
