@@ -137,14 +137,15 @@ class BaseAgent(ABC):
                 full_response = ""
                 tool_calls = []
                 try:
-                    # Use the streaming endpoint with tools
-                    async for chunk in self.llm.generate_with_tools(
+                    # Use the streaming endpoint with tools - await first, then iterate
+                    stream_result = await self.llm.generate_with_tools(
                         messages=messages,
                         tools=tool_definitions,
                         model=self.model,
                         stream=True,
                         **kwargs
-                    ):
+                    )
+                    async for chunk in stream_result:
                         if isinstance(chunk, dict):
                             if chunk["type"] == "text":
                                 full_response += chunk["content"]
