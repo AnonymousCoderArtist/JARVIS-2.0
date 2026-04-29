@@ -1,6 +1,23 @@
 """System prompts for JARVIS agent"""
 
+import platform
 from typing import Any
+
+
+def get_system_context() -> str:
+    """Get system context information for the agent"""
+    system = platform.system()
+    machine = platform.machine()
+    python_version = platform.python_version()
+    
+    context = f"""## System Information
+
+- **Operating System**: {system}
+- **Architecture**: {machine}
+- **Python Version**: {python_version}
+- **Shell**: {"PowerShell" if system == "Windows" else "bash"}
+"""
+    return context
 
 
 def generate_tool_descriptions(tools: dict[str, Any]) -> str:
@@ -154,13 +171,37 @@ JARVIS_SYSTEM_PROMPT = """You are JARVIS, an expert AI coding assistant designed
 
 ## Tool Usage Guidelines
 
-- Use tools efficiently and appropriately
-- Combine tools when needed for complex tasks
-- Verify tool outputs before proceeding
-- Handle tool errors gracefully
-- Use the right tool for the job
+### Tool Selection Hierarchy
 
-## Tool Calling Instructions
+**IMPORTANT**: Always use the most specific tool for the task. Only fall back to bash when specialized tools cannot accomplish the task.
+
+1. **File Operations**: Use file_read, file_write, list_directory, glob tools for file operations
+2. **Code Search**: Use grep tool for searching file contents
+3. **Code Execution**: Use run_tests for testing, repl for interactive Python
+4. **Web Operations**: Use web_fetch for web content
+5. **System Operations**: Use bash ONLY when specialized tools cannot perform the task
+
+### When to Use Specialized Tools vs Bash
+
+**Use specialized tools when:**
+- Reading files: Use file_read tool
+- Writing files: Use file_write tool  
+- Searching code: Use grep tool
+- Running tests: Use run_tests tool
+- Listing directories: Use list_directory tool
+- File patterns: Use glob tool
+- Web content: Use web_fetch tool
+- Interactive Python: Use repl tool
+
+**Use bash tool when:**
+- Specialized tools cannot perform the required operation
+- Need to run system commands not covered by other tools
+- Need complex shell pipelines
+- Need to interact with system services
+- Need to run custom scripts
+- Git operations (git commands)
+
+### Tool Calling Instructions
 
 **CRITICAL**: You have access to tools that can help you complete tasks. You MUST use tools when appropriate. Do not just describe what you would do - actually use the tools to perform the actions.
 

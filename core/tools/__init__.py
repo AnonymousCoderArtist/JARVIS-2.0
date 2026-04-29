@@ -22,7 +22,6 @@ from .grep_tool import GrepSearchTool
 
 # Memory tools
 from .memory_tool import SaveMemoryTool
-from .powershell_tool import PowerShellTool
 from .registry import ToolRegistry
 from .repl_tool import REPLTool
 
@@ -42,11 +41,10 @@ __all__ = [
     "GlobTool",  # file_search
     # Code tools
     "BashTool",
-    "PowerShellTool",
     "REPLTool",
     "RunTestsTool",
     # Search tools
-    "GrepSearchTool",  # grep_search
+    "GrepSearchTool",  # grep
     # Background tools
     "ListBackgroundProcessesTool",
     "ReadBackgroundOutputTool",

@@ -23,7 +23,6 @@ from core.tools.file_edit_tool import ReplaceTool
 from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool
-from core.tools.powershell_tool import PowerShellTool
 from core.tools.registry import ToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool
@@ -54,7 +53,6 @@ class CLIInterface:
         self.tool_registry.register(ListDirectoryTool())
         self.tool_registry.register(GlobTool())
         self.tool_registry.register(BashTool())
-        self.tool_registry.register(PowerShellTool())
         self.tool_registry.register(REPLTool())
         self.tool_registry.register(RunTestsTool())
         self.tool_registry.register(GrepSearchTool())
@@ -134,7 +132,6 @@ class CLIInterface:
         # User message (prompt already shows 'YOU >')
         # Do not re-print the user's input to avoid echoing it in the transcript.
         self.console.print()
-        self.console.print()
 
         # Streaming setup
         full_response = ""
@@ -152,11 +149,35 @@ class CLIInterface:
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             nonlocal full_response
-            # No-op - don't display tool calls
+            # Format tool call as multi-line function call
+            args_lines = []
+            for k, v in tool_args.items():
+                args_lines.append(f'  {k}="{v}"')
+            args_str = ",\n".join(args_lines)
+            tool_call_str = f"{tool_name}(\n{args_str}\n)"
+            
+            # Display tool call in code block
+            self.console.print()
+            self.console.print(Markdown(f"```python\n{tool_call_str}\n```"))
 
         def tool_result_callback(tool_name: str, tool_args: dict[str, Any], result: Any):
-            # No-op - don't display tool results
-            pass
+            # Display tool result with truncation
+            if result and hasattr(result, 'success'):
+                if result.success:
+                    result_str = str(result.result) if result.result else "Success"
+                else:
+                    result_str = result.error if result.error else "Failed"
+            else:
+                result_str = str(result) if result else "No result"
+            
+            # Truncate result if too long
+            max_length = 800
+            if len(result_str) > max_length:
+                result_str = result_str[:max_length] + "... (truncated)"
+            
+            # Display result as dim text outside code block
+            self.console.print(f"[dim]{result_str}[/dim]")
+            self.console.print()
 
         self.jarvis_agent.stream_callback = stream_callback
         self.jarvis_agent.tool_call_callback = tool_call_callback

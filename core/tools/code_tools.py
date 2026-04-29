@@ -1,31 +1,36 @@
 """Code execution and analysis tools"""
 
 import asyncio
+import platform
+import sys
 
 from .base import BaseTool, ToolInput, ToolOutput
 
 
 class BashTool(BaseTool):
-    """Tool for executing bash commands (OpenClaude style)"""
+    """Tool for executing shell commands (bash on Unix, PowerShell on Windows)"""
 
     name = "bash"
-    description = """Execute a bash shell command and return the output. Use this for running commands, scripts, and system operations.
+    description = """Execute a shell command and return the output. Automatically uses bash on Unix/Linux/macOS and PowerShell on Windows.
 
 Usage:
 - Use for running shell commands, scripts, and system operations
+- Automatically detects platform and uses appropriate shell (bash/PowerShell)
 - Supports background execution with is_background parameter for long-running processes
 - Set timeout parameter to limit execution time (default 30 seconds)
 - Use delay_ms parameter to control when background process output is returned
 - Background processes can be monitored using list_background_processes and read_background_output tools
 - Common uses: running tests, building projects, installing dependencies, git operations
 - Always check command output for errors and handle them appropriately
-- Use absolute paths or ensure you're in the correct working directory"""
+- Use absolute paths or ensure you're in the correct working directory
+- On Windows: Use PowerShell syntax (Get-Process, Get-Service, etc.)
+- On Unix/Linux/macOS: Use bash syntax (ls, grep, cd, etc.)"""
     input_schema = {
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "description": "Bash shell command to execute",
+                "description": "Shell command to execute (bash syntax on Unix, PowerShell syntax on Windows)",
                 "minLength": 1
             },
             "is_background": {
@@ -49,6 +54,11 @@ Usage:
         "required": ["command"]
     }
 
+    def __init__(self):
+        super().__init__()
+        self.is_windows = platform.system() == "Windows"
+        self.shell = "powershell" if self.is_windows else "/bin/bash"
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
             command = getattr(input_data, "command", None)
@@ -70,11 +80,20 @@ Usage:
                 timeout = 30
 
             if is_background:
-                process = await asyncio.create_subprocess_shell(
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
+                if self.is_windows:
+                    process = await asyncio.create_subprocess_exec(
+                        "powershell",
+                        "-Command",
+                        command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                else:
+                    process = await asyncio.create_subprocess_shell(
+                        command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
 
                 # Register background process
                 from .background_tools import register_background_process
@@ -86,15 +105,24 @@ Usage:
                 return ToolOutput(
                     success=True,
                     result=f"Command started in background with PID {pid}",
-                    metadata={"pid": pid, "command": command}
+                    metadata={"pid": pid, "command": command, "shell": self.shell}
                 )
 
             # Standard foreground execution
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+            if self.is_windows:
+                process = await asyncio.create_subprocess_exec(
+                    "powershell",
+                    "-Command",
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+            else:
+                process = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
 
             try:
                 stdout, stderr = await asyncio.wait_for(
@@ -109,7 +137,7 @@ Usage:
                 return ToolOutput(
                     success=process.returncode == 0,
                     result=output,
-                    metadata={"return_code": process.returncode}
+                    metadata={"return_code": process.returncode, "shell": self.shell}
                 )
 
             except asyncio.TimeoutError:
@@ -120,11 +148,18 @@ Usage:
                     error=f"Command execution timed out after {timeout} seconds"
                 )
 
+        except FileNotFoundError as e:
+            shell_name = "PowerShell" if self.is_windows else "bash"
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"{shell_name} not found on this system"
+            )
         except Exception as e:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to execute bash command: {str(e)}"
+                error=f"Failed to execute command: {str(e)}"
             )
 
 

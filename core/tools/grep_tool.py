@@ -12,7 +12,7 @@ from .base import BaseTool, ToolInput, ToolOutput
 class GrepSearchTool(BaseTool):
     """Tool for searching file contents (OpenClaude style)"""
 
-    name = "grep_search"
+    name = "grep"
     description = """Do a fast text search in the workspace. Use this tool when you want to search with an exact string or regex pattern.
 
 Usage:

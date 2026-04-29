@@ -10,7 +10,7 @@ from typing import Any, cast
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
 from core.tools.registry import ToolRegistry
-from core.agents.system_prompts import generate_tool_descriptions
+from core.agents.system_prompts import generate_tool_descriptions, get_system_context
 
 
 class BaseAgent(ABC):
@@ -39,15 +39,21 @@ class BaseAgent(ABC):
     
     def _build_system_prompt(self):
         """Build the full system prompt with dynamically injected tool descriptions."""
+        # Get system context
+        system_context = get_system_context()
+        
         # Get tool descriptions from the tool registry
         tools_dict = self.tools.get_tools()
         tool_descriptions = generate_tool_descriptions(tools_dict)
         
-        # Combine base prompt with tool descriptions
+        # Combine base prompt with system context and tool descriptions
+        full_prompt = self.base_system_prompt
+        if system_context:
+            full_prompt = f"{full_prompt}\n\n{system_context}"
         if tool_descriptions:
-            self.system_prompt = f"{self.base_system_prompt}\n\n{tool_descriptions}"
-        else:
-            self.system_prompt = self.base_system_prompt
+            full_prompt = f"{full_prompt}\n\n{tool_descriptions}"
+        
+        self.system_prompt = full_prompt
 
     def rebuild_system_prompt(self):
         """Rebuild the system prompt with current tool descriptions.
