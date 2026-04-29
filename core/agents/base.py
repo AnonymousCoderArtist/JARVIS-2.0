@@ -10,6 +10,7 @@ from typing import Any, cast
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
 from core.tools.registry import ToolRegistry
+from core.agents.system_prompts import generate_tool_descriptions
 
 
 class BaseAgent(ABC):
@@ -24,7 +25,7 @@ class BaseAgent(ABC):
     ):
         self.llm = llm_provider
         self.tools = tool_registry
-        self.system_prompt = system_prompt
+        self.base_system_prompt = system_prompt
         self.model = model or "gpt-4"  # Use provided model or default
         self.memory: list[dict[str, Any]] = []
         self.context: dict[str, Any] = {}
@@ -32,6 +33,29 @@ class BaseAgent(ABC):
         self.stream_callback: Callable | None = None
         self.tool_call_callback: Callable | None = None
         self.tool_result_callback: Callable | None = None
+        
+        # Dynamically build full system prompt with tool descriptions
+        self._build_system_prompt()
+    
+    def _build_system_prompt(self):
+        """Build the full system prompt with dynamically injected tool descriptions."""
+        # Get tool descriptions from the tool registry
+        tools_dict = self.tools.get_tools()
+        tool_descriptions = generate_tool_descriptions(tools_dict)
+        
+        # Combine base prompt with tool descriptions
+        if tool_descriptions:
+            self.system_prompt = f"{self.base_system_prompt}\n\n{tool_descriptions}"
+        else:
+            self.system_prompt = self.base_system_prompt
+
+    def rebuild_system_prompt(self):
+        """Rebuild the system prompt with current tool descriptions.
+        
+        Call this after modifying the tool registry to update the agent's
+        system prompt with the latest tool descriptions.
+        """
+        self._build_system_prompt()
 
     @abstractmethod
     async def process(self, input: str, context: dict[str, Any] | None = None) -> str:
@@ -135,6 +159,12 @@ class BaseAgent(ABC):
         Returns:
             Generated response string
         """
+        # Ensure system prompt is the first message
+        if messages and messages[0].get("role") != "system":
+            messages = [{"role": "system", "content": self.system_prompt}] + messages
+        elif messages:
+            messages[0]["content"] = self.system_prompt
+        
         if use_tools:
             tool_definitions = self.tools.get_function_definitions()
 
@@ -246,7 +276,7 @@ class BaseAgent(ABC):
         existing_content: str = ""
     ) -> str:
         """
-        Handle tool calls from LLM response with recursive loop
+        Handle tool calls from LLM response with recursive loop (OpenClaude style agentic pattern)
 
         This implements the agentic loop pattern:
         1. Call LLM with conversation history
@@ -293,17 +323,25 @@ class BaseAgent(ABC):
             result = await self.tools.execute_tool(tool_name, tool_args)
             if self.tool_result_callback:
                 self.tool_result_callback(tool_name, tool_args, result)
+            
+            # Format tool result for LLM (OpenClaude style)
+            if result.success:
+                tool_result_content = f"Tool {tool_name} executed successfully. Result: {result.result}"
+            else:
+                tool_result_content = f"Tool {tool_name} failed. Error: {result.error}"
+            
             tool_results.append({
                 "tool": tool_name,
                 "success": result.success,
                 "result": result.result,
-                "error": result.error
+                "error": result.error,
+                "content": tool_result_content
             })
 
-        # Add tool results to conversation history
+        # Add tool results to conversation history (OpenClaude style format)
         updated_messages.append({
             "role": "user",
-            "content": f"Tool results: {json.dumps(tool_results, indent=2)}"
+            "content": "\n".join([tr["content"] for tr in tool_results])
         })
 
         # Recursive loop: call LLM again with updated history

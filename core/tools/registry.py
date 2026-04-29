@@ -60,6 +60,15 @@ class ToolRegistry:
         """
         return [tool.get_function_definition() for tool in self._tools.values()]
 
+    def get_tools(self) -> dict[str, BaseTool]:
+        """
+        Get all registered tools as a dictionary
+
+        Returns:
+            Dictionary mapping tool names to tool instances
+        """
+        return self._tools.copy()
+
     async def execute_tool(self, name: str, input_data: dict) -> ToolOutput:
         """
         Execute a tool by name

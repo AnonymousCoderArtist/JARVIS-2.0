@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: jarvis
 Version: 2.0.0
-Summary: JARVIS AI Assistant - Multi-agent system with TUI and CLI interfaces
+Summary: JARVIS AI Assistant - Multi-agent system with CLI interface
 Author-email: OEvortex <contact@oevervortex.com>
 License: MIT
 Project-URL: Homepage, https://github.com/OEvortex/JARVIS
@@ -22,8 +22,12 @@ Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 Requires-Dist: pydantic>=2.5.0
-Requires-Dist: curl_cffi>=0.6.0
-Requires-Dist: httpx>=0.25.0
+Requires-Dist: anthropic>=0.40.0
+Requires-Dist: httpx>=0.28.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: rich>=14.0.0
+Requires-Dist: tomli-w>=1.2.0
+Requires-Dist: curl-cffi>=0.7.0
 Requires-Dist: aiofiles>=24.1.0
 Requires-Dist: tomli-w>=1.0.0
 Requires-Dist: sentence-transformers>=2.2.0
@@ -41,7 +45,7 @@ Requires-Dist: mypy>=1.8.0; extra == "dev"
 
 # JARVIS 2.0 - Fully Agentic AI Assistant
 
-JARVIS 2.0 is a fully agentic AI assistant with Claude Code-style coding capabilities and Claude Coworker-style knowledge work features. It supports multiple LLM providers with a text-first interface and future voice extensibility.
+JARVIS 2.0 is a fully agentic AI assistant with Claude Code-style coding capabilities and Claude Coworker-style knowledge work features. It features a rich CLI interface with streaming assistant output, tool calls, slash commands, and provider/model status.
 
 ## Features
 
@@ -69,9 +73,6 @@ JARVIS 2.0/
 ├── interface/
 │   ├── cli/              # Command-line interface
 │   └── web_ui/           # Web interface (future)
-├── plugins/
-│   ├── providers/        # Custom LLM providers
-│   └── tools/            # Custom tools
 └── tests/                # Test suite
 ```
 

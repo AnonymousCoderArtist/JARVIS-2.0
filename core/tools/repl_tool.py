@@ -9,7 +9,17 @@ class REPLTool(BaseTool):
     """Tool for interactive Python REPL execution (OpenClaude style)"""
 
     name = "repl"
-    description = "Execute Python code in an interactive REPL context with state persistence"
+    description = """Execute Python code in an interactive REPL context with state persistence. Use this for testing code snippets, data analysis, and interactive Python work.
+
+Usage:
+- Execute Python code with state persistence across calls
+- Use session_id to maintain separate REPL sessions
+- State (variables, imports, functions) persists within a session
+- Use timeout parameter to limit execution time (default 30 seconds)
+- Useful for testing code, data analysis, quick prototyping
+- Print statements and output are captured and returned
+- Multiple sessions can be maintained for different contexts
+- Use clear_session to reset a session when needed"""
     input_schema = {
         "type": "object",
         "properties": {

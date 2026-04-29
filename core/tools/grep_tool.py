@@ -10,10 +10,20 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class GrepSearchTool(BaseTool):
-    """Tool for searching file contents (Copilot Chat style)"""
+    """Tool for searching file contents (OpenClaude style)"""
 
     name = "grep_search"
-    description = "Do a fast text search in the workspace. Use this tool when you want to search with an exact string or regex. If you are not sure what words will appear in the workspace, prefer using regex patterns with alternation (|) or character classes to search for multiple potential words at once instead of making separate searches. For example, use 'function|method|procedure' to look for all of those words at once. Use includePattern to search within files matching a specific pattern, or in a specific file, using a relative path. Use this tool when you want to see an overview of a particular file, instead of using read_file many times to look for code within a file."
+    description = """Do a fast text search in the workspace. Use this tool when you want to search with an exact string or regex pattern.
+
+Usage:
+- Use regex patterns with alternation (|) or character classes to search for multiple potential words at once instead of making separate searches
+- For example, use 'function|method|procedure' to look for all of those words at once
+- Use includePattern to search within files matching a specific pattern, or in a specific file, using a relative path
+- Use this tool when you want to see an overview of a particular file, instead of using file_read many times to look for code within a file
+- Search is case-insensitive by default
+- Use maxResults to limit the number of results if needed
+- Set isRegexp to true when using regex patterns, false for exact string matches
+- This tool uses ripgrep (rg) if available for faster results, otherwise falls back to Python regex"""
     input_schema = {
         "type": "object",
         "properties": {

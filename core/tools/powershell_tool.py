@@ -6,10 +6,20 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class PowerShellTool(BaseTool):
-    """Tool for executing PowerShell commands"""
+    """Tool for executing PowerShell commands (OpenClaude style)"""
 
     name = "powershell"
-    description = "Execute a PowerShell command and return the output. Supports background execution."
+    description = """Execute a PowerShell command and return the output. Use this for Windows-specific operations and administrative tasks.
+
+Usage:
+- Use for running PowerShell commands, scripts, and Windows system operations
+- Supports background execution with is_background parameter for long-running processes
+- Set timeout parameter to limit execution time (default 30 seconds)
+- Use delay_ms parameter to control when background process output is returned
+- Background processes can be monitored using list_background_processes and read_background_output tools
+- Common uses: Windows system administration, IIS management, Active Directory operations, Windows-specific automation
+- Always check command output for errors and handle them appropriately
+- This tool is only available on Windows systems"""
     input_schema = {
         "type": "object",
         "properties": {

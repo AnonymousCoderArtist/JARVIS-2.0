@@ -6,10 +6,21 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class ReadPDFTool(BaseTool):
-    """Tool for reading PDF files"""
+    """Tool for reading PDF files (OpenClaude style)"""
 
     name = "read_pdf"
-    description = "Extract text from a PDF file"
+    description = """Extract text from a PDF file. Use this for processing PDF documents, research papers, and other PDF content.
+
+Usage:
+- Provide the absolute or relative path to the PDF file
+- Use the pages parameter to control which pages to extract:
+  - 'all' for entire document (default)
+  - '1-5' for page range
+  - '3' for single page
+- For large PDFs (more than 10 pages), use the pages parameter to read specific ranges
+- Maximum 20 pages per request for performance
+- Returns extracted text content from the specified pages
+- Useful for document analysis, research, and information extraction"""
     input_schema = {
         "type": "object",
         "properties": {

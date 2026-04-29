@@ -8,10 +8,22 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class FileReadTool(BaseTool):
-    """Tool for reading file contents (Copilot Chat style)"""
+    """Tool for reading file contents (OpenClaude style)"""
 
     name = "file_read"
-    description = "Read the contents of a file. Line numbers are 1-indexed. This tool will truncate its output at 2000 lines and may be called repeatedly with offset and limit parameters to read larger files in chunks."
+    description = """Read a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+
+Usage:
+- The file_path parameter must be an absolute path, not a relative path
+- By default, it reads up to 2000 lines starting from the beginning of the file
+- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
+- When you already know which part of the file you need, only read that part. This can be important for larger files.
+- Results are returned using cat -n format, with line numbers starting at 1
+- This tool allows reading images (eg PNG, JPG, etc). When reading an image file the contents are presented visually.
+- This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.
+- This tool can only read files, not directories. To read a directory, use an ls command via the bash tool.
+- You will regularly be asked to read screenshots. If the user provides a path to a screenshot, ALWAYS use this tool to view the file at the path. This tool will work with all temporary file paths.
+- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -128,10 +140,19 @@ class FileReadTool(BaseTool):
 
 
 class FileWriteTool(BaseTool):
-    """Tool for writing content to files (Copilot Chat style)"""
+    """Tool for writing content to files (OpenClaude style)"""
 
     name = "create_file"
-    description = "This is a tool for creating a new file in the workspace. The file will be created with the specified content. The directory will be created if it does not already exist. Never use this tool to edit a file that already exists."
+    description = """Create a new file in the workspace with the specified content. The directory will be created if it does not already exist.
+
+IMPORTANT: Never use this tool to edit a file that already exists. Use the replace tool for editing existing files.
+
+Usage:
+- The filePath parameter must be an absolute path, not a relative path
+- The content parameter should contain the full file contents
+- Parent directories will be created automatically if they don't exist
+- This tool will fail if the file already exists (use replace tool instead)
+- Use this tool only when creating new files from scratch"""
     input_schema = {
         "type": "object",
         "properties": {
@@ -198,10 +219,16 @@ class FileWriteTool(BaseTool):
 
 
 class ListDirectoryTool(BaseTool):
-    """Tool for listing directory contents (Copilot Chat style)"""
+    """Tool for listing directory contents (OpenClaude style)"""
 
     name = "list_dir"
-    description = "List the contents of a directory. Result will have the name of the child. If the name ends in /, it's a folder, otherwise a file"
+    description = """List the contents of a directory. Result will have the name of the child. If the name ends in /, it's a folder, otherwise a file.
+
+Usage:
+- The path parameter must be an absolute path to the directory
+- Returns a list of item names with / suffix for directories
+- Use this to understand the structure of a directory
+- Useful for exploring project structure and finding files"""
     input_schema = {
         "type": "object",
         "properties": {
@@ -249,10 +276,21 @@ class ListDirectoryTool(BaseTool):
 
 
 class GlobTool(BaseTool):
-    """Tool for searching files by pattern (Copilot Chat style)"""
+    """Tool for searching files by pattern (OpenClaude style)"""
 
     name = "file_search"
-    description = "Search for files in the workspace by glob pattern. This only returns the paths of matching files. Use this tool when you know the exact filename pattern of the files you're searching for. Glob patterns match from the root of the workspace folder. Examples: **/*.{js,ts} to match all js/ts files in the workspace. src/** to match all files under the top-level src folder. **/foo/**/*.js to match all js files under any foo folder in the workspace."
+    description = """Search for files in the workspace by glob pattern. This only returns the paths of matching files. Use this tool when you know the exact filename pattern of the files you're searching for.
+
+Usage:
+- Glob patterns match from the root of the workspace folder
+- Examples:
+  - **/*.{js,ts} to match all js/ts files in the workspace
+  - src/** to match all files under the top-level src folder
+  - **/foo/**/*.js to match all js files under any foo folder in the workspace
+  - **/*.py to match all Python files recursively
+- Use maxResults parameter to limit the number of results if needed
+- This tool is faster than grep for finding files by name pattern
+- Use grep_search instead when searching for content within files"""
     input_schema = {
         "type": "object",
         "properties": {

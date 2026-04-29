@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "OEvortex", email = "contact@oevervortex.com"}
+    {name = "OEvortex", email = "koulabhay25@gmail.com"}
 ]
 keywords = ["ai", "assistant", "agent", "llm", "anthropic", "openai", "copilot"]
 classifiers = [

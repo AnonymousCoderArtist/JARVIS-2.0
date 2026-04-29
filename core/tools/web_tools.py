@@ -7,10 +7,18 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class WebFetchTool(BaseTool):
-    """Tool for fetching and processing content from URLs (Copilot Chat style)"""
+    """Tool for fetching and processing content from URLs (OpenClaude style)"""
 
     name = "fetch_webpage"
-    description = "Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage. You should use this tool when you think the user is looking for information from a specific webpage."
+    description = """Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage. Use this tool when you think the user is looking for information from a specific webpage.
+
+Usage:
+- Provide an array of URLs to fetch content from
+- Use the query parameter to describe what information you're looking for in the page content
+- Content is truncated at 2000 characters to manage response size
+- Use this for research, documentation retrieval, and information gathering
+- Note: This tool uses basic HTTP fetching and may not work well with JavaScript-rendered pages
+- For complex web scraping, consider using specialized tools or APIs"""
     input_schema = {
         "type": "object",
         "properties": {

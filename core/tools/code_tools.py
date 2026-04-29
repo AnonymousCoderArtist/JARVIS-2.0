@@ -6,10 +6,20 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class BashTool(BaseTool):
-    """Tool for executing bash commands"""
+    """Tool for executing bash commands (OpenClaude style)"""
 
     name = "bash"
-    description = "Execute a bash command and return the output. Supports background execution."
+    description = """Execute a bash shell command and return the output. Use this for running commands, scripts, and system operations.
+
+Usage:
+- Use for running shell commands, scripts, and system operations
+- Supports background execution with is_background parameter for long-running processes
+- Set timeout parameter to limit execution time (default 30 seconds)
+- Use delay_ms parameter to control when background process output is returned
+- Background processes can be monitored using list_background_processes and read_background_output tools
+- Common uses: running tests, building projects, installing dependencies, git operations
+- Always check command output for errors and handle them appropriately
+- Use absolute paths or ensure you're in the correct working directory"""
     input_schema = {
         "type": "object",
         "properties": {
@@ -119,10 +129,19 @@ class BashTool(BaseTool):
 
 
 class RunTestsTool(BaseTool):
-    """Tool for running tests"""
+    """Tool for running tests (OpenClaude style)"""
 
     name = "run_tests"
-    description = "Run tests using pytest or unittest"
+    description = """Run tests using pytest or unittest frameworks. Use this to execute test suites and verify code correctness.
+
+Usage:
+- Specify the path to test file or directory to run tests on
+- Choose framework: pytest (default) or unittest
+- Use args parameter for additional command-line arguments (e.g., -v for verbose, -k for keyword filtering)
+- Common pytest args: -v (verbose), -k (keyword filter), -x (stop on first failure), --cov (coverage)
+- Common unittest args: -v (verbose), -k (keyword filter)
+- Analyze test failures systematically to identify and fix issues
+- Re-run tests after making fixes to verify the changes"""
     input_schema = {
         "type": "object",
         "properties": {

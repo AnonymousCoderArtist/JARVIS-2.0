@@ -28,9 +28,6 @@ JARVIS 2.0/
 ├── interface/
 │   ├── cli/              # Command-line interface
 │   └── web_ui/           # Web interface (future)
-├── plugins/
-│   ├── providers/        # Custom LLM providers
-│   └── tools/            # Custom tools
 └── tests/                # Test suite
 ```
 
@@ -104,13 +101,13 @@ JARVIS > What can you help me with?
 - ✅ LLM Provider Abstraction with OpenAI and Anthropic support
 - ✅ Configuration management with environment variables
 - ✅ Tool system with 9 built-in tools (file, code, document operations)
-- ✅ Agent system with Coding Agent and Knowledge Agent
-- ✅ Agent Coordinator for intelligent task routing
+- ✅ Single JARVIS agent with comprehensive capabilities
+- ✅ Dynamic tool description injection (OpenClaude style)
 - ✅ Semantic Memory with embedding support
 - ✅ Enhanced RAG with hybrid retrieval
 - ✅ Conversation Manager for context tracking
 - ✅ Safety Manager with checkpoints and permission system
-- ✅ CLI interface with integrated agents and tools
+- ✅ CLI interface with integrated agent and tools
 
 The system is ready for use. Configure your API keys in `.env` and run `python main.py` to start.
 
@@ -222,9 +219,9 @@ ruff check core/
 
 ### Phase 2: Core Agents ✅ COMPLETED
 - [x] Base Agent Architecture
-- [x] Coding Agent (Claude Code style)
-- [x] Knowledge Agent (Claude Coworker style)
-- [x] Agent Coordinator
+- [x] JARVIS Agent (unified coding and knowledge capabilities)
+- [x] Dynamic tool description injection
+- [x] Agentic tool calling and error recovery
 
 ### Phase 3: Memory & Context ✅ COMPLETED
 - [x] Semantic Memory System

@@ -9,12 +9,9 @@ from typing import Any
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.live import Live
-from rich.spinner import Spinner
 
 from core.agents.base import BaseAgent
 from core.agents.coding_agent import CodingAgent
-from core.agents.coordinator import AgentCoordinator
-from core.agents.knowledge_agent import KnowledgeAgent
 from core.config.settings import Settings
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.provider_registry import provider_registry
@@ -40,7 +37,7 @@ class CLIInterface:
         self.settings = Settings()
         self.provider_registry = provider_registry
         self.tool_registry = ToolRegistry()
-        self.agent_coordinator: AgentCoordinator | None = None
+        self.jarvis_agent: CodingAgent | None = None
         self._current_provider_id: str | None = None
         self._current_model_id: str | None = None
 
@@ -82,12 +79,11 @@ class CLIInterface:
         active_model = self.settings.selected_model_id or "gpt-4o"
         provider = SDKAdapter(sdk, provider_id)
 
-        agents: dict[str, BaseAgent] = {
-            "coding": CodingAgent(provider, self.tool_registry, model=active_model),
-            "knowledge": KnowledgeAgent(provider, self.tool_registry, model=active_model),
-        }
-
-        self.agent_coordinator = AgentCoordinator(agents, self.tool_registry, model=active_model)
+        self.jarvis_agent = CodingAgent(provider, self.tool_registry, model=active_model)
+        
+        # Rebuild agent prompt with dynamic tool descriptions
+        self.jarvis_agent.rebuild_system_prompt()
+        
         self._current_provider_id = provider_id
         self._current_model_id = active_model
 
@@ -119,63 +115,7 @@ class CLIInterface:
         )
         self.console.print()
 
-    def _tool_call_md(self, tool_name: str, tool_args: dict[str, Any]) -> str:
-        """Build markdown for a tool call."""
-        args_lines = []
-        for k, v in tool_args.items():
-            if isinstance(v, str):
-                display_v = v[:100] + "..." if len(v) > 100 else v
-                args_lines.append(f'  {k}="{display_v}"')
-            else:
-                args_lines.append(f"  {k}={v!r}")
 
-        if args_lines:
-            args_text = ",\n".join(args_lines)
-            return f"### tool: {tool_name}\n\n```text\n{tool_name}(\n{args_text}\n)\n```"
-        return f"### tool: {tool_name}\n\n`{tool_name}()`"
-
-    def _tool_result_md(self, tool_name: str, result: Any) -> str:
-        """Build markdown for a tool result."""
-        success = getattr(result, "success", True)
-        error = getattr(result, "error", None)
-
-        if not success:
-            return f"### error\n\n{error or 'Tool failed'}"
-
-        payload = getattr(result, "result", "")
-        metadata = getattr(result, "metadata", None) or {}
-
-        # Check for diff
-        if isinstance(payload, str) and payload.strip().startswith("diff --git"):
-            return f"### {tool_name}\n\n```diff\n{payload}\n```"
-
-        results = metadata.get("results") if isinstance(metadata, dict) else None
-        if isinstance(results, list) and results:
-            diff_text = results[0].get("unified_diff") or results[0].get("diff")
-            if isinstance(diff_text, str) and diff_text:
-                return f"### {tool_name}\n\n```diff\n{diff_text}\n```"
-
-        # Truncate long output
-        if isinstance(payload, str) and len(payload) > 500:
-            payload = payload[:500] + "\n... (truncated)"
-
-        # Detect language
-        if isinstance(payload, str):
-            stripped = payload.strip()
-            if stripped.startswith("{") or stripped.startswith("["):
-                try:
-                    json.loads(stripped)
-                    return f"### {tool_name}\n\n```json\n{payload}\n```"
-                except (json.JSONDecodeError, ValueError):
-                    pass
-
-            if any(kw in payload for kw in ["def ", "import ", "class "]) and "\n" in payload:
-                return f"### {tool_name}\n\n```python\n{payload}\n```"
-
-        if isinstance(payload, str) and ("#" in payload or "**" in payload or "`" in payload):
-            return f"### {tool_name}\n\n{payload}"
-
-        return f"### {tool_name}\n\n{payload or 'Done'}"
 
     async def _handle_submit(self, text: str):
         """Process user input."""
@@ -187,8 +127,8 @@ class CLIInterface:
             await self._run_shell_command(text[1:].strip())
             return
 
-        if not self.agent_coordinator:
-            self.console.print("[red]Error: Agent coordinator not initialized.[/red]")
+        if not self.jarvis_agent:
+            self.console.print("[red]Error: JARVIS agent not initialized.[/red]")
             return
 
         # User message (prompt already shows 'YOU >')
@@ -196,48 +136,44 @@ class CLIInterface:
         self.console.print()
         self.console.print()
 
-        # Show spinner while JARVIS is thinking
+        # Streaming setup
         full_response = ""
         response_started = False
+        live_ref = [None]  # Store Live reference in mutable container
 
         def stream_callback(chunk: str):
-            nonlocal full_response, response_started
+            nonlocal full_response, response_started, live_ref
             full_response += chunk
             if not response_started:
                 response_started = True
+            # Update the live display with the streaming content
+            if live_ref[0] and full_response.strip():
+                live_ref[0].update(Markdown(full_response))
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             nonlocal full_response
-            # Render accumulated response before tool call
-            if full_response.strip():
-                self.console.print()
-                self._md(full_response)
-                full_response = ""
-            self.console.print()
-            self._md(self._tool_call_md(tool_name, tool_args))
-            self.console.print()
+            # No-op - don't display tool calls
 
         def tool_result_callback(tool_name: str, tool_args: dict[str, Any], result: Any):
-            self._md(self._tool_result_md(tool_name, result))
-            self.console.print()
+            # No-op - don't display tool results
+            pass
 
-        self.agent_coordinator.stream_callback = stream_callback
-        self.agent_coordinator.tool_call_callback = tool_call_callback
-        self.agent_coordinator.tool_result_callback = tool_result_callback
+        self.jarvis_agent.stream_callback = stream_callback
+        self.jarvis_agent.tool_call_callback = tool_call_callback
+        self.jarvis_agent.tool_result_callback = tool_result_callback
 
-        # Show spinner during processing
-        with Live(Spinner("dots", text="[cyan]JARVIS is thinking...[/cyan]"), transient=True):
+        # Use Live display for streaming (without spinner)
+        with Live("", refresh_per_second=10) as live:
+            live_ref[0] = live
             try:
-                await self.agent_coordinator.execute_task(text)
+                await self.jarvis_agent.process(text)
             except Exception as e:
                 self.console.print(f"\n[red]Error: {e}[/red]")
                 return
 
-        # Render final response as markdown
-        if full_response.strip():
-            self.console.print()
-            self._md(full_response)
-        elif not response_started:
+        # Response already displayed via Live streaming
+        # Just add spacing after the response
+        if not response_started:
             self.console.print("[dim](no response)[/dim]")
 
         self.console.print()

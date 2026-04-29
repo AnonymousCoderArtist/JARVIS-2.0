@@ -43,10 +43,17 @@ async def _capture_output(pid: int):
     await process.wait()
 
 class ListBackgroundProcessesTool(BaseTool):
-    """Tool for listing active background processes"""
+    """Tool for listing active background processes (OpenClaude style)"""
 
     name = "list_background_processes"
-    description = "List all active and recently completed background processes"
+    description = """List all active and recently completed background processes. Use this to monitor long-running commands started with the bash tool's is_background parameter.
+
+Usage:
+- Lists all background processes with their PID, command, and status
+- Shows running processes and recently completed ones
+- Use this to check the status of background tasks
+- Combine with read_background_output to see process output
+- Useful for monitoring servers, builds, tests, and other long-running operations"""
     input_schema = {
         "type": "object",
         "properties": {},
@@ -71,10 +78,18 @@ class ListBackgroundProcessesTool(BaseTool):
         )
 
 class ReadBackgroundOutputTool(BaseTool):
-    """Tool for reading output of a background process"""
+    """Tool for reading output of a background process (OpenClaude style)"""
 
     name = "read_background_output"
-    description = "Read the output log of a background shell process"
+    description = """Read the output log of a background shell process. Use this to check the progress and results of long-running commands.
+
+Usage:
+- Provide the PID of the background process to read output from
+- Use the lines parameter to control how many lines to read from the end of the output
+- Returns both stdout and stderr output
+- Use this to monitor progress of background tasks
+- Combine with list_background_processes to find process PIDs
+- Useful for checking build logs, test results, server output, etc."""
     input_schema = {
         "type": "object",
         "properties": {

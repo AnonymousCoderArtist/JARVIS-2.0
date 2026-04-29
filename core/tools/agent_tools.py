@@ -4,10 +4,17 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class InvokeAgentTool(BaseTool):
-    """Tool for invoking specialized agents"""
+    """Tool for invoking specialized agents (OpenClaude style)"""
 
     name = "invoke_agent"
-    description = "Invoke a specialized agent to perform a specific task or investigation"
+    description = """Invoke a specialized agent to perform a specific task or investigation. Use this to delegate work to agents with specialized capabilities.
+
+Usage:
+- Specify the agent name to invoke (e.g., 'coding', 'knowledge')
+- Provide a complete prompt describing the task for the subagent
+- Use wait_for_previous to control execution timing
+- Useful for delegating specialized work while maintaining context
+- Use this for complex tasks that benefit from specialized agent expertise"""
     input_schema = {
         "type": "object",
         "properties": {
@@ -41,8 +48,8 @@ class InvokeAgentTool(BaseTool):
                 error="Invalid agent invocation input",
             )
 
-        # This tool requires integration with the AgentCoordinator
-        # In a real system, it would call coordinator.execute_task
+        # This tool requires integration with the agent system
+        # In a real system, it would call the appropriate agent
 
         return ToolOutput(
             success=True,
@@ -52,10 +59,17 @@ class InvokeAgentTool(BaseTool):
 
 
 class ActivateSkillTool(BaseTool):
-    """Tool for activating specialized agent skills"""
+    """Tool for activating specialized agent skills (OpenClaude style)"""
 
     name = "activate_skill"
-    description = "Activates a specialized agent skill by name to receive expert guidance"
+    description = """Activates a specialized agent skill by name to receive expert guidance. Use this to enhance agent capabilities with domain-specific expertise.
+
+Usage:
+- Specify the skill name to activate (e.g., 'skill-creator', 'reverse-engineering', 'modern-python')
+- Skills provide specialized instructions and guidance for specific domains
+- Useful for tasks requiring specialized knowledge or approaches
+- Skills augment the agent's base capabilities with expert guidance
+- Available skills are defined in the system configuration"""
     input_schema = {
         "type": "object",
         "properties": {

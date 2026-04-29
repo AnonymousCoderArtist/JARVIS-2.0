@@ -7,10 +7,19 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class SaveMemoryTool(BaseTool):
-    """Tool for saving facts/preferences across sessions"""
+    """Tool for saving facts/preferences across sessions (OpenClaude style)"""
 
     name = "save_memory"
-    description = "Saves concise user context (preferences, facts) for use across future sessions"
+    description = """Saves concise user context (preferences, facts) for use across future sessions. Use this to remember important information about the user or project.
+
+Usage:
+- Provide a concise fact, preference, or piece of information to remember
+- Use scope parameter to control memory visibility:
+  - 'global': applies across all projects and sessions
+  - 'project': specific to this codebase/project
+- Useful for remembering user preferences, project details, important context
+- Memory persists across sessions and can be retrieved in future conversations
+- Keep facts concise and focused on actionable information"""
     input_schema = {
         "type": "object",
         "properties": {
