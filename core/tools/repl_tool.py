@@ -43,7 +43,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid code"
+                    error="Invalid code: code parameter must be a non-empty string. Please provide valid Python code to execute."
                 )
 
             if not isinstance(session_id, str) or not session_id:
@@ -106,7 +106,7 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to execute REPL code: {str(e)}"
+                error=f"Failed to execute REPL code: {str(e)}. Please check if your Python code is syntactically correct and if required modules are installed."
             )
 
     def clear_session(self, session_id: str = "default"):

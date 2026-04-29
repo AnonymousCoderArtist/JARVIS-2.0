@@ -196,7 +196,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid search query"
+                    error="Invalid search query: query parameter must be a non-empty string. Please provide a valid search pattern or text to find."
                 )
 
             if not isinstance(is_regexp, bool):
@@ -229,5 +229,5 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Grep search failed: {str(e)}"
+                error=f"Grep search failed: {str(e)}. Please check if your search pattern is valid and if you have permission to access the search directories."
             )

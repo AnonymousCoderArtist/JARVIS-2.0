@@ -12,6 +12,8 @@ class CodingAgent(BaseAgent):
 
     def __init__(self, llm_provider, tool_registry, model: str | None = None):
         super().__init__(llm_provider, tool_registry, self.SYSTEM_PROMPT, model)
+        # Rebuild system prompt with tool descriptions
+        self.rebuild_system_prompt()
 
     async def process(self, input: str, context: dict | None = None) -> str:
         """
@@ -24,9 +26,8 @@ class CodingAgent(BaseAgent):
         Returns:
             Agent response with results or next steps
         """
-        # Build messages
+        # Build messages - system prompt will be added by base.generate_response()
         messages = [
-            {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": self._build_prompt(input, context)}
         ]
 
@@ -73,7 +74,6 @@ class CodingAgent(BaseAgent):
             List of action steps
         """
         messages = [
-            {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": f"Plan the following coding task step by step:\n{task}\n\nReturn your plan as a numbered list of steps."}
         ]
 
@@ -97,53 +97,3 @@ class CodingAgent(BaseAgent):
                 })
 
         return steps
-
-    async def explore_codebase(self, path: str) -> dict:
-        """
-        Explore a codebase structure
-
-        Args:
-            path: Path to the codebase
-
-        Returns:
-            Dictionary with codebase structure
-        """
-        # This would use file tools to explore the codebase
-        # For now, return a placeholder
-        return {
-            "path": path,
-            "structure": [],
-            "message": "Codebase exploration not yet implemented"
-        }
-
-    async def make_edits(self, edits: list[dict]) -> bool:
-        """
-        Apply multi-file edits
-
-        Args:
-            edits: List of edit dictionaries with file_path, old_content, new_content
-
-        Returns:
-            True if successful, False otherwise
-        """
-        # This would use file tools to make edits
-        # For now, return a placeholder
-        return False
-
-    async def run_tests(self, test_path: str) -> dict:
-        """
-        Run tests and analyze results
-
-        Args:
-            test_path: Path to tests or test command
-
-        Returns:
-            Dictionary with test results
-        """
-        # This would use code execution tools to run tests
-        # For now, return a placeholder
-        return {
-            "test_path": test_path,
-            "results": [],
-            "message": "Test execution not yet implemented"
-        }

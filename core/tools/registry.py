@@ -11,8 +11,10 @@ from .base import BaseTool, ToolOutput
 class ToolRegistry:
     """Registry for managing tools"""
 
-    def __init__(self):
+    def __init__(self, llm_provider=None, model=None):
         self._tools: dict[str, BaseTool] = {}
+        self.llm_provider = llm_provider
+        self.model = model
 
     def register(self, tool: BaseTool):
         """
@@ -21,6 +23,11 @@ class ToolRegistry:
         Args:
             tool: Tool instance to register
         """
+        # Inject registry and provider references into the tool
+        tool.tool_registry = self
+        tool.llm_provider = self.llm_provider
+        tool.model = self.model
+
         self._tools[tool.name] = tool
 
     def get(self, name: str) -> BaseTool | None:
@@ -122,7 +129,11 @@ class ToolRegistry:
                     and attr != BaseTool
                 ):
                     try:
-                        tool_instance = attr()
+                        tool_instance = attr(
+                            tool_registry=self,
+                            llm_provider=self.llm_provider,
+                            model=self.model
+                        )
                         self.register(tool_instance)
                         registered_count += 1
                         print(f"Registered tool plugin: {tool_instance.name}")

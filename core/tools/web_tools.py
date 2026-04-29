@@ -44,7 +44,7 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid URL list"
+                error="Invalid URL list: urls parameter must be a non-empty list of strings. Please provide valid URLs."
             )
 
         if not isinstance(query, str):
@@ -83,5 +83,5 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Web fetch failed: {str(e)}"
+                error=f"Web fetch failed: {str(e)}. Please check if the URLs are valid, accessible, and if you have an internet connection."
             )

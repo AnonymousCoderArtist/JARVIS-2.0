@@ -29,11 +29,16 @@ class BaseTool(ABC):
     description: str = ""
     input_schema: dict[str, Any] = {}
 
-    def __init__(self):
+    def __init__(self, tool_registry=None, llm_provider=None, model=None):
         if not self.name:
             raise ValueError("Tool must have a name")
         if not self.description:
             raise ValueError("Tool must have a description")
+
+        # Store references for tools that need them (e.g., InvokeAgentTool)
+        self.tool_registry = tool_registry
+        self.llm_provider = llm_provider
+        self.model = model
 
     @abstractmethod
     async def execute(self, input_data: ToolInput) -> ToolOutput:

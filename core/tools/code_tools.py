@@ -70,7 +70,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid command"
+                    error="Invalid command: command parameter must be a non-empty string. Please provide a valid shell command."
                 )
 
             if not isinstance(delay_ms, int):
@@ -153,13 +153,13 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"{shell_name} not found on this system"
+                error=f"{shell_name} not found on this system. Please ensure the required shell is installed and available in your PATH."
             )
         except Exception as e:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to execute command: {str(e)}"
+                error=f"Failed to execute command: {str(e)}. Please check if the command syntax is correct for your shell ({'PowerShell' if self.is_windows else 'bash'}) and if you have the necessary permissions."
             )
 
 
@@ -209,7 +209,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid test path"
+                    error="Invalid test path: path parameter must be a non-empty string. Please provide a valid path to test file or directory."
                 )
 
             if not isinstance(framework, str):
@@ -226,7 +226,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"Unsupported test framework: {framework}"
+                    error=f"Unsupported test framework: {framework}. Please use 'pytest' or 'unittest'. Ensure the test framework is installed in your environment."
                 )
 
             process = await asyncio.create_subprocess_shell(
@@ -251,5 +251,5 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to run tests: {str(e)}"
+                error=f"Failed to run tests: {str(e)}. Please ensure the test framework is installed, the test path is correct, and you have permission to execute tests."
             )

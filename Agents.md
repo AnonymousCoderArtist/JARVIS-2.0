@@ -72,6 +72,7 @@ The main JARVIS agent for all tasks (coding, research, documentation, etc.).
 - Document processing (PDF, text)
 - Data extraction and analysis
 - Report generation and documentation
+- Subagent coordination (explore subagent for codebase exploration)
 
 **Best For:**
 - Writing and editing code
@@ -84,6 +85,7 @@ The main JARVIS agent for all tasks (coding, research, documentation, etc.).
 - Data extraction from files
 - Summarization and synthesis
 - Web content analysis
+- Delegating complex exploration tasks to the explore subagent
 
 **Example Usage:**
 ```python
@@ -101,16 +103,79 @@ result = await jarvis.process("Fix the authentication bug")
 
 ---
 
+### ExploreAgent (`core/agents/explore_agent.py`)
+
+A specialized subagent for comprehensive codebase exploration and analysis.
+
+**Purpose:** Systematic exploration and analysis of codebase structure, architecture, and relationships
+
+**System Prompt:** `EXPLORE_SYSTEM_PROMPT` from `explore_agent.py`
+
+**Key Capabilities:**
+- Understanding codebase structure and architecture
+- Finding specific files, functions, classes, or patterns
+- Analyzing code dependencies and relationships
+- Identifying entry points and key components
+- Providing comprehensive codebase overviews
+- Tracing code flow and execution paths
+- Mapping module interactions and dependencies
+
+**Best For:**
+- Understanding unfamiliar codebases
+- Finding where specific functionality is implemented
+- Understanding how different parts of the system interact
+- Identifying the impact of potential changes
+- Documenting codebase architecture
+- Finding bugs or issues through systematic exploration
+
+**Example Usage:**
+```python
+from core.agents import ExploreAgent
+
+# Initialize explore subagent (uses same model as main agent)
+explore_agent = ExploreAgent(
+    llm_provider=provider,
+    tool_registry=tool_registry,
+    model="gpt-4o"  # Same model as main agent
+)
+
+# Explore codebase
+result = await explore_agent.process("Explore the authentication module and identify all entry points")
+```
+
+**Invoking via Tool:**
+The ExploreAgent can be invoked by the main agent using the `invoke_agent` tool:
+```python
+# Main agent can invoke explore subagent
+tool_result = await tool_registry.execute_tool("invoke_agent", {
+    "agent_name": "explore",
+    "prompt": "Find all files that handle user authentication"
+})
+```
+
+---
+
 ## System Prompts (`core/agents/system_prompts.py`)
 
 ### JARVIS_SYSTEM_PROMPT
 Comprehensive prompt defining the JARVIS agent's behavior:
 - **Core Principles**: Understand before acting, be explicit, think step-by-step, be agentic
-- **Capabilities**: Code navigation, editing, execution, testing, git operations, research, documentation
+- **Capabilities**: Code navigation, editing, execution, testing, git operations, research, documentation, subagent coordination
 - **Approach**: 4-phase methodology (Understanding → Planning → Implementation → Verification)
 - **Quality Standards**: Clear code, proper naming, docstrings, error handling
 - **Tool Instructions**: Specific guidance on when to use various tools
 - **Agentic Behavior**: Proactive tool usage, error recovery, iterative improvement
+- **Task Decomposition**: Systematic breakdown of complex tasks
+- **Tool Result Interpretation**: Clear guidance on analyzing tool outputs
+- **Subagent Usage**: When and how to use the explore subagent
+
+### EXPLORE_SYSTEM_PROMPT
+Specialized prompt for the ExploreAgent subagent:
+- **Core Purpose**: Codebase exploration and analysis
+- **Systematic Approach**: Structure → Patterns → Dependencies → Synthesis
+- **Pattern Recognition**: Identifying architectural patterns and design patterns
+- **Dependency Analysis**: Mapping module relationships and dependencies
+- **Output Style**: Structured overviews with clear sections
 
 ### Dynamic Tool Descriptions
 
@@ -124,14 +189,14 @@ def generate_tool_descriptions(tools: dict[str, Any]) -> str:
     """
     if not tools:
         return ""
-    
+
     tool_sections = []
-    
+
     for tool_name, tool in tools.items():
         tool_desc = getattr(tool, 'description', '')
         if tool_desc:
             tool_sections.append(f"### {tool_name}\n{tool_desc}\n")
-    
+
     if tool_sections:
         return "## Available Tools\n\n" + "\n".join(tool_sections)
     return ""
@@ -146,6 +211,31 @@ def rebuild_system_prompt(self):
     tool_descriptions = generate_tool_descriptions(tools)
     self.system_prompt = self.base_system_prompt + "\n\n" + tool_descriptions
 ```
+
+### Recent Improvements
+
+**Enhanced System Prompt** (v2.0):
+- Added Task Decomposition Strategy with clear methodology
+- Enhanced Tool Result Interpretation guidelines
+- Added comprehensive Subagent Usage section
+- Improved error recovery and iterative refinement guidance
+- Added system context integration (OS, architecture, working directory)
+
+**Improved Tool Descriptions**:
+- All tools now have comprehensive usage guidelines
+- InvokeAgentTool updated to mention explore subagent
+- Tools include success/failure indicators and error handling guidance
+
+**Tool Result Handling**:
+- Tool results now explicitly include success/failure information
+- Error messages are passed to AI with guidance for recovery
+- Metadata includes execution details for better debugging
+
+**Explore Subagent Implementation**:
+- New ExploreAgent class with specialized exploration capabilities
+- Uses same model as main agent for consistency
+- Integrated with InvokeAgentTool for seamless delegation
+- ToolRegistry updated to support provider and model injection
 
 ---
 

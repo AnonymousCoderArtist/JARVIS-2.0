@@ -83,19 +83,19 @@ Usage:
                 new_string = replacement.get("new_string")
 
                 if not isinstance(file_path, str) or not file_path:
-                    errors.append(f"Replacement {i + 1}: Missing required parameters")
+                    errors.append(f"Replacement {i + 1}: Missing or invalid file_path. Please provide a valid absolute file path.")
                     continue
 
                 if not isinstance(old_string, str) or not old_string:
-                    errors.append(f"Replacement {i + 1}: Missing required parameters")
+                    errors.append(f"Replacement {i + 1}: Missing or invalid old_string. Please provide the exact text to replace as a string.")
                     continue
 
                 if not isinstance(new_string, str):
-                    errors.append(f"Replacement {i + 1}: Missing required parameters")
+                    errors.append(f"Replacement {i + 1}: Missing or invalid new_string. Please provide the replacement text as a string.")
                     continue
 
                 if not os.path.exists(file_path):
-                    errors.append(f"Replacement {i + 1}: File not found: {file_path}")
+                    errors.append(f"Replacement {i + 1}: File not found: {file_path}. Please verify the file path is correct and the file exists. Use list_directory or glob to find the correct file path.")
                     continue
 
                 with open(file_path, encoding="utf-8") as f:
@@ -103,11 +103,11 @@ Usage:
 
                 count = content.count(old_string)
                 if count == 0:
-                    errors.append(f"Replacement {i + 1}: Could not find 'old_string' in {file_path}")
+                    errors.append(f"Replacement {i + 1}: Could not find 'old_string' in {file_path}. Please read the file first using file_read to verify the exact text, then provide the exact string including whitespace and indentation.")
                     continue
 
                 if count > 1:
-                    errors.append(f"Replacement {i + 1}: Found {count} occurrences in {file_path}. Use allow_multiple for bulk replacements.")
+                    errors.append(f"Replacement {i + 1}: Found {count} occurrences of the string in {file_path}. Please provide more context to make the string unique, or use multiple replacement operations.")
                     continue
 
                 new_content = content.replace(old_string, new_string, 1)
@@ -126,7 +126,7 @@ Usage:
                 })
 
             except Exception as e:
-                errors.append(f"Replacement {i + 1}: {str(e)}")
+                errors.append(f"Replacement {i + 1}: {str(e)}. Please check if you have permission to modify the file and if the file path is correct.")
 
         success = len(errors) == 0
         result_message = f"Completed {len(results)} replacements successfully"

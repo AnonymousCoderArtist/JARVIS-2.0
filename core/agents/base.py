@@ -10,7 +10,7 @@ from typing import Any, cast
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
 from core.tools.registry import ToolRegistry
-from core.agents.system_prompts import generate_tool_descriptions, get_system_context
+from core.agents.system_prompts import get_system_context
 
 
 class BaseAgent(ABC):
@@ -38,28 +38,29 @@ class BaseAgent(ABC):
         self._build_system_prompt()
     
     def _build_system_prompt(self):
-        """Build the full system prompt with dynamically injected tool descriptions."""
+        """Build the full system prompt with system context and active skills."""
         # Get system context
         system_context = get_system_context()
-        
-        # Get tool descriptions from the tool registry
-        tools_dict = self.tools.get_tools()
-        tool_descriptions = generate_tool_descriptions(tools_dict)
-        
-        # Combine base prompt with system context and tool descriptions
+
+        # Combine base prompt with system context
         full_prompt = self.base_system_prompt
         if system_context:
             full_prompt = f"{full_prompt}\n\n{system_context}"
-        if tool_descriptions:
-            full_prompt = f"{full_prompt}\n\n{tool_descriptions}"
-        
+
+        # Add active skills if any
+        if hasattr(self.tools, 'active_skills') and self.tools.active_skills:
+            skills_section = "\n\n## Active Skills\n\n"
+            for skill_name, skill_content in self.tools.active_skills.items():
+                skills_section += f"### {skill_name}\n{skill_content}\n\n"
+            full_prompt += skills_section
+
         self.system_prompt = full_prompt
 
     def rebuild_system_prompt(self):
-        """Rebuild the system prompt with current tool descriptions.
-        
-        Call this after modifying the tool registry to update the agent's
-        system prompt with the latest tool descriptions.
+        """Rebuild the system prompt with current tool descriptions and active skills.
+
+        Call this after modifying the tool registry or activating skills to update the agent's
+        system prompt with the latest tool descriptions and skill content.
         """
         self._build_system_prompt()
 
@@ -329,13 +330,17 @@ class BaseAgent(ABC):
             result = await self.tools.execute_tool(tool_name, tool_args)
             if self.tool_result_callback:
                 self.tool_result_callback(tool_name, tool_args, result)
-            
+
+            # Rebuild system prompt if a skill was activated
+            if tool_name == "activate_skill" and result.success:
+                self.rebuild_system_prompt()
+
             # Format tool result for LLM (OpenClaude style)
             if result.success:
                 tool_result_content = f"Tool {tool_name} executed successfully. Result: {result.result}"
             else:
-                tool_result_content = f"Tool {tool_name} failed. Error: {result.error}"
-            
+                tool_result_content = f"Tool {tool_name} failed. Error: {result.error}. Please adjust your approach and try again with different parameters."
+
             tool_results.append({
                 "tool": tool_name,
                 "success": result.success,

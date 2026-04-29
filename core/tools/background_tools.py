@@ -116,7 +116,7 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"No background process found with PID {pid}"
+                error=f"No background process found with PID {pid}. Please use list_background_processes to see available PIDs and ensure the process is still running."
             )
 
         info = _background_processes[pid]

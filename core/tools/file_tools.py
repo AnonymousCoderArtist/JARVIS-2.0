@@ -63,21 +63,21 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid file path"
+                    error="Invalid file path: file_path parameter must be a non-empty string. Please provide a valid absolute file path."
                 )
 
             if offset is not None and not isinstance(offset, int):
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid offset"
+                    error="Invalid offset: offset parameter must be a positive integer. Please provide a valid line number to start reading from."
                 )
 
             if limit is not None and not isinstance(limit, int):
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid limit"
+                    error="Invalid limit: limit parameter must be a positive integer. Please provide a valid maximum number of lines to read."
                 )
 
             if not isinstance(encoding, str):
@@ -87,7 +87,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"File not found: {file_path}"
+                    error=f"File not found: {file_path}. Please verify the file path is correct and the file exists. Use list_directory or glob to find the correct file path."
                 )
 
             async with aiofiles.open(file_path, encoding=encoding) as f:
@@ -135,7 +135,7 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to read file: {str(e)}"
+                error=f"Failed to read file: {str(e)}. Please check if the file exists, you have permission to read it, and the path is correct. Use list_directory to verify the file location."
             )
 
 
@@ -178,14 +178,14 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid file path"
+                    error="Invalid file path: file_path parameter must be a non-empty string. Please provide a valid absolute file path."
                 )
 
             if not isinstance(content, str):
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid file content"
+                    error="Invalid file content: content parameter must be a string. Please provide the file content as a string."
                 )
 
             # Check if file already exists
@@ -193,7 +193,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"File already exists: {file_path}. Use the replace tool to edit existing files."
+                    error=f"File already exists: {file_path}. To edit an existing file, use the replace tool instead. The create_file tool is only for creating new files."
                 )
 
             # Create parent directories if they don't exist
@@ -214,7 +214,7 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to create file: {str(e)}"
+                error=f"Failed to create file: {str(e)}. Please check if you have permission to create files in the directory and if the parent directory path is valid."
             )
 
 
@@ -246,13 +246,13 @@ Usage:
             path = getattr(input_data, "path", None)
 
             if not isinstance(path, str) or not path:
-                return ToolOutput(success=False, result=None, error="Invalid directory path")
+                return ToolOutput(success=False, result=None, error="Invalid directory path: path parameter must be a non-empty string. Please provide a valid absolute directory path.")
 
             if not os.path.exists(path):
-                return ToolOutput(success=False, result=None, error=f"Directory not found: {path}")
+                return ToolOutput(success=False, result=None, error=f"Directory not found: {path}. Please verify the directory path is correct and exists. Use glob to search for directories if you're unsure of the exact path.")
 
             if not os.path.isdir(path):
-                return ToolOutput(success=False, result=None, error=f"Path is not a directory: {path}")
+                return ToolOutput(success=False, result=None, error=f"Path is not a directory: {path}. The provided path exists but is a file, not a directory. Please provide a directory path or use file_read to read this file.")
 
             items = []
             for item in os.listdir(path):
@@ -271,7 +271,7 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to list directory: {str(e)}"
+                error=f"Failed to list directory: {str(e)}. Please check if you have permission to access this directory and if the path is valid."
             )
 
 
@@ -317,7 +317,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid glob query"
+                    error="Invalid glob query: query parameter must be a non-empty string. Please provide a valid glob pattern (e.g., '**/*.py' or 'src/**')"
                 )
 
             if max_results is not None and not isinstance(max_results, int):
@@ -342,5 +342,5 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to search files: {str(e)}"
+                error=f"Failed to search files: {str(e)}. Please check if your glob pattern is valid and if you have permission to access the search directories."
             )

@@ -39,14 +39,44 @@ class CLIInterface:
         self.jarvis_agent: CodingAgent | None = None
         self._current_provider_id: str | None = None
         self._current_model_id: str | None = None
+        self._current_provider = None  # Store the provider for tool registry
 
         self._initialize_systems()
 
     def _initialize_systems(self):
         self._initialize_tools()
         self._initialize_agents()
+        # Update tool registry with provider and model after agent initialization
+        if self._current_provider:
+            self.tool_registry.llm_provider = self._current_provider
+            self.tool_registry.model = self._current_model_id
+            # Re-register tools to inject the provider references
+            self._reinitialize_tools()
 
     def _initialize_tools(self):
+        self.tool_registry.register(FileReadTool())
+        self.tool_registry.register(FileWriteTool())
+        self.tool_registry.register(ReplaceTool())
+        self.tool_registry.register(ListDirectoryTool())
+        self.tool_registry.register(GlobTool())
+        self.tool_registry.register(BashTool())
+        self.tool_registry.register(REPLTool())
+        self.tool_registry.register(RunTestsTool())
+        self.tool_registry.register(GrepSearchTool())
+        self.tool_registry.register(ListBackgroundProcessesTool())
+        self.tool_registry.register(ReadBackgroundOutputTool())
+        self.tool_registry.register(WebFetchTool())
+        self.tool_registry.register(SaveMemoryTool())
+        self.tool_registry.register(InvokeAgentTool())
+        self.tool_registry.register(ActivateSkillTool())
+        self.tool_registry.register(ReadPDFTool())
+
+    def _reinitialize_tools(self):
+        """Re-register tools with provider references"""
+        # Clear existing tools
+        self.tool_registry._tools.clear()
+
+        # Re-register with provider references
         self.tool_registry.register(FileReadTool())
         self.tool_registry.register(FileWriteTool())
         self.tool_registry.register(ReplaceTool())
@@ -77,11 +107,11 @@ class CLIInterface:
         active_model = self.settings.selected_model_id or "gpt-4o"
         provider = SDKAdapter(sdk, provider_id)
 
+        # Store provider reference for tool registry
+        self._current_provider = provider
+
         self.jarvis_agent = CodingAgent(provider, self.tool_registry, model=active_model)
-        
-        # Rebuild agent prompt with dynamic tool descriptions
-        self.jarvis_agent.rebuild_system_prompt()
-        
+
         self._current_provider_id = provider_id
         self._current_model_id = active_model
 
@@ -137,9 +167,14 @@ class CLIInterface:
         full_response = ""
         response_started = False
         live_ref = [None]  # Store Live reference in mutable container
+        in_tool_call = [False]  # Track if we're in a tool call
 
         def stream_callback(chunk: str):
-            nonlocal full_response, response_started, live_ref
+            nonlocal full_response, response_started, live_ref, in_tool_call
+            # Don't accumulate during tool calls
+            if in_tool_call[0]:
+                return
+            
             full_response += chunk
             if not response_started:
                 response_started = True
@@ -148,7 +183,18 @@ class CLIInterface:
                 live_ref[0].update(Markdown(full_response))
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
-            nonlocal full_response
+            nonlocal full_response, live_ref, in_tool_call
+            in_tool_call[0] = True
+            
+            # Print any accumulated response before tool call
+            if full_response.strip():
+                # Stop Live display temporarily
+                if live_ref[0]:
+                    live_ref[0].stop()
+                    live_ref[0] = None
+                self.console.print(Markdown(full_response))
+                full_response = ""  # Reset after printing
+            
             # Format tool call as multi-line function call
             args_lines = []
             for k, v in tool_args.items():
@@ -161,6 +207,7 @@ class CLIInterface:
             self.console.print(Markdown(f"```python\n{tool_call_str}\n```"))
 
         def tool_result_callback(tool_name: str, tool_args: dict[str, Any], result: Any):
+            nonlocal in_tool_call
             # Display tool result with truncation
             if result and hasattr(result, 'success'):
                 if result.success:
@@ -178,6 +225,9 @@ class CLIInterface:
             # Display result as dim text outside code block
             self.console.print(f"[dim]{result_str}[/dim]")
             self.console.print()
+            
+            # Done with tool call
+            in_tool_call[0] = False
 
         self.jarvis_agent.stream_callback = stream_callback
         self.jarvis_agent.tool_call_callback = tool_call_callback
@@ -192,8 +242,8 @@ class CLIInterface:
                 self.console.print(f"\n[red]Error: {e}[/red]")
                 return
 
-        # Response already displayed via Live streaming
-        # Just add spacing after the response
+        # Don't print remaining content - Live display already showed it during streaming
+        # This prevents duplicate output
         if not response_started:
             self.console.print("[dim](no response)[/dim]")
 

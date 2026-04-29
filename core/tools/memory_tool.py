@@ -42,6 +42,13 @@ Usage:
         fact = getattr(input_data, "fact", None)
         scope = getattr(input_data, "scope", "global")
 
+        if not isinstance(fact, str) or not fact:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error="Invalid fact: fact parameter must be a non-empty string. Please provide a concise fact or preference to remember."
+            )
+
         try:
             # Determine storage location
             # In JARVIS, we might use a dedicated memory folder
@@ -76,5 +83,5 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to save memory: {str(e)}"
+                error=f"Failed to save memory: {str(e)}. Please check if you have permission to write to the memory directory and if the directory path is valid."
             )
