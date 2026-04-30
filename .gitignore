@@ -140,3 +140,6 @@ typings/
 # Terraform state
 *.tfstate
 *.tfstate.backup
+.devin
+.openclaude
+.jarvis

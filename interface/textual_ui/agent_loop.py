@@ -124,6 +124,10 @@ class AgentLoop:
         self.hook_config_issues = []
         self.agent_manager = AgentManagerAdapter()
         self.tool_manager = ToolManagerAdapter(tool_registry)
+        self.session_logger = SessionLoggerAdapter()
+        self.session_id = None
+        self.parent_session_id = None
+        self.rewind_manager = RewindManagerAdapter()
         
         # Integration with JARVIS's actual memory system
         self._approval_callback: Callable[[str, list[str]], Any] | None = None
@@ -553,3 +557,30 @@ class ToolManagerAdapter:
     async def refresh_remote_tools_async(self):
         """Refresh remote tools (noop for now)."""
         pass
+
+
+class SessionLoggerAdapter:
+    """Adapter for session logging."""
+    
+    def __init__(self):
+        self.enabled = False
+        self.session_id = None
+        self.session_dir = Path.cwd()
+        self.session_config = None
+    
+    def resume_existing_session(self, session_id, session_path):
+        """Resume an existing session."""
+        self.session_id = session_id
+        self.session_dir = Path(session_path).parent
+
+
+class RewindManagerAdapter:
+    """Adapter for session rewinding."""
+    
+    def has_file_changes_at(self, index):
+        """Check if there are file changes at a specific message index."""
+        return False
+    
+    async def rewind_to_message(self, index, restore_files=False):
+        """Rewind the session to a specific message index."""
+        return "Rewind successful (stub)", []
