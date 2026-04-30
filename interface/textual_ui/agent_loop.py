@@ -85,7 +85,7 @@ class Stats:
         """Update stats from agent memory/context."""
         # Try to get token info from agent if available
         if hasattr(agent, 'memory'):
-            memory = agent.get_memory_context()
+            memory = agent.memory
             if memory:
                 # Estimate tokens (rough approximation: 1 token ≈ 4 chars)
                 total_chars = sum(len(str(m.get('content', ''))) for m in memory)
