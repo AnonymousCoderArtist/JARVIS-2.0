@@ -3,6 +3,26 @@
 from .base import BaseTool, ToolInput, ToolOutput
 
 
+def get_skill_description() -> str:
+    """Get dynamic skill descriptions from SkillManager"""
+    try:
+        from core.skills import SkillManager
+        skill_manager = SkillManager()
+        return skill_manager.get_skill_descriptions_for_prompt()
+    except Exception:
+        # Fallback to basic description if skill manager fails
+        return """## Available Skills
+
+Skills provide specialized domain expertise. ONLY activate skills when the task explicitly requires specialized knowledge.
+
+**Available skills:**
+- skill-creator: For creating new skills and modifying existing skill files
+- reverse-engineering: For analyzing APIs, websites, and systems
+- modern-python: For setting up Python projects and modern tooling
+
+IMPORTANT: Only activate skills when the task clearly requires specialized expertise."""
+
+
 class InvokeAgentTool(BaseTool):
     """Tool for invoking specialized agents (OpenClaude style)"""
 
@@ -118,20 +138,12 @@ class ActivateSkillTool(BaseTool):
     """Tool for activating specialized agent skills (OpenClaude style)"""
 
     name = "activate_skill"
-    description = """Activates a specialized agent skill by name to receive expert guidance. Use this to enhance agent capabilities with domain-specific expertise.
-
-Usage:
-- Specify the skill name to activate (e.g., 'skill-creator', 'reverse-engineering', 'modern-python')
-- Skills provide specialized instructions and guidance for specific domains
-- Useful for tasks requiring specialized knowledge or approaches
-- Skills augment the agent's base capabilities with expert guidance
-- Available skills are defined in the system configuration"""
+    description = get_skill_description()
     input_schema = {
         "type": "object",
         "properties": {
             "name": {
                 "type": "string",
-                "enum": ["skill-creator", "reverse-engineering", "modern-python"],
                 "description": "Name of the specialized skill to activate for expert guidance"
             }
         },
@@ -145,47 +157,37 @@ Usage:
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid skill name: skill name must be a non-empty string. Please provide a valid skill name (e.g., 'skill-creator', 'reverse-engineering', 'modern-python')."
+                error="Invalid skill name: skill name must be a non-empty string. Please provide a valid skill name."
             )
 
-        # Try to load skill from system skills directory
-        import os
+        # Use SkillManager to activate the skill
+        try:
+            from core.skills import SkillManager
+            skill_manager = SkillManager()
+            success, message, content = skill_manager.activate_skill(skill_name)
 
-        skill_paths = [
-            os.path.expanduser(f"~/.claude/skills/{skill_name}/SKILL.md"),
-            os.path.expanduser(f"~/.agents/skills/{skill_name}/SKILL.md"),
-            f".devin/skills/{skill_name}/SKILL.md"
-        ]
+            if not success:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=message
+                )
 
-        skill_content = None
-        for skill_path in skill_paths:
-            if os.path.exists(skill_path):
-                try:
-                    with open(skill_path, 'r', encoding='utf-8') as f:
-                        skill_content = f.read()
-                    break
-                except Exception as e:
-                    return ToolOutput(
-                        success=False,
-                        result=None,
-                        error=f"Failed to read skill file: {str(e)}. Please check if you have permission to read the skill file and if the file path is correct."
-                    )
+            # Store skill content in the tool registry's context for the agent to access
+            if self.tool_registry:
+                if not hasattr(self.tool_registry, 'active_skills'):
+                    self.tool_registry.active_skills = {}
+                self.tool_registry.active_skills[skill_name] = content
 
-        if not skill_content:
+            return ToolOutput(
+                success=True,
+                result=message,
+                metadata={"skill": skill_name, "content_length": len(content) if content else 0}
+            )
+
+        except Exception as e:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Skill '{skill_name}' not found. Checked: {', '.join(skill_paths)}. Please ensure the skill file exists in one of these directories or verify the skill name is correct."
+                error=f"Failed to activate skill: {str(e)}. Please check if the skill system is properly configured."
             )
-
-        # Store skill content in the tool registry's context for the agent to access
-        if self.tool_registry:
-            if not hasattr(self.tool_registry, 'active_skills'):
-                self.tool_registry.active_skills = {}
-            self.tool_registry.active_skills[skill_name] = skill_content
-
-        return ToolOutput(
-            success=True,
-            result=f"Activated skill: {skill_name}. Skill instructions loaded and available.",
-            metadata={"skill": skill_name, "content_length": len(skill_content)}
-        )

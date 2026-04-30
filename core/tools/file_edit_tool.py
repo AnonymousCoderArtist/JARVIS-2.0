@@ -6,20 +6,19 @@ import os
 from .base import BaseTool, ToolInput, ToolOutput
 
 
-class ReplaceTool(BaseTool):
-    """Tool for replacing text in a file (OpenClaude style)"""
+class EditTool(BaseTool):
+    """Tool for editing files (OpenClaude style)"""
 
-    name = "replace"
-    description = """Performs exact string replacements in files. Use for precise edits to existing files.
+    name = "edit"
+    description = """Edit files by replacing text. Use for precise edits to existing files.
 
-IMPORTANT: You must use the file_read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
+IMPORTANT: You must use the read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
 
 Usage:
 - When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + arrow. Everything after that is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
 - The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.
-- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
 - Use the smallest old_string that's clearly unique — usually 2-4 adjacent lines is sufficient. Avoid including 10+ lines of context when less uniquely identifies the target.
 - Use the replacements array for single or multiple edits in a single call"""
     input_schema = {
@@ -53,7 +52,8 @@ Usage:
         "required": ["replacements"]
     }
 
-    async def execute(self, input_data: ToolInput) -> ToolOutput:
+    async def edit(self, input_data: ToolInput) -> ToolOutput:
+        """Edit files by replacing text"""
         try:
             replacements = getattr(input_data, "replacements", None)
 
@@ -68,8 +68,12 @@ Usage:
 
         except Exception as e:
             return ToolOutput(
-                success=False, result=None, error=f"Failed to replace text: {str(e)}"
+                success=False, result=None, error=f"Failed to edit text: {str(e)}"
             )
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        """Execute the edit (calls edit method)"""
+        return await self.edit(input_data)
 
     async def _execute_multiple_replacements(self, replacements: list[dict[str, str]]) -> ToolOutput:
         """Execute multiple replacement operations in a single call"""
@@ -103,7 +107,7 @@ Usage:
 
                 count = content.count(old_string)
                 if count == 0:
-                    errors.append(f"Replacement {i + 1}: Could not find 'old_string' in {file_path}. Please read the file first using file_read to verify the exact text, then provide the exact string including whitespace and indentation.")
+                    errors.append(f"Replacement {i + 1}: Could not find 'old_string' in {file_path}. Please read the file first using read to verify the exact text, then provide the exact string including whitespace and indentation.")
                     continue
 
                 if count > 1:

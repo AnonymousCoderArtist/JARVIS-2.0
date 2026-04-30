@@ -1,7 +1,6 @@
 """Command-line interface for JARVIS"""
 
 import asyncio
-import json
 import shlex
 import sys
 from typing import Any
@@ -12,14 +11,13 @@ from rich.live import Live
 
 from core.agents.base import BaseAgent
 from core.agents.coding_agent import CodingAgent
-from core.config.settings import Settings
 from core.llm.sdk_adapter import SDKAdapter
-from core.llm_sdk.provider_registry import provider_registry
+from core.llm_sdk.anthropic.sdk import AnthropicSDK
+from core.llm_sdk.openai.sdk import OpenAISDK
 from core.tools.agent_tools import ActivateSkillTool, InvokeAgentTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
-from core.tools.document_tools import ReadPDFTool
-from core.tools.file_edit_tool import ReplaceTool
+from core.tools.file_edit_tool import EditTool
 from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool
@@ -31,32 +29,32 @@ from core.tools.web_tools import WebFetchTool
 class CLIInterface:
     """Enhanced CLI interface for JARVIS."""
 
-    def __init__(self):
+    def __init__(self, model: str, base_url: str | None, apikey: str | None, sdk: str):
         self.console = Console(markup=True, emoji=False)
-        self.settings = Settings()
-        self.provider_registry = provider_registry
+        self.model = model
+        self.base_url = base_url
+        self.apikey = apikey
+        self.sdk = sdk
         self.tool_registry = ToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
-        self._current_provider_id: str | None = None
-        self._current_model_id: str | None = None
-        self._current_provider = None  # Store the provider for tool registry
+        self._current_provider = None
 
         self._initialize_systems()
 
     def _initialize_systems(self):
         self._initialize_tools()
         self._initialize_agents()
-        # Update tool registry with provider and model after agent initialization
+        # Update tool registry with provider after agent initialization
         if self._current_provider:
             self.tool_registry.llm_provider = self._current_provider
-            self.tool_registry.model = self._current_model_id
+            self.tool_registry.model = self.model
             # Re-register tools to inject the provider references
             self._reinitialize_tools()
 
     def _initialize_tools(self):
         self.tool_registry.register(FileReadTool())
         self.tool_registry.register(FileWriteTool())
-        self.tool_registry.register(ReplaceTool())
+        self.tool_registry.register(EditTool())
         self.tool_registry.register(ListDirectoryTool())
         self.tool_registry.register(GlobTool())
         self.tool_registry.register(BashTool())
@@ -69,7 +67,6 @@ class CLIInterface:
         self.tool_registry.register(SaveMemoryTool())
         self.tool_registry.register(InvokeAgentTool())
         self.tool_registry.register(ActivateSkillTool())
-        self.tool_registry.register(ReadPDFTool())
 
     def _reinitialize_tools(self):
         """Re-register tools with provider references"""
@@ -79,7 +76,7 @@ class CLIInterface:
         # Re-register with provider references
         self.tool_registry.register(FileReadTool())
         self.tool_registry.register(FileWriteTool())
-        self.tool_registry.register(ReplaceTool())
+        self.tool_registry.register(EditTool())
         self.tool_registry.register(ListDirectoryTool())
         self.tool_registry.register(GlobTool())
         self.tool_registry.register(BashTool())
@@ -92,28 +89,23 @@ class CLIInterface:
         self.tool_registry.register(SaveMemoryTool())
         self.tool_registry.register(InvokeAgentTool())
         self.tool_registry.register(ActivateSkillTool())
-        self.tool_registry.register(ReadPDFTool())
 
     def _initialize_agents(self):
-        provider_id = self.settings.selected_provider_id
-        if not provider_id or not self.settings.is_provider_enabled(provider_id):
-            return
+        # Create SDK instance based on CLI parameters
+        if self.sdk == "anthropic":
+            sdk = AnthropicSDK(api_key=self.apikey or "", base_url=self.base_url)
+        elif self.sdk == "openai":
+            sdk = OpenAISDK(api_key=self.apikey or "", base_url=self.base_url)
+        else:
+            # Default to OpenAI SDK for standard mode
+            sdk = OpenAISDK(api_key=self.apikey or "", base_url=self.base_url)
 
-        api_key = self.settings.get_provider_api_key(provider_id)
-        sdk = self.provider_registry.get_sdk_instance(provider_id, api_key)
-        if not sdk:
-            return
-
-        active_model = self.settings.selected_model_id or "gpt-4o"
-        provider = SDKAdapter(sdk, provider_id)
+        provider = SDKAdapter(sdk, "cli-provider")
 
         # Store provider reference for tool registry
         self._current_provider = provider
 
-        self.jarvis_agent = CodingAgent(provider, self.tool_registry, model=active_model)
-
-        self._current_provider_id = provider_id
-        self._current_model_id = active_model
+        self.jarvis_agent = CodingAgent(provider, self.tool_registry, model=self.model)
 
     def _md(self, text: str):
         """Render markdown text."""
@@ -125,8 +117,9 @@ class CLIInterface:
         self.console.print("[bold cyan]JARVIS 2.0[/bold cyan]")
         self.console.print("[dim]The professional AI engineering assistant[/dim]")
         self.console.print()
-        self.console.print(f"  [cyan]Provider:[/cyan] {self._current_provider_id or 'not configured'}")
-        self.console.print(f"  [cyan]Model:[/cyan]    {self._current_model_id or 'not configured'}")
+        self.console.print(f"  [cyan]Model:[/cyan]    {self.model}")
+        self.console.print(f"  [cyan]SDK:[/cyan]      {self.sdk}")
+        self.console.print(f"  [cyan]Base URL:[/cyan] {self.base_url or 'default'}")
         self.console.print(f"  [cyan]Tools:[/cyan]    {len(self.tool_registry.list_tools())}")
         self.console.print()
 
@@ -142,7 +135,6 @@ class CLIInterface:
             "Just type your message and press Enter to chat with JARVIS."
         )
         self.console.print()
-
 
 
     async def _handle_submit(self, text: str):
@@ -263,8 +255,9 @@ class CLIInterface:
             tool_count = len(self.tool_registry.list_tools())
             self.console.print()
             self.console.print("[bold cyan]Status[/bold cyan]")
-            self.console.print(f"  [cyan]Provider:[/cyan] {self._current_provider_id or 'none'}")
-            self.console.print(f"  [cyan]Model:[/cyan]    {self._current_model_id or 'none'}")
+            self.console.print(f"  [cyan]Model:[/cyan]    {self.model}")
+            self.console.print(f"  [cyan]SDK:[/cyan]      {self.sdk}")
+            self.console.print(f"  [cyan]Base URL:[/cyan] {self.base_url or 'default'}")
             self.console.print(f"  [cyan]Tools:[/cyan]    {tool_count}")
             self.console.print()
         elif cmd in ["exit", "quit"]:
@@ -316,8 +309,13 @@ class CLIInterface:
             except Exception as e:
                 self.console.print(f"\n[red]Fatal Error: {e}[/red]")
 
-def main():
-    cli = CLIInterface()
+def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai"):
+    """Main CLI entry point."""
+    if not launch_cli:
+        print("Error: CLI mode not enabled. Use --cli flag.")
+        sys.exit(1)
+    
+    cli = CLIInterface(model=model, base_url=base_url, apikey=apikey, sdk=sdk)
     asyncio.run(cli.run())
 
 if __name__ == "__main__":

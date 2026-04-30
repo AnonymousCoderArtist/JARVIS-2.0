@@ -11,10 +11,10 @@ from .base import BaseTool, ToolInput, ToolOutput
 from .code_tools import BashTool, RunTestsTool
 
 # Document tools
-from .document_tools import ReadPDFTool
-from .file_edit_tool import ReplaceTool
+# Removed: ReadPDFTool
 
 # File tools
+from .file_edit_tool import EditTool
 from .file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
 
 # Search tools
@@ -34,11 +34,11 @@ __all__ = [
     "ToolOutput",
     "ToolRegistry",
     # File tools
-    "FileReadTool",  # read_file
-    "FileWriteTool",  # create_file
-    "ReplaceTool",  # multi_replace_string_in_file
+    "FileReadTool",  # read
+    "FileWriteTool",  # write
+    "EditTool",  # edit (renamed from ReplaceTool)
     "ListDirectoryTool",  # list_dir
-    "GlobTool",  # file_search
+    "GlobTool",  # glob
     # Code tools
     "BashTool",
     "REPLTool",
@@ -55,6 +55,4 @@ __all__ = [
     # Agent tools
     "InvokeAgentTool",
     "ActivateSkillTool",
-    # Document tools
-    "ReadPDFTool",
 ]

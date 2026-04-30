@@ -42,12 +42,8 @@ class Settings:
                 "debug": False,
             },
             "provider": {
-                "selected": {"id": "openai"},
-                "providers": {
-                    "openai": {"api_key": None, "enabled": False},
-                    "anthropic": {"api_key": None, "enabled": False},
-                    "mistral": {"api_key": None, "enabled": False},
-                },
+                "config_file": "providers.json",
+                "selected_provider_id": None,
             },
             "memory": {
                 "max_entries": 1000,
@@ -116,27 +112,16 @@ class Settings:
         return self.get("app", "debug", False)
 
     @property
-    def selected_provider_id(self) -> str:
-        return self.get("provider", "selected", {}).get("id", "openai")
+    def selected_provider_id(self) -> str | None:
+        return self.get("provider", "selected_provider_id")
 
     @property
     def selected_model_id(self) -> str | None:
         return self.get("model", "selected", {}).get("id")
 
-    def get_provider_config(self, provider_id: str) -> dict[str, Any]:
-        """Get configuration for a specific provider"""
-        providers = self.get("provider", "providers", {})
-        return providers.get(provider_id, {})
-
-    def get_provider_api_key(self, provider_id: str) -> str | None:
-        """Get API key for a provider"""
-        config = self.get_provider_config(provider_id)
-        return config.get("api_key")
-
-    def is_provider_enabled(self, provider_id: str) -> bool:
-        """Check if a provider is enabled"""
-        config = self.get_provider_config(provider_id)
-        return config.get("enabled", False)
+    @property
+    def provider_config_file(self) -> str:
+        return self.get("provider", "config_file", "providers.json")
 
     @property
     def max_memory_entries(self) -> int:

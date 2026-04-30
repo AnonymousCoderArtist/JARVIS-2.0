@@ -10,7 +10,7 @@ from .base import BaseTool, ToolInput, ToolOutput
 class FileReadTool(BaseTool):
     """Tool for reading file contents (OpenClaude style)"""
 
-    name = "file_read"
+    name = "read"
     description = """Read a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
 Usage:
@@ -142,16 +142,10 @@ Usage:
 class FileWriteTool(BaseTool):
     """Tool for writing content to files (OpenClaude style)"""
 
-    name = "create_file"
+    name = "write"
     description = """Create a new file in the workspace with the specified content. The directory will be created if it does not already exist.
 
-IMPORTANT: Never use this tool to edit a file that already exists. Use the replace tool for editing existing files.
-
-Usage:
-- The filePath parameter must be an absolute path, not a relative path
-- The content parameter should contain the full file contents
-- Parent directories will be created automatically if they don't exist
-- This tool will fail if the file already exists (use replace tool instead)
+- This tool will fail if the file already exists (use edit tool instead)
 - Use this tool only when creating new files from scratch"""
     input_schema = {
         "type": "object",
@@ -193,7 +187,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"File already exists: {file_path}. To edit an existing file, use the replace tool instead. The create_file tool is only for creating new files."
+                    error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead. The write tool is only for creating new files."
                 )
 
             # Create parent directories if they don't exist
@@ -252,7 +246,7 @@ Usage:
                 return ToolOutput(success=False, result=None, error=f"Directory not found: {path}. Please verify the directory path is correct and exists. Use glob to search for directories if you're unsure of the exact path.")
 
             if not os.path.isdir(path):
-                return ToolOutput(success=False, result=None, error=f"Path is not a directory: {path}. The provided path exists but is a file, not a directory. Please provide a directory path or use file_read to read this file.")
+                return ToolOutput(success=False, result=None, error=f"Path is not a directory: {path}. The provided path exists but is a file, not a directory. Please provide a directory path or use read to read this file.")
 
             items = []
             for item in os.listdir(path):
@@ -278,7 +272,7 @@ Usage:
 class GlobTool(BaseTool):
     """Tool for searching files by pattern (OpenClaude style)"""
 
-    name = "file_search"
+    name = "glob"
     description = """Search for files in the workspace by glob pattern. This only returns the paths of matching files. Use this tool when you know the exact filename pattern of the files you're searching for.
 
 Usage:
@@ -290,7 +284,7 @@ Usage:
   - **/*.py to match all Python files recursively
 - Use maxResults parameter to limit the number of results if needed
 - This tool is faster than grep for finding files by name pattern
-- Use grep_search instead when searching for content within files"""
+- Use grep instead when searching for content within files"""
     input_schema = {
         "type": "object",
         "properties": {

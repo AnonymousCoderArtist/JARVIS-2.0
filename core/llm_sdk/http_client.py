@@ -46,9 +46,17 @@ class HTTPClient:
         if response.status_code >= 400:
             raise Exception(f"HTTP {response.status_code}: {response.text}")
 
-        async for line in response.aiter_lines():
-            if line:
-                yield line.decode("utf-8")
+        try:
+            async for line in response.aiter_lines():
+                if line:
+                    # Handle both bytes and string responses
+                    if isinstance(line, bytes):
+                        yield line.decode("utf-8")
+                    else:
+                        yield line
+        except Exception as e:
+            logger.error(f"Error during streaming: {e}")
+            raise
 
     async def close(self):
         """Close both httpx and curl_cffi sessions."""

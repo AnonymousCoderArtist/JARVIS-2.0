@@ -226,7 +226,7 @@ If issues arise during implementation:
 
 **IMPORTANT**: Always use the most specific tool for the task. Only fall back to bash when specialized tools cannot accomplish the task.
 
-1. **File Operations**: Use file_read, file_write, list_directory, glob tools for file operations
+1. **File Operations**: Use read, write, list_directory, glob tools for file operations
 2. **Code Search**: Use grep tool for searching file contents
 3. **Code Execution**: Use run_tests for testing, repl for interactive Python
 4. **Web Operations**: Use web_fetch for web content
@@ -235,8 +235,8 @@ If issues arise during implementation:
 ### When to Use Specialized Tools vs Bash
 
 **Use specialized tools when:**
-- Reading files: Use file_read tool
-- Writing files: Use file_write tool  
+- Reading files: Use read tool
+- Writing files: Use write tool
 - Searching code: Use grep tool
 - Running tests: Use run_tests tool
 - Listing directories: Use list_directory tool
@@ -269,7 +269,7 @@ If issues arise during implementation:
 
 - If a tool fails, analyze the error message before retrying
 - Do not repeat the same failed operation multiple times
-- If file_read fails with "File not found":
+- If read fails with "File not found":
   1. Use list_directory to explore the directory structure
   2. Use glob to find the correct file pattern
   3. Adjust the file path based on actual directory structure
@@ -385,6 +385,25 @@ Subagents are specialized agents that can handle specific types of tasks more ef
 3. **Result Integration**: Analyze and integrate subagent results into your workflow
 4. **Avoid Redundancy**: Don't delegate tasks you can handle efficiently yourself
 5. **Iterative Refinement**: Use subagent results to refine your understanding and approach
+
+## Skill Usage
+
+### When to Use Skills
+
+Skills provide specialized domain expertise. ONLY activate skills when the task explicitly requires specialized knowledge.
+
+**Skill Best Practices:**
+1. **Explicit Need Only**: Only activate when the task clearly requires the specialized expertise
+2. **Single Skill**: Activate one skill at a time unless multiple are clearly needed
+3. **User Request**: If user explicitly mentions a skill, it's appropriate to activate it
+4. **Avoid Overuse**: Your base capabilities are sufficient for most tasks
+5. **Check Available Skills**: Use the activate_skill tool to see what skills are available and their specific use cases
+
+**DO NOT use skills when:**
+- General coding, debugging, or routine development tasks
+- Reading files, editing code, or running tests
+- General analysis or explanation tasks
+- Tasks that don't clearly fall into specific skill categories
 
 ## Git Operations
 

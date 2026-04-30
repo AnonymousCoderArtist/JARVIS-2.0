@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, cast
@@ -11,6 +12,8 @@ from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
 from core.tools.registry import ToolRegistry
 from core.agents.system_prompts import get_system_context
+
+logger = logging.getLogger(__name__)
 
 
 class BaseAgent(ABC):
@@ -53,6 +56,17 @@ class BaseAgent(ABC):
             for skill_name, skill_content in self.tools.active_skills.items():
                 skills_section += f"### {skill_name}\n{skill_content}\n\n"
             full_prompt += skills_section
+
+        # Add available skills information dynamically
+        try:
+            from core.skills import SkillManager
+            skill_manager = SkillManager()
+            available_skills = skill_manager.get_skill_descriptions_for_prompt()
+            if available_skills:
+                full_prompt += "\n\n" + available_skills
+        except Exception:
+            # If skill manager fails, continue without skill descriptions
+            pass
 
         self.system_prompt = full_prompt
 
@@ -219,12 +233,13 @@ class BaseAgent(ABC):
                             "content": full_response,
                             "tool_calls": [{"function": {"name": tc.name, "arguments": tc.arguments}} for tc in tool_calls]
                         }
-                        final_response = await self._handle_tool_calls(response, messages, full_response)
+                        final_response = await self._handle_tool_calls(response, messages, full_response, stream)
                         return final_response
 
                     return full_response
-                except Exception:
-                    # If streaming fails, fall back to non-streaming
+                except Exception as e:
+                    # If streaming fails, log and fall back to non-streaming
+                    logger.warning(f"Streaming with tools failed, falling back to non-streaming: {e}")
                     pass
 
             # Non-streaming fallback
@@ -241,27 +256,43 @@ class BaseAgent(ABC):
                 self.stream_callback(content)
 
             if response.get("tool_calls"):
-                return await self._handle_tool_calls(response, messages, content)
+                return await self._handle_tool_calls(response, messages, content, stream)
 
             return content
         else:
             if stream and self.stream_callback:
                 # Stream the response character by character
                 full_response = ""
-                stream_result = cast(
-                    AsyncGenerator[Any, None],
-                    await self.llm.generate(
-                    messages=messages,
-                    model=self.model,
-                    stream=True,
-                    **kwargs
-                    ),
-                )
-                async for chunk in stream_result:
-                    chunk_text = chunk if isinstance(chunk, str) else str(chunk)
-                    full_response += chunk_text
-                    self.stream_callback(chunk_text)
-                return full_response
+                try:
+                    stream_result = cast(
+                        AsyncGenerator[Any, None],
+                        await self.llm.generate(
+                        messages=messages,
+                        model=self.model,
+                        stream=True,
+                        **kwargs
+                        ),
+                    )
+                    async for chunk in stream_result:
+                        chunk_text = chunk if isinstance(chunk, str) else str(chunk)
+                        full_response += chunk_text
+                        self.stream_callback(chunk_text)
+                    return full_response
+                except Exception as e:
+                    logger.warning(f"Streaming failed, falling back to non-streaming: {e}")
+                    # Fall back to non-streaming
+                    result = await self.llm.generate(
+                        messages=messages,
+                        model=self.model,
+                        **kwargs
+                    )
+                    if isinstance(result, str):
+                        return result
+
+                    full_response = ""
+                    async for chunk in cast(AsyncGenerator[Any, None], result):
+                        full_response += chunk if isinstance(chunk, str) else str(chunk)
+                    return full_response
             else:
                 result = await self.llm.generate(
                     messages=messages,
@@ -280,7 +311,8 @@ class BaseAgent(ABC):
         self,
         response: dict[str, Any],
         messages: list[dict[str, Any]],
-        existing_content: str = ""
+        existing_content: str = "",
+        stream: bool = False
     ) -> str:
         """
         Handle tool calls from LLM response with recursive loop (OpenClaude style agentic pattern)
@@ -360,31 +392,83 @@ class BaseAgent(ABC):
         next_response = await self.llm.generate_with_tools(
             messages=updated_messages,
             tools=tool_definitions,
-            model=self.model
+            model=self.model,
+            stream=stream
         )
 
         if isinstance(next_response, dict):
             resp = cast(dict[str, Any], next_response)
             # Check for further tool calls in the dict response
             if resp.get("tool_calls"):
-                return await self._handle_tool_calls(resp, updated_messages, existing_content)
+                return await self._handle_tool_calls(resp, updated_messages, existing_content, stream)
 
             # No more tool calls, stream and return final content
             final_content = resp.get("content", "")
+            
+            # Handle case where model returns empty content after tool execution
+            # This can happen when the model needs to be prompted to continue
+            if not final_content or not final_content.strip():
+                # Add a prompt for the model to continue
+                updated_messages.append({
+                    "role": "user",
+                    "content": "Please continue with your response based on the tool results above."
+                })
+                # Recursive call to get the model to continue
+                continue_response = await self.llm.generate_with_tools(
+                    messages=updated_messages,
+                    tools=tool_definitions,
+                    model=self.model,
+                    stream=stream
+                )
+                if isinstance(continue_response, dict):
+                    final_content = continue_response.get("content", "")
+                else:
+                    # Handle streaming response
+                    async for chunk in continue_response:
+                        if isinstance(chunk, dict) and chunk.get("type") == "text":
+                            text = chunk.get("content", "")
+                            if self.stream_callback and text:
+                                self.stream_callback(text)
+                            final_content += text
+            
             if self.stream_callback and final_content:
                 self.stream_callback(final_content)
             return existing_content + final_content
         else:
             # Streaming generator: iterate and handle streamed chunks
+            tool_calls_in_stream = []
+            stream_content = ""
+            
             async for chunk in next_response:
                 if isinstance(chunk, dict) and chunk.get("type") == "text":
                     text = chunk.get("content", "")
                     if self.stream_callback and text:
                         self.stream_callback(text)
+                    stream_content += text
                     existing_content += text
 
-                # If tool calls appear in stream, recurse using the dict form
+                # If tool calls appear in stream, collect them
                 if isinstance(chunk, dict) and chunk.get("type") == "tool_calls":
-                    return await self._handle_tool_calls(chunk, updated_messages, existing_content)
+                    tool_calls_in_stream = chunk.get("tool_calls", [])
+                elif isinstance(chunk, dict) and chunk.get("type") == "tool_call":
+                    tool_calls_in_stream = [chunk.get("tool_call")]
+
+            # After stream completes, check if we collected tool calls
+            if tool_calls_in_stream:
+                # Convert tool calls to the expected format
+                tool_call_dict = {
+                    "content": stream_content,
+                    "tool_calls": [
+                        {
+                            "id": tc.get("id", ""),
+                            "function": {
+                                "name": tc.get("name", ""),
+                                "arguments": tc.get("arguments", "")
+                            }
+                        }
+                        for tc in tool_calls_in_stream
+                    ]
+                }
+                return await self._handle_tool_calls(tool_call_dict, updated_messages, existing_content, stream)
 
             return existing_content

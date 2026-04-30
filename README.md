@@ -48,50 +48,63 @@ cd JARVIS
 
 2. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
-3. Configure environment variables:
+3. (Optional) Configure environment variables:
 ```bash
 cp .env.example .env
 ```
 
-4. Edit `.env` file and add your API keys:
+Edit `.env` file to set your provider configuration:
 ```env
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
+JARVIS_MODEL=gpt-4o
+JARVIS_BASE_URL=https://api.openai.com/v1
+JARVIS_API_KEY=your_api_key_here
+JARVIS_SDK=openai
 ```
 
 ## Usage
 
 ### Running JARVIS
 
+JARVIS now uses CLI flags for configuration. You can run it with:
+
 ```bash
-python -m interface.cli.cli
+# Using CLI flags
+jarvis --cli --model gpt-4o --base_url https://api.openai.com/v1 --apikey YOUR_KEY --sdk openai
+
+# Using .env file (if configured)
+jarvis --cli
+
+# Using short flags
+jarvis --cli -m gpt-4o --apikey YOUR_KEY
 ```
 
-Or create a main.py entry point:
-```python
-from interface.cli.cli import main
-
-if __name__ == "__main__":
-    main()
-```
+**Available CLI Flags:**
+- `--model, -m`: Model name (e.g., gpt-4o, claude-3-5-sonnet-20241022)
+- `--base_url`: Base URL for the LLM API
+- `--apikey, --api-key`: API key for the LLM provider
+- `--sdk`: SDK mode (openai, anthropic, standard)
+- `--cli`: Launch the Rich CLI
 
 ### CLI Commands
 
-- `help` - Show help information
-- `status` - Display system status
-- `providers` - List configured LLM providers
-- `tools` - List available tools
-- `exit` / `quit` - Exit JARVIS
+Once JARVIS is running, you can use these commands:
+
+- `/help` - Show help information
+- `/status` - Display system status
+- `/clear` - Clear the screen
+- `/exit` - Exit JARVIS
+- `! <cmd>` - Run shell command
 
 ### Basic Usage
 
 ```
-JARVIS > help
-JARVIS > status
+JARVIS > /help
+JARVIS > /status
 JARVIS > What can you help me with?
+JARVIS > ! ls -la
 ```
 
 ## Implementation Status
@@ -109,90 +122,29 @@ JARVIS > What can you help me with?
 - ✅ Safety Manager with checkpoints and permission system
 - ✅ CLI interface with integrated agent and tools
 
-The system is ready for use. Configure your API keys in `.env` and run `python main.py` to start.
+The system is ready for use. Run JARVIS with CLI flags or configure a `.env` file for convenience.
 
 ## Configuration
 
-Configuration is managed through environment variables in the `.env` file:
+JARVIS uses CLI flags for configuration, with optional support for `.env` files. The old `config.toml` and `providers.json` files are no longer required.
 
-- `DEFAULT_PROVIDER` - Default LLM provider (openai or anthropic)
-- `OPENAI_API_KEY` - OpenAI API key
-- `ANTHROPIC_API_KEY` - Anthropic API key
-- `DEBUG` - Enable debug mode
-- `REQUIRE_CONFIRMATION` - Require confirmation for destructive actions
-- `AUTO_CHECKPOINT` - Automatically create checkpoints
-
-## Adding Custom Providers
-
-Create a new provider plugin in `plugins/providers/`:
-
-```python
-from core.llm.base import BaseLLMProvider
-
-class CustomProvider(BaseLLMProvider):
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-    
-    async def generate(self, messages, model, **kwargs):
-        # Implementation
-        pass
-    
-    async def generate_with_tools(self, messages, tools, model, **kwargs):
-        # Implementation
-        pass
-    
-    def get_available_models(self):
-        return ["model1", "model2"]
-    
-    def validate_api_key(self):
-        return bool(self.api_key)
+**CLI Flags (take precedence):**
+```bash
+jarvis --cli --model gpt-4o --base_url https://api.openai.com/v1 --apikey YOUR_KEY --sdk openai
 ```
 
-Then register it in your code:
-```python
-from core.llm.registry import LLMProviderRegistry
-from plugins.providers.custom_provider import CustomProvider
-
-registry = LLMProviderRegistry()
-provider = CustomProvider(api_key="your-key")
-registry.register("custom", provider)
+**Environment Variables (.env):**
+```env
+JARVIS_MODEL=gpt-4o
+JARVIS_BASE_URL=https://api.openai.com/v1
+JARVIS_API_KEY=your_api_key_here
+JARVIS_SDK=openai
 ```
 
-## Adding Custom Tools
-
-Create a new tool plugin in `plugins/tools/`:
-
-```python
-from core.tools.base import BaseTool, ToolInput, ToolOutput
-
-class CustomTool(BaseTool):
-    name = "custom_tool"
-    description = "A custom tool"
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "param1": {"type": "string"}
-        },
-        "required": ["param1"]
-    }
-    
-    async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Implementation
-        return ToolOutput(
-            success=True,
-            result="Result",
-        )
-```
-
-Register the tool:
-```python
-from core.tools.registry import ToolRegistry
-from plugins.tools.custom_tool import CustomTool
-
-registry = ToolRegistry()
-tool = CustomTool()
-registry.register(tool)
-```
+**Configuration Priority:**
+1. CLI flags (highest priority)
+2. .env file values
+3. Default values (gpt-4o, openai SDK)
 
 ## Development
 

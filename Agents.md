@@ -362,13 +362,38 @@ result = await jarvis.process("Update the README")
 
 ## Configuration
 
-### Environment Variables
+### CLI Configuration
 
-```env
-# Agent settings
-MAX_AGENT_MEMORY=50     # Maximum memory entries per agent
-CONTEXT_THRESHOLD=0.75 # Summarization threshold (75%)
+JARVIS now uses CLI flags and optional .env file for configuration. The old config.toml and providers.json files are no longer required.
+
+**CLI Flags:**
+```bash
+jarvis --cli --model gpt-4o --base_url https://api.openai.com/v1 --apikey YOUR_KEY --sdk openai
 ```
+
+**Available Flags:**
+- `--model, -m`: Model name (e.g., gpt-4o, claude-3-5-sonnet-20241022)
+- `--base_url`: Base URL for the LLM API
+- `--apikey, --api-key`: API key for the LLM provider
+- `--sdk`: SDK mode (openai, anthropic, standard)
+- `--cli`: Launch the Rich CLI
+
+**Environment Variables (.env):**
+```env
+# Model name (e.g., gpt-4o, claude-3-5-sonnet-20241022)
+JARVIS_MODEL=gpt-4o
+
+# Base URL for the LLM API (e.g., https://api.openai.com/v1)
+JARVIS_BASE_URL=
+
+# API key for the LLM provider
+JARVIS_API_KEY=
+
+# SDK mode (openai, anthropic, standard)
+JARVIS_SDK=openai
+```
+
+CLI flags take precedence over .env values. If neither are provided, sensible defaults are used.
 
 ### Agent Model Selection
 

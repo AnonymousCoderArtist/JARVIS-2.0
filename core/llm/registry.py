@@ -1,18 +1,16 @@
 """LLM Provider Registry for managing multiple providers"""
 
-import importlib.util
-import sys
-from pathlib import Path
-
+from core.provider import ProviderManager
 from .base import BaseLLMProvider
+from .sdk_adapter import SDKAdapter
 
 
 class LLMProviderRegistry:
-    """Registry for managing LLM providers"""
+    """Registry for managing LLM providers using dynamic configuration"""
 
-    def __init__(self):
+    def __init__(self, config_path: str | None = None):
         self._providers: dict[str, BaseLLMProvider] = {}
-        self._provider_classes: dict[str, type[BaseLLMProvider]] = {}
+        self._provider_manager = ProviderManager(config_path)
 
     def register(self, name: str, provider: BaseLLMProvider):
         """
@@ -24,16 +22,6 @@ class LLMProviderRegistry:
         """
         self._providers[name] = provider
 
-    def register_class(self, name: str, provider_class: type[BaseLLMProvider]):
-        """
-        Register an LLM provider class for later instantiation
-
-        Args:
-            name: Name to register the provider class under
-            provider_class: Provider class
-        """
-        self._provider_classes[name] = provider_class
-
     def get(self, name: str) -> BaseLLMProvider | None:
         """
         Get a registered provider by name
@@ -44,70 +32,47 @@ class LLMProviderRegistry:
         Returns:
             Provider instance or None if not found
         """
-        return self._providers.get(name)
+        # Check if already instantiated
+        if name in self._providers:
+            return self._providers[name]
 
-    def instantiate(self, name: str, **kwargs) -> BaseLLMProvider | None:
-        """
-        Instantiate a provider from a registered class
+        # Try to create from dynamic provider configuration
+        provider_config = self._provider_manager.get_provider(name)
+        if provider_config and provider_config.enabled:
+            sdk_instance = self._provider_manager.create_sdk_instance(name)
+            if sdk_instance:
+                provider = SDKAdapter(sdk_instance, name)
+                self._providers[name] = provider
+                return provider
 
-        Args:
-            name: Provider class name
-            **kwargs: Arguments to pass to provider constructor
-
-        Returns:
-            Provider instance or None if not found
-        """
-        provider_class = self._provider_classes.get(name)
-        if provider_class:
-            provider = provider_class(**kwargs)
-            self.register(name, provider)
-            return provider
         return None
 
     def list_providers(self) -> list[str]:
         """
-        List all registered provider names
+        List all available provider names
 
         Returns:
             List of provider names
         """
-        return list(self._providers.keys())
+        # Combine registered and configured providers
+        configured = [p.provider_id for p in self._provider_manager.list_providers()]
+        registered = list(self._providers.keys())
+        return list(set(configured + registered))
 
-    def register_plugin(self, plugin_path: str):
+    def list_enabled_providers(self) -> list[str]:
         """
-        Dynamically load a provider plugin
+        List all enabled provider names
 
-        Args:
-            plugin_path: Path to the plugin Python file
+        Returns:
+            List of enabled provider names
         """
-        try:
-            path = Path(plugin_path)
-            if not path.exists():
-                raise FileNotFoundError(f"Plugin file not found: {plugin_path}")
+        return [p.provider_id for p in self._provider_manager.list_enabled_providers()]
 
-            spec = importlib.util.spec_from_file_location(
-                f"plugin_{path.stem}", plugin_path
-            )
-            if spec is None or spec.loader is None:
-                raise ImportError(f"Failed to load plugin: {plugin_path}")
+    def get_provider_manager(self) -> ProviderManager:
+        """
+        Get the underlying provider manager
 
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[f"plugin_{path.stem}"] = module
-            spec.loader.exec_module(module)
-
-            # Look for a class that inherits from BaseLLMProvider
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if (
-                    isinstance(attr, type)
-                    and issubclass(attr, BaseLLMProvider)
-                    and attr != BaseLLMProvider
-                ):
-                    self.register_class(attr_name, attr)
-                    print(f"Registered provider plugin: {attr_name}")
-                    return
-
-            raise ImportError(f"No valid provider class found in {plugin_path}")
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to load plugin {plugin_path}: {str(e)}") from e
+        Returns:
+            ProviderManager instance
+        """
+        return self._provider_manager

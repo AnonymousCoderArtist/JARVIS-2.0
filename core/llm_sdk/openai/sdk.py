@@ -94,9 +94,10 @@ class OpenAISDK(BaseLLMSDK):
 
                     try:
                         chunk = json.loads(data_str)
-                        if chunk["choices"] and chunk["choices"][0]["delta"].get("content"):
+                        if chunk.get("choices") and chunk["choices"][0].get("delta", {}).get("content"):
                             yield chunk["choices"][0]["delta"]["content"]
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, KeyError, IndexError) as e:
+                        logger.debug(f"Failed to parse stream chunk: {e}")
                         continue
         except Exception as e:
             logger.error(f"OpenAI streaming failed: {str(e)}")
@@ -146,7 +147,8 @@ class OpenAISDK(BaseLLMSDK):
                                         if func.get("arguments"):
                                             tool_calls[index]["arguments"] += func["arguments"]
 
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, KeyError, IndexError) as e:
+                        logger.debug(f"Failed to parse stream chunk with tools: {e}")
                         continue
 
             # Yield final tool calls if any

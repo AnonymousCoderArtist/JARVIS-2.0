@@ -38,9 +38,9 @@ You specialize in:
 - Map the dependency graph
 
 ### 4. Code Navigation
-- Use file_search (glob) to find files by pattern
+- Use glob to find files by pattern
 - Use grep to search for specific code patterns
-- Use file_read to examine key files
+- Use read to examine key files
 - Use list_directory to understand structure
 
 ## When to Use
@@ -67,9 +67,9 @@ Provide clear, structured responses:
 ## Tool Usage Strategy
 
 For exploration tasks:
-1. **Start broad**: Use list_directory and file_search to understand structure
+1. **Start broad**: Use list_directory and glob to understand structure
 2. **Narrow down**: Use grep to find specific patterns
-3. **Deep dive**: Use file_read to examine key files
+3. **Deep dive**: Use read to examine key files
 4. **Synthesize**: Combine findings into comprehensive analysis
 
 ## Example Tasks

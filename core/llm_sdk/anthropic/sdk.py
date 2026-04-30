@@ -102,12 +102,13 @@ class AnthropicSDK(BaseLLMSDK):
                     data_str = line[6:].strip()
                     try:
                         chunk = json.loads(data_str)
-                        if chunk["type"] == "content_block_delta" and "delta" in chunk:
+                        if chunk.get("type") == "content_block_delta" and chunk.get("delta"):
                             if chunk["delta"].get("type") == "text_delta":
                                 yield chunk["delta"]["text"]
-                        elif chunk["type"] == "message_stop":
+                        elif chunk.get("type") == "message_stop":
                             break
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Failed to parse stream chunk: {e}")
                         continue
         except Exception as e:
             logger.error(f"Anthropic streaming failed: {str(e)}")
@@ -126,26 +127,28 @@ class AnthropicSDK(BaseLLMSDK):
                     try:
                         chunk = json.loads(data_str)
 
-                        if chunk["type"] == "content_block_start":
-                            if chunk["content_block"]["type"] == "text":
+                        if chunk.get("type") == "content_block_start":
+                            content_block = chunk.get("content_block", {})
+                            if content_block.get("type") == "text":
                                 pass  # Starting text block
-                            elif chunk["content_block"]["type"] == "tool_use":
+                            elif content_block.get("type") == "tool_use":
                                 current_tool_call = {
-                                    "id": chunk["content_block"]["id"],
-                                    "name": chunk["content_block"]["name"],
+                                    "id": content_block.get("id", ""),
+                                    "name": content_block.get("name", ""),
                                     "arguments": ""
                                 }
 
-                        elif chunk["type"] == "content_block_delta":
-                            if chunk["delta"]["type"] == "text_delta":
-                                text_chunk = chunk["delta"]["text"]
+                        elif chunk.get("type") == "content_block_delta":
+                            delta = chunk.get("delta", {})
+                            if delta.get("type") == "text_delta":
+                                text_chunk = delta.get("text", "")
                                 content_buffer += text_chunk
                                 yield {"type": "text", "content": text_chunk}
-                            elif chunk["delta"]["type"] == "input_json_delta":
+                            elif delta.get("type") == "input_json_delta":
                                 if current_tool_call:
-                                    current_tool_call["arguments"] += chunk["delta"]["partial_json"]
+                                    current_tool_call["arguments"] += delta.get("partial_json", "")
 
-                        elif chunk["type"] == "content_block_stop":
+                        elif chunk.get("type") == "content_block_stop":
                             if current_tool_call:
                                 tool_call = ToolCall(
                                     id=current_tool_call["id"],
@@ -156,10 +159,11 @@ class AnthropicSDK(BaseLLMSDK):
                                 yield {"type": "tool_call", "tool_call": tool_call}
                                 current_tool_call = None
 
-                        elif chunk["type"] == "message_stop":
+                        elif chunk.get("type") == "message_stop":
                             break
 
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Failed to parse stream chunk with tools: {e}")
                         continue
 
         except Exception as e:

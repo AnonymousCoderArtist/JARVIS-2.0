@@ -40,18 +40,13 @@ dependencies = [
     # LLM Providers (using curl_cffi)
     # Async support
     # Configuration
-    "tomli-w>=1.0.0",
     # Embeddings (optional)
     "sentence-transformers>=2.2.0",
     "numpy>=1.24.0",
-    
     # Additional providers
-    "anthropic>=0.39.0",
     "openai>=1.54.0",
-    
     # PDF support
     "PyPDF2>=3.0.1",
-    
     # Token counting
     "tiktoken>=0.7.0",
 ]
