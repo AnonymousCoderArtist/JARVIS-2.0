@@ -26,24 +26,18 @@ class CodingAgent(BaseAgent):
         Returns:
             Agent response with results or next steps
         """
-        # Build messages - system prompt will be added by base.generate_response()
-        messages = [
-            {"role": "user", "content": self._build_prompt(input, context)}
-        ]
+        # Build messages with proper roles using base class method
+        user_content = self._build_prompt(input, context)
+        messages = self._build_messages(user_content, include_memory=True)
 
-        # Add memory context if available
-        memory_context = self.get_memory_context()
-        if memory_context:
-            messages.append({"role": "system", "content": memory_context})
-
-        # Generate response with tool support and streaming
+        # Process with tool support and streaming
         stream = self.stream_callback is not None
-        response = await self.generate_response(messages, use_tools=True, stream=stream)
+        response = await self._process_with_tools(messages, stream=stream)
 
         # Add to memory
         self.add_to_memory({
             "content": f"Task: {input}",
-            "response": response[:500],  # Truncate for memory
+            "response": response,
             "type": "coding_task"
         })
 
@@ -73,11 +67,12 @@ class CodingAgent(BaseAgent):
         Returns:
             List of action steps
         """
-        messages = [
-            {"role": "user", "content": f"Plan the following coding task step by step:\n{task}\n\nReturn your plan as a numbered list of steps."}
-        ]
+        # Build messages with proper roles
+        user_content = f"Plan the following coding task step by step:\n{task}\n\nReturn your plan as a numbered list of steps."
+        messages = self._build_messages(user_content, include_memory=False)
 
-        response = await self.generate_response(messages, use_tools=False)
+        # Process without tools
+        response = await self._process_without_tools(messages, stream=False)
 
         # Parse the plan into steps
         steps = self._parse_plan(response)

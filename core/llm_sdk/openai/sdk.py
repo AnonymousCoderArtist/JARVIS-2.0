@@ -68,8 +68,12 @@ class OpenAISDK(BaseLLMSDK):
             else:
                 response_data = await self.client.post("chat/completions", payload, self._get_headers())
 
-                return GenerationResponse(
-                    content=response_data["choices"][0]["message"]["content"] or "",
+                message = response_data["choices"][0]["message"]
+                content = message.get("content") or ""
+                reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
+                
+                response = GenerationResponse(
+                    content=content,
                     model=response_data["model"],
                     finish_reason=response_data["choices"][0]["finish_reason"],
                     usage={
@@ -78,6 +82,12 @@ class OpenAISDK(BaseLLMSDK):
                         "total_tokens": response_data["usage"]["total_tokens"],
                     },
                 )
+                
+                # Add reasoning content if present
+                if reasoning:
+                    response.reasoning_content = reasoning
+                
+                return response
 
         except Exception as e:
             logger.error(f"OpenAI generation failed: {str(e)}")
@@ -94,8 +104,17 @@ class OpenAISDK(BaseLLMSDK):
 
                     try:
                         chunk = json.loads(data_str)
-                        if chunk.get("choices") and chunk["choices"][0].get("delta", {}).get("content"):
-                            yield chunk["choices"][0]["delta"]["content"]
+                        if chunk.get("choices") and chunk["choices"][0].get("delta", {}):
+                            delta = chunk["choices"][0]["delta"]
+                            
+                            # Check for reasoning content (o1 models)
+                            if delta.get("reasoning_content"):
+                                yield {"type": "reasoning", "content": delta["reasoning_content"]}
+                            elif delta.get("reasoning"):
+                                yield {"type": "reasoning", "content": delta["reasoning"]}
+                            # Regular content
+                            elif delta.get("content"):
+                                yield {"type": "text", "content": delta["content"]}
                     except (json.JSONDecodeError, KeyError, IndexError) as e:
                         logger.debug(f"Failed to parse stream chunk: {e}")
                         continue
@@ -122,8 +141,13 @@ class OpenAISDK(BaseLLMSDK):
 
                         delta = chunk["choices"][0].get("delta", {})
 
+                        # Check for reasoning content (o1 models)
+                        if delta.get("reasoning_content"):
+                            yield {"type": "reasoning", "content": delta["reasoning_content"]}
+                        elif delta.get("reasoning"):
+                            yield {"type": "reasoning", "content": delta["reasoning"]}
                         # Stream text content
-                        if delta.get("content"):
+                        elif delta.get("content"):
                             text_chunk = delta["content"]
                             content_buffer += text_chunk
                             yield {"type": "text", "content": text_chunk}
@@ -196,6 +220,8 @@ class OpenAISDK(BaseLLMSDK):
                     raise ValueError(f"Response missing 'choices': {response_data}")
 
                 message = response_data["choices"][0]["message"]
+                content = message.get("content") or ""
+                reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
                 tool_calls = []
 
                 if "tool_calls" in message and message["tool_calls"]:
@@ -208,8 +234,8 @@ class OpenAISDK(BaseLLMSDK):
                             )
                         )
 
-                return GenerationResponse(
-                    content=message.get("content") or "",
+                response = GenerationResponse(
+                    content=content,
                     model=response_data.get("model", config.model),
                     finish_reason=response_data["choices"][0].get("finish_reason", "unknown"),
                     tool_calls=tool_calls if tool_calls else None,
@@ -219,6 +245,12 @@ class OpenAISDK(BaseLLMSDK):
                         "total_tokens": response_data.get("usage", {}).get("total_tokens", 0),
                     },
                 )
+                
+                # Add reasoning content if present
+                if reasoning:
+                    response.reasoning_content = reasoning
+                
+                return response
 
         except Exception as e:
             logger.error(f"OpenAI tool generation failed: {str(e)}")

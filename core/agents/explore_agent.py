@@ -131,21 +131,18 @@ class ExploreAgent(BaseAgent):
         Returns:
             Exploration results and analysis
         """
-        # Build messages
-        messages = [
-            {"role": "user", "content": input}
-        ]
-
-        # Add context if provided
+        # Build user content with context if provided
+        user_content = input
         if context:
             context_str = "\n".join([f"{k}: {v}" for k, v in context.items()])
-            messages[0]["content"] = f"{input}\n\nContext:\n{context_str}"
+            user_content = f"{input}\n\nContext:\n{context_str}"
 
-        # Generate response with tool access
-        response = await self.generate_response(
-            messages=messages,
-            use_tools=True
-        )
+        # Build messages with proper roles using base class method
+        messages = self._build_messages(user_content, include_memory=False)
+
+        # Process with tool support
+        stream = self.stream_callback is not None
+        response = await self._process_with_tools(messages, stream=stream)
 
         return response
 

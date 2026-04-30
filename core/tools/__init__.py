@@ -21,7 +21,7 @@ from .file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
 from .grep_tool import GrepSearchTool
 
 # Memory tools
-from .memory_tool import SaveMemoryTool
+from .memory_tool import SaveMemoryTool, ReadMemoryTool, get_memory_context
 from .registry import ToolRegistry
 from .repl_tool import REPLTool
 
@@ -52,6 +52,7 @@ __all__ = [
     "WebFetchTool",  # fetch_webpage
     # Memory tools
     "SaveMemoryTool",
+    "ReadMemoryTool",
     # Agent tools
     "InvokeAgentTool",
     "ActivateSkillTool",

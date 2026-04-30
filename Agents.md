@@ -28,9 +28,10 @@ The abstract base class that the JARVIS agent inherits from.
 - **Memory System**: Maintains conversation history with `add_to_memory()` and `get_memory_context()`
 - **Context Management**: Store and retrieve task-specific context via `update_context()` and `get_context()`
 - **Streaming Support**: Real-time response streaming through `stream_callback`
-- **Tool Integration**: Automatic tool calling with `_handle_tool_calls()`
+- **Tool Integration**: Automatic tool calling with `_process_with_tools()` and `_execute_tools_and_update_messages()`
 - **Callback System**: Hooks for tool calls (`tool_call_callback`) and results (`tool_result_callback`)
 - **Dynamic Prompt Building**: Combines base system prompt with dynamic tool descriptions
+- **Standard Message Roles**: Uses system, user, and assistant roles for all LLM interactions
 
 **Abstract Methods:**
 ```python
@@ -290,13 +291,14 @@ The JARVIS agent has access to the shared `ToolRegistry`:
 ### Tool Access Pattern
 
 ```python
-# Tools are automatically available through the registry
-response = await self.generate_response(
-    messages=messages,
-    use_tools=True  # Enables tool calling
-)
+# Build messages with proper roles
+messages = self._build_messages(user_content, include_memory=True)
 
-# Tool results are automatically handled by _handle_tool_calls()
+# Process with tools (automatically handles tool calling loop)
+response = await self._process_with_tools(messages, stream=stream)
+
+# Process without tools
+response = await self._process_without_tools(messages, stream=stream)
 ```
 
 ---
@@ -310,14 +312,27 @@ User Input
     ↓
 JARVIS Agent.process()
     ↓
-Build messages with system prompt (including dynamic tool descriptions)
+Build messages with proper roles (system, user, assistant)
     ↓
-Generate response with tool calls
+Process with tools via _process_with_tools()
+    ↓
+LLM generates response with tool calls
     ↓
 Execute tools via ToolRegistry
     ↓
+Update message history with tool results
+    ↓
+Loop until no more tool calls
+    ↓
 Return final response
 ```
+
+### Message Structure
+
+All LLM interactions use standard message roles:
+- **system**: System prompt with tool descriptions and context
+- **user**: User input and tool results
+- **assistant**: AI responses and tool calls
 
 ### Streaming Execution
 
@@ -356,7 +371,8 @@ result = await jarvis.process("Update the README")
 ### 4. Dynamic Prompts
 - Always call `rebuild_system_prompt()` after tool registry changes
 - Ensure tool descriptions are comprehensive and accurate
-- Follow OpenClaude-style tool description format
+- Use `_build_messages()` to create properly structured message lists
+- Follow standard message role conventions (system, user, assistant)
 
 ---
 
@@ -409,7 +425,7 @@ jarvis = CodingAgent(provider, tool_registry, model="gpt-4o")
 ### Common Issues
 
 **Tool calls not executing:**
-- Verify `use_tools=True` in `generate_response()`
+- Verify you're using `_process_with_tools()` instead of `_process_without_tools()`
 - Check tool is registered in ToolRegistry
 - Review tool schema matches expected input
 
@@ -420,13 +436,19 @@ jarvis = CodingAgent(provider, tool_registry, model="gpt-4o")
 
 **Streaming not working:**
 - Set `stream_callback` before execution
-- Ensure `stream=True` in generate calls
+- Ensure `stream=True` is passed to processing methods
 - Check provider supports streaming
 
 **Tool descriptions not updating:**
 - Call `rebuild_system_prompt()` after tool registry changes
 - Verify tools have proper `description` attributes
-- Check `generate_tool_descriptions()` is working correctly
+- Check system prompt building is working correctly
+
+**Message roles incorrect:**
+- Always use `_build_messages()` to create message lists
+- Ensure system prompt is in the first message with role "system"
+- User input should have role "user"
+- Tool results should be added as role "user" messages
 
 ---
 
@@ -443,6 +465,16 @@ Planned agent system enhancements:
 ## API Reference
 
 See individual agent source files for full API:
-- `core/agents/base.py` - BaseAgent class
+- `core/agents/base.py` - BaseAgent class with message building and processing methods
 - `core/agents/coding_agent.py` - JARVIS agent implementation
+- `core/agents/explore_agent.py` - Explore subagent implementation
 - `core/agents/system_prompts.py` - System prompt definitions
+
+### Key Methods
+
+**BaseAgent:**
+- `_build_messages(user_content, include_memory)` - Build message list with proper roles
+- `_process_with_tools(messages, stream)` - Process with tool calling support
+- `_process_without_tools(messages, stream)` - Process without tools
+- `_execute_tools_and_update_messages(response, messages)` - Execute tools and update history
+- `rebuild_system_prompt()` - Rebuild system prompt with current tool descriptions

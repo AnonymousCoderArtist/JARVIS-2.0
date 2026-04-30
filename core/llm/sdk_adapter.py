@@ -51,7 +51,11 @@ class SDKAdapter(BaseLLMProvider):
         else:
             # SDK returns a GenerationResponse when not streaming; cast and return content
             gen = cast(GenerationResponse, result)
-            return gen.content
+            # Return dict with content and reasoning if present
+            result_dict = {"content": gen.content}
+            if gen.reasoning_content:
+                result_dict["reasoning_content"] = gen.reasoning_content
+            return result_dict
 
     async def generate_with_tools(
         self,
@@ -96,10 +100,16 @@ class SDKAdapter(BaseLLMProvider):
                         },
                     })
 
-            return {
+            result_dict = {
                 "content": gen.content,
                 "tool_calls": tool_calls,
             }
+            
+            # Add reasoning content if present
+            if gen.reasoning_content:
+                result_dict["reasoning_content"] = gen.reasoning_content
+            
+            return result_dict
 
     def get_available_models(self) -> list[str]:
         """Get available models from SDK"""

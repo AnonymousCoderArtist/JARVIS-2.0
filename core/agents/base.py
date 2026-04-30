@@ -36,6 +36,7 @@ class BaseAgent(ABC):
         self.stream_callback: Callable | None = None
         self.tool_call_callback: Callable | None = None
         self.tool_result_callback: Callable | None = None
+        self.reasoning_callback: Callable | None = None
         
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
@@ -161,48 +162,70 @@ class BaseAgent(ABC):
         """Clear agent memory"""
         self.memory = []
 
-    async def generate_response(
-        self,
-        messages: list[dict[str, Any]],
-        use_tools: bool = False,
-        stream: bool = False,
-        **kwargs: Any
-    ) -> str:
+    def _build_messages(self, user_content: str, include_memory: bool = True) -> list[dict[str, Any]]:
         """
-        Generate a response using the LLM
+        Build message list with system, user, and memory context
 
         Args:
-            messages: List of message dictionaries
-            use_tools: Whether to use tool calling
-            stream: Whether to stream the response
-            **kwargs: Additional parameters for generation
+            user_content: User input content
+            include_memory: Whether to include memory context
 
         Returns:
-            Generated response string
+            List of message dictionaries with proper roles
         """
-        # Ensure system prompt is the first message
-        if messages and messages[0].get("role") != "system":
-            messages = [{"role": "system", "content": self.system_prompt}] + messages
-        elif messages:
-            messages[0]["content"] = self.system_prompt
-        
-        if use_tools:
-            tool_definitions = self.tools.get_function_definitions()
+        messages = [
+            {"role": "system", "content": self.system_prompt}
+        ]
 
-            # Try to use streaming with tools
+        # Add memory context if available
+        if include_memory:
+            memory_context = self.get_memory_context()
+            if memory_context:
+                messages.append({"role": "system", "content": memory_context})
+
+        # Add user message
+        messages.append({"role": "user", "content": user_content})
+
+        return messages
+
+    async def _process_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        stream: bool = False
+    ) -> str:
+        """
+        Process messages with tool calling support using standard message roles
+
+        This implements the agentic loop pattern:
+        1. Call LLM with conversation history (system, user, assistant roles)
+        2. If tool calls, execute them and add results to history
+        3. Repeat until LLM returns no tool calls
+        4. Return final response
+
+        Args:
+            messages: Message history with proper roles
+            stream: Whether to stream the response
+
+        Returns:
+            Final response after tool execution
+        """
+        tool_definitions = self.tools.get_function_definitions()
+        updated_messages = messages.copy()
+
+        while True:
+            # Try streaming with tools
             if stream and self.stream_callback:
                 full_response = ""
+                reasoning_content = ""
                 tool_calls = []
                 try:
-                    # Use the streaming endpoint with tools - await first, then iterate
                     stream_result = cast(
                         AsyncGenerator[Any, None],
                         await self.llm.generate_with_tools(
-                        messages=messages,
-                        tools=tool_definitions,
-                        model=self.model,
-                        stream=True,
-                        **kwargs
+                            messages=updated_messages,
+                            tools=tool_definitions,
+                            model=self.model,
+                            stream=True,
                         ),
                     )
                     async for chunk in stream_result:
@@ -210,8 +233,13 @@ class BaseAgent(ABC):
                             if chunk["type"] == "text":
                                 full_response += chunk["content"]
                                 self.stream_callback(chunk["content"])
+                            elif chunk["type"] == "reasoning":
+                                reasoning_content += chunk["content"]
+                                # Call reasoning callback if set and content exists
+                                if chunk["content"] and chunk["content"].strip():
+                                    if hasattr(self, 'reasoning_callback') and self.reasoning_callback:
+                                        self.reasoning_callback(chunk["content"])
                             elif chunk["type"] == "tool_calls":
-                                # Handle tool_calls from OpenAI SDK streaming
                                 for tc in chunk.get("tool_calls", []):
                                     tool_calls.append(ToolCall(
                                         id=tc.get("id", ""),
@@ -219,117 +247,68 @@ class BaseAgent(ABC):
                                         arguments=tc.get("arguments", "")
                                     ))
                             elif chunk["type"] == "tool_call":
-                                # Handle tool_call from Anthropic SDK streaming
                                 tool_calls.append(chunk["tool_call"])
                         else:
-                            # Fallback for string chunks
+                            # Backward compatibility for string chunks
                             full_response += chunk
                             self.stream_callback(chunk)
 
                     # If tool calls were encountered, execute them
                     if tool_calls:
-                        # Create a response object with the tool calls
                         response = {
                             "content": full_response,
                             "tool_calls": [{"function": {"name": tc.name, "arguments": tc.arguments}} for tc in tool_calls]
                         }
-                        final_response = await self._handle_tool_calls(response, messages, full_response, stream)
-                        return final_response
+                        updated_messages = await self._execute_tools_and_update_messages(response, updated_messages)
+                        continue  # Loop again with updated messages
 
                     return full_response
                 except Exception as e:
-                    # If streaming fails, log and fall back to non-streaming
                     logger.warning(f"Streaming with tools failed, falling back to non-streaming: {e}")
-                    pass
 
             # Non-streaming fallback
             raw_response = await self.llm.generate_with_tools(
-                messages=messages,
+                messages=updated_messages,
                 tools=tool_definitions,
                 model=self.model,
-                **kwargs
             )
-            response = cast(dict[str, Any], raw_response)
+            
+            # Handle dict response (from SDK adapter)
+            if isinstance(raw_response, dict):
+                response = raw_response
+            else:
+                response = cast(dict[str, Any], raw_response)
 
             content = response.get("content", "")
+            reasoning = response.get("reasoning_content", "") or response.get("reasoning", "")
+            
+            # Handle reasoning content in non-streaming mode
+            if reasoning and reasoning.strip() and hasattr(self, 'reasoning_callback') and self.reasoning_callback:
+                self.reasoning_callback(reasoning)
+            
             if stream and self.stream_callback and content:
                 self.stream_callback(content)
 
             if response.get("tool_calls"):
-                return await self._handle_tool_calls(response, messages, content, stream)
+                updated_messages = await self._execute_tools_and_update_messages(response, updated_messages)
+                continue  # Loop again with updated messages
 
             return content
-        else:
-            if stream and self.stream_callback:
-                # Stream the response character by character
-                full_response = ""
-                try:
-                    stream_result = cast(
-                        AsyncGenerator[Any, None],
-                        await self.llm.generate(
-                        messages=messages,
-                        model=self.model,
-                        stream=True,
-                        **kwargs
-                        ),
-                    )
-                    async for chunk in stream_result:
-                        chunk_text = chunk if isinstance(chunk, str) else str(chunk)
-                        full_response += chunk_text
-                        self.stream_callback(chunk_text)
-                    return full_response
-                except Exception as e:
-                    logger.warning(f"Streaming failed, falling back to non-streaming: {e}")
-                    # Fall back to non-streaming
-                    result = await self.llm.generate(
-                        messages=messages,
-                        model=self.model,
-                        **kwargs
-                    )
-                    if isinstance(result, str):
-                        return result
 
-                    full_response = ""
-                    async for chunk in cast(AsyncGenerator[Any, None], result):
-                        full_response += chunk if isinstance(chunk, str) else str(chunk)
-                    return full_response
-            else:
-                result = await self.llm.generate(
-                    messages=messages,
-                    model=self.model,
-                    **kwargs
-                )
-                if isinstance(result, str):
-                    return result
-
-                full_response = ""
-                async for chunk in cast(AsyncGenerator[Any, None], result):
-                    full_response += chunk if isinstance(chunk, str) else str(chunk)
-                return full_response
-
-    async def _handle_tool_calls(
+    async def _execute_tools_and_update_messages(
         self,
         response: dict[str, Any],
-        messages: list[dict[str, Any]],
-        existing_content: str = "",
-        stream: bool = False
-    ) -> str:
+        messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
-        Handle tool calls from LLM response with recursive loop (OpenClaude style agentic pattern)
-
-        This implements the agentic loop pattern:
-        1. Call LLM with conversation history
-        2. If tool calls, execute them and add results to history
-        3. Repeat until LLM returns no tool calls
-        4. Return final response
+        Execute tool calls and update message history with results
 
         Args:
             response: LLM response with tool calls
-            messages: Original message history
-            existing_content: Content already streamed before tool calls
+            messages: Current message history
 
         Returns:
-            Final response after recursive tool execution
+            Updated message history
         """
         updated_messages = messages.copy()
 
@@ -367,7 +346,7 @@ class BaseAgent(ABC):
             if tool_name == "activate_skill" and result.success:
                 self.rebuild_system_prompt()
 
-            # Format tool result for LLM (OpenClaude style)
+            # Format tool result for LLM
             if result.success:
                 tool_result_content = f"Tool {tool_name} executed successfully. Result: {result.result}"
             else:
@@ -381,94 +360,94 @@ class BaseAgent(ABC):
                 "content": tool_result_content
             })
 
-        # Add tool results to conversation history (OpenClaude style format)
+        # Add tool results to conversation history as user message
         updated_messages.append({
             "role": "user",
             "content": "\n".join([tr["content"] for tr in tool_results])
         })
 
-        # Recursive loop: call LLM again with updated history
-        tool_definitions = self.tools.get_function_definitions()
-        next_response = await self.llm.generate_with_tools(
-            messages=updated_messages,
-            tools=tool_definitions,
-            model=self.model,
-            stream=stream
-        )
+        return updated_messages
 
-        if isinstance(next_response, dict):
-            resp = cast(dict[str, Any], next_response)
-            # Check for further tool calls in the dict response
-            if resp.get("tool_calls"):
-                return await self._handle_tool_calls(resp, updated_messages, existing_content, stream)
+    async def _process_without_tools(
+        self,
+        messages: list[dict[str, Any]],
+        stream: bool = False
+    ) -> str:
+        """
+        Process messages without tool calling
 
-            # No more tool calls, stream and return final content
-            final_content = resp.get("content", "")
-            
-            # Handle case where model returns empty content after tool execution
-            # This can happen when the model needs to be prompted to continue
-            if not final_content or not final_content.strip():
-                # Add a prompt for the model to continue
-                updated_messages.append({
-                    "role": "user",
-                    "content": "Please continue with your response based on the tool results above."
-                })
-                # Recursive call to get the model to continue
-                continue_response = await self.llm.generate_with_tools(
-                    messages=updated_messages,
-                    tools=tool_definitions,
-                    model=self.model,
-                    stream=stream
+        Args:
+            messages: Message history with proper roles
+            stream: Whether to stream the response
+
+        Returns:
+            Generated response string
+        """
+        if stream and self.stream_callback:
+            full_response = ""
+            reasoning_content = ""
+            try:
+                stream_result = cast(
+                    AsyncGenerator[Any, None],
+                    await self.llm.generate(
+                        messages=messages,
+                        model=self.model,
+                        stream=True,
+                    ),
                 )
-                if isinstance(continue_response, dict):
-                    final_content = continue_response.get("content", "")
-                else:
-                    # Handle streaming response
-                    async for chunk in continue_response:
-                        if isinstance(chunk, dict) and chunk.get("type") == "text":
-                            text = chunk.get("content", "")
-                            if self.stream_callback and text:
-                                self.stream_callback(text)
-                            final_content += text
+                async for chunk in stream_result:
+                    if isinstance(chunk, dict):
+                        if chunk["type"] == "text":
+                            full_response += chunk["content"]
+                            self.stream_callback(chunk["content"])
+                        elif chunk["type"] == "reasoning":
+                            reasoning_content += chunk["content"]
+                            # Call reasoning callback if set and content exists
+                            if chunk["content"] and chunk["content"].strip():
+                                if hasattr(self, 'reasoning_callback') and self.reasoning_callback:
+                                    self.reasoning_callback(chunk["content"])
+                    else:
+                        # Backward compatibility for string chunks
+                        chunk_text = chunk if isinstance(chunk, str) else str(chunk)
+                        full_response += chunk_text
+                        self.stream_callback(chunk_text)
+                return full_response
+            except Exception as e:
+                logger.warning(f"Streaming failed, falling back to non-streaming: {e}")
+
+        result = await self.llm.generate(
+            messages=messages,
+            model=self.model,
+        )
+        
+        # Handle dict response (from SDK adapter with reasoning)
+        if isinstance(result, dict):
+            content = result.get("content", "")
+            reasoning = result.get("reasoning_content", "") or result.get("reasoning", "")
             
-            if self.stream_callback and final_content:
-                self.stream_callback(final_content)
-            return existing_content + final_content
-        else:
-            # Streaming generator: iterate and handle streamed chunks
-            tool_calls_in_stream = []
-            stream_content = ""
+            # Call reasoning callback if set and content exists
+            if reasoning and reasoning.strip() and hasattr(self, 'reasoning_callback') and self.reasoning_callback:
+                self.reasoning_callback(reasoning)
             
-            async for chunk in next_response:
-                if isinstance(chunk, dict) and chunk.get("type") == "text":
-                    text = chunk.get("content", "")
-                    if self.stream_callback and text:
-                        self.stream_callback(text)
-                    stream_content += text
-                    existing_content += text
+            return content
+        
+        # Handle string response (backward compatibility)
+        if isinstance(result, str):
+            return result
 
-                # If tool calls appear in stream, collect them
-                if isinstance(chunk, dict) and chunk.get("type") == "tool_calls":
-                    tool_calls_in_stream = chunk.get("tool_calls", [])
-                elif isinstance(chunk, dict) and chunk.get("type") == "tool_call":
-                    tool_calls_in_stream = [chunk.get("tool_call")]
-
-            # After stream completes, check if we collected tool calls
-            if tool_calls_in_stream:
-                # Convert tool calls to the expected format
-                tool_call_dict = {
-                    "content": stream_content,
-                    "tool_calls": [
-                        {
-                            "id": tc.get("id", ""),
-                            "function": {
-                                "name": tc.get("name", ""),
-                                "arguments": tc.get("arguments", "")
-                            }
-                        }
-                        for tc in tool_calls_in_stream
-                    ]
-                }
-                return await self._handle_tool_calls(tool_call_dict, updated_messages, existing_content, stream)
-
-            return existing_content
+        # Handle async generator response
+        full_response = ""
+        async for chunk in cast(AsyncGenerator[Any, None], result):
+            if isinstance(chunk, dict):
+                if chunk["type"] == "text":
+                    full_response += chunk["content"]
+                elif chunk["type"] == "reasoning":
+                    # Call reasoning callback if set and content exists
+                    if chunk["content"] and chunk["content"].strip():
+                        if hasattr(self, 'reasoning_callback') and self.reasoning_callback:
+                            self.reasoning_callback(chunk["content"])
+            else:
+                # Backward compatibility for string chunks
+                full_response += chunk if isinstance(chunk, str) else str(chunk)
+        
+        return full_response

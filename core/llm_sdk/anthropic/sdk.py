@@ -80,8 +80,18 @@ class AnthropicSDK(BaseLLMSDK):
             else:
                 response_data = await self.client.post("messages", payload, self._get_headers())
 
-                return GenerationResponse(
-                    content=response_data["content"][0]["text"],
+                content = response_data["content"]
+                result_content = ""
+                reasoning_content = ""
+                
+                for block in content:
+                    if block["type"] == "text":
+                        result_content += block["text"]
+                    elif block["type"] == "thinking":
+                        reasoning_content += block.get("thinking", "")
+                
+                response = GenerationResponse(
+                    content=result_content,
                     model=response_data["model"],
                     finish_reason=response_data["stop_reason"],
                     usage={
@@ -89,6 +99,12 @@ class AnthropicSDK(BaseLLMSDK):
                         "output_tokens": response_data["usage"]["output_tokens"],
                     },
                 )
+                
+                # Add reasoning content if present
+                if reasoning_content:
+                    response.reasoning_content = reasoning_content
+                
+                return response
 
         except Exception as e:
             logger.error(f"Anthropic generation failed: {str(e)}")
@@ -104,7 +120,10 @@ class AnthropicSDK(BaseLLMSDK):
                         chunk = json.loads(data_str)
                         if chunk.get("type") == "content_block_delta" and chunk.get("delta"):
                             if chunk["delta"].get("type") == "text_delta":
-                                yield chunk["delta"]["text"]
+                                yield {"type": "text", "content": chunk["delta"]["text"]}
+                            elif chunk["delta"].get("type") == "thinking_delta":
+                                # Extended thinking (reasoning) content
+                                yield {"type": "reasoning", "content": chunk["delta"].get("thinking", "")}
                         elif chunk.get("type") == "message_stop":
                             break
                     except (json.JSONDecodeError, KeyError) as e:
@@ -144,6 +163,9 @@ class AnthropicSDK(BaseLLMSDK):
                                 text_chunk = delta.get("text", "")
                                 content_buffer += text_chunk
                                 yield {"type": "text", "content": text_chunk}
+                            elif delta.get("type") == "thinking_delta":
+                                # Extended thinking (reasoning) content
+                                yield {"type": "reasoning", "content": delta.get("thinking", "")}
                             elif delta.get("type") == "input_json_delta":
                                 if current_tool_call:
                                     current_tool_call["arguments"] += delta.get("partial_json", "")
@@ -221,11 +243,14 @@ class AnthropicSDK(BaseLLMSDK):
 
                 content = response_data["content"]
                 result_content = ""
+                reasoning_content = ""
                 tool_calls = []
 
                 for block in content:
                     if block["type"] == "text":
                         result_content += block["text"]
+                    elif block["type"] == "thinking":
+                        reasoning_content += block.get("thinking", "")
                     elif block["type"] == "tool_use":
                         tool_calls.append(
                             ToolCall(
@@ -235,7 +260,7 @@ class AnthropicSDK(BaseLLMSDK):
                             )
                         )
 
-                return GenerationResponse(
+                response = GenerationResponse(
                     content=result_content,
                     model=response_data["model"],
                     finish_reason=response_data["stop_reason"],
@@ -245,6 +270,12 @@ class AnthropicSDK(BaseLLMSDK):
                         "output_tokens": response_data["usage"]["output_tokens"],
                     },
                 )
+                
+                # Add reasoning content if present
+                if reasoning_content:
+                    response.reasoning_content = reasoning_content
+                
+                return response
 
         except Exception as e:
             logger.error(f"Anthropic tool generation failed: {str(e)}")

@@ -1,13 +1,15 @@
 """Command-line interface for JARVIS"""
 
 import asyncio
+import json
 import shlex
 import sys
 from typing import Any
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.live import Live
+from rich.text import Text
 
 from core.agents.base import BaseAgent
 from core.agents.coding_agent import CodingAgent
@@ -24,6 +26,25 @@ from core.tools.memory_tool import SaveMemoryTool
 from core.tools.registry import ToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool
+
+
+class StreamingResponse:
+    """Helper class to render streaming reasoning and response content."""
+    def __init__(self):
+        self.reasoning = ""
+        self.content = ""
+
+    def __rich__(self):
+        parts = []
+        if self.reasoning.strip():
+            parts.append(Text(self.reasoning, style="dim"))
+        if self.content.strip():
+            # Add a small gap if there's both reasoning and content
+            if self.reasoning.strip():
+                parts.append(Text(""))
+            parts.append(Markdown(self.content))
+        
+        return Group(*parts) if parts else Text("")
 
 
 class CLIInterface:
@@ -136,7 +157,6 @@ class CLIInterface:
         )
         self.console.print()
 
-
     async def _handle_submit(self, text: str):
         """Process user input."""
         if text.startswith("/"):
@@ -151,56 +171,62 @@ class CLIInterface:
             self.console.print("[red]Error: JARVIS agent not initialized.[/red]")
             return
 
-        # User message (prompt already shows 'YOU >')
-        # Do not re-print the user's input to avoid echoing it in the transcript.
+        # User message
         self.console.print()
 
         # Streaming setup
-        full_response = ""
+        response_state = StreamingResponse()
         response_started = False
         live_ref = [None]  # Store Live reference in mutable container
         in_tool_call = [False]  # Track if we're in a tool call
 
         def stream_callback(chunk: str):
-            nonlocal full_response, response_started, live_ref, in_tool_call
-            # Don't accumulate during tool calls
+            nonlocal response_started, live_ref, in_tool_call
             if in_tool_call[0]:
                 return
             
-            full_response += chunk
+            response_state.content += chunk
             if not response_started:
                 response_started = True
-            # Update the live display with the streaming content
-            if live_ref[0] and full_response.strip():
-                live_ref[0].update(Markdown(full_response))
+            
+            if live_ref[0]:
+                live_ref[0].update(response_state)
+
+        def reasoning_callback(chunk: str):
+            nonlocal live_ref
+            if not chunk or not chunk.strip():
+                return
+            
+            response_state.reasoning += chunk
+            if live_ref[0]:
+                live_ref[0].update(response_state)
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
-            nonlocal full_response, live_ref, in_tool_call
+            nonlocal live_ref, in_tool_call
             in_tool_call[0] = True
             
-            # Print any accumulated response before tool call
-            if full_response.strip():
-                # Stop Live display temporarily
+            # Finalize current response state before tool call
+            if response_state.reasoning.strip() or response_state.content.strip():
                 if live_ref[0]:
                     live_ref[0].stop()
                     live_ref[0] = None
-                self.console.print(Markdown(full_response))
-                full_response = ""  # Reset after printing
+                self.console.print(response_state)
+                # Reset state
+                response_state.reasoning = ""
+                response_state.content = ""
             
-            # Format tool call as multi-line function call
+            # Format tool call
             args_lines = []
             for k, v in tool_args.items():
                 args_lines.append(f'  {k}="{v}"')
             args_str = ",\n".join(args_lines)
             tool_call_str = f"{tool_name}(\n{args_str}\n)"
             
-            # Display tool call in code block
             self.console.print()
             self.console.print(Markdown(f"```python\n{tool_call_str}\n```"))
 
         def tool_result_callback(tool_name: str, tool_args: dict[str, Any], result: Any):
-            nonlocal in_tool_call
-            # Display tool result with truncation
+            nonlocal in_tool_call, live_ref
             if result and hasattr(result, 'success'):
                 if result.success:
                     result_str = str(result.result) if result.result else "Success"
@@ -209,34 +235,36 @@ class CLIInterface:
             else:
                 result_str = str(result) if result else "No result"
             
-            # Truncate result if too long
             max_length = 800
             if len(result_str) > max_length:
                 result_str = result_str[:max_length] + "... (truncated)"
             
-            # Display result as dim text outside code block
             self.console.print(f"[dim]{result_str}[/dim]")
             self.console.print()
             
-            # Done with tool call
             in_tool_call[0] = False
+            
+            # Restart Live for next output
+            if not live_ref[0]:
+                live_ref[0] = Live(response_state, refresh_per_second=10, console=self.console)
+                live_ref[0].start()
 
         self.jarvis_agent.stream_callback = stream_callback
         self.jarvis_agent.tool_call_callback = tool_call_callback
         self.jarvis_agent.tool_result_callback = tool_result_callback
+        self.jarvis_agent.reasoning_callback = reasoning_callback
 
-        # Use Live display for streaming (without spinner)
-        with Live("", refresh_per_second=10) as live:
+        with Live(response_state, refresh_per_second=10, console=self.console) as live:
             live_ref[0] = live
             try:
                 await self.jarvis_agent.process(text)
             except Exception as e:
+                if live_ref[0]:
+                    live_ref[0].stop()
                 self.console.print(f"\n[red]Error: {e}[/red]")
                 return
 
-        # Don't print remaining content - Live display already showed it during streaming
-        # This prevents duplicate output
-        if not response_started:
+        if not response_started and not response_state.reasoning.strip():
             self.console.print("[dim](no response)[/dim]")
 
         self.console.print()
@@ -297,7 +325,6 @@ class CLIInterface:
 
         while True:
             try:
-                # Print prompt separately to avoid double-printing
                 self.console.print("[bold orange1]YOU[/bold orange1] [dim]>[/dim] ", end="")
                 user_input = input()
                 if not user_input.strip():

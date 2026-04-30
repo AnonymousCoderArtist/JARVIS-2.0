@@ -52,6 +52,7 @@ class GenerationResponse:
     tool_calls: list[ToolCall] | None = None
     usage: dict[str, int] | None = None
     metadata: dict[str, Any] | None = None
+    reasoning_content: str = ""  # For models with reasoning/thinking content
 
 
 class BaseLLMSDK(ABC):

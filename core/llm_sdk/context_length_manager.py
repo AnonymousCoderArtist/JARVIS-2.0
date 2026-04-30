@@ -1,21 +1,13 @@
 """Context length manager for managing token limits across different models"""
 
+import os
 from dataclasses import dataclass
 from enum import Enum
 
 
 class ModelFamily(Enum):
     """Model families for context length configuration"""
-    CLAUDE = "claude"
-    GPT = "gpt"
     DEFAULT = "default"
-    ZHIPU = "zhipu"
-    DEEPSEEK = "deepseek"
-    MINIMAX = "minimax"
-    GEMMA = "gemma"
-    QWEN = "qwen"
-    NEMOTRON = "nemotron"
-    GEMINI = "gemini"
 
 
 @dataclass
@@ -33,147 +25,66 @@ class ContextLengthManager:
     TOKENS_PER_KIBI = 1024
     TOKENS_PER_MEBI = TOKENS_PER_KIBI * TOKENS_PER_KIBI
 
-    # Default values
+    # Default values (configurable via .env)
+    # 128K total context (109K input + 16K output)
     DEFAULT_CONTEXT_LENGTH = 128 * TOKENS_PER_KIBI  # 131072
+    DEFAULT_MAX_INPUT_TOKENS = 109 * TOKENS_PER_KIBI  # 111616
     DEFAULT_MAX_OUTPUT_TOKENS = 16 * TOKENS_PER_KIBI  # 16384
-    DEFAULT_MIN_RESERVED_INPUT_TOKENS = 1024
-
-    # Claude models: 200K total context, 32K output / 168K input
-    CLAUDE_TOTAL_TOKENS = 200 * TOKENS_PER_KIBI  # 204800
-    CLAUDE_MAX_INPUT_TOKENS = CLAUDE_TOTAL_TOKENS - 32 * TOKENS_PER_KIBI  # 172032
-    CLAUDE_MAX_OUTPUT_TOKENS = 32 * TOKENS_PER_KIBI  # 32768
-
-    # GPT-4 models: 128K total context, 16K output / 112K input
-    GPT4_TOTAL_TOKENS = 128 * TOKENS_PER_KIBI  # 131072
-    GPT4_MAX_INPUT_TOKENS = GPT4_TOTAL_TOKENS - 16 * TOKENS_PER_KIBI  # 114688
-    GPT4_MAX_OUTPUT_TOKENS = 16 * TOKENS_PER_KIBI  # 16384
-
-    # GPT-4o models: 128K total context, 16K output / 112K input
-    GPT4O_TOTAL_TOKENS = 128 * TOKENS_PER_KIBI  # 131072
-    GPT4O_MAX_INPUT_TOKENS = GPT4O_TOTAL_TOKENS - 16 * TOKENS_PER_KIBI  # 114688
-    GPT4O_MAX_OUTPUT_TOKENS = 16 * TOKENS_PER_KIBI  # 16384
-
-    # DeepSeek models: 160K total context, 16K output / 144K input
-    DEEPSEEK_TOTAL_TOKENS = 160 * TOKENS_PER_KIBI  # 163840
-    DEEPSEEK_MAX_OUTPUT_TOKENS = 16 * TOKENS_PER_KIBI  # 16384
-    DEEPSEEK_MAX_INPUT_TOKENS = DEEPSEEK_TOTAL_TOKENS - DEEPSEEK_MAX_OUTPUT_TOKENS  # 147456
-
-    # Fixed 128K family: 16K output / 112K input
-    FIXED_128K_MAX_INPUT_TOKENS = 128 * TOKENS_PER_KIBI - 16 * TOKENS_PER_KIBI  # 114688
-    FIXED_128K_MAX_OUTPUT_TOKENS = 16 * TOKENS_PER_KIBI  # 16384
-
-    # Fixed 256K family: 32K output / 224K input
-    FIXED_256K_MAX_INPUT_TOKENS = 256 * TOKENS_PER_KIBI - 32 * TOKENS_PER_KIBI  # 229376
-    FIXED_256K_MAX_OUTPUT_TOKENS = 32 * TOKENS_PER_KIBI  # 32768
-
-    # Qwen 3.5 models: 256K total context, 32K output / 224K input
-    QWEN35_MAX_INPUT_TOKENS = 256 * TOKENS_PER_KIBI - 32 * TOKENS_PER_KIBI  # 229376
-    QWEN35_MAX_OUTPUT_TOKENS = 32 * TOKENS_PER_KIBI  # 32768
-
-    # Qwen 3.5 Flash / Plus models: 1M total context, 32K output
-    QWEN35_1M_TOTAL_TOKENS = TOKENS_PER_MEBI
-    QWEN35_1M_MAX_OUTPUT_TOKENS = 32 * TOKENS_PER_KIBI  # 32768
-    QWEN35_1M_MAX_INPUT_TOKENS = QWEN35_1M_TOTAL_TOKENS - QWEN35_1M_MAX_OUTPUT_TOKENS
 
     def __init__(self):
         self._model_limits: dict[str, TokenLimits] = {}
+        self._load_env_config()
         self._initialize_default_limits()
 
+    def _load_env_config(self):
+        """Load custom token limits from environment variables"""
+        # Load custom context length if specified
+        env_context = os.getenv("JARVIS_MAX_CONTEXT_TOKENS")
+        if env_context:
+            try:
+                self.DEFAULT_CONTEXT_LENGTH = int(env_context)
+            except ValueError:
+                pass
+
+        # Load custom max input tokens if specified
+        env_max_input = os.getenv("JARVIS_MAX_INPUT_TOKENS")
+        if env_max_input:
+            try:
+                self.DEFAULT_MAX_INPUT_TOKENS = int(env_max_input)
+            except ValueError:
+                pass
+
+        # Load custom max output tokens if specified
+        env_max_output = os.getenv("JARVIS_MAX_OUTPUT_TOKENS")
+        if env_max_output:
+            try:
+                self.DEFAULT_MAX_OUTPUT_TOKENS = int(env_max_output)
+            except ValueError:
+                pass
+
+        # Recalculate to ensure consistency
+        total = self.DEFAULT_MAX_INPUT_TOKENS + self.DEFAULT_MAX_OUTPUT_TOKENS
+        if total > self.DEFAULT_CONTEXT_LENGTH:
+            # Adjust input to fit within context
+            self.DEFAULT_MAX_INPUT_TOKENS = self.DEFAULT_CONTEXT_LENGTH - self.DEFAULT_MAX_OUTPUT_TOKENS
+
     def _initialize_default_limits(self):
-        """Initialize default token limits for common models"""
-        # Claude models
-        self._model_limits.update({
-            "claude-3-opus-20240229": TokenLimits(
-                max_input_tokens=self.CLAUDE_MAX_INPUT_TOKENS,
-                max_output_tokens=self.CLAUDE_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.CLAUDE_TOTAL_TOKENS
-            ),
-            "claude-3-sonnet-20240229": TokenLimits(
-                max_input_tokens=self.CLAUDE_MAX_INPUT_TOKENS,
-                max_output_tokens=self.CLAUDE_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.CLAUDE_TOTAL_TOKENS
-            ),
-            "claude-3-haiku-20240307": TokenLimits(
-                max_input_tokens=self.CLAUDE_MAX_INPUT_TOKENS,
-                max_output_tokens=self.CLAUDE_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.CLAUDE_TOTAL_TOKENS
-            ),
-            "claude-3-5-sonnet-20241022": TokenLimits(
-                max_input_tokens=self.CLAUDE_MAX_INPUT_TOKENS,
-                max_output_tokens=self.CLAUDE_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.CLAUDE_TOTAL_TOKENS
-            ),
-            "claude-3-5-haiku-20241022": TokenLimits(
-                max_input_tokens=self.CLAUDE_MAX_INPUT_TOKENS,
-                max_output_tokens=self.CLAUDE_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.CLAUDE_TOTAL_TOKENS
-            ),
-        })
-
-        # GPT models
-        self._model_limits.update({
-            "gpt-4": TokenLimits(
-                max_input_tokens=self.GPT4_MAX_INPUT_TOKENS,
-                max_output_tokens=self.GPT4_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.GPT4_TOTAL_TOKENS
-            ),
-            "gpt-4-turbo": TokenLimits(
-                max_input_tokens=self.GPT4_MAX_INPUT_TOKENS,
-                max_output_tokens=self.GPT4_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.GPT4_TOTAL_TOKENS
-            ),
-            "gpt-4o": TokenLimits(
-                max_input_tokens=self.GPT4O_MAX_INPUT_TOKENS,
-                max_output_tokens=self.GPT4O_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.GPT4O_TOTAL_TOKENS
-            ),
-            "gpt-4o-mini": TokenLimits(
-                max_input_tokens=self.FIXED_128K_MAX_INPUT_TOKENS,
-                max_output_tokens=self.FIXED_128K_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.DEFAULT_CONTEXT_LENGTH
-            ),
-            "gpt-3.5-turbo": TokenLimits(
-                max_input_tokens=self.FIXED_128K_MAX_INPUT_TOKENS,
-                max_output_tokens=self.FIXED_128K_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.DEFAULT_CONTEXT_LENGTH
-            ),
-        })
-
-        # DeepSeek models
-        self._model_limits.update({
-            "deepseek-chat": TokenLimits(
-                max_input_tokens=self.DEEPSEEK_MAX_INPUT_TOKENS,
-                max_output_tokens=self.DEEPSEEK_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.DEEPSEEK_TOTAL_TOKENS
-            ),
-            "deepseek-coder": TokenLimits(
-                max_input_tokens=self.DEEPSEEK_MAX_INPUT_TOKENS,
-                max_output_tokens=self.DEEPSEEK_MAX_OUTPUT_TOKENS,
-                total_context_tokens=self.DEEPSEEK_TOTAL_TOKENS
-            ),
-        })
+        """Initialize default token limits - using uniform defaults for all models"""
+        # All models use the same default limits (no model-specific limits)
+        pass
 
     def get_token_limits(self, model: str) -> TokenLimits:
         """
         Get token limits for a specific model
 
         Args:
-            model: Model name
+            model: Model name (ignored, using uniform defaults)
 
         Returns:
-            TokenLimits for the model
+            TokenLimits with default values
         """
-        if model in self._model_limits:
-            return self._model_limits[model]
-
-        # Try to match by prefix
-        for model_name, limits in self._model_limits.items():
-            if model.startswith(model_name.split('-')[0]):
-                return limits
-
-        # Return default limits
         return TokenLimits(
-            max_input_tokens=self.DEFAULT_CONTEXT_LENGTH - self.DEFAULT_MAX_OUTPUT_TOKENS,
+            max_input_tokens=self.DEFAULT_MAX_INPUT_TOKENS,
             max_output_tokens=self.DEFAULT_MAX_OUTPUT_TOKENS,
             total_context_tokens=self.DEFAULT_CONTEXT_LENGTH
         )
@@ -222,7 +133,16 @@ class ContextLengthManager:
         Returns:
             Resolved TokenLimits
         """
-        limits = self.get_token_limits(model)
+        # Check if custom limits are registered for this model
+        if model in self._model_limits:
+            limits = self._model_limits[model]
+        else:
+            # Use default limits
+            limits = TokenLimits(
+                max_input_tokens=self.DEFAULT_MAX_INPUT_TOKENS,
+                max_output_tokens=self.DEFAULT_MAX_OUTPUT_TOKENS,
+                total_context_tokens=self.DEFAULT_CONTEXT_LENGTH
+            )
 
         # Apply defaults if provided
         if default_context_length:

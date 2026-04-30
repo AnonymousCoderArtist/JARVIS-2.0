@@ -139,6 +139,13 @@ JARVIS_MODEL=gpt-4o
 JARVIS_BASE_URL=https://api.openai.com/v1
 JARVIS_API_KEY=your_api_key_here
 JARVIS_SDK=openai
+
+# Token Limits (optional)
+# Default: 128K total context (109K input + 16K output)
+# 1K = 1024 tokens
+JARVIS_MAX_CONTEXT_TOKENS=131072
+JARVIS_MAX_INPUT_TOKENS=111616
+JARVIS_MAX_OUTPUT_TOKENS=16384
 ```
 
 **Configuration Priority:**
