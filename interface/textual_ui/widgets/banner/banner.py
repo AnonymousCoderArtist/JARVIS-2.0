@@ -8,12 +8,10 @@ from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from vibe import __version__
-from vibe.cli.textual_ui.widgets.banner.petit_chat import PetitChat
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.core.config import VibeConfig
-from vibe.core.skills.manager import SkillManager
-from vibe.core.tools.mcp.registry import MCPRegistry
+from interface.textual_ui.constants import CORE_VERSION
+from interface.textual_ui.widgets.banner.petit_chat import PetitChat
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.cli_adapters import VibeConfig, SkillManager, MCPRegistry
 
 
 def _pluralize(count: int, singular: str) -> str:
@@ -60,7 +58,7 @@ class Banner(Static):
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("Mistral Vibe", id="banner-brand")
                     yield NoMarkupStatic(" ", classes="banner-spacer")
-                    yield NoMarkupStatic(f"v{__version__} · ", classes="banner-meta")
+                    yield NoMarkupStatic(f"v{CORE_VERSION} · ", classes="banner-meta")
                     yield NoMarkupStatic("", id="banner-model")
                     yield NoMarkupStatic("", id="banner-user-plan")
                 with Horizontal(classes="banner-line"):

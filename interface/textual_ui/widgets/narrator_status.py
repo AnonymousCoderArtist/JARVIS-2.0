@@ -6,7 +6,7 @@ from textual.reactive import reactive
 from textual.timer import Timer
 from textual.widgets import Static
 
-from vibe.cli.narrator_manager.narrator_manager_port import (
+from interface.textual_ui.cli_adapters import (
     NarratorManagerListener,
     NarratorManagerPort,
     NarratorState,

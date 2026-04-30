@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from vibe.cli.textual_ui.widgets.status_message import StatusMessage
+from interface.textual_ui.widgets.status_message import StatusMessage
 
 
 class TeleportMessage(StatusMessage):

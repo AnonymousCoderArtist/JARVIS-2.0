@@ -5,7 +5,7 @@ import time
 
 from textual.app import App
 
-from vibe.cli.textual_ui.notifications.ports.notification_port import (
+from interface.textual_ui.notifications.ports.notification_port import (
     NotificationContext,
 )
 

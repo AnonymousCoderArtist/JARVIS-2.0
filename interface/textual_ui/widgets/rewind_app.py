@@ -10,8 +10,8 @@ from textual.containers import Container, Vertical
 from textual.message import Message
 from textual.widgets import Static
 
-from vibe.cli.commands import ALT_KEY
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.cli_adapters import ALT_KEY
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 
 class _RewindAction(StrEnum):

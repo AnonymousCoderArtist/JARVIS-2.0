@@ -1,1 +1,0 @@
-"""Plan offer adapters."""

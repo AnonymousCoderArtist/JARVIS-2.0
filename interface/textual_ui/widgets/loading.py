@@ -11,9 +11,9 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Static
 
-from interface.textual_ui.adapters.cli.textual_ui.constants import MistralColors
-from interface.textual_ui.adapters.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.adapters.cli.textual_ui.widgets.spinner import SpinnerMixin, SpinnerType
+from interface.textual_ui.constants import MistralColors
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.spinner import SpinnerMixin, SpinnerType
 
 DEFAULT_LOADING_STATUS = "Generating"
 

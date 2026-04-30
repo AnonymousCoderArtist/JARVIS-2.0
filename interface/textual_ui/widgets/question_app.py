@@ -11,18 +11,18 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Input
 
-from vibe.cli.textual_ui.ansi_markdown import AnsiMarkdown
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.cli.textual_ui.widgets.vscode_compat import VscodeCompatInput
+from interface.textual_ui.ansi_markdown import AnsiMarkdown
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.vscode_compat import VscodeCompatInput
 
 if TYPE_CHECKING:
-    from vibe.core.tools.builtins.ask_user_question import (
+    from interface.textual_ui.cli_adapters import (
         AskUserQuestionArgs,
         Choice,
         Question,
     )
 
-from vibe.core.tools.builtins.ask_user_question import Answer
+from interface.textual_ui.cli_adapters import Answer
 
 
 class QuestionApp(Container):

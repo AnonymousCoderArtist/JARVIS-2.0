@@ -10,8 +10,8 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.core.config._settings import ThinkingLevel
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.cli_adapters import ThinkingLevel
 
 
 def _build_option_text(level: str, is_current: bool) -> Text:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rich import print as rprint
 
-from vibe.core.types import AgentStats
+from interface.textual_ui.types import AgentStats
 
 
 def format_session_usage(stats: AgentStats) -> str:

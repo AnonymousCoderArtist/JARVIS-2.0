@@ -2,19 +2,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from interface.textual_ui.adapters.core.hooks.models import HookMessageSeverity
+from interface.textual_ui.cli_adapters import HookMessageSeverity
 
 if TYPE_CHECKING:
-    from interface.textual_ui.adapters.cli.textual_ui.app import ChatScroll
+    from interface.textual_ui.app import ChatScroll
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 from textual.widgets._markdown import MarkdownStream
 
-from interface.textual_ui.adapters.cli.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
-from interface.textual_ui.adapters.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.adapters.cli.textual_ui.widgets.spinner import SpinnerMixin, SpinnerType
+from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.spinner import SpinnerMixin, SpinnerType
 
 
 class NonSelectableStatic(NoMarkupStatic):
@@ -314,9 +314,9 @@ class HookRunContainer(Vertical):
 
 
 _HOOK_SEVERITY_ICONS: dict[HookMessageSeverity, str] = {
-    HookMessageSeverity.OK: "✓",
-    HookMessageSeverity.WARNING: "⚠",
-    HookMessageSeverity.ERROR: "✗",
+    HookMessageSeverity.ok: "✓",
+    HookMessageSeverity.warning: "⚠",
+    HookMessageSeverity.error: "✗",
 }
 
 
@@ -325,7 +325,7 @@ class HookSystemMessageLine(Static):
         self,
         hook_name: str,
         content: str,
-        severity: HookMessageSeverity = HookMessageSeverity.WARNING,
+        severity: HookMessageSeverity = HookMessageSeverity.warning,
     ) -> None:
         super().__init__()
         self.add_class("hook-system-message")
@@ -336,7 +336,7 @@ class HookSystemMessageLine(Static):
 
     def compose(self) -> ComposeResult:
         icon = _HOOK_SEVERITY_ICONS.get(
-            self._severity, _HOOK_SEVERITY_ICONS[HookMessageSeverity.WARNING]
+            self._severity, _HOOK_SEVERITY_ICONS[HookMessageSeverity.warning]
         )
         with Horizontal(classes="hook-system-container"):
             yield NonSelectableStatic(icon, classes="hook-system-icon")

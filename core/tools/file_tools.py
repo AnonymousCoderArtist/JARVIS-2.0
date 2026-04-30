@@ -15,9 +15,9 @@ class FileReadTool(BaseTool):
 
 Usage:
 - The file_path parameter must be an absolute path, not a relative path
-- By default, it reads up to 2000 lines starting from the beginning of the file
-- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
-- When you already know which part of the file you need, only read that part. This can be important for larger files.
+- You MUST specify both offset and limit parameters for all file reads
+- offset: the 1-based line number to start reading from (use 1 to start from beginning)
+- limit: the maximum number of lines to read (use 1000+ for full files, 200-500 for sections)
 - Results are returned using cat -n format, with line numbers starting at 1
 - This tool allows reading images (eg PNG, JPG, etc). When reading an image file the contents are presented visually.
 - This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.
@@ -34,12 +34,12 @@ Usage:
             },
             "offset": {
                 "type": "integer",
-                "description": "Optional: the 1-based line number to start reading from. Only use this if the file is too large to read at once. If not specified, the file will be read from the beginning.",
+                "description": "The 1-based line number to start reading from. Required for all file reads.",
                 "minimum": 1
             },
             "limit": {
                 "type": "integer",
-                "description": "Optional: the maximum number of lines to read. Only use this together with offset if the file is too large to read at once.",
+                "description": "The maximum number of lines to read. Required for all file reads.",
                 "minimum": 1
             },
             "encoding": {
@@ -49,7 +49,7 @@ Usage:
                 "examples": ["utf-8", "latin-1", "ascii"]
             }
         },
-        "required": ["filePath"]
+        "required": ["filePath", "offset", "limit"]
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
@@ -66,14 +66,28 @@ Usage:
                     error="Invalid file path: file_path parameter must be a non-empty string. Please provide a valid absolute file path."
                 )
 
-            if offset is not None and not isinstance(offset, int):
+            if offset is None:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid offset: offset parameter must be a positive integer. Please provide a valid line number to start reading from."
+                    error="Missing required parameter: offset is required. Please provide the 1-based line number to start reading from (use 1 to start from beginning)."
                 )
 
-            if limit is not None and not isinstance(limit, int):
+            if not isinstance(offset, int) or offset < 1:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid offset: offset parameter must be a positive integer (1-based line number). Please provide a valid line number to start reading from."
+                )
+
+            if limit is None:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Missing required parameter: limit is required. Please provide the maximum number of lines to read."
+                )
+
+            if not isinstance(limit, int) or limit < 1:
                 return ToolOutput(
                     success=False,
                     result=None,

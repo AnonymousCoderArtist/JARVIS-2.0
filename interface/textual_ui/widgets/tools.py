@@ -4,12 +4,12 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
-from vibe.cli.textual_ui.widgets.messages import ExpandingBorder, NonSelectableStatic
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.cli.textual_ui.widgets.status_message import StatusMessage
-from vibe.cli.textual_ui.widgets.tool_widgets import get_result_widget
-from vibe.core.tools.ui import ToolUIDataAdapter
-from vibe.core.types import ToolCallEvent, ToolResultEvent
+from interface.textual_ui.widgets.messages import ExpandingBorder, NonSelectableStatic
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.status_message import StatusMessage
+from interface.textual_ui.widgets.tool_widgets import get_result_widget
+from interface.textual_ui.cli_adapters import ToolUIDataAdapter
+from interface.textual_ui.types import ToolCallEvent, ToolResultEvent
 
 
 class ToolCallMessage(StatusMessage):

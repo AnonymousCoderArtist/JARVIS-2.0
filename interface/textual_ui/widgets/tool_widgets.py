@@ -8,19 +8,24 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
 
-from vibe.cli.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.core.tools.builtins.ask_user_question import AskUserQuestionResult
-from vibe.core.tools.builtins.bash import BashArgs, BashResult
-from vibe.core.tools.builtins.grep import GrepArgs, GrepResult
-from vibe.core.tools.builtins.read_file import ReadFileArgs, ReadFileResult
-from vibe.core.tools.builtins.search_replace import (
+from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.cli_adapters import (
+    AskUserQuestionResult,
+    BashArgs,
+    BashResult,
+    GrepArgs,
+    GrepResult,
+    ReadFileArgs,
+    ReadFileResult,
     SEARCH_REPLACE_BLOCK_RE,
     SearchReplaceArgs,
     SearchReplaceResult,
+    TodoArgs,
+    TodoResult,
+    WriteFileArgs,
+    WriteFileResult,
 )
-from vibe.core.tools.builtins.todo import TodoArgs, TodoResult
-from vibe.core.tools.builtins.write_file import WriteFileArgs, WriteFileResult
 
 
 def _truncate_lines(content: str, max_lines: int) -> tuple[str, str | None]:

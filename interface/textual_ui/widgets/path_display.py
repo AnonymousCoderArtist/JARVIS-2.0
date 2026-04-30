@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 
 class PathDisplay(NoMarkupStatic):

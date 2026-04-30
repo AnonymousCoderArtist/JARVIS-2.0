@@ -6,7 +6,7 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static
 
-from interface.textual_ui.adapters.cli.textual_ui.widgets.chat_input.text_area import ChatTextArea
+from interface.textual_ui.widgets.chat_input.text_area import ChatTextArea
 
 THANK_YOU_DURATION = 2.0
 

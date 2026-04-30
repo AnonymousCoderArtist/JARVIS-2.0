@@ -5,7 +5,7 @@ from typing import Protocol
 
 from textual import events
 
-from vibe.cli.autocompletion.base import CompletionResult
+from interface.textual_ui.cli_adapters import CompletionResult
 
 
 class CompletionController(Protocol):

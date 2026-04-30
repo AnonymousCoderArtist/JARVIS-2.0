@@ -1,4 +1,4 @@
-"""AgentLoop adapter that wraps JARVIS's CodingAgent."""
+"""AgentLoop wrapper for JARVIS integration."""
 
 from __future__ import annotations
 
@@ -9,10 +9,6 @@ from typing import Any
 
 from core.agents.coding_agent import CodingAgent
 from core.tools.registry import ToolRegistry
-
-from .config import VibeConfig
-from .skills.manager import SkillManager
-from .types import AgentStats, ApprovalResponse, BaseEvent
 
 
 @dataclass
@@ -36,6 +32,10 @@ class TelemetryClient:
     def send_slash_command_used(self, command: str, command_type: str) -> None:
         """Send slash command used."""
         pass
+    
+    def is_active(self) -> bool:
+        """Check if telemetry is active."""
+        return False
 
 
 @dataclass
@@ -64,12 +64,12 @@ class Stats:
 
 
 class AgentLoop:
-    """AgentLoop adapter that wraps JARVIS's CodingAgent."""
+    """AgentLoop that wraps JARVIS's CodingAgent."""
     
     def __init__(
         self,
         agent: CodingAgent,
-        config: VibeConfig,
+        config: Any,
         tool_registry: ToolRegistry,
     ):
         self.agent = agent
@@ -80,21 +80,21 @@ class AgentLoop:
         self.stats = Stats()
         self.telemetry_client = TelemetryClient()
         self.is_initialized = True
-        self.skill_manager = SkillManager()
-        self.mcp_registry = None
-        self.connector_registry = None
+        self.skill_manager = SkillManagerStub()
+        self.mcp_registry = MCPRegistryStub()
+        self.connector_registry = ConnectorRegistryStub()
         self.hook_config_issues = []
+        self.messages = []
         
-        self._approval_callback: Callable[[str, list[str]], ApprovalResponse] | None = None
+        self._approval_callback: Callable[[str, list[str]], Any] | None = None
         self._user_input_callback: Callable[[str], str] | None = None
-        self._event_queue: asyncio.Queue[BaseEvent] = asyncio.Queue()
+        self._event_queue: asyncio.Queue[Any] = asyncio.Queue()
     
     async def wait_until_ready(self) -> None:
         """Wait until agent is ready."""
-        # JARVIS agent is ready immediately
         pass
     
-    def set_approval_callback(self, callback: Callable[[str, list[str]], ApprovalResponse]) -> None:
+    def set_approval_callback(self, callback: Callable[[str, list[str]], Any]) -> None:
         """Set approval callback."""
         self._approval_callback = callback
     
@@ -125,14 +125,39 @@ class AgentLoop:
     async def process_message(self, message: str) -> AsyncGenerator[str, None]:
         """Process a message and stream response."""
         if self._user_input_callback:
-            # If UI is handling input, just yield the message
             yield message
             return
         
-        # Otherwise, process through agent
         response = await self.agent.process(message)
         yield response
     
     async def run(self) -> None:
         """Run the agent loop."""
         pass
+
+
+class SkillManagerStub:
+    """Stub skill manager."""
+    
+    def __init__(self):
+        self.available_skills = {}
+        self.custom_skills_count = 0
+    
+    def parse_skill_command(self, command: str) -> Any:
+        """Parse skill command."""
+        return None
+
+
+class MCPRegistryStub:
+    """Stub MCP registry."""
+    
+    def count_loaded(self, servers):
+        """Count loaded MCP servers."""
+        return 0
+
+
+class ConnectorRegistryStub:
+    """Stub connector registry."""
+    
+    def __init__(self):
+        self.connector_count = 0

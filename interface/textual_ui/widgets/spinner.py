@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
 
 from textual.timer import Timer
 
-from vibe.cli.textual_ui.widgets.braille_renderer import render_braille
+from interface.textual_ui.widgets.braille_renderer import render_braille
 
 if TYPE_CHECKING:
     from textual.widgets import Static

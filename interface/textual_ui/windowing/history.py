@@ -5,13 +5,13 @@ from weakref import WeakKeyDictionary
 
 from textual.widget import Widget
 
-from vibe.cli.textual_ui.widgets.messages import (
+from interface.textual_ui.widgets.messages import (
     AssistantMessage,
     ReasoningMessage,
     UserMessage,
 )
-from vibe.cli.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
-from vibe.core.types import LLMMessage, Role
+from interface.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
+from interface.textual_ui.types import LLMMessage, Role
 
 
 def non_system_history_messages(messages: Sequence[LLMMessage]) -> list[LLMMessage]:

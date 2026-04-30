@@ -3,10 +3,13 @@ from __future__ import annotations
 import random
 import time
 
-from interface.textual_ui.adapters.cli.cache import read_cache, write_cache
-from interface.textual_ui.adapters.core.agent_loop import AgentLoop
-from interface.textual_ui.adapters.core.paths import CACHE_FILE
-from interface.textual_ui.adapters.core.types import Role
+from interface.textual_ui.cli_adapters import (
+    read_cache,
+    write_cache,
+    AgentLoop,
+    CACHE_FILE,
+)
+from interface.textual_ui.types import Role
 
 FEEDBACK_PROBABILITY = 0.2
 FEEDBACK_COOLDOWN_SECONDS = 3600

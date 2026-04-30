@@ -5,7 +5,7 @@ from typing import Any
 
 from textual.reactive import reactive
 
-from interface.textual_ui.adapters.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 
 @dataclass

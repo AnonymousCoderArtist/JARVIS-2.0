@@ -14,8 +14,7 @@ from textual.scroll_view import ScrollView
 from textual.strip import Strip
 from textual.widgets import Static
 
-from interface.textual_ui.adapters.core.log_reader import LogEntry, LogReader
-from interface.textual_ui.adapters.core.logger import decode_log_message
+from interface.textual_ui.cli_adapters import LogEntry, LogReader, decode_log_message
 
 LOG_LEVEL_COLORS: dict[str, str] = {
     "DEBUG": "dim",

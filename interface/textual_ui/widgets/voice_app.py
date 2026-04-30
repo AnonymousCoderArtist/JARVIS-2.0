@@ -9,10 +9,10 @@ from textual.containers import Container, Vertical
 from textual.message import Message
 from textual.widgets import Static
 
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 if TYPE_CHECKING:
-    from vibe.core.config import VibeConfig
+    from interface.textual_ui.cli_adapters import VibeConfig
 
 
 class SettingDefinition(TypedDict):

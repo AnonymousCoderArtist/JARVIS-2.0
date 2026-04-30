@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 from textual.widget import Widget
 
-from vibe.cli.textual_ui.widgets.load_more import HistoryLoadMoreMessage
-from vibe.core.types import LLMMessage
+from interface.textual_ui.widgets.load_more import HistoryLoadMoreMessage
+from interface.textual_ui.types import LLMMessage
 
 HISTORY_RESUME_TAIL_MESSAGES = 20
 LOAD_MORE_BATCH_SIZE = 10

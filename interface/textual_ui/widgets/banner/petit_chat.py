@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.timer import Timer
 from textual.widgets import Static
 
-from vibe.cli.textual_ui.widgets.braille_renderer import render_braille
+from interface.textual_ui.widgets.braille_renderer import render_braille
 
 WIDTH = 22
 HEIGHT = 12

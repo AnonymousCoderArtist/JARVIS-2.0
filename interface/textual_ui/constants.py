@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+# Version constant
+CORE_VERSION = "2.0.0"
+
 
 class MistralColors(StrEnum):
     RED = "#E10500"

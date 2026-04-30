@@ -14,12 +14,11 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 from textual.worker import Worker
 
-from interface.textual_ui.adapters.cli.clipboard import copy_text_to_clipboard
-from interface.textual_ui.adapters.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.adapters.core.tools.connectors import ConnectorRegistry
+from interface.textual_ui.cli_adapters import copy_text_to_clipboard, ConnectorRegistry
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 if TYPE_CHECKING:
-    from interface.textual_ui.adapters.core.tools.manager import ToolManager
+    from interface.textual_ui.cli_adapters import ToolManager
 
 _HELP = "Backspace Back"
 _OPTION_PADDING = "  "
@@ -110,7 +109,7 @@ class ConnectorAuthApp(Container):
 
     async def _refresh_connector(self) -> int:
         """Refresh connector tools. Returns the number of tools discovered."""
-        from interface.textual_ui.adapters.core.tools.manager import ToolManager
+        from interface.textual_ui.cli_adapters import ToolManager
 
         new_tools = await self._connector_registry.refresh_connector_async(
             self._connector_name

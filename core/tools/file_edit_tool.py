@@ -61,7 +61,7 @@ Usage:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="No replacements provided. Use the 'replacements' array with at least one item."
+                    error="No replacements provided. Use the 'replacements' array with at least one item. Each replacement should be an object with 'file_path', 'old_string', and 'new_string' properties. Example: {\"replacements\": [{\"file_path\": \"path/to/file.py\", \"old_string\": \"old text\", \"new_string\": \"new text\"}]}"
                 )
 
             return await self._execute_multiple_replacements(replacements)
@@ -107,11 +107,11 @@ Usage:
 
                 count = content.count(old_string)
                 if count == 0:
-                    errors.append(f"Replacement {i + 1}: Could not find 'old_string' in {file_path}. Please read the file first using read to verify the exact text, then provide the exact string including whitespace and indentation.")
+                    errors.append(f"Replacement {i + 1}: Could not find 'old_string' in {file_path}. The text you're trying to replace doesn't exist exactly as written. Please re-read the file using the read tool to see the current content, then copy the exact text including all whitespace, indentation, and special characters. Pay close attention to tabs vs spaces and any hidden characters.")
                     continue
 
                 if count > 1:
-                    errors.append(f"Replacement {i + 1}: Found {count} occurrences of the string in {file_path}. Please provide more context to make the string unique, or use multiple replacement operations.")
+                    errors.append(f"Replacement {i + 1}: Found {count} occurrences of the string in {file_path}. Please re-read the file to see all occurrences, then provide more surrounding context (more lines before/after) to make the replacement unique, or use multiple replacement operations to handle each occurrence separately.")
                     continue
 
                 new_content = content.replace(old_string, new_string, 1)

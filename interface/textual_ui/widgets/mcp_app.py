@@ -14,15 +14,17 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option, OptionDoesNotExist
 from textual.worker import Worker
 
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.core.config import ConnectorConfig
-from vibe.core.tools.connectors import ConnectorRegistry, connectors_enabled
-from vibe.core.tools.mcp.tools import MCPTool
-from vibe.core.tools.mcp_settings import updated_tool_list
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.cli_adapters import (
+    ConnectorConfig,
+    ConnectorRegistry,
+    connectors_enabled,
+    MCPTool,
+    updated_tool_list,
+)
 
 if TYPE_CHECKING:
-    from vibe.core.config import MCPServer
-    from vibe.core.tools.manager import ToolManager
+    from interface.textual_ui.cli_adapters import MCPServer, ToolManager
 
 
 class MCPSourceKind(StrEnum):

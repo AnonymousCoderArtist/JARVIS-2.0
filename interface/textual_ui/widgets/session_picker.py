@@ -11,8 +11,8 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.core.session.resume_sessions import (
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.cli_adapters import (
     ResumeSessionInfo,
     ResumeSessionSource,
     short_session_id,

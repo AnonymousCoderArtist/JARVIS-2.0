@@ -14,15 +14,15 @@ from interface.textual_ui.widgets.messages import (
 )
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
-from interface.textual_ui.adapters.core.hooks.models import (
+from interface.textual_ui.cli_adapters import (
     HookEndEvent,
     HookEvent,
     HookRunEndEvent,
     HookRunStartEvent,
     HookStartEvent,
+    ToolUIDataAdapter,
 )
-from interface.textual_ui.adapters.core.tools.ui import ToolUIDataAdapter
-from interface.textual_ui.adapters.core.types import (
+from interface.textual_ui.types import (
     AgentProfileChangedEvent,
     AssistantEvent,
     BaseEvent,
@@ -35,7 +35,7 @@ from interface.textual_ui.adapters.core.types import (
     UserMessageEvent,
     WaitingForInputEvent,
 )
-from interface.textual_ui.adapters.core.utils import TaggedText
+from interface.textual_ui.utils import TaggedText
 
 if TYPE_CHECKING:
     from interface.textual_ui.widgets.loading import LoadingWidget

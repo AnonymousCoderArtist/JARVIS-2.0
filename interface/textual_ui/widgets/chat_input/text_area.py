@@ -7,18 +7,18 @@ from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import TextArea
 
-from vibe.cli.autocompletion.base import CompletionResult
-from vibe.cli.commands import CommandRegistry
-from vibe.cli.textual_ui.external_editor import ExternalEditor
-from vibe.cli.textual_ui.widgets.chat_input.completion_manager import (
-    MultiCompletionManager,
-)
-from vibe.cli.textual_ui.widgets.vscode_compat import patch_vscode_space
-from vibe.cli.voice_manager.voice_manager_port import (
+from interface.textual_ui.cli_adapters import (
+    CompletionResult,
+    CommandRegistry,
     RecordingStartError,
     TranscribeState,
     VoiceManagerPort,
 )
+from interface.textual_ui.external_editor import ExternalEditor
+from interface.textual_ui.widgets.chat_input.completion_manager import (
+    MultiCompletionManager,
+)
+from interface.textual_ui.widgets.vscode_compat import patch_vscode_space
 
 InputMode = Literal["!", "/", ">", "&"]
 

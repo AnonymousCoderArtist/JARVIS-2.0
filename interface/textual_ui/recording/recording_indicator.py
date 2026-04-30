@@ -3,7 +3,7 @@ from __future__ import annotations
 from textual.timer import Timer
 from textual.widgets import Static
 
-from vibe.cli.voice_manager.voice_manager_port import (
+from interface.textual_ui.cli_adapters import (
     TranscribeState,
     VoiceManagerListener,
     VoiceManagerPort,

@@ -9,23 +9,26 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.message import Message
 
-from vibe.cli.autocompletion.path_completion import PathCompletionController
-from vibe.cli.autocompletion.slash_command import SlashCommandController
-from vibe.cli.commands import CommandRegistry
-from vibe.cli.textual_ui.widgets.chat_input.body import ChatInputBody
-from vibe.cli.textual_ui.widgets.chat_input.completion_manager import (
+from interface.textual_ui.cli_adapters import (
+    PathCompletionController,
+    SlashCommandController,
+    CommandRegistry,
+    VoiceManagerPort,
+    AgentSafety,
+    CommandCompleter,
+    PathCompleter,
+)
+from interface.textual_ui.widgets.chat_input.body import ChatInputBody
+from interface.textual_ui.widgets.chat_input.completion_manager import (
     MultiCompletionManager,
 )
-from vibe.cli.textual_ui.widgets.chat_input.completion_popup import (
+from interface.textual_ui.widgets.chat_input.completion_popup import (
     COMPLETION_POPUP_MAX_HEIGHT,
     COMPLETION_POPUP_MAX_WIDTH,
     COMPLETION_POPUP_PADDING_X,
     CompletionPopup,
 )
-from vibe.cli.textual_ui.widgets.chat_input.text_area import ChatTextArea
-from vibe.cli.voice_manager.voice_manager_port import VoiceManagerPort
-from vibe.core.agents import AgentSafety
-from vibe.core.autocompletion.completers import CommandCompleter, PathCompleter
+from interface.textual_ui.widgets.chat_input.text_area import ChatTextArea
 
 SAFETY_BORDER_CLASSES: dict[AgentSafety, str] = {
     AgentSafety.SAFE: "border-safe",

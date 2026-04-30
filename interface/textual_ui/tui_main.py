@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
 from core.agents.coding_agent import CodingAgent
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
@@ -17,9 +21,85 @@ from core.tools.registry import ToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool
 
-from interface.textual_ui.adapters.core.agent_loop import AgentLoop
-from interface.textual_ui.adapters.core.config import VibeConfig
 from interface.textual_ui.app import run_textual_ui
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration."""
+    alias: str
+    auto_compact_threshold: int = 16000
+    thinking: str = "medium"
+
+
+@dataclass
+class ConnectorConfig:
+    """Connector configuration."""
+    name: str
+    disabled: bool = False
+
+
+@dataclass
+class SessionLoggingConfig:
+    """Session logging configuration."""
+    enabled: bool = False
+
+
+@dataclass
+class Config:
+    """Config for TUI."""
+    model: str
+    base_url: str | None
+    api_key: str | None
+    sdk: str
+    
+    # Additional config attributes
+    active_model: str = field(init=False)
+    enable_notifications: bool = False
+    vibe_code_enabled: bool = False
+    displayed_workdir: Path | None = None
+    file_watcher_for_autocomplete: bool = False
+    bypass_tool_permissions: bool = False
+    mcp_servers: list = field(default_factory=list)
+    session_logging: SessionLoggingConfig = field(default_factory=SessionLoggingConfig)
+    api_timeout: float = 30.0
+    installed_agents: list = field(default_factory=list)
+    enable_update_checks: bool = False
+    enable_auto_update: bool = False
+    autocopy_to_clipboard: bool = False
+    connectors: list[ConnectorConfig] = field(default_factory=list)
+    models: list[ModelConfig] = field(default_factory=list)
+    max_output_bytes: int = 100000
+    disable_welcome_banner_animation: bool = False
+    
+    def __post_init__(self):
+        self.active_model = self.model
+        self.models = [ModelConfig(alias=self.model)]
+    
+    def is_active_model_mistral(self) -> bool:
+        """Check if active model is mistral."""
+        return "mistral" in self.active_model.lower()
+    
+    def get_active_model(self) -> ModelConfig:
+        """Get active model config."""
+        return self.models[0] if self.models else ModelConfig(alias=self.model)
+    
+    def set_thinking(self, level: str) -> None:
+        """Set thinking level."""
+        if self.models:
+            self.models[0].thinking = level
+    
+    def get_active_transcribe_model(self) -> str:
+        """Get active transcribe model."""
+        return "whisper-1"
+    
+    def get_transcribe_provider_for_model(self, model: str) -> str:
+        """Get transcribe provider for model."""
+        return "openai"
+    
+    def get_active_provider(self) -> str:
+        """Get active provider."""
+        return self.sdk
 
 
 def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai") -> None:
@@ -66,14 +146,15 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
     jarvis_agent.rebuild_system_prompt()
     
     # Create configuration
-    config = VibeConfig(
+    config = Config(
         model=model,
         base_url=base_url,
         api_key=apikey,
         sdk=sdk,
     )
     
-    # Create AgentLoop adapter
+    # Create AgentLoop wrapper
+    from interface.textual_ui.agent_loop import AgentLoop
     agent_loop = AgentLoop(
         agent=jarvis_agent,
         config=config,

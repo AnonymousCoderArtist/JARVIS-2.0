@@ -3,15 +3,15 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Protocol
 
-from vibe.cli.textual_ui.widgets.loading import DEFAULT_LOADING_STATUS
-from vibe.core.config import VibeConfig
-from vibe.core.nuage.remote_events_source import RemoteEventsSource
-from vibe.core.tools.builtins.ask_user_question import (
+from interface.textual_ui.widgets.loading import DEFAULT_LOADING_STATUS
+from interface.textual_ui.cli_adapters import (
+    VibeConfig,
+    RemoteEventsSource,
     AskUserQuestionArgs,
     Choice,
     Question,
 )
-from vibe.core.types import (
+from interface.textual_ui.types import (
     AssistantEvent,
     BaseEvent,
     ReasoningEvent,

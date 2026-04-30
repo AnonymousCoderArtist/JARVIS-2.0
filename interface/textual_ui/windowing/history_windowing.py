@@ -5,14 +5,14 @@ from weakref import WeakKeyDictionary
 
 from textual.widget import Widget
 
-from vibe.cli.textual_ui.windowing.history import (
+from interface.textual_ui.windowing.history import (
     build_tool_call_map,
     split_history_tail,
     visible_history_indices,
     visible_history_widgets_count,
 )
-from vibe.cli.textual_ui.windowing.state import SessionWindowing
-from vibe.core.types import LLMMessage
+from interface.textual_ui.windowing.state import SessionWindowing
+from interface.textual_ui.types import LLMMessage
 
 
 @dataclass(frozen=True)

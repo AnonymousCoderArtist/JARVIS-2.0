@@ -6,7 +6,7 @@ from typing import Literal
 from textual.app import App
 from textual.timer import Timer
 
-from vibe.cli.textual_ui.widgets.path_display import PathDisplay
+from interface.textual_ui.widgets.path_display import PathDisplay
 
 QuitConfirmKey = Literal["Ctrl+C", "Ctrl+D"]
 

@@ -10,18 +10,18 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static
 
-from vibe.cli.commands import CommandRegistry
-from vibe.cli.history_manager import HistoryManager
-from vibe.cli.textual_ui.recording.recording_indicator import RecordingIndicator
-from vibe.cli.textual_ui.widgets.chat_input.text_area import ChatTextArea, InputMode
-from vibe.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from vibe.cli.textual_ui.widgets.spinner import SpinnerMixin, SpinnerType
-from vibe.cli.voice_manager.voice_manager_port import (
+from interface.textual_ui.cli_adapters import (
+    CommandRegistry,
+    HistoryManager,
     TranscribeState,
     VoiceManagerListener,
     VoiceManagerPort,
+    logger,
 )
-from vibe.core.logger import logger
+from interface.textual_ui.recording.recording_indicator import RecordingIndicator
+from interface.textual_ui.widgets.chat_input.text_area import ChatTextArea, InputMode
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.spinner import SpinnerMixin, SpinnerType
 
 
 class _PromptSpinner(SpinnerMixin, Static):

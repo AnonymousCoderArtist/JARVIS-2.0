@@ -25,51 +25,62 @@ from textual.events import AppBlur, AppFocus, MouseUp
 from textual.widget import Widget
 from textual.widgets import Static
 
-from interface.textual_ui.adapters import __version__ as CORE_VERSION
-from interface.textual_ui.adapters.cli.clipboard import copy_selection_to_clipboard, copy_text_to_clipboard
-from interface.textual_ui.adapters.cli.commands import CommandAvailabilityContext, CommandRegistry
-from interface.textual_ui.adapters.cli.narrator_manager import (
+from interface.textual_ui.constants import CORE_VERSION
+from interface.textual_ui.cli_adapters import (
+    copy_selection_to_clipboard,
+    copy_text_to_clipboard,
+    CommandAvailabilityContext,
+    CommandRegistry,
+    ALT_KEY,
+    CompletionResult,
+    HistoryManager,
     NarratorManager,
     NarratorManagerPort,
     NarratorState,
-)
-from interface.textual_ui.adapters.cli.plan_offer.adapters.http_whoami_gateway import HttpWhoAmIGateway
-from interface.textual_ui.adapters.cli.plan_offer.decide_plan_offer import (
+    NarratorManagerListener,
+    RecordingStartError,
+    VoiceManagerListener,
+    HttpWhoAmIGateway,
     PlanInfo,
     decide_plan_offer,
     plan_offer_cta,
     plan_title,
     resolve_api_key_for_plan,
+    WhoAmIGateway,
+    WhoAmIPlanType,
+    read_cache,
+    write_cache,
+    CACHE_FILE,
+    AgentSafety,
 )
-from interface.textual_ui.adapters.cli.plan_offer.ports.whoami_gateway import WhoAmIGateway, WhoAmIPlanType
-from interface.textual_ui.adapters.cli.textual_ui.handlers.event_handler import EventHandler
-from interface.textual_ui.adapters.cli.textual_ui.notifications import (
+from interface.textual_ui.handlers.event_handler import EventHandler
+from interface.textual_ui.notifications import (
     NotificationContext,
     NotificationPort,
     TextualNotificationAdapter,
 )
-from interface.textual_ui.adapters.cli.textual_ui.quit_manager import QuitManager
-from interface.textual_ui.adapters.cli.textual_ui.remote import RemoteSessionManager, is_progress_event
-from interface.textual_ui.adapters.cli.textual_ui.session_exit import print_session_resume_message
-from interface.textual_ui.adapters.cli.textual_ui.widgets.approval_app import ApprovalApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.banner.banner import Banner
-from interface.textual_ui.adapters.cli.textual_ui.widgets.chat_input import ChatInputContainer
-from interface.textual_ui.adapters.cli.textual_ui.widgets.chat_input.text_area import ChatTextArea
-from interface.textual_ui.adapters.cli.textual_ui.widgets.compact import CompactMessage
-from interface.textual_ui.adapters.cli.textual_ui.widgets.config_app import ConfigApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.connector_auth_app import ConnectorAuthApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.context_progress import ContextProgress, TokenState
-from interface.textual_ui.adapters.cli.textual_ui.widgets.debug_console import DebugConsole
-from interface.textual_ui.adapters.cli.textual_ui.widgets.feedback_bar import FeedbackBar
-from interface.textual_ui.adapters.cli.textual_ui.widgets.feedback_bar_manager import FeedbackBarManager
-from interface.textual_ui.adapters.cli.textual_ui.widgets.load_more import HistoryLoadMoreRequested
-from interface.textual_ui.adapters.cli.textual_ui.widgets.loading import (
+from interface.textual_ui.quit_manager import QuitManager
+from interface.textual_ui.remote import RemoteSessionManager, is_progress_event
+from interface.textual_ui.session_exit import print_session_resume_message
+from interface.textual_ui.widgets.approval_app import ApprovalApp
+from interface.textual_ui.widgets.banner.banner import Banner
+from interface.textual_ui.widgets.chat_input import ChatInputContainer
+from interface.textual_ui.widgets.chat_input.text_area import ChatTextArea
+from interface.textual_ui.widgets.compact import CompactMessage
+from interface.textual_ui.widgets.config_app import ConfigApp
+from interface.textual_ui.widgets.connector_auth_app import ConnectorAuthApp
+from interface.textual_ui.widgets.context_progress import ContextProgress, TokenState
+from interface.textual_ui.widgets.debug_console import DebugConsole
+from interface.textual_ui.widgets.feedback_bar import FeedbackBar
+from interface.textual_ui.widgets.feedback_bar_manager import FeedbackBarManager
+from interface.textual_ui.widgets.load_more import HistoryLoadMoreRequested
+from interface.textual_ui.widgets.loading import (
     DEFAULT_LOADING_STATUS,
     LoadingWidget,
     paused_timer,
 )
-from interface.textual_ui.adapters.cli.textual_ui.widgets.mcp_app import MCPApp, MCPSourceKind
-from interface.textual_ui.adapters.cli.textual_ui.widgets.messages import (
+from interface.textual_ui.widgets.mcp_app import MCPApp, MCPSourceKind
+from interface.textual_ui.widgets.messages import (
     AssistantMessage,
     BashOutputMessage,
     ErrorMessage,
@@ -80,19 +91,19 @@ from interface.textual_ui.adapters.cli.textual_ui.widgets.messages import (
     WarningMessage,
     WhatsNewMessage,
 )
-from interface.textual_ui.adapters.cli.textual_ui.widgets.model_picker import ModelPickerApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.narrator_status import NarratorStatus
-from interface.textual_ui.adapters.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.adapters.cli.textual_ui.widgets.path_display import PathDisplay
-from interface.textual_ui.adapters.cli.textual_ui.widgets.proxy_setup_app import ProxySetupApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.question_app import QuestionApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.rewind_app import RewindApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.session_picker import SessionPickerApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.teleport_message import TeleportMessage
-from interface.textual_ui.adapters.cli.textual_ui.widgets.thinking_picker import ThinkingPickerApp
-from interface.textual_ui.adapters.cli.textual_ui.widgets.tools import ToolResultMessage
-from interface.textual_ui.adapters.cli.textual_ui.widgets.voice_app import VoiceApp
-from interface.textual_ui.adapters.cli.textual_ui.windowing import (
+from interface.textual_ui.widgets.model_picker import ModelPickerApp
+from interface.textual_ui.widgets.narrator_status import NarratorStatus
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.path_display import PathDisplay
+from interface.textual_ui.widgets.proxy_setup_app import ProxySetupApp
+from interface.textual_ui.widgets.question_app import QuestionApp
+from interface.textual_ui.widgets.rewind_app import RewindApp
+from interface.textual_ui.widgets.session_picker import SessionPickerApp
+from interface.textual_ui.widgets.teleport_message import TeleportMessage
+from interface.textual_ui.widgets.thinking_picker import ThinkingPickerApp
+from interface.textual_ui.widgets.tools import ToolResultMessage
+from interface.textual_ui.widgets.voice_app import VoiceApp
+from interface.textual_ui.windowing import (
     HISTORY_RESUME_TAIL_MESSAGES,
     LOAD_MORE_BATCH_SIZE,
     HistoryLoadMoreManager,
@@ -103,7 +114,7 @@ from interface.textual_ui.adapters.cli.textual_ui.windowing import (
     should_resume_history,
     sync_backfill_state,
 )
-from interface.textual_ui.adapters.cli.update_notifier import (
+from interface.textual_ui.cli_adapters import (
     FileSystemUpdateCacheRepository,
     PyPIUpdateGateway,
     UpdateCacheRepository,
@@ -113,31 +124,38 @@ from interface.textual_ui.adapters.cli.update_notifier import (
     load_whats_new_content,
     mark_version_as_seen,
     should_show_whats_new,
-)
-from interface.textual_ui.adapters.cli.update_notifier.update import do_update
-from interface.textual_ui.adapters.cli.voice_manager import VoiceManager, VoiceManagerPort
-from interface.textual_ui.adapters.cli.voice_manager.voice_manager_port import TranscribeState
-from interface.textual_ui.adapters.core.agent_loop import AgentLoop, TeleportError
-from interface.textual_ui.adapters.core.agents import AgentProfile
-from interface.textual_ui.adapters.core.audio_player.audio_player import AudioPlayer
-from interface.textual_ui.adapters.core.audio_recorder import AudioRecorder
-from interface.textual_ui.adapters.core.autocompletion.path_prompt_adapter import render_path_prompt
-from interface.textual_ui.adapters.core.config import VibeConfig
-from interface.textual_ui.adapters.core.data_retention import DATA_RETENTION_MESSAGE
-from interface.textual_ui.adapters.core.hooks.models import HookStartEvent
-from interface.textual_ui.adapters.core.log_reader import LogReader
-from interface.textual_ui.adapters.core.logger import logger
-from interface.textual_ui.adapters.core.paths import HISTORY_FILE
-from interface.textual_ui.adapters.core.rewind import RewindError
-from interface.textual_ui.adapters.core.session.resume_sessions import (
+    do_update,
+    VoiceManager,
+    VoiceManagerPort,
+    TranscribeState,
+    AgentLoop,
+    TeleportError,
+    AgentProfile,
+    AudioPlayer,
+    AudioRecorder,
+    render_path_prompt,
+    VibeConfig,
+    ConnectorConfig,
+    MCPServer,
+    ThinkingLevel,
+    THINKING_LEVELS,
+    DATA_RETENTION_MESSAGE,
+    HookStartEvent,
+    HookMessageSeverity,
+    LogReader,
+    LogEntry,
+    decode_log_message,
+    logger,
+    HISTORY_FILE,
+    RewindError,
     ResumeSessionInfo,
+    ResumeSessionSource,
     list_local_resume_sessions,
     list_remote_resume_sessions,
     short_session_id,
-)
-from interface.textual_ui.adapters.core.session.session_loader import SessionLoader
-from interface.textual_ui.adapters.core.skills.manager import SkillManager
-from interface.textual_ui.adapters.core.teleport.types import (
+    SessionLoader,
+    SkillManager,
+    MCPRegistry,
     TeleportAuthCompleteEvent,
     TeleportAuthRequiredEvent,
     TeleportCheckingGitEvent,
@@ -148,18 +166,20 @@ from interface.textual_ui.adapters.core.teleport.types import (
     TeleportPushResponseEvent,
     TeleportStartingWorkflowEvent,
     TeleportWaitingForGitHubEvent,
-)
-from interface.textual_ui.adapters.core.tools.builtins.ask_user_question import (
     AskUserQuestionArgs,
     AskUserQuestionResult,
     Choice,
     Question,
+    ConnectorRegistry,
+    connectors_enabled,
+    persist_mcp_toggle,
+    MCPTool,
+    updated_tool_list,
+    RequiredPermission,
+    make_transcribe_client,
+    stderr_guard,
 )
-from interface.textual_ui.adapters.core.tools.connectors import ConnectorRegistry, connectors_enabled
-from interface.textual_ui.adapters.core.tools.mcp_settings import persist_mcp_toggle
-from interface.textual_ui.adapters.core.tools.permissions import RequiredPermission
-from interface.textual_ui.adapters.core.transcribe import make_transcribe_client
-from interface.textual_ui.adapters.core.types import (
+from interface.textual_ui.types import (
     AgentStats,
     ApprovalResponse,
     BaseEvent,
@@ -169,7 +189,7 @@ from interface.textual_ui.adapters.core.types import (
     Role,
     WaitingForInputEvent,
 )
-from interface.textual_ui.adapters.core.utils import (
+from interface.textual_ui.utils import (
     CancellationReason,
     get_user_cancellation_message,
     is_dangerous_directory,
@@ -425,11 +445,11 @@ class VibeApp(App):  # noqa: PLR0904
     def compose(self) -> ComposeResult:
         with ChatScroll(id="chat"):
             self._banner = Banner(
-                config=self.config,
+                config=self.agent_loop.config,
                 skill_manager=self.agent_loop.skill_manager,
                 mcp_registry=self.agent_loop.mcp_registry,
                 connectors_count=_compute_connectors_count(
-                    self.config, self.agent_loop.connector_registry
+                    self.agent_loop.config, self.agent_loop.connector_registry
                 ),
             )
             yield self._banner
@@ -977,7 +997,7 @@ class VibeApp(App):  # noqa: PLR0904
             )
 
     def _get_bash_max_output_bytes(self) -> int:
-        from vibe.core.tools.builtins.bash import BashToolConfig
+        from interface.textual_ui.cli_adapters import BashToolConfig
 
         config = self.agent_loop.tool_manager.get_tool_config("bash")
         if isinstance(config, BashToolConfig):
@@ -2008,7 +2028,7 @@ class VibeApp(App):  # noqa: PLR0904
         if self._current_bottom_app == BottomApp.ThinkingPicker:
             return
 
-        from vibe.core.config import THINKING_LEVELS
+        from interface.textual_ui.cli_adapters import THINKING_LEVELS
 
         current_thinking = self.config.get_active_model().thinking
         await self._switch_from_input(
@@ -2619,7 +2639,7 @@ class VibeApp(App):  # noqa: PLR0904
             pass
 
     async def _show_dangerous_directory_warning(self) -> None:
-        is_dangerous, reason = is_dangerous_directory()
+        is_dangerous, reason = is_dangerous_directory(Path.cwd())
         if is_dangerous:
             warning = (
                 f"⚠ WARNING: {reason}\n\nRunning in this location is not recommended."
@@ -2818,8 +2838,8 @@ class VibeApp(App):  # noqa: PLR0904
 def run_textual_ui(
     agent_loop: AgentLoop, startup: StartupOptions | None = None
 ) -> None:
-    from interface.textual_ui.adapters.cli.stderr_guard import stderr_guard
-
+    from interface.textual_ui.cli_adapters import stderr_guard
+    
     update_notifier = PyPIUpdateGateway(project_name="jarvis")
     update_cache_repository = FileSystemUpdateCacheRepository()
     plan_offer_gateway = HttpWhoAmIGateway()

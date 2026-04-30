@@ -12,10 +12,10 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from interface.textual_ui.adapters.cli.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 if TYPE_CHECKING:
-    from interface.textual_ui.adapters.core.config import VibeConfig
+    from interface.textual_ui.cli_adapters import VibeConfig
 
 
 class ConfigOptionKind(StrEnum):

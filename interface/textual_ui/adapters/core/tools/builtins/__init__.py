@@ -1,1 +1,0 @@
-"""Builtins tools adapter."""
