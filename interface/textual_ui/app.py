@@ -1044,6 +1044,11 @@ class VibeApp(App):  # noqa: PLR0904
         return "\n\n".join(sections)
 
     async def _handle_user_message(self, message: str) -> None:
+        # DEBUG: Verify this method is being called
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[DEBUG] _handle_user_message called with: {message[:50]}")
+        
         if self._remote_manager.is_active:
             await self._handle_remote_user_message(message)
             return
@@ -1249,6 +1254,12 @@ class VibeApp(App):  # noqa: PLR0904
             rendered_prompt = render_path_prompt(prompt, base_dir=Path.cwd())
             self._narrator_manager.cancel()
             self._narrator_manager.on_turn_start(rendered_prompt)
+            
+            # DEBUG: Verify agent_loop.act is being called
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"[DEBUG] _handle_agent_loop_turn called with prompt: {prompt[:50]}")
+            
             async with aclosing(self.agent_loop.act(rendered_prompt)) as events:
                 await self._handle_agent_loop_events(events)
         except asyncio.CancelledError:

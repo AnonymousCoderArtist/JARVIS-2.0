@@ -30,7 +30,8 @@ class CodingAgent(BaseAgent):
         user_content = self._build_prompt(input, context)
         messages = self._build_messages(user_content, include_memory=True)
 
-        # Process with tool support and streaming
+        # Always use streaming when stream_callback is set (TUI mode)
+        # This ensures real-time updates in the TUI
         stream = self.stream_callback is not None
         response = await self._process_with_tools(messages, stream=stream)
 

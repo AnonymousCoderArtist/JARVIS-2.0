@@ -213,8 +213,9 @@ class BaseAgent(ABC):
         updated_messages = messages.copy()
 
         while True:
-            # Try streaming with tools
-            if stream and self.stream_callback:
+            # Always try streaming when stream_callback is set (TUI mode)
+            # This ensures real-time updates in the TUI
+            if self.stream_callback:
                 full_response = ""
                 reasoning_content = ""
                 tool_calls = []
@@ -266,12 +267,19 @@ class BaseAgent(ABC):
                 except Exception as e:
                     logger.warning(f"Streaming with tools failed, falling back to non-streaming: {e}")
 
-            # Non-streaming fallback
-            raw_response = await self.llm.generate_with_tools(
-                messages=updated_messages,
-                tools=tool_definitions,
-                model=self.model,
-            )
+            # Non-streaming fallback (only if stream_callback is not set or streaming failed)
+            try:
+                raw_response = await self.llm.generate_with_tools(
+                    messages=updated_messages,
+                    tools=tool_definitions,
+                    model=self.model,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Tool-capable generation failed; falling back to plain generation: %s",
+                    e,
+                )
+                return await self._process_without_tools(updated_messages, stream=stream)
             
             # Handle dict response (from SDK adapter)
             if isinstance(raw_response, dict):
@@ -286,7 +294,9 @@ class BaseAgent(ABC):
             if reasoning and reasoning.strip() and hasattr(self, 'reasoning_callback') and self.reasoning_callback:
                 self.reasoning_callback(reasoning)
             
-            if stream and self.stream_callback and content:
+            # Always emit content via stream_callback if set, even in non-streaming mode
+            # This ensures TUI gets events even when streaming fails
+            if self.stream_callback and content:
                 self.stream_callback(content)
 
             if response.get("tool_calls"):
@@ -383,7 +393,9 @@ class BaseAgent(ABC):
         Returns:
             Generated response string
         """
-        if stream and self.stream_callback:
+        # Always try streaming when stream_callback is set (TUI mode)
+        # This ensures real-time updates in the TUI
+        if self.stream_callback:
             full_response = ""
             reasoning_content = ""
             try:
@@ -429,10 +441,18 @@ class BaseAgent(ABC):
             if reasoning and reasoning.strip() and hasattr(self, 'reasoning_callback') and self.reasoning_callback:
                 self.reasoning_callback(reasoning)
             
+            # Always emit content via stream_callback if set, even in non-streaming mode
+            # This ensures TUI gets events even when streaming fails
+            if self.stream_callback and content:
+                self.stream_callback(content)
+            
             return content
         
         # Handle string response (backward compatibility)
         if isinstance(result, str):
+            # Always emit content via stream_callback if set, even in non-streaming mode
+            if self.stream_callback and result:
+                self.stream_callback(result)
             return result
 
         # Handle async generator response
@@ -449,5 +469,9 @@ class BaseAgent(ABC):
             else:
                 # Backward compatibility for string chunks
                 full_response += chunk if isinstance(chunk, str) else str(chunk)
+        
+        # Always emit content via stream_callback if set, even in non-streaming mode
+        if self.stream_callback and full_response:
+            self.stream_callback(full_response)
         
         return full_response

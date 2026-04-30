@@ -172,6 +172,12 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
     apikey = apikey or env_config["api_key"]
     sdk = sdk or env_config["sdk"] or "openai"
     
+    # Warn if no API key is set
+    if not apikey:
+        print("WARNING: No API key provided. Set JARVIS_API_KEY environment variable or use --apikey flag.")
+        print("The TUI will start but API calls will fail.")
+        print()
+    
     # Initialize tool registry with all JARVIS tools
     tool_registry = create_tool_registry()
     

@@ -81,7 +81,7 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, str, str, str, str]:
     )
 
     parser.add_argument(
-        "--tui",
+        "--tui", "--TUI",
         action="store_true",
         help="Launch the Textual UI (TUI)"
     )
@@ -102,10 +102,13 @@ def main() -> None:
     # Launch appropriate interface
     if launch_tui:
         from interface.textual_ui.tui_main import main as tui_main
+        # TUI needs to be run synchronously (Textual handles its own event loop)
         tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk)
     else:
         from interface.cli.cli import main as cli_main
-        cli_main(launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk)
+        # CLI needs asyncio
+        import asyncio
+        asyncio.run(cli_main(launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk))
 
 
 if __name__ == "__main__":

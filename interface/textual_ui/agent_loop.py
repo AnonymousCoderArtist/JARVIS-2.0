@@ -47,6 +47,14 @@ class TelemetryClient:
         """Check if telemetry is active."""
         return False
 
+    def send_user_cancelled_action(self, action: str = "", **kwargs) -> None:
+        """Track a user cancellation action."""
+        pass
+
+    def send_user_copied_text(self, text: str = "", **kwargs) -> None:
+        """Track copied text."""
+        pass
+
 
 @dataclass
 class Stats:
@@ -54,6 +62,7 @@ class Stats:
     context_tokens: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    total_tokens: int = 0
     total_cost: float = 0.0
     _listeners: dict[str, list[Callable]] = field(default_factory=dict)
     
@@ -68,7 +77,7 @@ class Stats:
         for callbacks in self._listeners.values():
             for callback in callbacks:
                 try:
-                    callback(self.context_tokens)
+                    callback(self)
                 except Exception:
                     pass
     
@@ -81,6 +90,14 @@ class Stats:
                 # Estimate tokens (rough approximation: 1 token ≈ 4 chars)
                 total_chars = sum(len(str(m.get('content', ''))) for m in memory)
                 self.context_tokens = total_chars // 4
+        
+        # Try to get token info from LLM provider if available
+        if hasattr(agent, 'llm') and hasattr(agent.llm, 'last_token_usage'):
+            usage = agent.llm.last_token_usage
+            if usage:
+                self.prompt_tokens = usage.get('prompt_tokens', 0)
+                self.completion_tokens = usage.get('completion_tokens', 0)
+                self.total_tokens = self.prompt_tokens + self.completion_tokens
 
 
 class AgentLoop:
@@ -184,7 +201,16 @@ class AgentLoop:
     
     async def inject_user_context(self, context: str) -> None:
         """Inject user context into agent."""
-        self.agent.update_context({"user_context": context})
+        self.agent.update_context("user_context", context)
+
+    def _drain_event_queue(self) -> None:
+        """Discard stale events before starting a new turn."""
+        queue = self._get_event_queue()
+        while not queue.empty():
+            try:
+                queue.get_nowait()
+            except Exception:
+                break
     
     def _get_event_queue(self) -> asyncio.Queue[Any]:
         if self._event_queue is None:
@@ -231,11 +257,13 @@ class AgentLoop:
         
         # Determine if result indicates success or failure
         result_str = str(result)
-        has_error = False
         if hasattr(result, 'success') and not result.success:
-            has_error = True
             if hasattr(result, 'error'):
                 error = result.error
+        if hasattr(result, 'result') and result.result is not None:
+            result_str = str(result.result)
+        elif error:
+            result_str = error
         
         self._get_event_queue().put_nowait(ToolResultEvent(
             tool_name=tool_name,
@@ -270,6 +298,7 @@ class AgentLoop:
         self._is_running = True
         self._stream_chunks = []
         self._reasoning_chunks = []
+        self._drain_event_queue()
 
         # We need an event queue for strings
         string_queue = asyncio.Queue()
@@ -283,13 +312,6 @@ class AgentLoop:
         # reasoning_callback is already set in __init__ to _on_reasoning which emits events
 
         try:
-            # First, drain any queued events from previous run
-            while not self._get_event_queue().empty():
-                try:
-                    self._get_event_queue().get_nowait()
-                except Exception:
-                    pass
-
             # Process message with JARVIS agent in a background task
             task = asyncio.create_task(self.agent.process(message))
             
@@ -341,18 +363,26 @@ class AgentLoop:
         
         This is the main method the TUI uses to get agent responses.
         It yields events like ReasoningEvent, AssistantEvent, ToolCallEvent, etc.
+        
+        Streaming support:
+        - Tool calls are emitted as ToolCallEvent via _on_tool_call callback
+        - Tool results are emitted as ToolResultEvent via _on_tool_result callback
+        - Reasoning/thinking is emitted as ReasoningEvent via _on_reasoning callback
+        - Assistant response chunks are emitted as AssistantEvent via stream_callback
         """
         self._is_running = True
         self._stream_chunks = []
         self._reasoning_chunks = []
+        self._drain_event_queue()
 
-        # Set up streaming callback (don't print to stdout)
+        # Set up streaming callback to emit assistant events
         def stream_callback(chunk: str) -> None:
             self._stream_chunks.append(chunk)
             self._get_event_queue().put_nowait(AssistantEvent(content=chunk))
 
         self.agent.stream_callback = stream_callback
         # reasoning_callback is already set in __init__ to _on_reasoning which queues events
+        # tool_call_callback and tool_result_callback are also set in __init__
 
         try:
             # Yield user message event
@@ -362,20 +392,45 @@ class AgentLoop:
             # We use a background task so we can yield events while it runs
             task = asyncio.create_task(self.agent.process(prompt))
             
-            while not task.done():
+            # Add a timeout to prevent indefinite hanging
+            timeout_task = asyncio.create_task(asyncio.sleep(120))  # 2 minute timeout
+            
+            # Yield events as they come in with a longer timeout
+            while not task.done() and not timeout_task.done():
                 try:
-                    # Wait for events with a small timeout
+                    # Wait for events with a timeout
                     event = await asyncio.wait_for(self._get_event_queue().get(), timeout=0.1)
                     yield event
                 except asyncio.TimeoutError:
+                    # No events yet, check if task is done
                     continue
+
+            # Cancel timeout task if still running
+            if not timeout_task.done():
+                timeout_task.cancel()
+                try:
+                    await timeout_task
+                except asyncio.CancelledError:
+                    pass
+
+            # Check if we timed out
+            if timeout_task.done() and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                yield AssistantEvent(content="Request timed out. Please check your API key and connection.")
+                return
 
             # Check if task raised an exception
             try:
                 response = task.result()
             except Exception as e:
                 # Yield error event if processing fails
-                yield AssistantEvent(content=f"Error processing request: {str(e)}")
+                import traceback
+                error_msg = f"Error processing request: {str(e)}\n\n{traceback.format_exc()}"
+                yield AssistantEvent(content=error_msg)
                 return
 
             # Yield any remaining queued events (tool calls, reasoning, etc.)
@@ -383,11 +438,12 @@ class AgentLoop:
                 event = self._get_event_queue().get_nowait()
                 yield event
 
-            # If no stream chunks were received, yield the full response or a fallback
+            # Streaming callbacks have already yielded the assistant content. Only emit
+            # the final response when the provider did not stream any text chunks.
             if response and not self._stream_chunks:
                 yield AssistantEvent(content=response)
-            elif not response and not self._stream_chunks:
-                # If response is empty, yield a message
+            elif not self._stream_chunks:
+                # If no response and no stream chunks, yield a message
                 yield AssistantEvent(content="No response generated.")
 
             # Update stats from agent memory
