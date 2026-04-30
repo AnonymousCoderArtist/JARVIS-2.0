@@ -103,6 +103,8 @@ class ToolCallEvent(BaseEvent):
     """Tool call event."""
     tool_name: str = ""
     tool_args: dict = None
+    tool_call_id: str = ""
+    tool_class: str = ""
 
 
 @dataclass
@@ -110,6 +112,13 @@ class ToolResultEvent(BaseEvent):
     """Tool result event."""
     tool_name: str = ""
     result: str = ""
+    tool_call_id: str = ""
+    tool_class: str = ""
+    error: str = ""
+    skipped: bool = False
+    skip_reason: str = ""
+    cancelled: bool = False
+    duration: float = 0.0
 
 
 @dataclass

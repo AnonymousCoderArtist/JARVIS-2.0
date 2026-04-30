@@ -9,7 +9,7 @@ from collections.abc import AsyncGenerator, Callable
 from typing import Any, cast
 
 from core.llm.base import BaseLLMProvider
-from core.llm_sdk.base.sdk import ToolCall
+from core.llm_sdk.base.sdk import GenerationConfig, ToolCall
 from core.tools.registry import ToolRegistry
 from core.agents.system_prompts import get_system_context
 

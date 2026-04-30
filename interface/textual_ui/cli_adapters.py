@@ -308,12 +308,8 @@ class VoiceManager:
         pass
 
 
-# Core adapter stubs
-class AgentLoop:
-    """Stub for AgentLoop"""
-    def __init__(self):
-        self.telemetry_client = TelemetryClient()
-        self.config = VibeConfig()
+# Core adapter - import real AgentLoop from agent_loop
+from interface.textual_ui.agent_loop import AgentLoop
 
 
 class TeleportError(Exception):
@@ -387,9 +383,9 @@ class AudioRecorder:
     pass
 
 
-def render_path_prompt() -> str:
-    """Stub for render_path_prompt"""
-    return ""
+def render_path_prompt(prompt: str = "", base_dir=None) -> str:
+    """Render path prompt - returns the prompt as-is for JARVIS."""
+    return prompt
 
 
 class VibeConfig:
@@ -401,12 +397,20 @@ class VibeConfig:
         self.connectors = []
         self.active_model = ""
         self.installed_agents = []
+        self.vibe_code_enabled = False
+        self.enable_notifications = False
+        self.displayed_workdir = None
+        self.bypass_tool_permissions = False
+        self.file_watcher_for_autocomplete = False
+        self.api_timeout = 30.0
+        self.max_output_bytes = 100000
     
     def get_active_model(self):
         """Get active model."""
         class ActiveModel:
             alias = "gpt-4o"
             thinking = "medium"
+            auto_compact_threshold = 16000
         return ActiveModel()
     
     def is_active_model_mistral(self) -> bool:
@@ -727,7 +731,34 @@ class ToolManager:
 
 class ToolUIDataAdapter:
     """Stub for ToolUIDataAdapter"""
-    pass
+    def __init__(self, tool_class: str = ""):
+        self.tool_class = tool_class
+    
+    def get_status_text(self) -> str:
+        """Get status text for tool."""
+        return f"Running {self.tool_class}"
+    
+    def get_call_display(self, event):
+        """Get call display for tool."""
+        from dataclasses import dataclass
+        @dataclass
+        class Display:
+            summary: str = ""
+        
+        return Display(summary=f"Calling {self.tool_class}")
+    
+    def get_result_display(self, event):
+        """Get result display for tool."""
+        from dataclasses import dataclass
+        @dataclass
+        class Display:
+            success: bool = True
+            message: str = ""
+            warnings: list = None
+        
+        if event.error:
+            return Display(success=False, message="Error", warnings=[])
+        return Display(success=True, message="Completed", warnings=[])
 
 
 class RequiredPermission:

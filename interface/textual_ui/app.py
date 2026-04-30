@@ -447,10 +447,6 @@ class VibeApp(App):  # noqa: PLR0904
             self._banner = Banner(
                 config=self.agent_loop.config,
                 skill_manager=self.agent_loop.skill_manager,
-                mcp_registry=self.agent_loop.mcp_registry,
-                connectors_count=_compute_connectors_count(
-                    self.agent_loop.config, self.agent_loop.connector_registry
-                ),
             )
             yield self._banner
             yield VerticalGroup(id="messages")
@@ -1793,11 +1789,6 @@ class VibeApp(App):  # noqa: PLR0904
                 self._banner.set_state(
                     base_config,
                     self.agent_loop.skill_manager,
-                    self.agent_loop.mcp_registry,
-                    connectors_count=_compute_connectors_count(
-                        base_config, self.agent_loop.connector_registry
-                    ),
-                    plan_description=plan_title(self._plan_info),
                 )
             await self._mount_and_scroll(
                 UserCommandMessage(
@@ -2525,11 +2516,6 @@ class VibeApp(App):  # noqa: PLR0904
             self._banner.set_state(
                 self.config,
                 self.agent_loop.skill_manager,
-                self.agent_loop.mcp_registry,
-                connectors_count=_compute_connectors_count(
-                    self.config, self.agent_loop.connector_registry
-                ),
-                plan_description=plan_title(self._plan_info),
             )
 
     def _update_profile_widgets(self, profile: AgentProfile) -> None:
@@ -2786,7 +2772,7 @@ class VibeApp(App):  # noqa: PLR0904
             )
             return
 
-        message = f"{update_message_prefix}\nPlease update mistral-vibe with your package manager"
+        message = f"{update_message_prefix}\nPlease update jarvis with your package manager"
 
         self.notify(
             message, title="Update available", severity="information", timeout=10
@@ -2818,7 +2804,7 @@ class VibeApp(App):  # noqa: PLR0904
             return
         with self.suspend():
             rprint(
-                "Mistral Vibe has been suspended. Run [bold cyan]fg[/bold cyan] to bring Mistral Vibe back."
+                "JARVIS has been suspended. Run [bold cyan]fg[/bold cyan] to bring JARVIS back."
             )
             os.kill(os.getpid(), signal.SIGTSTP)
 

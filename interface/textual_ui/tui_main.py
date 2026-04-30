@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,7 @@ class SessionLoggingConfig:
 
 @dataclass
 class Config:
-    """Config for TUI."""
+    """Config for TUI with enhanced JARVIS integration."""
     model: str
     base_url: str | None
     api_key: str | None
@@ -57,7 +58,7 @@ class Config:
     active_model: str = field(init=False)
     enable_notifications: bool = False
     vibe_code_enabled: bool = False
-    displayed_workdir: Path | None = None
+    displayed_workdir: Path | None = field(init=False)
     file_watcher_for_autocomplete: bool = False
     bypass_tool_permissions: bool = False
     mcp_servers: list = field(default_factory=list)
@@ -75,6 +76,7 @@ class Config:
     def __post_init__(self):
         self.active_model = self.model
         self.models = [ModelConfig(alias=self.model)]
+        self.displayed_workdir = Path.cwd()
     
     def is_active_model_mistral(self) -> bool:
         """Check if active model is mistral."""
@@ -102,50 +104,96 @@ class Config:
         return self.sdk
 
 
-def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai") -> None:
-    """Main TUI entry point."""
-    # Initialize tool registry
+def get_env_config() -> dict[str, str | None]:
+    """Get configuration from environment variables."""
+    return {
+        "model": os.getenv("JARVIS_MODEL"),
+        "base_url": os.getenv("JARVIS_BASE_URL"),
+        "api_key": os.getenv("JARVIS_API_KEY"),
+        "sdk": os.getenv("JARVIS_SDK", "openai"),
+    }
+
+
+def create_tool_registry() -> ToolRegistry:
+    """Create and configure tool registry with all JARVIS tools."""
     tool_registry = ToolRegistry()
     
-    # Register all tools
+    # Register file operations
     tool_registry.register(FileReadTool())
     tool_registry.register(FileWriteTool())
     tool_registry.register(EditTool())
     tool_registry.register(ListDirectoryTool())
     tool_registry.register(GlobTool())
+    
+    # Register code execution tools
     tool_registry.register(BashTool())
     tool_registry.register(REPLTool())
     tool_registry.register(RunTestsTool())
+    
+    # Register search tools
     tool_registry.register(GrepSearchTool())
+    
+    # Register background process tools
     tool_registry.register(ListBackgroundProcessesTool())
     tool_registry.register(ReadBackgroundOutputTool())
+    
+    # Register web tools
     tool_registry.register(WebFetchTool())
+    
+    # Register memory tools
     tool_registry.register(SaveMemoryTool())
+    
+    # Register agent tools
     tool_registry.register(InvokeAgentTool())
     tool_registry.register(ActivateSkillTool())
     
-    # Create SDK instance based on parameters
+    return tool_registry
+
+
+def create_sdk_instance(sdk: str, api_key: str | None, base_url: str | None) -> Any:
+    """Create SDK instance based on configuration."""
     if sdk == "anthropic":
-        sdk_instance = AnthropicSDK(api_key=apikey or "", base_url=base_url)
+        return AnthropicSDK(api_key=api_key or "", base_url=base_url)
     elif sdk == "openai":
-        sdk_instance = OpenAISDK(api_key=apikey or "", base_url=base_url)
+        return OpenAISDK(api_key=api_key or "", base_url=base_url)
     else:
         # Default to OpenAI SDK for standard mode
-        sdk_instance = OpenAISDK(api_key=apikey or "", base_url=base_url)
+        return OpenAISDK(api_key=api_key or "", base_url=base_url)
+
+
+def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai") -> None:
+    """Main TUI entry point with enhanced JARVIS core integration."""
+    # Get environment config as fallback
+    env_config = get_env_config()
     
+    # Use CLI args, fall back to env vars
+    model = model or env_config["model"] or "gpt-4o"
+    base_url = base_url or env_config["base_url"]
+    apikey = apikey or env_config["api_key"]
+    sdk = sdk or env_config["sdk"] or "openai"
+    
+    # Initialize tool registry with all JARVIS tools
+    tool_registry = create_tool_registry()
+    
+    # Create SDK instance based on parameters
+    sdk_instance = create_sdk_instance(sdk, apikey, base_url)
+    
+    # Create provider adapter
     provider = SDKAdapter(sdk_instance, "tui-provider")
     
-    # Update tool registry with provider
+    # Update tool registry with provider and model
     tool_registry.update_tool_providers(
         llm_provider=provider,
         model=model
     )
     
-    # Create JARVIS agent
+    # Create JARVIS agent with full core integration
     jarvis_agent = CodingAgent(provider, tool_registry, model=model)
+    
+    # Rebuild system prompt with dynamic tool descriptions
     jarvis_agent.rebuild_system_prompt()
     
-    # Create configuration
+    # Create configuration with actual working directory
     config = Config(
         model=model,
         base_url=base_url,
@@ -153,7 +201,7 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         sdk=sdk,
     )
     
-    # Create AgentLoop wrapper
+    # Create AgentLoop wrapper with enhanced core integration
     from interface.textual_ui.agent_loop import AgentLoop
     agent_loop = AgentLoop(
         agent=jarvis_agent,
