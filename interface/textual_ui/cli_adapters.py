@@ -10,6 +10,14 @@ from typing import Any
 
 logger = getLogger(__name__)
 
+# Import core types
+from core.agents.profiles import AgentSafety as CoreAgentSafety
+from core.tools.permissions import RequiredPermission as CoreRequiredPermission
+
+# Use core types
+AgentSafety = CoreAgentSafety
+RequiredPermission = CoreRequiredPermission
+
 
 # ============================================================================
 # CONTEXT MANAGERS
@@ -460,19 +468,6 @@ class AgentProfile:
     name: str = "jarvis"
     display_name: str = "JARVIS"
     safety: str = "standard"
-
-
-class AgentSafety(StrEnum):
-    """Agent safety level."""
-    NEUTRAL = "neutral"
-    SAFE = "safe"
-    DESTRUCTIVE = "destructive"
-    YOLO = "yolo"
-    # Lowercase aliases for compatibility
-    neutral = "neutral"
-    safe = "safe"
-    destructive = "destructive"
-    yolo = "yolo"
 
 
 # ============================================================================
@@ -1014,11 +1009,6 @@ class ToolUIDataAdapter:
             return Display(success=False, message=f"{tool_name}: error", warnings=[])
         tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
         return Display(success=True, message=f"{tool_name}: completed", warnings=[])
-
-
-class RequiredPermission:
-    """Required permission."""
-    pass
 
 
 def make_transcribe_client(provider: str, model: str) -> Any:

@@ -5,9 +5,12 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from core.agents.coding_agent import CodingAgent
+from core.agents.manager import AgentManager
+from core.agents.profiles import AgentProfile as CoreAgentProfile, AgentSafety
 from core.tools.registry import ToolRegistry
 
 from interface.textual_ui.types import (
@@ -21,12 +24,8 @@ from interface.textual_ui.types import (
 )
 
 
-@dataclass
-class AgentProfile:
-    """Agent profile."""
-    name: str = "jarvis"
-    display_name: str = "JARVIS"
-    safety: str = "standard"
+# Use the core AgentProfile directly
+AgentProfile = CoreAgentProfile
 
 
 @dataclass
@@ -114,7 +113,16 @@ class AgentLoop:
         self.config = config
         self.base_config = config
         self.tool_registry = tool_registry
-        self.agent_profile = AgentProfile(name="jarvis", display_name="JARVIS")
+
+        # Initialize agent manager with safety profiles
+        from core.config.settings import Settings
+        settings = Settings()
+        self.agent_manager = AgentManager(
+            config_getter=lambda: settings,
+            initial_agent="default"
+        )
+        self.agent_profile = self.agent_manager.active_profile
+
         self.stats = Stats()
         self.telemetry_client = TelemetryClient()
         self.is_initialized = True
@@ -122,13 +130,12 @@ class AgentLoop:
         self.mcp_registry = MCPRegistryAdapter()
         self.connector_registry = ConnectorRegistryAdapter()
         self.hook_config_issues = []
-        self.agent_manager = AgentManagerAdapter()
         self.tool_manager = ToolManagerAdapter(tool_registry)
         self.session_logger = SessionLoggerAdapter()
         self.session_id = None
         self.parent_session_id = None
         self.rewind_manager = RewindManagerAdapter()
-        
+
         # Integration with JARVIS's actual memory system
         self._approval_callback: Callable[[str, list[str]], Any] | None = None
         self._user_input_callback: Callable[[str], str] | None = None
@@ -137,7 +144,7 @@ class AgentLoop:
         self._reasoning_chunks: list[str] = []
         self._is_running = False
         self._tool_call_ids: dict[str, str] = {}  # Track tool call IDs
-        
+
         # Set up tool call/result callbacks for event tracking
         self.agent.tool_call_callback = self._on_tool_call
         self.agent.tool_result_callback = self._on_tool_result
@@ -205,14 +212,21 @@ class AgentLoop:
         self.agent.rebuild_system_prompt()
     
     async def switch_agent(self, profile_name: str) -> None:
-        """Switch to a different agent profile.
-        
-        Since JARVIS is a single-agent system, this is a no-op that just
-        updates the profile name. The actual agent instance remains the same.
-        """
-        # Update the profile name
-        self.agent_profile.name = profile_name
-        # Optionally refresh the system prompt if needed
+        """Switch to a different agent profile."""
+        # Switch profile in agent manager
+        self.agent_manager.switch_profile(profile_name)
+        self.agent_profile = self.agent_manager.active_profile
+
+        # Apply profile overrides to config
+        from core.config.settings import Settings
+        settings = Settings()
+        merged_config = self.agent_profile.apply_to_config(settings.model_dump())
+
+        # Update bypass_tool_permissions in agent
+        if hasattr(self.agent, '_session_rules'):
+            self.agent.clear_session_rules()
+
+        # Refresh system prompt if needed
         await self.refresh_system_prompt()
     
     async def inject_user_context(self, context: str) -> None:
@@ -525,16 +539,7 @@ class ConnectorRegistryAdapter:
         self.connector_count = 0
 
 
-class AgentManagerAdapter:
-    """Adapter for Agent Management."""
-    
-    def next_agent(self, current_profile):
-        """Get next agent profile."""
-        # Since JARVIS is a single-agent system, return the current profile
-        # Ensure the profile has a name field
-        if not hasattr(current_profile, 'name'):
-            current_profile.name = current_profile.display_name.lower()
-        return current_profile
+# AgentManagerAdapter removed - using real AgentManager from core.agents.manager
 
 
 class ToolManagerAdapter:
@@ -561,13 +566,13 @@ class ToolManagerAdapter:
 
 class SessionLoggerAdapter:
     """Adapter for session logging."""
-    
+
     def __init__(self):
         self.enabled = False
         self.session_id = None
         self.session_dir = Path.cwd()
         self.session_config = None
-    
+
     def resume_existing_session(self, session_id, session_path):
         """Resume an existing session."""
         self.session_id = session_id

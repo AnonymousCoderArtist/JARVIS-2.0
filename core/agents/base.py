@@ -6,14 +6,31 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
+from dataclasses import dataclass
+from enum import StrEnum, auto
 from typing import Any, cast
 
 from core.agents.system_prompts import get_system_context
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
+from core.tools.permissions import ToolPermission
 from core.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+class ApprovalResponse(StrEnum):
+    """Response types for tool approval"""
+    YES = auto()
+    NO = auto()
+
+
+@dataclass
+class ToolDecision:
+    """Decision about tool execution"""
+    verdict: str  # "execute" or "skip"
+    approval_type: ToolPermission
+    feedback: str | None = None
 
 
 class BaseAgent(ABC):
@@ -37,7 +54,11 @@ class BaseAgent(ABC):
         self.tool_call_callback: Callable | None = None
         self.tool_result_callback: Callable | None = None
         self.reasoning_callback: Callable | None = None
-        
+
+        # Permission system
+        self.approval_callback: Callable | None = None
+        self._session_rules: list = []
+
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
     
@@ -162,6 +183,201 @@ class BaseAgent(ABC):
     def clear_memory(self):
         """Clear agent memory"""
         self.memory = []
+
+    def set_approval_callback(self, callback: Callable) -> None:
+        """
+        Set the callback for tool approval
+
+        Args:
+            callback: Function to call for approval (tool_name, args, tool_call_id, required_permissions) -> (ApprovalResponse, feedback)
+        """
+        self.approval_callback = callback
+
+    def add_session_rule(self, rule) -> None:
+        """
+        Add a session-level permission rule
+
+        Args:
+            rule: ApprovedRule instance
+        """
+        self._session_rules.append(rule)
+
+    def clear_session_rules(self) -> None:
+        """Clear all session-level rules"""
+        self._session_rules.clear()
+
+    async def _should_execute_tool(
+        self, tool_name: str, tool_args: dict, tool_call_id: str
+    ) -> ToolDecision:
+        """
+        Check if a tool should be executed based on permissions
+
+        Args:
+            tool_name: Name of the tool
+            tool_args: Tool arguments
+            tool_call_id: Unique ID for this tool call
+
+        Returns:
+            ToolDecision with verdict and approval type
+        """
+        # Get permission context from tool
+        tool = self.tools.get_tool(tool_name)
+        if tool and hasattr(tool, "resolve_permission"):
+            ctx = tool.resolve_permission(tool_args)
+        else:
+            # Default to ASK if tool doesn't implement permission checking
+            from core.tools.permissions import PermissionContext
+            ctx = PermissionContext(permission=ToolPermission.ASK)
+
+        # Check configuration for tool-level permission
+        from core.config.settings import Settings
+        config = Settings()
+        if config.bypass_tool_permissions:
+            return ToolDecision(
+                verdict="execute",
+                approval_type=ToolPermission.ALWAYS,
+            )
+
+        # Check tool-level permission from config
+        tool_config = config.tools.get(tool_name, {})
+        tool_perm = ToolPermission(tool_config.get("permission", "ask"))
+
+        if tool_perm == ToolPermission.ALWAYS:
+            return ToolDecision(
+                verdict="execute",
+                approval_type=ToolPermission.ALWAYS,
+            )
+
+        if tool_perm == ToolPermission.NEVER:
+            return ToolDecision(
+                verdict="skip",
+                approval_type=ToolPermission.NEVER,
+                feedback=f"Tool '{tool_name}' is permanently disabled",
+            )
+
+        # Check session rules
+        if ctx.required_permissions:
+            uncovered = [
+                rp
+                for rp in ctx.required_permissions
+                if not self._is_permission_covered(tool_name, rp)
+            ]
+            if not uncovered:
+                return ToolDecision(
+                    verdict="execute",
+                    approval_type=ToolPermission.ALWAYS,
+                )
+        else:
+            uncovered = []
+
+        # Ask for approval
+        return await self._ask_approval(tool_name, tool_args, tool_call_id, uncovered)
+
+    def _is_permission_covered(self, tool_name: str, required_permission) -> bool:
+        """
+        Check if a required permission is covered by session rules
+
+        Args:
+            tool_name: Name of the tool
+            required_permission: RequiredPermission instance
+
+        Returns:
+            True if covered, False otherwise
+        """
+        from core.tools.utils import wildcard_match
+
+        return any(
+            rule.tool_name == tool_name
+            and rule.scope == required_permission.scope
+            and wildcard_match(
+                required_permission.invocation_pattern, rule.session_pattern
+            )
+            for rule in self._session_rules
+        )
+
+    async def _ask_approval(
+        self, tool_name: str, tool_args: dict, tool_call_id: str, required_permissions: list
+    ) -> ToolDecision:
+        """
+        Ask user for approval via callback
+
+        Args:
+            tool_name: Name of the tool
+            tool_args: Tool arguments
+            tool_call_id: Unique ID for this tool call
+            required_permissions: List of required permissions
+
+        Returns:
+            ToolDecision with verdict
+        """
+        if not self.approval_callback:
+            return ToolDecision(
+                verdict="skip",
+                approval_type=ToolPermission.ASK,
+                feedback="Tool execution not permitted (no approval callback set)",
+            )
+
+        try:
+            response, feedback = await self.approval_callback(
+                tool_name, tool_args, tool_call_id, required_permissions
+            )
+
+            if response == ApprovalResponse.YES:
+                return ToolDecision(
+                    verdict="execute",
+                    approval_type=ToolPermission.ASK,
+                )
+            else:
+                return ToolDecision(
+                    verdict="skip",
+                    approval_type=ToolPermission.ASK,
+                    feedback=feedback or "Tool execution rejected by user",
+                )
+        except Exception as e:
+            logger.error(f"Approval callback failed: {e}")
+            return ToolDecision(
+                verdict="skip",
+                approval_type=ToolPermission.ASK,
+                feedback=f"Approval check failed: {str(e)}",
+            )
+
+    def approve_always(
+        self, tool_name: str, required_permissions: list, save_permanently: bool = False
+    ) -> None:
+        """
+        Handle 'Allow Always' approval
+
+        Args:
+            tool_name: Name of the tool
+            required_permissions: List of required permissions
+            save_permanently: Whether to save permanently to config
+        """
+        from core.tools.permissions import ApprovedRule, PermissionScope
+        from core.config.settings import Settings
+
+        if required_permissions:
+            # Add session rules for each required permission
+            for rp in required_permissions:
+                self.add_session_rule(
+                    ApprovedRule(
+                        tool_name=tool_name,
+                        scope=rp.scope,
+                        session_pattern=rp.session_pattern,
+                    )
+                )
+        else:
+            # Set tool-level permission
+            if save_permanently:
+                config = Settings()
+                if "tools" not in config._config:
+                    config._config["tools"] = {}
+                if tool_name not in config._config["tools"]:
+                    config._config["tools"][tool_name] = {}
+                config._config["tools"][tool_name]["permission"] = "always"
+                config.save()
+            else:
+                # Store in session (would need session-level config)
+                pass
 
     def _build_messages(self, user_content: str, include_memory: bool = True) -> list[dict[str, Any]]:
         """
@@ -336,6 +552,7 @@ class BaseAgent(ABC):
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
             tool_args_str = tool_call["function"]["arguments"]
+            tool_call_id = tool_call.get("id", f"call_{len(tool_results)}")
 
             try:
                 if isinstance(tool_args_str, str):
@@ -344,6 +561,22 @@ class BaseAgent(ABC):
                     tool_args = tool_args_str
             except json.JSONDecodeError:
                 tool_args = {}
+
+            # Check permissions before executing
+            decision = await self._should_execute_tool(tool_name, tool_args, tool_call_id)
+
+            if decision.verdict == "skip":
+                # Tool execution skipped
+                tool_result_content = decision.feedback or f"Tool '{tool_name}' execution was skipped."
+                tool_results.append({
+                    "tool": tool_name,
+                    "success": False,
+                    "result": None,
+                    "error": decision.feedback,
+                    "content": tool_result_content,
+                    "skipped": True,
+                })
+                continue
 
             # Invoke tool call callback if set
             if self.tool_call_callback:

@@ -64,10 +64,22 @@ class Settings:
                 "enable_code_execution": True,
                 "enable_file_operations": True,
                 "enable_git_operations": True,
+                # Tool-specific permissions
+                "write_file": {"permission": "ask"},
+                "edit": {"permission": "ask"},
+                "bash": {"permission": "ask"},
+                "read_file": {"permission": "always"},
+                "grep": {"permission": "always"},
+                "glob": {"permission": "always"},
             },
             "interface": {
                 "cli_prompt": "JARVIS > ",
             },
+            # Permission system settings
+            "bypass_tool_permissions": False,
+            "agent_paths": [],
+            "enabled_agents": [],
+            "disabled_agents": [],
         }
 
     def get(self, section: str, key: str, default: Any = None) -> Any:
@@ -174,3 +186,29 @@ class Settings:
     @property
     def cli_prompt(self) -> str:
         return self.get("interface", "cli_prompt", "JARVIS > ")
+
+    # Permission system properties
+    @property
+    def bypass_tool_permissions(self) -> bool:
+        return self._config.get("bypass_tool_permissions", False)
+
+    @property
+    def tools(self) -> dict[str, Any]:
+        return self._config.get("tools", {})
+
+    @property
+    def agent_paths(self) -> list[Path]:
+        paths = self._config.get("agent_paths", [])
+        return [Path(p) for p in paths]
+
+    @property
+    def enabled_agents(self) -> list[str]:
+        return self._config.get("enabled_agents", [])
+
+    @property
+    def disabled_agents(self) -> list[str]:
+        return self._config.get("disabled_agents", [])
+
+    def model_dump(self) -> dict[str, Any]:
+        """Return configuration as dictionary"""
+        return self._config.copy()

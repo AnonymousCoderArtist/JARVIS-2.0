@@ -3,6 +3,16 @@
 # Agent and Skill tools
 from .agent_tools import ActivateSkillTool, InvokeAgentTool
 
+# Permission system
+from .permissions import (
+    ApprovedRule,
+    PermissionContext,
+    PermissionScope,
+    RequiredPermission,
+    ToolPermission,
+)
+from .permission_manager import PermissionManager
+
 # Background tools
 from .background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from .base import BaseTool, ToolInput, ToolOutput

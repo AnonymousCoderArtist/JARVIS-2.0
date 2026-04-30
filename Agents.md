@@ -18,6 +18,72 @@ The JARVIS agent system implements a single-agent architecture with comprehensiv
                        └────────────────┘
 ```
 
+## Safety Features
+
+JARVIS includes comprehensive safety features inspired by mistral-vibe to provide secure and controlled tool execution.
+
+### Agent Profile System
+
+JARVIS supports multiple agent profiles with different safety levels:
+
+- **Default (NEUTRAL)**: Requires approval for tool executions
+- **Plan (SAFE)**: Read-only agent for exploration and planning
+- **Accept Edits (DESTRUCTIVE)**: Auto-approves file edits only
+- **Auto Approve (YOLO)**: Auto-approves all tool executions
+- **Explore (SAFE)**: Read-only subagent for codebase exploration
+
+**Key Features:**
+- Shift+Tab to cycle through agent profiles in TUI
+- Visual safety level indicators (green/blue/orange/red)
+- Profile-specific tool permissions
+- Custom profile support via TOML files
+
+See [docs/AGENT_PROFILES.md](docs/AGENT_PROFILES.md) for detailed configuration.
+
+### Tool Permission System
+
+**Permission Levels:**
+- **ALWAYS**: Tool executes without asking
+- **NEVER**: Tool is permanently disabled
+- **ASK**: Tool requires user approval (default)
+
+**Permission Scopes:**
+- Tool-level permissions (configurable per tool)
+- Session rules (temporary permissions for specific patterns)
+- Required permissions (fine-grained checks based on arguments)
+
+**Implementation:**
+- `core/tools/permissions.py` - Permission models and enums
+- `core/tools/permission_manager.py` - Permission management logic
+- `core/tools/base.py` - Tool permission resolution interface
+
+### Trust Folder System
+
+JARVIS includes a trust folder system to prevent accidental execution in sensitive directories:
+
+- Checks for `.jarvis` subfolder and configuration files
+- Prompts user to trust/untrust directories
+- Persists trust decisions in `~/.jarvis/trusted_folders.toml`
+- Session-level trust with `--trust` flag
+
+**Implementation:**
+- `core/trusted_folders.py` - Trust folder management
+
+### Approval UI
+
+The TUI includes a three-option approval dialog:
+
+1. **Yes** - Approve this execution
+2. **Yes and always allow for this session** - Add session rule
+3. **No and tell the agent what to do instead** - Reject with feedback
+
+**Keyboard Shortcuts:**
+- 1/Y - Yes
+- 2 - Always allow
+- 3/N - No
+- Enter - Select
+- ESC - Reject
+
 ## Core Components
 
 ### BaseAgent (`core/agents/base.py`)
@@ -32,11 +98,21 @@ The abstract base class that the JARVIS agent inherits from.
 - **Callback System**: Hooks for tool calls (`tool_call_callback`) and results (`tool_result_callback`)
 - **Dynamic Prompt Building**: Combines base system prompt with dynamic tool descriptions
 - **Standard Message Roles**: Uses system, user, and assistant roles for all LLM interactions
+- **Permission System**: Tool approval callbacks and session rule management
 
 **Abstract Methods:**
 ```python
 async def process(self, input: str, context: dict | None = None) -> str
 async def plan(self, task: str) -> list[dict[str, Any]]
+```
+
+**Safety Methods:**
+```python
+def set_approval_callback(self, callback: Callable) -> None
+def add_session_rule(self, rule: ApprovedRule) -> None
+def clear_session_rules(self) -> None
+async def _should_execute_tool(self, tool_name: str, tool_args: dict, tool_call_id: str) -> ToolDecision
+def approve_always(self, tool_name: str, required_permissions: list, save_permanently: bool = False) -> None
 ```
 
 **Usage:**

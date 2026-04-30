@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from core.tools.permissions import PermissionContext
+
 
 class ToolInput(BaseModel):
     """Base model for tool inputs"""
@@ -112,3 +114,29 @@ class BaseTool(ABC):
                 result=None,
                 error=f"Tool execution failed: {str(e)}",
             )
+
+    def resolve_permission(self, args: dict) -> PermissionContext | None:
+        """
+        Resolve permission requirements for this tool execution
+
+        Args:
+            args: Tool arguments
+
+        Returns:
+            PermissionContext if permission check is needed, None otherwise
+        """
+        # Default implementation - tools can override for custom permission logic
+        return None
+
+    def get_file_snapshot(self, args: dict) -> dict | None:
+        """
+        Get a snapshot of files that will be modified by this tool
+
+        Args:
+            args: Tool arguments
+
+        Returns:
+            Dictionary with file snapshots or None if not applicable
+        """
+        # Default implementation - tools can override for undo functionality
+        return None

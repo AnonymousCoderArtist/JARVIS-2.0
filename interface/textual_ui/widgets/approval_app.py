@@ -10,9 +10,10 @@ from textual.containers import Container, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
 
+from core.tools.permissions import RequiredPermission
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tool_widgets import get_approval_widget
-from interface.textual_ui.cli_adapters import VibeConfig, RequiredPermission
+from interface.textual_ui.cli_adapters import VibeConfig
 
 
 class ApprovalApp(Container):
