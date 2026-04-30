@@ -1,15 +1,50 @@
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
+from interface.textual_ui.cli_adapters import ToolUIDataAdapter
+from interface.textual_ui.types import ToolCallEvent, ToolResultEvent
 from interface.textual_ui.widgets.messages import ExpandingBorder, NonSelectableStatic
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.status_message import StatusMessage
 from interface.textual_ui.widgets.tool_widgets import get_result_widget
-from interface.textual_ui.cli_adapters import ToolUIDataAdapter
-from interface.textual_ui.types import ToolCallEvent, ToolResultEvent
+
+
+def _format_tool_value(value: Any, *, max_length: int = 120) -> str:
+    if isinstance(value, str):
+        text = value.replace("\n", "\\n")
+    else:
+        try:
+            text = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        except TypeError:
+            text = str(value)
+    if len(text) > max_length:
+        hidden = len(text) - max_length
+        text = f"{text[:max_length]}... ({hidden} more chars)"
+    return text
+
+
+def _format_tool_args(args: dict[str, Any] | None) -> list[str]:
+    if not args:
+        return []
+    priority_keys = [
+        "path",
+        "file_path",
+        "command",
+        "pattern",
+        "query",
+        "url",
+        "agent_name",
+        "name",
+    ]
+    ordered = [key for key in priority_keys if key in args]
+    ordered.extend(key for key in args if key not in priority_keys)
+    return [f"{key}: {_format_tool_value(args[key])}" for key in ordered[:6]]
 
 
 class ToolCallMessage(StatusMessage):
@@ -39,6 +74,8 @@ class ToolCallMessage(StatusMessage):
                 yield self._indicator_widget
                 self._text_widget = NoMarkupStatic("", classes="status-indicator-text")
                 yield self._text_widget
+            for line in self._get_argument_lines():
+                yield NoMarkupStatic(line, classes="tool-call-detail")
             self._stream_widget = NoMarkupStatic("", classes="tool-stream-message")
             self._stream_widget.display = False
             yield self._stream_widget
@@ -62,6 +99,11 @@ class ToolCallMessage(StatusMessage):
             display = adapter.get_call_display(self._event)
             return display.summary
         return self._tool_name
+
+    def _get_argument_lines(self) -> list[str]:
+        if not self._event:
+            return []
+        return _format_tool_args(self._event.tool_args)
 
     def update_event(self, event: ToolCallEvent) -> None:
         self._event = event

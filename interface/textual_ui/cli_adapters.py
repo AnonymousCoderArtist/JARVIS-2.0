@@ -2,12 +2,11 @@
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any
-from enum import StrEnum, Enum
-from pathlib import Path
-import os
+from enum import StrEnum
 import json
 from logging import getLogger
+from pathlib import Path
+from typing import Any
 
 logger = getLogger(__name__)
 
@@ -458,6 +457,7 @@ CACHE_FILE = CacheFile()
 @dataclass
 class AgentProfile:
     """Agent profile."""
+    name: str = "jarvis"
     display_name: str = "JARVIS"
     safety: str = "standard"
 
@@ -950,13 +950,57 @@ class ToolUIDataAdapter:
         self.tool_class = tool_class
     
     def get_status_text(self) -> str:
-        return f"Running {self.tool_class}"
+        return f"Running {self.tool_class or 'tool'}"
+
+    def _format_value(self, value: Any, *, max_length: int = 80) -> str:
+        if isinstance(value, str):
+            rendered = value.replace("\n", "\\n")
+        else:
+            try:
+                rendered = json.dumps(value, ensure_ascii=False, sort_keys=True)
+            except TypeError:
+                rendered = str(value)
+        if len(rendered) > max_length:
+            hidden = len(rendered) - max_length
+            rendered = f"{rendered[:max_length]}... ({hidden} more chars)"
+        return rendered
+
+    def _format_args(self, args: dict[str, Any] | None) -> str:
+        if not args:
+            return ""
+        parts: list[str] = []
+        priority_keys = [
+            "path",
+            "file_path",
+            "command",
+            "pattern",
+            "query",
+            "url",
+            "agent_name",
+            "name",
+        ]
+        seen: set[str] = set()
+        ordered_keys = [key for key in priority_keys if key in args]
+        ordered_keys.extend(key for key in args if key not in priority_keys)
+        for key in ordered_keys[:3]:
+            seen.add(key)
+            parts.append(f"{key}={self._format_value(args[key])}")
+        remaining = len([key for key in args if key not in seen])
+        if remaining:
+            parts.append(f"+{remaining} more")
+        return ", ".join(parts)
     
     def get_call_display(self, event: Any) -> Any:
         @dataclass
         class Display:
             summary: str = ""
-        return Display(summary=f"Calling {self.tool_class}")
+
+        tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
+        args = getattr(event, "tool_args", None)
+        args_text = self._format_args(args)
+        if args_text:
+            return Display(summary=f"Calling {tool_name}({args_text})")
+        return Display(summary=f"Calling {tool_name}")
     
     def get_result_display(self, event: Any) -> Any:
         @dataclass
@@ -966,8 +1010,10 @@ class ToolUIDataAdapter:
             warnings: list = None
         
         if hasattr(event, 'error') and event.error:
-            return Display(success=False, message="Error", warnings=[])
-        return Display(success=True, message="Completed", warnings=[])
+            tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
+            return Display(success=False, message=f"{tool_name}: error", warnings=[])
+        tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
+        return Display(success=True, message=f"{tool_name}: completed", warnings=[])
 
 
 class RequiredPermission:

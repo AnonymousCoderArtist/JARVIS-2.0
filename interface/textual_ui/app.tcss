@@ -570,6 +570,10 @@ StatusMessage {
     color: ansi_bright_black;
 }
 
+.tool-call-detail {
+    padding-left: 2;
+}
+
 .tool-result-detail {
     margin-top: 0;
 }

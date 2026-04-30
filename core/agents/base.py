@@ -8,10 +8,10 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, cast
 
+from core.agents.system_prompts import generate_tool_descriptions, get_system_context
 from core.llm.base import BaseLLMProvider
-from core.llm_sdk.base.sdk import GenerationConfig, ToolCall
+from core.llm_sdk.base.sdk import ToolCall
 from core.tools.registry import ToolRegistry
-from core.agents.system_prompts import get_system_context
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,14 @@ class BaseAgent(ABC):
                 full_prompt += "\n\n" + available_skills
         except Exception:
             # If skill manager fails, continue without skill descriptions
+            pass
+
+        try:
+            tool_descriptions = generate_tool_descriptions(self.tools.get_tools())
+            if tool_descriptions:
+                full_prompt += "\n\n" + tool_descriptions
+        except Exception:
+            # If tool description generation fails, continue with the base harness.
             pass
 
         self.system_prompt = full_prompt

@@ -7,6 +7,7 @@ from core.tools.base import ToolOutput
 from core.tools.registry import ToolRegistry
 from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.app import VibeApp
+from interface.textual_ui.cli_adapters import ToolUIDataAdapter
 from interface.textual_ui.tui_main import Config, create_tool_registry
 from interface.textual_ui.types import (
     AssistantEvent,
@@ -112,6 +113,35 @@ def test_uppercase_tui_flag_is_accepted() -> None:
 
     assert launch_cli is False
     assert launch_tui is True
+
+
+def test_tool_call_display_shows_actual_tool_name_and_arguments() -> None:
+    event = ToolCallEvent(
+        tool_name="file_read",
+        tool_args={"path": "core/agents/base.py", "offset": 10, "limit": 20},
+        tool_class="FileReadTool",
+    )
+
+    display = ToolUIDataAdapter(event.tool_class).get_call_display(event)
+
+    assert display.summary == (
+        "Calling file_read(path=core/agents/base.py, offset=10, limit=20)"
+    )
+
+
+def test_system_prompt_includes_registered_tool_descriptions() -> None:
+    registry = ToolRegistry()
+
+    class ExampleTool:
+        name = "example_tool"
+        description = "Example tool description."
+        input_schema = {"type": "object", "properties": {}}
+
+    registry.register(ExampleTool())
+    agent = CodingAgent(FakeNoToolsProvider(), registry, model="fake-no-tools")
+
+    assert "### example_tool" in agent.system_prompt
+    assert "Example tool description." in agent.system_prompt
 
 
 @pytest.mark.asyncio

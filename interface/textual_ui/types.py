@@ -126,6 +126,7 @@ class ToolResultEvent(BaseEvent):
 class ToolStreamEvent(BaseEvent):
     """Tool stream event."""
     content: str = ""
+    tool_call_id: str = ""
 
 
 @dataclass

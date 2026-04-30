@@ -24,6 +24,7 @@ from interface.textual_ui.types import (
 @dataclass
 class AgentProfile:
     """Agent profile."""
+    name: str = "jarvis"
     display_name: str = "JARVIS"
     safety: str = "standard"
 
@@ -113,7 +114,7 @@ class AgentLoop:
         self.config = config
         self.base_config = config
         self.tool_registry = tool_registry
-        self.agent_profile = AgentProfile()
+        self.agent_profile = AgentProfile(name="jarvis", display_name="JARVIS")
         self.stats = Stats()
         self.telemetry_client = TelemetryClient()
         self.is_initialized = True
@@ -198,6 +199,17 @@ class AgentLoop:
     async def refresh_system_prompt(self) -> None:
         """Refresh system prompt with current tool descriptions."""
         self.agent.rebuild_system_prompt()
+    
+    async def switch_agent(self, profile_name: str) -> None:
+        """Switch to a different agent profile.
+        
+        Since JARVIS is a single-agent system, this is a no-op that just
+        updates the profile name. The actual agent instance remains the same.
+        """
+        # Update the profile name
+        self.agent_profile.name = profile_name
+        # Optionally refresh the system prompt if needed
+        await self.refresh_system_prompt()
     
     async def inject_user_context(self, context: str) -> None:
         """Inject user context into agent."""
@@ -514,6 +526,10 @@ class AgentManagerAdapter:
     
     def next_agent(self, current_profile):
         """Get next agent profile."""
+        # Since JARVIS is a single-agent system, return the current profile
+        # Ensure the profile has a name field
+        if not hasattr(current_profile, 'name'):
+            current_profile.name = current_profile.display_name.lower()
         return current_profile
 
 

@@ -3,17 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from interface.textual_ui.widgets.compact import CompactMessage
-from interface.textual_ui.widgets.loading import DEFAULT_LOADING_STATUS
-from interface.textual_ui.widgets.messages import (
-    AssistantMessage,
-    HookRunContainer,
-    HookSystemMessageLine,
-    ReasoningMessage,
-    UserMessage,
-)
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
 from interface.textual_ui.cli_adapters import (
     HookEndEvent,
     HookEvent,
@@ -36,6 +25,17 @@ from interface.textual_ui.types import (
     WaitingForInputEvent,
 )
 from interface.textual_ui.utils import TaggedText
+from interface.textual_ui.widgets.compact import CompactMessage
+from interface.textual_ui.widgets.loading import DEFAULT_LOADING_STATUS
+from interface.textual_ui.widgets.messages import (
+    AssistantMessage,
+    HookRunContainer,
+    HookSystemMessageLine,
+    ReasoningMessage,
+    UserMessage,
+)
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
 
 if TYPE_CHECKING:
     from interface.textual_ui.widgets.loading import LoadingWidget
@@ -179,7 +179,7 @@ class EventHandler:
     async def _handle_tool_stream(self, event: ToolStreamEvent) -> None:
         tool_call = self.tool_calls.get(event.tool_call_id)
         if tool_call:
-            tool_call.set_stream_message(event.message)
+            tool_call.set_stream_message(event.content)
 
     async def _handle_assistant_message(self, event: AssistantEvent) -> None:
         if self.current_streaming_reasoning is not None:
