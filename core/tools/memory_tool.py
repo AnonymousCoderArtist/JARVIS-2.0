@@ -25,10 +25,20 @@ MEMORY_TYPES = {
         "when_to_save": "When you learn who is doing what, why, or by when",
         "how_to_use": "Use these memories to more fully understand the context and motivation behind the user's work"
     },
+    "project_context": {
+        "description": "Detailed project-specific context, architecture, and technical decisions",
+        "when_to_save": "When learning about project structure, technical choices, architecture patterns, or specific implementation details",
+        "how_to_use": "Use for understanding project-specific context and making informed technical decisions"
+    },
     "reference": {
         "description": "Pointers to where information can be found in external systems",
         "when_to_save": "When you learn about resources in external systems and their purpose",
         "how_to_use": "When the user references an external system or information that may be in an external system"
+    },
+    "global": {
+        "description": "General knowledge and patterns that apply across multiple projects or contexts",
+        "when_to_save": "When learning universal patterns, best practices, or knowledge that transcends specific projects",
+        "how_to_use": "Apply these learnings across different projects and contexts"
     }
 }
 
@@ -44,30 +54,68 @@ def get_memory_dir() -> Path:
             # Return the project-specific memory path
             return jarvis_dir / "memory"
 
-    # Fallback to .openclaude structure if .jarvis not found
-    for parent in [cwd] + list(cwd.parents):
-        openclaude_dir = parent / ".openclaude"
-        if openclaude_dir.exists():
-            return openclaude_dir / "projects" / cwd.relative_to(parent).as_posix().replace("/", "-") / "memory"
+    # Create .jarvis directory in current directory if not found
+    jarvis_dir = cwd / ".jarvis"
+    jarvis_dir.mkdir(exist_ok=True)
+    memory_dir = jarvis_dir / "memory"
+    memory_dir.mkdir(exist_ok=True)
+    return memory_dir
 
-    # Fallback to core/memory/storage
-    return Path("core/memory/storage")
+
+def get_project_name() -> str:
+    """Get project name from directory structure or git"""
+    cwd = Path.cwd()
+    
+    # Try to get from git remote
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            # Extract project name from git URL
+            if "/" in url:
+                project_name = url.split("/")[-1].replace(".git", "")
+                return project_name
+    except Exception:
+        pass
+    
+    # Fallback to directory name
+    return cwd.name
+
+
+def get_global_memory_dir() -> Path:
+    """Get global memory directory for cross-project knowledge"""
+    home = Path.home()
+    global_dir = home / ".jarvis" / "global_memory"
+    global_dir.mkdir(parents=True, exist_ok=True)
+    return global_dir
 
 
 def get_scope_dir(memory_dir: Path, scope: str) -> Path:
-    """Get the directory for a specific scope (private or team)"""
+    """Get the directory for a specific scope (private, team, or global)"""
     if scope == "team":
         return memory_dir / "team"
+    elif scope == "global":
+        return get_global_memory_dir()
     return memory_dir / "private"
 
 
-def generate_memory_filename(name: str, timestamp: datetime) -> str:
-    """Generate a filename from the memory name and timestamp"""
+def generate_memory_filename(name: str, timestamp: datetime, memory_type: str = "user") -> str:
+    """Generate a filename from the memory name, timestamp, and type"""
     # Convert name to slug format
     slug = name.lower().replace(" ", "-").replace("/", "-")
     slug = "".join(c for c in slug if c.isalnum() or c == "-")
     timestamp_str = timestamp.strftime("%Y-%m-%d")
-    return f"{timestamp_str}-{slug}.md"
+    
+    # Add type prefix for better organization
+    type_prefix = memory_type[0].upper()  # First letter of memory type
+    return f"{timestamp_str}-{type_prefix}-{slug}.md"
 
 
 def update_memory_index(scope_dir: Path, memory_file: Path, action: str = "add"):
@@ -173,26 +221,33 @@ def get_memory_context(limit: int = 20) -> str:
 
 
 class SaveMemoryTool(BaseTool):
-    """Tool for saving facts/preferences across sessions (OpenClaude style)"""
+    """Enhanced tool for saving detailed memories with project-specific and global capabilities"""
 
     name = "save_memory"
-    description = """Saves concise user context (preferences, facts) for use across future sessions. Use this to remember important information about the user or project.
+    description = """Saves detailed memories with rich content structure for use across future sessions. Use this to remember important information about the user, project, or general patterns.
 
 Usage:
-- Provide a concise fact, preference, or piece of information to remember
+- Provide detailed content with sections for context, reasoning, and application
 - Use scope parameter to control memory visibility:
   - 'private': applies to this user (stored in .jarvis/memory/private/)
   - 'team': shared with team members (stored in .jarvis/memory/team/)
-- Memory persists across sessions and can be retrieved in future conversations
-- Keep facts concise and focused on actionable information
-- Memories use Markdown format with YAML frontmatter for structure"""
+  - 'global': cross-project knowledge (stored in ~/.jarvis/global_memory/)
+- Use enhanced memory types for better organization:
+  - 'user': personal preferences and information
+  - 'feedback': guidance and corrections
+  - 'project': project-specific information
+  - 'project_context': detailed technical context
+  - 'reference': external resources and references
+  - 'global': universal patterns and best practices
+- Memories use rich Markdown format with structured sections
+- Can include tags, priority, and custom metadata"""
 
     input_schema = {
         "type": "object",
         "properties": {
             "fact": {
                 "type": "string",
-                "description": "The specific fact, preference, or piece of information to remember",
+                "description": "The main fact or information to remember",
                 "minLength": 1
             },
             "name": {
@@ -201,15 +256,42 @@ Usage:
             },
             "type": {
                 "type": "string",
-                "enum": ["user", "feedback", "project", "reference"],
+                "enum": ["user", "feedback", "project", "project_context", "reference", "global"],
                 "description": "Type of memory to save",
                 "default": "user"
             },
             "scope": {
                 "type": "string",
-                "enum": ["private", "team"],
-                "description": "Scope for the memory: 'private' applies to this user, 'team' is shared",
+                "enum": ["private", "team", "global"],
+                "description": "Scope for the memory: 'private' applies to this user, 'team' is shared, 'global' is cross-project",
                 "default": "private"
+            },
+            "context": {
+                "type": "string",
+                "description": "Additional context or background information"
+            },
+            "reasoning": {
+                "type": "string",
+                "description": "Why this information is important or should be remembered"
+            },
+            "application": {
+                "type": "string",
+                "description": "How this information should be applied in future work"
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Tags for categorizing and searching memories"
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"],
+                "description": "Priority level for this memory",
+                "default": "medium"
+            },
+            "project_name": {
+                "type": "string",
+                "description": "Override auto-detected project name"
             }
         },
         "required": ["fact"]
@@ -220,6 +302,12 @@ Usage:
         scope = getattr(input_data, "scope", "private")
         memory_type = getattr(input_data, "type", "user")
         name = getattr(input_data, "name", None)
+        context = getattr(input_data, "context", "")
+        reasoning = getattr(input_data, "reasoning", "")
+        application = getattr(input_data, "application", "")
+        tags = getattr(input_data, "tags", [])
+        priority = getattr(input_data, "priority", "medium")
+        project_name = getattr(input_data, "project_name", None)
 
         if not isinstance(fact, str) or not fact:
             return ToolOutput(
@@ -230,7 +318,11 @@ Usage:
 
         try:
             # Get memory directory
-            memory_dir = get_memory_dir()
+            if scope == "global":
+                memory_dir = get_global_memory_dir()
+            else:
+                memory_dir = get_memory_dir()
+            
             scope_dir = get_scope_dir(memory_dir, scope)
             scope_dir.mkdir(parents=True, exist_ok=True)
 
@@ -243,40 +335,70 @@ Usage:
                 if len(fact.split()) > 5:
                     name += "..."
 
+            # Get project name
+            if not project_name and scope != "global":
+                project_name = get_project_name()
+
             # Generate filename
-            filename = generate_memory_filename(name, timestamp)
+            filename = generate_memory_filename(name, timestamp, memory_type)
             memory_file = scope_dir / filename
 
-            # Create memory content with frontmatter
+            # Create enhanced memory content with rich structure
+            tags_str = ", ".join(tags) if tags else ""
+            
             frontmatter = f"""---
 name: {name}
 description: {fact[:100]}{'...' if len(fact) > 100 else ''}
 type: {memory_type}
+scope: {scope}
+priority: {priority}
+tags: [{tags_str}]
+project: {project_name or 'N/A'}
+created: {timestamp.isoformat()}
 ---
 
+# {name}
+
+## Core Information
 **Fact:** {fact}
 
-**Why:** [Auto-generated - customize this section]
-
-**How to apply:** [Auto-generated - customize this section]
-
-Saved at: {timestamp.isoformat()}
 """
+
+            # Add optional sections
+            content_sections = []
+            
+            if context:
+                content_sections.append(f"## Context\n{context}\n")
+            
+            if reasoning:
+                content_sections.append(f"## Reasoning\n{reasoning}\n")
+            
+            if application:
+                content_sections.append(f"## Application\n{application}\n")
+            
+            # Add metadata section
+            content_sections.append(f"## Metadata\n- **Type:** {memory_type}\n- **Scope:** {scope}\n- **Priority:** {priority}\n- **Tags:** {tags_str or 'None'}\n- **Project:** {project_name or 'N/A'}\n- **Created:** {timestamp.isoformat()}\n")
+            
+            # Combine all content
+            full_content = frontmatter + "\n".join(content_sections)
 
             # Write memory file
             with open(memory_file, "w", encoding="utf-8") as f:
-                f.write(frontmatter)
+                f.write(full_content)
 
             # Update index
             update_memory_index(scope_dir, memory_file, "add")
 
             return ToolOutput(
                 success=True,
-                result=f"Fact remembered in {scope} scope: '{fact[:50]}{'...' if len(fact) > 50 else ''}'",
+                result=f"Memory saved in {scope} scope ({memory_type}): '{name}'",
                 metadata={
                     "scope": scope,
                     "type": memory_type,
-                    "file": str(memory_file)
+                    "file": str(memory_file),
+                    "project": project_name,
+                    "priority": priority,
+                    "tags": tags
                 }
             )
 
@@ -289,35 +411,50 @@ Saved at: {timestamp.isoformat()}
 
 
 class ReadMemoryTool(BaseTool):
-    """Tool for reading saved memories"""
+    """Enhanced tool for reading saved memories with advanced filtering"""
 
     name = "read_memory"
-    description = """Reads saved memories from the memory store. Use to retrieve previously saved facts and preferences.
+    description = """Reads saved memories from the memory store with advanced filtering options. Use to retrieve previously saved facts, preferences, and context.
 
 Usage:
-- Read all memories from a scope (private or team)
-- Filter by memory type (user, feedback, project, reference)
-- Search memories by keyword
-- Returns memories with their metadata"""
+- Read all memories from a scope (private, team, global, or all)
+- Filter by enhanced memory types (user, feedback, project, project_context, reference, global)
+- Search memories by keyword, tags, or project
+- Filter by priority level
+- Returns memories with rich metadata and content"""
 
     input_schema = {
         "type": "object",
         "properties": {
             "scope": {
                 "type": "string",
-                "enum": ["private", "team", "all"],
+                "enum": ["private", "team", "global", "all"],
                 "description": "Scope to read memories from",
                 "default": "all"
             },
             "type": {
                 "type": "string",
-                "enum": ["user", "feedback", "project", "reference", "all"],
+                "enum": ["user", "feedback", "project", "project_context", "reference", "global", "all"],
                 "description": "Filter by memory type",
                 "default": "all"
             },
             "query": {
                 "type": "string",
                 "description": "Search query to filter memories"
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Filter by specific tags"
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"],
+                "description": "Filter by priority level"
+            },
+            "project": {
+                "type": "string",
+                "description": "Filter by project name"
             },
             "limit": {
                 "type": "integer",
@@ -332,15 +469,26 @@ Usage:
         scope = getattr(input_data, "scope", "all")
         memory_type = getattr(input_data, "type", "all")
         query = getattr(input_data, "query", None)
+        tags = getattr(input_data, "tags", [])
+        priority = getattr(input_data, "priority", None)
+        project = getattr(input_data, "project", None)
         limit = getattr(input_data, "limit", 10)
 
         try:
-            memory_dir = get_memory_dir()
             results = []
 
-            scopes_to_read = ["private", "team"] if scope == "all" else [scope]
+            # Determine which scopes to read
+            if scope == "all":
+                scopes_to_read = ["private", "team", "global"]
+            else:
+                scopes_to_read = [scope]
 
             for s in scopes_to_read:
+                if s == "global":
+                    memory_dir = get_global_memory_dir()
+                else:
+                    memory_dir = get_memory_dir()
+                
                 scope_dir = get_scope_dir(memory_dir, s)
                 if not scope_dir.exists():
                     continue
@@ -359,17 +507,42 @@ Usage:
                         if memory_type != "all" and frontmatter.get("type") != memory_type:
                             continue
 
+                        # Filter by priority
+                        if priority and frontmatter.get("priority") != priority:
+                            continue
+
+                        # Filter by project
+                        if project and frontmatter.get("project") != project:
+                            continue
+
+                        # Filter by tags
+                        if tags:
+                            memory_tags = frontmatter.get("tags", "")
+                            if isinstance(memory_tags, str):
+                                memory_tags = [tag.strip() for tag in memory_tags.split(",") if tag.strip()]
+                            if not any(tag in memory_tags for tag in tags):
+                                continue
+
                         # Filter by query
                         if query:
                             search_text = f"{frontmatter.get('name', '')} {frontmatter.get('description', '')} {body}"
                             if query.lower() not in search_text.lower():
                                 continue
 
+                        # Enhanced result with rich metadata
+                        memory_tags = frontmatter.get("tags", "")
+                        if isinstance(memory_tags, str):
+                            memory_tags = [tag.strip() for tag in memory_tags.split(",") if tag.strip()]
+
                         results.append({
                             "name": frontmatter.get("name", memory_file.stem),
                             "description": frontmatter.get("description", ""),
                             "type": frontmatter.get("type", "user"),
                             "scope": s,
+                            "priority": frontmatter.get("priority", "medium"),
+                            "tags": memory_tags,
+                            "project": frontmatter.get("project"),
+                            "created": frontmatter.get("created"),
                             "file": str(memory_file),
                             "content": body.strip()
                         })

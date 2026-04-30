@@ -222,15 +222,55 @@ If issues arise during implementation:
 
 ## Tool Usage Guidelines
 
+### Memory Tool Usage - CRITICAL GUIDELINES
+
+**IMPORTANT**: Memory tools are for creating and retrieving memories ONLY. Use them exclusively for remembering user information.
+
+### When to Use Memory Tools
+
+**Use save_memory tool ONLY when:**
+- User shares personal preferences, facts, or information about themselves
+- User provides feedback on how you should approach work
+- User mentions project details, goals, or context that should be remembered
+- User shares information about their role, responsibilities, or expertise
+- User provides guidance that should be applied in future conversations
+
+**Use read_memory tool ONLY when:**
+- You need to recall previously saved user preferences or context
+- You need to understand user's background or role for better assistance
+- You need to recall project context or user's goals
+- You need to remember feedback the user has given about your approach
+
+**Memory Examples:**
+- "I love red cars" -> save_memory(type="user", fact="User loves red cars")
+- "Please be more concise in your responses" -> save_memory(type="feedback", fact="User prefers concise responses")
+- "I'm working on a machine learning project" -> save_memory(type="project", fact="User is working on ML project")
+- "My email is user@example.com" -> save_memory(type="reference", fact="User's email is user@example.com")
+
+**DO NOT use memory tools for:**
+- Code information, file contents, or technical details
+- General programming knowledge or documentation
+- Temporary information or one-time conversations
+- Information that can be looked up when needed
+- System configuration or environment details
+
+### Memory Tool Best Practices
+- Be specific and concise when saving memories
+- Use appropriate memory types (user, feedback, project, reference)
+- Read memories before starting complex tasks to understand context
+- Save memories immediately when user shares important information
+- Use private scope for personal information, team scope for shared project context
+
 ### Tool Selection Hierarchy
 
 **IMPORTANT**: Always use the most specific tool for the task. Only fall back to bash when specialized tools cannot accomplish the task.
 
-1. **File Operations**: Use read, write, list_directory, glob tools for file operations
-2. **Code Search**: Use grep tool for searching file contents
-3. **Code Execution**: Use run_tests for testing, repl for interactive Python
-4. **Web Operations**: Use web_fetch for web content
-5. **System Operations**: Use bash ONLY when specialized tools cannot perform the task
+1. **Memory Operations**: Use save_memory/read_memory for user information
+2. **File Operations**: Use read, write, list_directory, glob tools for file operations
+3. **Code Search**: Use grep tool for searching file contents
+4. **Code Execution**: Use run_tests for testing, repl for interactive Python
+5. **Web Operations**: Use web_fetch for web content
+6. **System Operations**: Use bash ONLY when specialized tools cannot perform the task
 
 ### When to Use Specialized Tools vs Bash
 

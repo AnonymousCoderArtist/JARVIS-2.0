@@ -49,6 +49,11 @@ dependencies = [
     "PyPDF2>=3.0.1",
     # Token counting
     "tiktoken>=0.7.0",
+    # CLI dependencies
+    "prompt-toolkit>=3.0.0",
+    "pygments>=2.16.0",
+    # TUI dependencies
+    "textual>=0.50.0",
 ]
 
 [project.optional-dependencies]
@@ -145,10 +150,6 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 strict_equality = true
-
-[[tool.mypy.overrides]]
-module = "textual.*"
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

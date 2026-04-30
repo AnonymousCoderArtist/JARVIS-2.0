@@ -30,6 +30,21 @@ class ToolRegistry:
 
         self._tools[tool.name] = tool
 
+    def update_tool_providers(self, llm_provider=None, model=None):
+        """
+        Update the provider and model references for all registered tools.
+        Call this after the provider is initialized.
+
+        Args:
+            llm_provider: LLM provider instance
+            model: Model name string
+        """
+        self.llm_provider = llm_provider
+        self.model = model
+        for tool in self._tools.values():
+            tool.llm_provider = llm_provider
+            tool.model = model
+
     def get(self, name: str) -> BaseTool | None:
         """
         Get a registered tool by name
