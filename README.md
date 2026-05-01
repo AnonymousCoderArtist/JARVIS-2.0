@@ -116,9 +116,7 @@ graph LR
         S3[trusted_folders.py<br/>Folder Trust]
     end
 
-### Key Modules
-
-### Key Modules
+## 🧩 Key Modules
 
 | Module | Purpose |
 |--------|---------|
