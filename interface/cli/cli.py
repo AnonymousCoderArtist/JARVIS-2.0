@@ -336,10 +336,8 @@ class CLIInterface:
         while True:
             try:
                 # Use prompt_toolkit with advanced features
-                from rich.text import Text
-                prompt_text = Text()
-                prompt_text.append("YOU", style="bold cyan")
-                prompt_text.append(" > ", style="bold green")
+                from prompt_toolkit.formatted_text import HTML
+                prompt_text = HTML("<bold><style color='ansicyan'>YOU </style></bold><bold><style color='ansigreen'>></style></bold> ")
 
                 # Use completer (removed lexer to fix display issues)
                 user_input = await self.session.prompt_async(
