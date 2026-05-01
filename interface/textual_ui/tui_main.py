@@ -204,6 +204,13 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         initial_agent="default"
     )
 
+    # Make the active profile configuration available to tools that need it
+    tool_registry.update_tool_providers(
+        llm_provider=provider,
+        model=model,
+        config_getter=lambda: agent_manager.config,
+    )
+
     # Initialize async agent manager for concurrent operations (optional)
     async_config = AsyncAgentConfig(
         max_concurrent_agents=settings.max_concurrent_agents,

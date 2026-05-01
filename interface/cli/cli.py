@@ -287,22 +287,25 @@ class CLIInterface:
         def stream_callback(chunk: str):
             if in_tool_call[0]:
                 return
-            # Print streaming content with markdown rendering
-            # Note: Rich's Markdown doesn't support incremental rendering well,
-            # so we print raw chunks for immediate feedback
-            self.display_manager.console.print(chunk, end="", highlight=False)
+            # Stream content in real-time for immediate feedback
+            # Write directly to stdout to avoid Rich's processing which may add newlines
+            import sys
+            sys.stdout.write(chunk)
+            sys.stdout.flush()
 
         def reasoning_callback(chunk: str):
             if in_tool_call[0]:
                 return
-            # Print reasoning as dimmed text
-            self.display_manager.console.print(chunk, end="", style="dim", highlight=False)
+            # Stream reasoning in real-time
+            import sys
+            sys.stdout.write(chunk)
+            sys.stdout.flush()
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             in_tool_call[0] = True
             # Add newline before tool call for better separation
-            self.display_manager.console.print()
-            # Show tool call
+            print()
+            # Show tool call using Rich
             self.display_manager.show_tool_call(tool_name, tool_args)
 
         def tool_result_callback(tool_name: str, tool_args: dict[str, Any], result: Any):

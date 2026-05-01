@@ -11,10 +11,11 @@ from .base import BaseTool, ToolOutput
 class ToolRegistry:
     """Registry for managing tools"""
 
-    def __init__(self, llm_provider=None, model=None):
+    def __init__(self, llm_provider=None, model=None, config_getter=None):
         self._tools: dict[str, BaseTool] = {}
         self.llm_provider = llm_provider
         self.model = model
+        self.config_getter = config_getter
         self.active_skills: dict[str, str] = {}
 
     def register(self, tool: BaseTool):
@@ -31,7 +32,7 @@ class ToolRegistry:
 
         self._tools[tool.name] = tool
 
-    def update_tool_providers(self, llm_provider=None, model=None):
+    def update_tool_providers(self, llm_provider=None, model=None, config_getter=None):
         """
         Update the provider and model references for all registered tools.
         Call this after the provider is initialized.
@@ -42,6 +43,8 @@ class ToolRegistry:
         """
         self.llm_provider = llm_provider
         self.model = model
+        if config_getter is not None:
+            self.config_getter = config_getter
         for tool in self._tools.values():
             tool.llm_provider = llm_provider
             tool.model = model

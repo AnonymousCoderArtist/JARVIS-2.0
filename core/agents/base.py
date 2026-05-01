@@ -15,7 +15,12 @@ from core.agents.system_prompts import get_system_context
 from core.llm.base import BaseLLMProvider, MessageDict, ToolDefDict
 from core.llm_sdk.base.sdk import ToolCall
 from core.config.settings import Settings
-from core.tools.permissions import ApprovedRule, PermissionContext, ToolPermission
+from core.tools.permissions import (
+    ApprovedRule,
+    PermissionContext,
+    PermissionScope,
+    ToolPermission,
+)
 from core.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -340,6 +345,11 @@ class BaseAgent(ABC):
                     approval_type=ToolPermission.ALWAYS,
                 )
         else:
+            if self._is_tool_session_approved(tool_name):
+                return ToolDecision(
+                    verdict="execute",
+                    approval_type=ToolPermission.ALWAYS,
+                )
             uncovered = []
 
         # Ask for approval
@@ -364,6 +374,15 @@ class BaseAgent(ABC):
             and wildcard_match(
                 required_permission.invocation_pattern, rule.session_pattern
             )
+            for rule in self._session_rules
+        )
+
+    def _is_tool_session_approved(self, tool_name: str) -> bool:
+        """Check whether a tool was approved for this session without granular permissions."""
+        return any(
+            rule.tool_name == tool_name
+            and rule.scope == PermissionScope.COMMAND_PATTERN
+            and rule.session_pattern == "*"
             for rule in self._session_rules
         )
 
@@ -440,7 +459,16 @@ class BaseAgent(ABC):
                     )
                 )
         else:
-            # Set tool-level permission
+            # Add a session-level allow rule for the whole tool
+            self.add_session_rule(
+                ApprovedRule(
+                    tool_name=tool_name,
+                    scope=PermissionScope.COMMAND_PATTERN,
+                    session_pattern="*",
+                )
+            )
+
+            # Optionally persist the tool-level permission
             if save_permanently:
                 config = Settings()
                 config_data = config.model_dump()
@@ -453,9 +481,6 @@ class BaseAgent(ABC):
                 # Need to update config back - ideally Settings should have a better way
                 config.set("tools", tool_name, {"permission": "always"})
                 config.save()
-            else:
-                # Store in session (would need session-level config)
-                pass
 
     def _build_messages(self, user_content: str, include_memory: bool = True) -> list[MessageDict]:
         """

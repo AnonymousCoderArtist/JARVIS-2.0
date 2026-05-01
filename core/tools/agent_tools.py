@@ -72,9 +72,8 @@ Usage:
 
         # Import here to avoid circular dependencies
         try:
-            from core.agents import ExploreAgent
-            from core.llm.base import BaseLLMProvider
-            from core.tools.registry import ToolRegistry
+            from core.agents import EXPLORE, ExploreAgent
+            from core.config.settings import Settings
 
             # Get the tool registry and LLM provider from the tool's context
             # This requires the tool to have access to these, which should be set up during initialization
@@ -94,12 +93,26 @@ Usage:
             # Get the model from the parent agent if available
             model = getattr(self, 'model', None)
 
+            # Capture the current config getter if the registry has one.
+            config_getter = getattr(tool_registry, "config_getter", None)
+
+            def explore_config_getter() -> Settings:
+                """Return the active config with the Explore profile overrides applied."""
+                if callable(config_getter):
+                    base_settings = config_getter()
+                else:
+                    base_settings = Settings()
+
+                merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
+                return Settings(initial_config=merged_config)
+
             # Create the appropriate subagent
             if agent_name == "explore":
                 subagent = ExploreAgent(
                     llm_provider=llm_provider,
                     tool_registry=tool_registry,
-                    model=model
+                    model=model,
+                    config_getter=explore_config_getter,
                 )
 
                 # Rebuild system prompt with current tool descriptions

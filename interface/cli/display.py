@@ -180,6 +180,7 @@ Tools:    {tool_count}
         
         try:
             args_json = json.dumps(tool_args, indent=2)
+            
             panel = Panel(
                 args_json,
                 title=f"{tool_name}()",

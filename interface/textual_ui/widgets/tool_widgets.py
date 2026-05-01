@@ -320,7 +320,6 @@ RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
     "ask_user_question": AskUserQuestionResultWidget,
 }
 
-# Mapping from tool names to their args BaseModel classes
 ARGS_MODELS: dict[str, type[BaseModel]] = {
     "bash": BashArgs,
     "read_file": ReadFileArgs,

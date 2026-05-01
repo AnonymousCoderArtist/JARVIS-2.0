@@ -204,4 +204,6 @@ class ApprovalApp(Container):
                 )
 
     def on_blur(self, event: events.Blur) -> None:
-        self.call_after_refresh(self.focus)
+        # Don't force refocus - this was causing the "stuck" issue
+        # The approval app will be properly cleaned up by the parent app
+        pass

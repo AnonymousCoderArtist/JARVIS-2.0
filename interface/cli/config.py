@@ -65,14 +65,24 @@ class CLIConfig:
         "dark": ThemeConfig("dark"),
         "light": ThemeConfig("light", {
             "primary": "#ff6600",
-            "secondary": "#888888",
-            "success": "#00aa00", 
+            "secondary": "#888888", 
+            "success": "#00aa00",
             "error": "#cc0000",
             "warning": "#cc9900",
             "info": "#0099cc",
             "prompt": "#ff6600",
             "arrow": "#888888",
-        })
+        }),
+        "mistral": ThemeConfig("mistral", {
+            "primary": "#ff8700",  # Mistral orange
+            "secondary": "#666666",
+            "success": "#00ff00",
+            "error": "#e10500",  # Mistral red
+            "warning": "#ffd800",  # Mistral yellow
+            "info": "#00ffff",
+            "prompt": "#ff8700",
+            "arrow": "#666666",
+        }),
     })
 
 
