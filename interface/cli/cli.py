@@ -129,7 +129,8 @@ class CLIInterface:
         self.config_manager = load_config()
         self.display_manager = DisplayManager(
             theme=self.config_manager.config.display.theme,
-            width=self.config_manager.config.display.width
+            width=self.config_manager.config.display.width,
+            custom_themes=self.config_manager.config.themes
         )
         self.command_handler = CommandHandler(self.display_manager)
 
@@ -242,7 +243,8 @@ class CLIInterface:
             agent_manager=self.agent_manager,
             tool_registry=self.tool_registry,
             skill_manager=self.skill_manager,
-            jarvis_agent=self.jarvis_agent
+            jarvis_agent=self.jarvis_agent,
+            config_manager=self.config_manager
         )
 
         # Update command handler with current status info
@@ -276,46 +278,36 @@ class CLIInterface:
             self.display_manager.show_error("JARVIS agent not initialized.")
             return
 
-        print()
-
         # State tracking for chat responses
         in_tool_call = [False]
+        self.display_manager.start_streaming()
 
         def stream_callback(chunk: str):
             if in_tool_call[0]:
                 return
-            # Stream content in real-time for immediate feedback
-            # Write directly to stdout to avoid Rich's processing which may add newlines
-            import sys
-            sys.stdout.write(chunk)
-            sys.stdout.flush()
+            self.display_manager.update_streaming(chunk, is_reasoning=False)
 
         def reasoning_callback(chunk: str):
             if in_tool_call[0]:
                 return
-            # Stream reasoning in real-time with dim styling
-            import sys
-            # Use ANSI escape code for dim text (2 = dim/faint)
-            sys.stdout.write(f"\033[2m{chunk}\033[0m")
-            sys.stdout.flush()
+            self.display_manager.update_streaming(chunk, is_reasoning=True)
 
         def reasoning_done_callback():
-            # Add blank line after reasoning is complete for spacing
-            import sys
-            sys.stdout.write("\n\n")
+            # Reasoning is done, but we don't stop streaming yet as content might follow
+            pass
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             in_tool_call[0] = True
-            # Add newline before tool call for better separation
-            print()
-            # Show tool call using Rich
+            # Stop streaming before showing tool call to avoid layout issues
+            self.display_manager.stop_streaming()
             self.display_manager.show_tool_call(tool_name, tool_args)
 
         def tool_result_callback(tool_name: str, tool_args: dict[str, Any], result: Any):
             max_length = self.config_manager.config.behavior.max_response_length
             self.display_manager.show_tool_result(result, max_length)
-            print()
             in_tool_call[0] = False
+            # Restart streaming for subsequent assistant response
+            self.display_manager.start_streaming()
 
         self.jarvis_agent.stream_callback = stream_callback
         self.jarvis_agent.reasoning_callback = reasoning_callback
@@ -324,15 +316,15 @@ class CLIInterface:
         self.jarvis_agent.tool_result_callback = tool_result_callback
 
         try:
-            await asyncio.wait_for(self.jarvis_agent.process(text), timeout=600)
+            await asyncio.wait_for(self.jarvis_agent.process(text), timeout=self.config_manager.config.behavior.timeout_seconds)
         except asyncio.TimeoutError:
+            self.display_manager.stop_streaming()
             self.display_manager.show_error("Task timed out.")
         except Exception as e:
+            self.display_manager.stop_streaming()
             self.display_manager.show_error(f"Execution Error: {e}")
-
-        print()
-
-
+        finally:
+            self.display_manager.stop_streaming()
 
     async def run(self):
         """Start the CLI loop using prompt_toolkit."""
@@ -342,11 +334,12 @@ class CLIInterface:
 
         while True:
             try:
-                # Use prompt_toolkit with advanced features
-                from prompt_toolkit.formatted_text import HTML
-                prompt_text = HTML("<bold><style color='ansicyan'>YOU </style></bold><bold><style color='ansigreen'>></style></bold> ")
+                # Modern prompt styling
+                prompt_text = HTML(
+                    "<bold><style color='#5fafff'>YOU </style></bold>"
+                    "<bold><style color='#666666'>❯</style></bold> "
+                )
 
-                # Use completer (removed lexer to fix display issues)
                 user_input = await self.session.prompt_async(
                     prompt_text,
                     style=self.style,
@@ -363,11 +356,10 @@ class CLIInterface:
 
             except (KeyboardInterrupt, EOFError):
                 self.display_manager.console.print()
-                self.display_manager.console.print("[bold green]Goodbye![/bold green]")
+                self.display_manager.console.print("[success]Goodbye![/]")
                 break
             except Exception as e:
                 self.display_manager.show_error(f"Fatal Error: {e}")
-                self.display_manager.stop_live_display()
 
 
 async def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = True):
