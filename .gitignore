@@ -117,7 +117,6 @@ Thumbs.db
 
 # Environment variables
 .env
-.env.*
 
 # egg info
 jarvis.egg-info/
