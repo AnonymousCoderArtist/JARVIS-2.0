@@ -201,14 +201,6 @@ class ProviderManager:
                     api_key=config.api_key,
                     base_url=config.base_url
                 )
-            else:
-                # Standard mode - try to auto-detect
-                # Default to OpenAI SDK for standard mode
-                from core.llm_sdk.openai.sdk import OpenAISDK
-                return OpenAISDK(
-                    api_key=config.api_key,
-                    base_url=config.base_url
-                )
         except Exception as e:
             print(f"Error creating SDK instance for {provider_id}: {e}")
             return None

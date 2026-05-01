@@ -11,7 +11,6 @@ class SdkMode(StrEnum):
     """SDK mode for different API styles"""
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
-    STANDARD = "standard"
 
 
 @dataclass
@@ -20,7 +19,7 @@ class ProviderConfig:
     provider_id: str
     api_key: str
     base_url: str | None = None
-    sdk_mode: SdkMode = SdkMode.STANDARD
+    sdk_mode: SdkMode = SdkMode.OPENAI
     enabled: bool = True
     default_model: str = ""
     models: list[str] = field(default_factory=list)
@@ -46,7 +45,7 @@ class ProviderConfig:
             provider_id=data["provider_id"],
             api_key=data["api_key"],
             base_url=data.get("base_url"),
-            sdk_mode=SdkMode(data.get("sdk_mode", "standard")),
+            sdk_mode=SdkMode(data.get("sdk_mode", "openai")),
             enabled=data.get("enabled", True),
             default_model=data.get("default_model", ""),
             models=data.get("models", []),

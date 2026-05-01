@@ -639,7 +639,7 @@ jarvis --cli --model gpt-4o --base_url https://api.openai.com/v1 --apikey YOUR_K
 - `--model, -m`: Model name (e.g., gpt-4o, claude-3-5-sonnet-20241022)
 - `--base_url`: Base URL for the LLM API
 - `--apikey, --api-key`: API key for the LLM provider
-- `--sdk`: SDK mode (openai, anthropic, standard)
+- `--sdk`: SDK mode (openai or anthropic)
 - `--cli`: Launch the Rich CLI
 
 **Environment Variables (.env):**
@@ -653,7 +653,7 @@ JARVIS_BASE_URL=
 # API key for the LLM provider
 JARVIS_API_KEY=
 
-# SDK mode (openai, anthropic, standard)
+# SDK mode (openai or anthropic)
 JARVIS_SDK=openai
 ```
 

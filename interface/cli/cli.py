@@ -195,10 +195,7 @@ class CLIInterface:
         # Create SDK instance based on CLI parameters
         if self.sdk == "anthropic":
             sdk = AnthropicSDK(api_key=self.apikey or "", base_url=self.base_url)
-        elif self.sdk == "openai":
-            sdk = OpenAISDK(api_key=self.apikey or "", base_url=self.base_url)
         else:
-            # Default to OpenAI SDK for standard mode
             sdk = OpenAISDK(api_key=self.apikey or "", base_url=self.base_url)
 
         provider = SDKAdapter(sdk, "cli-provider")

@@ -156,10 +156,7 @@ def create_sdk_instance(sdk: str, api_key: str | None, base_url: str | None) -> 
     """Create SDK instance based on configuration."""
     if sdk == "anthropic":
         return AnthropicSDK(api_key=api_key or "", base_url=base_url)
-    elif sdk == "openai":
-        return OpenAISDK(api_key=api_key or "", base_url=base_url)
     else:
-        # Default to OpenAI SDK for standard mode
         return OpenAISDK(api_key=api_key or "", base_url=base_url)
 
 
