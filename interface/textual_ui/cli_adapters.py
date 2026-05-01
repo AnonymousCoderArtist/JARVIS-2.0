@@ -308,11 +308,22 @@ class PathCompletionController:
         if not self._popup_visible or not self._suggestions:
             return CompletionResult.IGNORED
 
-        if event.key == "tab" or event.key == "enter":
+        if event.key == "tab":
             if 0 <= self._selected_index < len(self._suggestions):
                 replacement = self._suggestions[self._selected_index][0]
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
-                    self.parent.replace_completion_range(cursor_index - len(self._get_word_before_cursor(text, cursor_index)), 
+                    self.parent.replace_completion_range(cursor_index - len(self._get_word_before_cursor(text, cursor_index)),
+                                                          cursor_index, replacement + " ")
+                return CompletionResult.HANDLED
+        elif event.key == "enter":
+            if 0 <= self._selected_index < len(self._suggestions):
+                current_word = self._get_word_before_cursor(text, cursor_index)
+                # If the current text exactly matches a suggestion, let it submit instead of completing
+                if current_word in [suggestion[0] for suggestion in self._suggestions]:
+                    return CompletionResult.IGNORED
+                replacement = self._suggestions[self._selected_index][0]
+                if self.parent and hasattr(self.parent, 'replace_completion_range'):
+                    self.parent.replace_completion_range(cursor_index - len(self._get_word_before_cursor(text, cursor_index)),
                                                           cursor_index, replacement + " ")
                 return CompletionResult.HANDLED
         elif event.key == "escape":
@@ -395,6 +406,10 @@ class SlashCommandController:
             # Only handle enter if popup is visible and we have a selection
             # Otherwise let it pass through for command execution
             if 0 <= self._selected_index < len(self._suggestions):
+                current_word = self._get_current_word(text, cursor_index)
+                # If the current text exactly matches a command, let it submit instead of completing
+                if current_word in [suggestion[0] for suggestion in self._suggestions]:
+                    return CompletionResult.IGNORED
                 replacement = self._suggestions[self._selected_index][0]
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
                     self.parent.replace_completion_range(cursor_index - len(self._get_current_word(text, cursor_index)),
