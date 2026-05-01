@@ -51,111 +51,84 @@ This is **JARVIS v2.0.beta-coding** - the core Coding harness of JARVIS 2.0
 
 ### System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              JARVIS Agent                                   │
-│                    (Unified Agentic Assistant)                               │
-└──────────────────────────────┬───────────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Core Components                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
-│  │   Agents     │    │     Tools    │    │   Config     │                  │
-│  │              │    │              │    │              │                  │
-│  │ ┌──────────┐ │    │ ┌──────────┐ │    │ ┌──────────┐ │                  │
-│  │ │BaseAgent │ │    │ │Registry  │ │    │ │Settings  │ │                  │
-│  │ ├──────────┤ │    │ ├──────────┤ │    │ ├──────────┤ │                  │
-│  │ │CodingAgent│ │    │ │ToolImpl  │ │    │ │Models   │ │                  │
-│  │ ├──────────┤ │    │ │(14+ tools)│ │    │ └──────────┘ │                  │
-│  │ │ExploreAgent│ │    │ └──────────┘ │    │ └──────────┘ │                  │
-│  │ └──────────┘ │    │ └──────────┘ │    │ └──────────┘ │                  │
-│  └──────────────┘    └──────────────┘    └──────────────┘                  │
-│         │                    │                    │                         │
-│         └────────────────────┴────────────────────┘                         │
-│                              │                                               │
-│                              ▼                                               │
-│                    ┌──────────────────┐                                      │
-│                    │   LLM Provider   │                                      │
-│                    │   (OpenAI/Anthro)│                                      │
-│                    └──────────────────┘                                      │
-│                              │                                               │
-│                              ▼                                               │
-│                    ┌──────────────────┐                                      │
-│                    │     Streaming    │                                      │
-│                    │   & Callbacks    │                                      │
-│                    └──────────────────┘                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "JARVIS Agent Layer"
+        A[JARVIS Agent<br/>Unified Agentic Assistant]
+    end
+
+    subgraph "Core Components"
+        B[Agents<br/>base.py, coding_agent.py,<br/>explore_agent.py]
+        C[Tools<br/>Registry + 14+ Tools]
+        D[Config<br/>Settings, Models]
+    end
+
+    subgraph "Supporting Systems"
+        E[Memory<br/>Conversation Manager]
+        F[RAG<br/>Knowledge Retrieval]
+        G[Safety<br/>Permissions, Trusted Folders]
+    end
+
+    subgraph "Provider Layer"
+        H[LLM Provider<br/>OpenAI / Anthropic]
+    end
+
+    A --> B
+    A --> C
+    A --> D
+    B --> E
+    C --> F
+    D --> G
+    B --> H
+    C --> H
+    D --> H
 ```
 
-### Detailed Component Architecture
+```mermaid
+graph LR
+    subgraph "Agent System (core/agents/)"
+        A1[base.py<br/>Abstract BaseAgent]
+        A2[coding_agent.py<br/>Main JARVIS Agent]
+        A3[explore_agent.py<br/>Codebase Exploration]
+        A4[manager.py<br/>AgentManager]
+        A5[profiles.py<br/>Profile Definitions]
+        A6[system_prompts.py<br/>Prompts]
+    end
 
-#### Agent System (`core/agents/`)
+    subgraph "Tool System (core/tools/)"
+        T1[base.py<br/>Base Tool Class]
+        T2[permissions.py<br/>Granular Permissions]
+        T3[permission_manager.py<br/>Permission Logic]
+        T4[file_tools/<br/>Read, Write, Edit, etc.]
+        T5[code_tools/<br/>Bash, REPL, Tests]
+        T6[agent_tools/<br/>InvokeAgent, Skills]
+    end
 
-```
-agents/
-├── base.py              # Abstract BaseAgent with memory, context, tool integration
-├── coding_agent.py      # Main JARVIS agent for all tasks
-├── explore_agent.py     # Specialized codebase exploration subagent
-├── manager.py           # AgentManager for profile management
-├── profiles.py          # Agent profile definitions
-├── system_prompts.py    # System prompts for each agent type
-├── builtin_profiles.py  # Predefined safety profiles
-├── async_manager.py     # Async execution management
-├── resource_monitor.py  # Resource usage monitoring
-└── background_task_manager.py
-```
+    subgraph "LLM SDK (core/llm_sdk/)"
+        L1[openai/sdk.py<br/>OpenAI Adapter]
+        L2[anthropic/sdk.py<br/>Anthropic Adapter]
+        L3[copilot/sdk.py<br/>Copilot Adapter]
+        L4[base/sdk.py<br/>Base Interface]
+    end
 
-#### Tool System (`core/tools/`)
-
-```
-tools/
-├── base.py              # Base tool class with permission resolution
-├── permissions.py       # Permission models and granular checks
-├── permission_manager.py # Permission management logic
-├── file_tools/          # Read, write, edit, list_dir, glob
-├── code_tools/          # Bash, REPL, run_tests
-├── search_tools/        # Grep search
-├── web_tools/           # WebFetch
-├── memory_tools/        # Save/Read memory
-├── agent_tools/         # InvokeAgent, ActivateSkill
-└── background_tools/    # Process management
-```
-
-#### LLM Provider Layer (`core/llm_sdk/`)
-
-```
-llm_sdk/
-├── openai/sdk.py        # OpenAI SDK adapter
-├── anthropic/sdk.py     # Anthropic SDK adapter
-├── copilot/sdk.py       # Copilot SDK adapter
-├── base/sdk.py          # Base SDK interface
-└── http_client.py       # HTTP client for API calls
+    subgraph "Config & Safety"
+        S1[settings.py<br/>App Configuration]
+        S2[models.py<br/>Config Models]
+        S3[trusted_folders.py<br/>Folder Trust]
+    end
 ```
 
-#### Configuration & Safety (`core/config/`, `core/safety/`)
+### Key Modules
 
-```
-config/
-├── settings.py          # Application settings and tool permissions
-├── models.py            # Configuration models
-
-safety/
-├── trusted_folders.py   # Trust folder management
-└── permissions.py       # Safety checks and validations
-```
-
-#### Supporting Systems (`core/memory/`, `core/rag/`)
-
-```
-memory/
-└── conversation_manager.py  # Conversation history management
-
-rag/
-└── (RAG system for knowledge retrieval)
-```
+| Module | Purpose |
+|--------|---------|
+| `core/agents/` | Agent implementations (BaseAgent, CodingAgent, ExploreAgent) |
+| `core/tools/` | Tool system with 14+ tools and granular permissions |
+| `core/llm_sdk/` | Multi-provider LLM adapters (OpenAI, Anthropic, Copilot) |
+| `core/config/` | Application settings and configuration models |
+| `core/memory/` | Conversation history and memory management |
+| `core/rag/` | Knowledge retrieval system |
+| `core/safety/` | Security, permissions, and trusted folder management |
 
 ### Core Components
 
