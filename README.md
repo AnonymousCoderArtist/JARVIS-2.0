@@ -115,7 +115,7 @@ graph LR
         S2[models.py<br/>Config Models]
         S3[trusted_folders.py<br/>Folder Trust]
     end
-
+```
 ## 🧩 Key Modules
 
 | Module | Purpose |
