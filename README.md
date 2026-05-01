@@ -107,8 +107,7 @@ graph LR
     subgraph "LLM SDK (core/llm_sdk/)"
         L1[openai/sdk.py<br/>OpenAI Adapter]
         L2[anthropic/sdk.py<br/>Anthropic Adapter]
-        L3[copilot/sdk.py<br/>Copilot Adapter]
-        L4[base/sdk.py<br/>Base Interface]
+        L3[base/sdk.py<br/>Base Interface]
     end
 
     subgraph "Config & Safety"
@@ -116,7 +115,8 @@ graph LR
         S2[models.py<br/>Config Models]
         S3[trusted_folders.py<br/>Folder Trust]
     end
-```
+
+### Key Modules
 
 ### Key Modules
 
@@ -124,7 +124,7 @@ graph LR
 |--------|---------|
 | `core/agents/` | Agent implementations (BaseAgent, CodingAgent, ExploreAgent) |
 | `core/tools/` | Tool system with 14+ tools and granular permissions |
-| `core/llm_sdk/` | Multi-provider LLM adapters (OpenAI, Anthropic, Copilot) |
+| `core/llm_sdk/` | Multi-provider LLM adapters (OpenAI, Anthropic) |
 | `core/config/` | Application settings and configuration models |
 | `core/memory/` | Conversation history and memory management |
 | `core/rag/` | Knowledge retrieval system |
@@ -214,7 +214,7 @@ jarvis --tui --model llama-3-70b --base_url http://localhost:8000/v1 --apikey du
 | `--model` | `-m` | Model name (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`) |
 | `--base_url` | | Base URL for LLM API |
 | `--apikey` | `--api-key` | API key for the provider |
-| `--sdk` | | SDK mode: `openai`, `anthropic`, or `standard` |
+| `--sdk` | | SDK mode: `openai` or `anthropic` |
 | `--cli` | | Launch CLI interface |
 | `--tui` | `--TUI` | Launch TUI interface |
 | `--bypass` | `--yolo` | Bypass all tool permissions |
