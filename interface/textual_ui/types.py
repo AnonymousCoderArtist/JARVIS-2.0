@@ -82,6 +82,9 @@ class AgentStats:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_cost: float = 0.0
+    session_prompt_tokens: int = 0
+    session_completion_tokens: int = 0
+    session_total_llm_tokens: int = 0
 
 
 @dataclass
@@ -159,4 +162,5 @@ class AgentProfileChangedEvent(BaseEvent):
 @dataclass
 class WaitingForInputEvent(BaseEvent):
     """Waiting for input event."""
-    pass
+    predefined_answers: list[str] = field(default_factory=list)
+    label: str = ""

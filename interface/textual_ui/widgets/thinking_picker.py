@@ -13,6 +13,9 @@ from textual.widgets.option_list import Option
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.cli_adapters import ThinkingLevel
 
+# Type alias for OptionList highlight type
+HighlightType: Any = None
+
 
 def _build_option_text(level: str, is_current: bool) -> Text:
     text = Text(no_wrap=True)
@@ -43,7 +46,7 @@ class ThinkingPickerApp(Container):
     def __init__(
         self, thinking_levels: list[str], current_thinking: str, **kwargs: Any
     ) -> None:
-        super().__init__(id="thinkingpicker-app", **kwargs)
+        super().__init__(**kwargs)
         self._thinking_levels = thinking_levels
         self._current_thinking = current_thinking
 
@@ -65,7 +68,7 @@ class ThinkingPickerApp(Container):
         option_list = self.query_one(OptionList)
         for i, level in enumerate(self._thinking_levels):
             if level == self._current_thinking:
-                option_list.highlighted = i
+                option_list.highlighted = i  # type: ignore
                 break
         option_list.focus()
 

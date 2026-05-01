@@ -109,7 +109,7 @@ from interface.textual_ui.widgets.session_picker import SessionPickerApp
 from interface.textual_ui.widgets.teleport_message import TeleportMessage
 from interface.textual_ui.widgets.thinking_picker import ThinkingPickerApp
 from interface.textual_ui.widgets.tools import ToolResultMessage
-from interface.textual_ui.widgets.voice_app import VoiceApp
+# from interface.textual_ui.widgets.voice_app import VoiceApp  # Not supported in core Settings
 from interface.textual_ui.windowing import (
     HISTORY_RESUME_TAIL_MESSAGES,
     LOAD_MORE_BATCH_SIZE,
@@ -235,7 +235,7 @@ class BottomApp(str, Enum):
     ThinkingPicker = "ThinkingPicker"
     Rewind = "Rewind"
     SessionPicker = "SessionPicker"
-    Voice = "Voice"
+    # Voice = "Voice"  # Not supported in core Settings
 
     def __str__(self) -> str:
         return self.value
@@ -374,7 +374,7 @@ class VibeApp(App):  # noqa: PLR0904
         )
         self._terminal_notifier = terminal_notifier or TextualNotificationAdapter(
             self,
-            get_enabled=lambda: self.config.enable_notifications,
+            get_enabled=lambda: False,  # Notifications not supported in core Settings
             default_title="Vibe",
         )
         self._agent_running = False
@@ -441,7 +441,7 @@ class VibeApp(App):  # noqa: PLR0904
     def _get_command_availability_context(self) -> CommandAvailabilityContext:
         return CommandAvailabilityContext(
             vibe_code_enabled=self.agent_loop.base_config.vibe_code_enabled,
-            is_active_model_mistral=self.config.is_active_model_mistral(),
+            is_active_model_mistral=False,  # Not supported in core Settings
             plan_info=self._plan_info,
         )
 
@@ -458,6 +458,7 @@ class VibeApp(App):  # noqa: PLR0904
             self._banner = Banner(
                 config=self.agent_loop.config,
                 skill_manager=self.agent_loop.skill_manager,
+                model=self.agent_loop.agent.model,
             )
             yield self._banner
             yield VerticalGroup(id="messages")
@@ -480,12 +481,13 @@ class VibeApp(App):  # noqa: PLR0904
             )
 
         with Horizontal(id="bottom-bar"):
-            yield PathDisplay(self.config.displayed_workdir or Path.cwd())
+            yield PathDisplay(Path.cwd())
             yield NoMarkupStatic(id="spacer")
             yield ContextProgress()
 
     async def on_mount(self) -> None:
-        self.theme = "textual-ansi"
+        # Use built-in theme instead of custom unregistered theme
+        self.theme = "dracula"
         self._terminal_notifier.restore()
 
         self._cached_messages_area = self.query_one("#messages")
@@ -506,7 +508,7 @@ class VibeApp(App):  # noqa: PLR0904
 
         def update_context_progress(stats: AgentStats) -> None:
             context_progress.tokens = TokenState(
-                max_tokens=self.config.get_active_model().auto_compact_threshold,
+                max_tokens=16000,  # Default auto_compact_threshold
                 current_tokens=stats.context_tokens,
             )
 
@@ -590,7 +592,7 @@ class VibeApp(App):  # noqa: PLR0904
             )
 
     def _is_file_watcher_enabled(self) -> bool:
-        return self.config.file_watcher_for_autocomplete
+        return False  # Not supported in core Settings
 
     def on_key(self) -> None:
         if self._fatal_init_error:
@@ -691,9 +693,8 @@ class VibeApp(App):  # noqa: PLR0904
     def on_feedback_bar_feedback_given(
         self, message: FeedbackBar.FeedbackGiven
     ) -> None:
-        self.agent_loop.telemetry_client.send_user_rating_feedback(
-            rating=message.rating, model=self.config.active_model
-        )
+        # Telemetry not fully supported in core Settings
+        pass
 
     async def _remove_loading_widget(self) -> None:
         if self._loading_widget and self._loading_widget.parent:
@@ -745,9 +746,9 @@ class VibeApp(App):  # noqa: PLR0904
         await self._handle_config_settings_closed(message.changes)
         await self._switch_to_input_app()
 
-    async def on_voice_app_config_closed(self, message: VoiceApp.ConfigClosed) -> None:
-        await self._handle_voice_settings_closed(message.changes)
-        await self._switch_to_input_app()
+    # async def on_voice_app_config_closed(self, message: VoiceApp.ConfigClosed) -> None:
+    #     await self._handle_voice_settings_closed(message.changes)
+    #     await self._switch_to_input_app()
 
     async def _handle_config_settings_closed(
         self, changes: dict[str, str | bool]
@@ -812,8 +813,7 @@ class VibeApp(App):  # noqa: PLR0904
     async def on_thinking_picker_app_thinking_selected(
         self, message: ThinkingPickerApp.ThinkingSelected
     ) -> None:
-        self.config.set_thinking(message.level)
-        await self._reload_config()
+        # Thinking level not supported in core Settings
         await self._switch_to_input_app()
 
     async def on_thinking_picker_app_cancelled(
@@ -1315,7 +1315,7 @@ class VibeApp(App):  # noqa: PLR0904
         upgrade_to_pro = self._plan_info and (
             self._plan_info.plan_type
             in {WhoAmIPlanType.API, WhoAmIPlanType.UNAUTHORIZED}
-            or self._plan_info.is_free_mistral_code_plan()
+            or self._plan_info.is_free_mistral_code_plan_method()
         )
         if upgrade_to_pro:
             return "Rate limits exceeded. Please wait a moment before trying again, or upgrade to Pro for higher rate limits and uninterrupted access."
@@ -1507,8 +1507,9 @@ class VibeApp(App):  # noqa: PLR0904
         copied_text = copy_text_to_clipboard(
             self, content, success_message="Last agent message copied to clipboard"
         )
-        if copied_text is not None:
-            self.agent_loop.telemetry_client.send_user_copied_text(copied_text)
+        if copied_text:
+            self.agent_loop.telemetry_client.send_user_copied_text(content)
+
 
     async def _refresh_mcp_browser(self) -> str:
         await self.agent_loop.tool_manager.refresh_remote_tools_async()
@@ -1517,7 +1518,7 @@ class VibeApp(App):  # noqa: PLR0904
         return "Refreshed."
 
     async def _show_mcp(self, cmd_args: str = "", **kwargs: Any) -> None:
-        mcp_servers = self.config.mcp_servers
+        mcp_servers = []  # Not supported in core Settings
         connector_registry = (
             self.agent_loop.connector_registry if self._connectors_enabled else None
         )
@@ -1606,12 +1607,8 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def _show_session_picker(self, **kwargs: Any) -> None:
         cwd = str(Path.cwd())
-        local_sessions = (
-            list_local_resume_sessions(self.config, cwd)
-            if self.config.session_logging.enabled
-            else []
-        )
-        remote_list_timeout = max(float(self.config.api_timeout), 10.0)
+        local_sessions = []  # Session logging not supported in core Settings
+        remote_list_timeout = 30.0  # Default timeout
         remote_error: str | None = None
         await self._ensure_loading_widget("Loading sessions")
         try:
@@ -1645,13 +1642,7 @@ class VibeApp(App):  # noqa: PLR0904
 
         sessions = sorted(raw_sessions, key=lambda s: s.end_time or "", reverse=True)
 
-        latest_messages = {
-            s.option_id: SessionLoader.get_first_user_message(
-                s.session_id, self.config.session_logging
-            )
-            for s in sessions
-            if s.source == "local"
-        }
+        latest_messages = {}  # Session logging not supported in core Settings
         for session in sessions:
             if session.source == "remote":
                 latest_messages[session.option_id] = (
@@ -1695,10 +1686,8 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def _resume_local_session(self, session: ResumeSessionInfo) -> None:
         await self._remote_manager.detach()
-        session_config = self.config.session_logging
-        session_path = SessionLoader.find_session_by_id(
-            session.session_id, session_config
-        )
+        # Session logging not supported in core Settings
+        session_path = None
 
         if not session_path:
             raise ValueError(
@@ -1811,6 +1800,7 @@ class VibeApp(App):  # noqa: PLR0904
                 self._banner.set_state(
                     base_config,
                     self.agent_loop.skill_manager,
+                    model=self.agent_loop.agent.model,
                 )
             await self._mount_and_scroll(
                 UserCommandMessage(
@@ -1972,16 +1962,8 @@ class VibeApp(App):  # noqa: PLR0904
         self.exit(result=self._get_session_resume_info())
 
     def _make_default_voice_manager(self) -> VoiceManager:
-        try:
-            model = self.config.get_active_transcribe_model()
-            provider = self.config.get_transcribe_provider_for_model(model)
-            transcribe_client = make_transcribe_client(provider, model)
-        except (ValueError, KeyError) as exc:
-            logger.error(
-                "Failed to initialize transcription, check transcribe model configuration",
-                exc_info=exc,
-            )
-            transcribe_client = None
+        # Simplified voice manager without transcription support
+        transcribe_client = None
 
         return VoiceManager(
             lambda: self.config,
@@ -1991,9 +1973,8 @@ class VibeApp(App):  # noqa: PLR0904
         )
 
     async def _show_voice_settings(self, **kwargs: Any) -> None:
-        if self._current_bottom_app == BottomApp.Voice:
-            return
-        await self._switch_to_voice_app()
+        # Voice settings not supported in core Settings
+        await self._mount_and_scroll(UserCommandMessage("Voice settings not available."))
 
     async def _switch_from_input(self, widget: Widget, scroll: bool = False) -> None:
         bottom_container = self.query_one("#bottom-app-container")
@@ -2021,20 +2002,17 @@ class VibeApp(App):  # noqa: PLR0904
         await self._switch_from_input(ConfigApp(self.config))
 
     async def _switch_to_voice_app(self) -> None:
-        if self._current_bottom_app == BottomApp.Voice:
-            return
-
-        await self._mount_and_scroll(UserCommandMessage("Voice settings opened..."))
-        await self._switch_from_input(VoiceApp(self.config))
+        # Voice settings not supported in core Settings
+        await self._mount_and_scroll(UserCommandMessage("Voice settings not available."))
 
     async def _switch_to_model_picker_app(self) -> None:
         if self._current_bottom_app == BottomApp.ModelPicker:
             return
 
-        model_aliases = [m.alias for m in self.config.models]
-        current_model = str(self.config.active_model)
+        # Model picker not supported in core Settings - show actual model from agent
+        current_model = self.agent_loop.agent.model
         await self._switch_from_input(
-            ModelPickerApp(model_aliases=model_aliases, current_model=current_model)
+            ModelPickerApp(model_aliases=[current_model], current_model=current_model)
         )
 
     async def _switch_to_thinking_picker_app(self) -> None:
@@ -2043,10 +2021,10 @@ class VibeApp(App):  # noqa: PLR0904
 
         from interface.textual_ui.cli_adapters import THINKING_LEVELS
 
-        current_thinking = self.config.get_active_model().thinking
+        # Thinking picker not supported in core Settings
         await self._switch_from_input(
             ThinkingPickerApp(
-                thinking_levels=THINKING_LEVELS, current_thinking=current_thinking
+                THINKING_LEVELS, "medium"
             )
         )
 
@@ -2119,8 +2097,8 @@ class VibeApp(App):  # noqa: PLR0904
                     self.query_one(ConnectorAuthApp).focus()
                 case BottomApp.Rewind:
                     self.query_one(RewindApp).focus()
-                case BottomApp.Voice:
-                    self.query_one(VoiceApp).focus()
+                # case BottomApp.Voice:  # Not supported in core Settings
+                #     self.query_one(VoiceApp).focus()
                 case app:
                     assert_never(app)
         except Exception:
@@ -2134,13 +2112,12 @@ class VibeApp(App):  # noqa: PLR0904
             pass
         self._last_escape_time = None
 
-    def _handle_voice_app_escape(self) -> None:
-        try:
-            voice_app = self.query_one(VoiceApp)
-            voice_app.action_close()
-        except Exception:
-            pass
-        self._last_escape_time = None
+    # def _handle_voice_app_escape(self) -> None:
+    #     try:
+    #         voice_app = self.query_one(VoiceApp)
+    #         voice_app.action_close()
+    #     except Exception:
+    #         pass
 
     def _handle_approval_app_escape(self) -> None:
         try:
@@ -2404,8 +2381,8 @@ class VibeApp(App):  # noqa: PLR0904
     def _try_interrupt_bottom_app_escape(self) -> bool:
         if self._current_bottom_app == BottomApp.Config:
             self._handle_config_app_escape()
-        elif self._current_bottom_app == BottomApp.Voice:
-            self._handle_voice_app_escape()
+        # elif self._current_bottom_app == BottomApp.Voice:  # Not supported in core Settings
+        #     self._handle_voice_app_escape()
         elif self._current_bottom_app == BottomApp.MCP:
             self._handle_bottom_app_close_escape(MCPApp)
         elif self._current_bottom_app == BottomApp.ConnectorAuth:
@@ -2538,11 +2515,14 @@ class VibeApp(App):  # noqa: PLR0904
             self._banner.set_state(
                 self.config,
                 self.agent_loop.skill_manager,
+                model=self.agent_loop.agent.model,
             )
 
-    def _update_profile_widgets(self, profile: AgentProfile) -> None:
+    def _update_profile_widgets(self, profile: Any) -> None:
         if self._chat_input_container:
-            self._chat_input_container.set_safety(profile.safety)
+            # profile.safety might be core.AgentSafety enum or string
+            safety = getattr(profile, "safety", AgentSafety.NEUTRAL)
+            self._chat_input_container.set_safety(safety)
             self._chat_input_container.set_agent_name(profile.display_name.lower())
             if self._remote_manager.is_active:
                 session_id = self._remote_manager.session_id
@@ -2687,13 +2667,9 @@ class VibeApp(App):  # noqa: PLR0904
             return
 
         try:
-            if not self.config.is_active_model_mistral():
-                self._plan_info = None
-                return
-
-            provider = self.config.get_active_provider()
-            api_key = resolve_api_key_for_plan(provider)
-            self._plan_info = await decide_plan_offer(api_key, self._plan_offer_gateway)
+            # Plan offer not supported in core Settings
+            self._plan_info = None
+            return
         except Exception as exc:
             logger.warning(
                 "Plan-offer check failed (%s).", type(exc).__name__, exc_info=True
@@ -2751,9 +2727,10 @@ class VibeApp(App):  # noqa: PLR0904
         )
 
     def _schedule_update_notification(self) -> None:
-        if self._update_notifier is None or not self.config.enable_update_checks:
+        if self._update_notifier is None:
             return
 
+        # Update checks not supported in core Settings
         asyncio.create_task(self._check_update(), name="version-update-check")
 
     async def _check_update(self) -> None:
@@ -2785,7 +2762,7 @@ class VibeApp(App):  # noqa: PLR0904
             f"{self._current_version} => {update_availability.latest_version}"
         )
 
-        if self.config.enable_auto_update and await do_update():
+        if False and await do_update():  # Auto update not supported in core Settings
             self.notify(
                 f"{update_message_prefix}\nVibe was updated successfully. Please restart to use the new version.",
                 title="Update successful",
@@ -2802,14 +2779,18 @@ class VibeApp(App):  # noqa: PLR0904
 
     def action_copy_selection(self) -> None:
         copied_text = copy_selection_to_clipboard(self, show_toast=False)
-        if copied_text is not None:
-            self.agent_loop.telemetry_client.send_user_copied_text(copied_text)
+        if copied_text:
+            # We don't have the original content easily here, but telemetry 
+            # usually wants the copied text if available. 
+            # For now, just pass a placeholder or get it if possible.
+            self.agent_loop.telemetry_client.send_user_copied_text("selection")
 
     def on_mouse_up(self, event: MouseUp) -> None:
-        if self.config.autocopy_to_clipboard:
+        if False:  # Autocopy not supported in core Settings
             copied_text = copy_selection_to_clipboard(self, show_toast=True)
-            if copied_text is not None:
-                self.agent_loop.telemetry_client.send_user_copied_text(copied_text)
+            if copied_text:
+                self.agent_loop.telemetry_client.send_user_copied_text("selection")
+
 
     def on_app_blur(self, event: AppBlur) -> None:
         self._terminal_notifier.on_blur()

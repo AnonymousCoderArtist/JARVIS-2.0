@@ -18,7 +18,9 @@ from interface.textual_ui.types import (
     AgentStats,
     AssistantEvent,
     BaseEvent,
+    LLMMessage,
     ReasoningEvent,
+    Role,
     ToolCallEvent,
     ToolResultEvent,
     UserMessageEvent,
@@ -122,20 +124,29 @@ class Stats(AgentStats):
                 self.steps += 1
 
 
+@dataclass
+class HookConfigIssue:
+    """Issue with hook configuration."""
+    file: str
+    message: str
+
+
 class AgentLoop:
     """AgentLoop that wraps JARVIS's CodingAgent with enhanced core integration."""
-    
+
     def __init__(
         self,
         agent: CodingAgent,
         config: Settings,
         tool_registry: ToolRegistry,
         agent_manager: AgentManager | None = None,
+        disabled_tools: list[str] | None = None,
     ):
         self.agent: CodingAgent = agent
         self.config: Settings = config
         self.base_config: Settings = config
         self.tool_registry: ToolRegistry = tool_registry
+        self._disabled_tools: list[str] = disabled_tools or []
 
         # Use provided agent manager or create a new one
         if agent_manager is not None:
@@ -157,7 +168,7 @@ class AgentLoop:
         self.skill_manager = SkillManagerAdapter()
         self.mcp_registry = MCPRegistryAdapter()
         self.connector_registry = ConnectorRegistryAdapter()
-        self.hook_config_issues: list[str] = []
+        self.hook_config_issues: list[HookConfigIssue] = []
         self.tool_manager = ToolManagerAdapter(tool_registry)
         self.session_logger = SessionLoggerAdapter()
         self.session_id: str | None = None
@@ -165,50 +176,48 @@ class AgentLoop:
         self.rewind_manager = RewindManagerAdapter()
 
         # Integration with JARVIS's actual memory system
-        self._approval_callback: Callable[[str, dict[str, Any], str, list[Any]], Any] | None = None
+        self._approval_callback: Callable[[str, dict[str, Any], str, list[Any]], bool] | None = None
         self._user_input_callback: Callable[[str], str] | None = None
-        self._event_queue: asyncio.Queue[Event] | None = None
+        self._event_queue: asyncio.Queue[Event] = asyncio.Queue()
         self._stream_chunks: list[str] = []
         self._reasoning_chunks: list[str] = []
         self._is_running = False
         self._tool_call_ids: dict[str, str] = {}  # Track tool call IDs
+        self._disabled_tools: list[str] = []  # Track disabled tools
 
         # Set up tool call/result callbacks for event tracking
         self.agent.tool_call_callback = self._on_tool_call
         self.agent.tool_result_callback = self._on_tool_result
         # Set up reasoning callback to capture reasoning content
         self.agent.reasoning_callback = self._on_reasoning
-    
+
     @property
     def messages(self) -> list[LLMMessage]:
         """Get messages from agent's memory."""
-        from interface.textual_ui.types import LLMMessage, Role
-        
         # Convert agent memory to TUI LLMMessage format
         messages: list[LLMMessage] = []
         for entry in self.agent.memory:
             content = entry.get('content', '')
             response = entry.get('response', '')
-            
+
             # Add user message
             if content:
                 messages.append(LLMMessage(
                     role=Role.user,
                     content=str(content)
                 ))
-            
+
             # Add assistant response
             if response:
                 messages.append(LLMMessage(
                     role=Role.assistant,
                     content=str(response)
                 ))
-        
+
         return messages
 
-    async def teleport_to_vibe_code(self, prompt: str | None) -> AsyncGenerator[Event, TeleportPushResponseEvent | None]:
+    async def teleport_to_vibe_code(self, prompt: str | None) -> AsyncGenerator[Event, None]:
         """Stub for teleport functionality."""
-        from interface.textual_ui.types import UserMessageEvent, AssistantEvent
         if prompt:
             yield UserMessageEvent(content=prompt)
         yield AssistantEvent(content="Teleport to vibe code not fully implemented in adapter.")
@@ -222,7 +231,7 @@ class AgentLoop:
             elif msg.role == Role.assistant:
                 self.agent.add_to_memory({"response": msg.content})
 
-    async def reload_with_initial_messages(self, base_config: Settings) -> None:
+    async def reload_with_initial_messages(self, base_config: Settings | None = None) -> None:
         """Reload agent with initial messages."""
         self.agent.clear_memory()
         self.agent.rebuild_system_prompt()
@@ -299,8 +308,6 @@ class AgentLoop:
                 break
     
     def _get_event_queue(self) -> asyncio.Queue[Event]:
-        if self._event_queue is None:
-            self._event_queue = asyncio.Queue()
         return self._event_queue
 
     def _on_tool_call(self, tool_name: str, arguments: dict[str, Any]) -> None:
@@ -318,7 +325,7 @@ class AgentLoop:
                 tool_class = tool.__class__.__name__
         except Exception:
             pass
-        
+
         self._get_event_queue().put_nowait(ToolCallEvent(
             tool_name=tool_name,
             tool_args=arguments,
@@ -332,7 +339,7 @@ class AgentLoop:
         raw_result = result
         if hasattr(result, 'result'):
             raw_result = getattr(result, 'result')
-        
+
         # If result is already a string but we need an object, wrap it
         if isinstance(raw_result, str):
             if tool_name == "bash":
@@ -348,7 +355,7 @@ class AgentLoop:
             if tool_name == "edit":
                 # For edit, we might want to return the first diff or a summary
                 return SearchReplaceResult(content=raw_result)
-        
+
         # Special case for grep: list of dicts to formatted string
         if tool_name == "grep" and isinstance(raw_result, list):
             formatted = []
@@ -358,7 +365,7 @@ class AgentLoop:
                 content = str(m.get("content", ""))
                 formatted.append(f"{file}:{line}:{content}")
             return GrepResult(matches="\n".join(formatted))
-            
+
         return raw_result
 
     def _on_tool_result(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
@@ -375,15 +382,15 @@ class AgentLoop:
                 tool_class = tool.__class__.__name__
         except Exception as e:
             error = str(e)
-        
+
         # Determine if result indicates success or failure
         if hasattr(result, 'success') and not getattr(result, 'success'):
             if hasattr(result, 'error'):
                 error = str(getattr(result, 'error'))
-        
+
         # Map result to structured model for UI
         mapped_result = self._map_tool_result(tool_name, arguments, result)
-        
+
         self._get_event_queue().put_nowait(ToolResultEvent(
             tool_name=tool_name,
             result=mapped_result,
@@ -395,7 +402,7 @@ class AgentLoop:
             cancelled=False,
             duration=0.0
         ))
-        
+
         # Clean up the tool_call_id after use
         if tool_name in self._tool_call_ids:
             del self._tool_call_ids[tool_name]
@@ -612,6 +619,11 @@ class SkillManagerAdapter:
             return self._core_manager.get_skill_profile(skill_name)
         return None
 
+    @staticmethod
+    def build_skill_prompt(user_input: str, skill: Any) -> str:
+        """Build skill prompt."""
+        return user_input
+
 
 class MCPRegistryAdapter:
     """Adapter for MCP Registry (Currently unsupported in JARVIS core)."""
@@ -623,33 +635,41 @@ class MCPRegistryAdapter:
 
 class ConnectorRegistryAdapter:
     """Adapter for Connector Registry (Currently unsupported in JARVIS core)."""
-    
-    def __init__(self) -> None:
-        self.connector_count = 0
 
+    connector_count: int = 0
 
-# AgentManagerAdapter removed - using real AgentManager from core.agents.manager
+    def get_connector_names(self) -> list[str]:
+        """Get connector names."""
+        return []
 
 
 class ToolManagerAdapter:
     """Adapter for JARVIS ToolRegistry."""
-    
+
     def __init__(self, tool_registry: ToolRegistry):
         self.tool_registry = tool_registry
-    
+
     @property
     def available_tools(self) -> list[str]:
         return list(self.tool_registry.get_tools().keys())
-    
-    def get_tool_config(self, tool_name: str) -> dict[str, str] | None:
+
+    @property
+    def registered_tools(self) -> dict[str, Any]:
+        return self.tool_registry.get_tools()
+
+    def get_tool_config(self, tool_name: str) -> dict[str, Any] | None:
         """Get tool configuration."""
         tool = self.tool_registry.get(tool_name)
         if tool:
             return {"name": tool.name, "description": tool.description}
         return None
-        
+
     async def refresh_remote_tools_async(self) -> None:
         """Refresh remote tools (noop for now)."""
+        pass
+
+    async def integrate_connectors_async(self) -> None:
+        """Integrate connector tools (noop for now)."""
         pass
 
 

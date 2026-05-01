@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
+from pathlib import Path
 from typing import Any
 
 
@@ -64,9 +66,6 @@ class AgentProfile:
         Returns:
             AgentProfile instance
         """
-        import tomllib
-        from pathlib import Path
-
         with Path(path).open("rb") as f:
             data = tomllib.load(f)
 

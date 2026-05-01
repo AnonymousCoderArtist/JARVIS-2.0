@@ -4,14 +4,17 @@ core/__init__.py
 core/trusted_folders.py
 core/agents/__init__.py
 core/agents/async_manager.py
+core/agents/background_task_manager.py
 core/agents/base.py
 core/agents/builtin_profiles.py
 core/agents/coding_agent.py
 core/agents/explore_agent.py
 core/agents/manager.py
 core/agents/profiles.py
+core/agents/resource_monitor.py
 core/agents/system_prompts.py
 core/config/__init__.py
+core/config/models.py
 core/config/settings.py
 core/llm/__init__.py
 core/llm/base.py
@@ -46,9 +49,11 @@ core/skills/manager.py
 core/skills/models.py
 core/tools/__init__.py
 core/tools/agent_tools.py
+core/tools/async_registry.py
 core/tools/background_tools.py
 core/tools/base.py
 core/tools/code_tools.py
+core/tools/concurrent_executor.py
 core/tools/file_edit_tool.py
 core/tools/file_tools.py
 core/tools/grep_tool.py
@@ -139,4 +144,6 @@ jarvis.egg-info/dependency_links.txt
 jarvis.egg-info/entry_points.txt
 jarvis.egg-info/requires.txt
 jarvis.egg-info/top_level.txt
+tests/test_async_agents.py
+tests/test_permissions.py
 tests/test_textual_ui_integration.py

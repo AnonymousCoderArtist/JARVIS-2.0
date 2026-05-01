@@ -62,7 +62,7 @@ def is_dangerous_directory(path: Path | str) -> tuple[bool, str]:
     return False, ""
 
 
-def compact_reduction_display(old_tokens: int, new_tokens: int) -> str:
+def compact_reduction_display(old_tokens: int | None, new_tokens: int | None) -> str:
     """Format token reduction for display"""
     if old_tokens is None or new_tokens is None:
         return "Unknown reduction"

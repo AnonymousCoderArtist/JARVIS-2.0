@@ -28,14 +28,14 @@ def _load_env_config() -> dict[str, str]:
         pass
 
     return {
-        "model": os.getenv("JARVIS_MODEL", "gpt-4o"),
-        "base_url": os.getenv("JARVIS_BASE_URL"),
-        "apikey": os.getenv("JARVIS_API_KEY"),
-        "sdk": os.getenv("JARVIS_SDK", "openai"),
+        "model": os.getenv("JARVIS_MODEL") or "gpt-4o",
+        "base_url": os.getenv("JARVIS_BASE_URL") or "",
+        "apikey": os.getenv("JARVIS_API_KEY") or "",
+        "sdk": os.getenv("JARVIS_SDK") or "openai",
     }
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, bool, str, str, str, str]:
+def _parse_args(argv: list[str]) -> tuple[bool, bool, str, str, str, str, bool]:
     # Load .env configuration as defaults
     env_config = _load_env_config()
 
@@ -109,7 +109,7 @@ def main() -> None:
     if launch_tui:
         from interface.textual_ui.tui_main import main as tui_main
         # TUI needs to be run synchronously (Textual handles its own event loop)
-        tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk)
+        tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass)
     else:
         from interface.cli.cli import main as cli_main
         # CLI is now async

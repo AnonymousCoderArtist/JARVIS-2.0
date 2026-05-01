@@ -510,6 +510,32 @@ The JARVIS agent has access to the shared `ToolRegistry`:
 | **Background** | ListBackgroundProcessesTool, ReadBackgroundOutputTool | Manage background processes |
 | **Agent** | InvokeAgentTool, ActivateSkillTool | Agent and skill management |
 
+### FileReadTool (read)
+
+The `read` tool uses the files array format for reading one or more files:
+
+**Files Array Format:**
+```json
+{
+  "files": [
+    {"file_path": "/path/to/file1.py", "offset": 1, "limit": 50},
+    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 100}
+  ],
+  "encoding": "utf-8"
+}
+```
+- `files`: Array of file objects (required)
+  - `file_path`: Absolute path to the file to read (required)
+  - `offset`: 1-based line number to start reading from (default: 1)
+  - `limit`: Maximum number of lines to read (default: all lines, max 2000)
+- `encoding`: Character encoding for reading files (default: utf-8)
+
+**Behavior:**
+- Files are read in parallel for performance
+- Each file respects individual offset/limit settings
+- Returns concatenated content with `--- {file_path} ---` separators
+- Read errors for individual files are reported but don't fail the entire operation
+
 ### Tool Access Pattern
 
 ```python

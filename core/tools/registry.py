@@ -15,6 +15,7 @@ class ToolRegistry:
         self._tools: dict[str, BaseTool] = {}
         self.llm_provider = llm_provider
         self.model = model
+        self.active_skills: dict[str, str] = {}
 
     def register(self, tool: BaseTool):
         """

@@ -46,7 +46,7 @@ class AnsiHighlightTheme(HighlightTheme):
 
 class AnsiMarkdownFence(MarkdownFence):
     @classmethod
-    def highlight(cls, code: str, language: str) -> Content:
+    def highlight(cls, code: str, language: str, ansi: bool = False, dark: bool = False) -> Content:
         return highlight(code, language=language or None, theme=AnsiHighlightTheme)
 
 

@@ -52,7 +52,7 @@ class ConnectorAuthApp(Container):
         self,
         connector_name: str,
         connector_registry: ConnectorRegistry,
-        tool_manager: ToolManager,
+        tool_manager: ToolManager | ToolManagerAdapter,
     ) -> None:
         super().__init__(id="connectorauth-app")
         self._connector_name = connector_name

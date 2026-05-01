@@ -1,7 +1,9 @@
 """SDK adapter to bridge new SDK pattern with existing agent interface"""
 
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
-from typing import cast
+from typing import Any, cast
 
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import (
@@ -21,12 +23,12 @@ class SDKAdapter(BaseLLMProvider):
 
     async def generate(
         self,
-        messages: list[dict],
+        messages: list[dict[str, Any]],
         model: str,
         temperature: float = 0.7,
         max_tokens: int | None = None,
         stream: bool = False,
-    ) -> str | AsyncGenerator:
+    ) -> str | AsyncGenerator[Any, None]:
         """Generate using SDK with adapter interface"""
         # Convert dict messages to SDK Message objects, filtering out empty messages
         sdk_messages = [
@@ -47,23 +49,51 @@ class SDKAdapter(BaseLLMProvider):
 
         if stream:
             # SDK returns an AsyncGenerator when streaming; return as-is
-            return cast(AsyncGenerator, result)
+            return cast(AsyncGenerator[Any, None], result)
         else:
-            # SDK returns a GenerationResponse when not streaming; cast and return content
+            # SDK returns a GenerationResponse when not streaming; return content
             gen = cast(GenerationResponse, result)
-            # Return dict with content and reasoning if present
-            result_dict = {"content": gen.content}
-            if gen.reasoning_content:
-                result_dict["reasoning_content"] = gen.reasoning_content
-            return result_dict
+            return gen.content
+
+    def _generation_response_to_dict(self, gen: GenerationResponse) -> dict[str, Any]:
+        """Convert a typed SDK response into the mapping shape expected by agents."""
+        tool_calls: list[dict[str, Any]] = []
+        if gen.tool_calls:
+            for tc in gen.tool_calls:
+                tool_calls.append(
+                    {
+                        "id": tc.id,
+                        "function": {
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                        },
+                    }
+                )
+
+        response: dict[str, Any] = {
+            "content": gen.content,
+            "model": gen.model,
+            "finish_reason": gen.finish_reason,
+            "reasoning_content": gen.reasoning_content or "",
+        }
+
+        if tool_calls:
+            response["tool_calls"] = tool_calls
+        if gen.usage is not None:
+            response["usage"] = gen.usage
+        if gen.metadata is not None:
+            response["metadata"] = gen.metadata
+
+        return response
 
     async def generate_with_tools(
         self,
-        messages: list[dict],
-        tools: list[dict],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         model: str,
-        **kwargs
-    ) -> dict | AsyncGenerator:
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, Any] | AsyncGenerator[Any, None]:
         """Generate with tools using SDK with adapter interface"""
         # Convert dict messages to SDK Message objects, filtering out empty messages
         sdk_messages = [
@@ -79,37 +109,16 @@ class SDKAdapter(BaseLLMProvider):
             max_tokens=kwargs.get("max_tokens"),
         )
 
-        stream = kwargs.get("stream", False)
+        stream = kwargs.pop("stream", stream)
 
         # Call SDK
         result = await self.sdk.generate_with_tools(sdk_messages, tools, config, stream=stream)
 
         if stream:
-            return cast(AsyncGenerator, result)
+            return cast(AsyncGenerator[Any, None], result)
         else:
-            # Convert tool calls back to expected format
             gen = cast(GenerationResponse, result)
-            tool_calls = []
-            if gen.tool_calls:
-                for tc in gen.tool_calls:
-                    tool_calls.append({
-                        "id": tc.id,
-                        "function": {
-                            "name": tc.name,
-                            "arguments": tc.arguments,
-                        },
-                    })
-
-            result_dict = {
-                "content": gen.content,
-                "tool_calls": tool_calls,
-            }
-            
-            # Add reasoning content if present
-            if gen.reasoning_content:
-                result_dict["reasoning_content"] = gen.reasoning_content
-            
-            return result_dict
+            return self._generation_response_to_dict(gen)
 
     def get_available_models(self) -> list[str]:
         """Get available models from SDK"""

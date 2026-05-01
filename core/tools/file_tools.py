@@ -17,53 +17,81 @@ from core.tools.permissions import (
 
 
 class FileReadTool(BaseTool):
-    """Tool for reading file contents (OpenClaude style)"""
+    """Tool for reading file contents - uses files array format"""
 
     name = "read"
-    description = """Read a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+    description = """Read file(s) from the local filesystem using the files array format.
 
-Usage:
-- The file_path parameter must be an absolute path, not a relative path
-- You MUST specify both offset and limit parameters for all file reads
-- offset: the 1-based line number to start reading from (use 1 to start from beginning)
-- limit: the maximum number of lines to read (use 1000+ for full files, 200-500 for sections)
-- Results are returned using cat -n format, with line numbers starting at 1
-- This tool allows reading images (eg PNG, JPG, etc). When reading an image file the contents are presented visually.
-- This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.
-- This tool can only read files, not directories. To read a directory, use an ls command via the bash tool.
-- You will regularly be asked to read screenshots. If the user provides a path to a screenshot, ALWAYS use this tool to view the file at the path. This tool will work with all temporary file paths.
-- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents."""
+**USAGE:**
+```json
+{
+  "files": [
+    {"file_path": "/path/to/file.py", "offset": 1, "limit": 100},
+    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 50}
+  ]
+}
+```
+
+**PARAMETERS:**
+- `files`: Array of file objects (required)
+  - `file_path`: Absolute path to the file to read (required)
+  - `offset`: 1-based line number to start reading from (default: 1)
+  - `limit`: Maximum number of lines to read (default: all lines, max 2000)
+- `encoding`: Character encoding for reading files (default: utf-8)
+
+**BEHAVIOR:**
+- Returns concatenated content with `--- {file_path} ---` separators
+- Files are read in parallel for performance
+- Each file respects individual offset/limit settings
+- Read errors for individual files are reported but don't fail the entire operation"""
+
     input_schema = {
         "type": "object",
         "properties": {
-            "filePath": {
-                "type": "string",
-                "description": "The absolute path of the file to read",
-                "minLength": 1
-            },
-            "offset": {
-                "type": "integer",
-                "description": "The 1-based line number to start reading from. Required for all file reads.",
-                "minimum": 1
-            },
-            "limit": {
-                "type": "integer",
-                "description": "The maximum number of lines to read. Required for all file reads.",
-                "minimum": 1
+            "files": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Absolute path to the file to read"
+                        },
+                        "offset": {
+                            "type": "integer",
+                            "description": "1-based line number to start reading from (default: 1)",
+                            "minimum": 1
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of lines to read (default: all lines, max 2000)",
+                            "minimum": 1
+                        }
+                    },
+                    "required": ["file_path"]
+                },
+                "minItems": 1,
+                "description": "Array of file objects with file_path, offset (optional), and limit (optional)"
             },
             "encoding": {
                 "type": "string",
-                "description": "Character encoding for reading the file",
+                "description": "Character encoding for reading files",
                 "default": "utf-8",
                 "examples": ["utf-8", "latin-1", "ascii"]
             }
         },
-        "required": ["filePath", "offset", "limit"]
+        "required": ["files"]
     }
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file read operation with granular checks"""
-        file_path = args.get("filePath")
+        files = args.get("files", [])
+        if files and isinstance(files, list) and len(files) > 0:
+            first_file = files[0]
+            file_path = first_file.get("file_path") if isinstance(first_file, dict) else None
+        else:
+            file_path = None
+        
         if not file_path:
             return None
 
@@ -88,104 +116,111 @@ Usage:
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            file_path = getattr(input_data, "filePath", None)
-            offset = getattr(input_data, "offset", None)
-            limit = getattr(input_data, "limit", None)
+            files = getattr(input_data, "files", None)
             encoding = getattr(input_data, "encoding", "utf-8")
-
-            if not isinstance(file_path, str) or not file_path:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Invalid file path: file_path parameter must be a non-empty string. Please provide a valid absolute file path."
-                )
-
-            if offset is None:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Missing required parameter: offset is required. Please provide the 1-based line number to start reading from (use 1 to start from beginning)."
-                )
-
-            if not isinstance(offset, int) or offset < 1:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Invalid offset: offset parameter must be a positive integer (1-based line number). Please provide a valid line number to start reading from."
-                )
-
-            if limit is None:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Missing required parameter: limit is required. Please provide the maximum number of lines to read."
-                )
-
-            if not isinstance(limit, int) or limit < 1:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Invalid limit: limit parameter must be a positive integer. Please provide a valid maximum number of lines to read."
-                )
-
+            
+            # Normalize encoding
             if not isinstance(encoding, str):
                 encoding = "utf-8"
 
-            if not os.path.exists(file_path):
+            if not files or not isinstance(files, list) or len(files) == 0:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"File not found: {file_path}. Please verify the file path is correct and the file exists. Use list_directory or glob to find the correct file path."
+                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path'. Each file object can optionally include 'offset' and 'limit'."
                 )
 
-            async with aiofiles.open(file_path, encoding=encoding) as f:
-                lines = await f.readlines()
-                total_lines = len(lines)
-
-                # Apply offset and limit (1-indexed to 0-indexed)
-                start_idx = (offset - 1) if offset is not None else 0
-                if limit is not None:
-                    end_idx = start_idx + limit
-                else:
-                    end_idx = len(lines)
-
-                # Truncate at 2000 lines like Copilot Chat
-                if end_idx - start_idx > 2000:
-                    end_idx = start_idx + 2000
-
-                # Ensure indices are within bounds
-                start_idx = max(0, min(start_idx, total_lines))
-                end_idx = max(0, min(end_idx, total_lines))
-
-                content = "".join(lines[start_idx:end_idx])
-
-                metadata = {
-                    "filePath": file_path,
-                    "size": len(content),
-                    "total_lines": total_lines,
-                    "lines_returned": end_idx - start_idx
-                }
-
-                if offset is not None:
-                    metadata["offset"] = offset
-                if limit is not None:
-                    metadata["limit"] = limit
-                if end_idx < total_lines:
-                    metadata["truncated"] = True
-
-            return ToolOutput(
-                success=True,
-                result=content,
-                metadata=metadata
-            )
+            return await self._execute_files_array(files, encoding)
 
         except Exception as e:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Failed to read file: {str(e)}. Please check if the file exists, you have permission to read it, and the path is correct. Use list_directory to verify the file location."
+                error=f"Failed to read files: {str(e)}. Please check if the files exist, you have permission to read them, and the paths are correct."
             )
 
+    async def _execute_files_array(self, files: list, encoding: str) -> ToolOutput:
+        """Execute reading multiple files with individual options (similar to edit's replacements array)"""
+        import asyncio
+
+        processed_files = []
+        skipped_files = []
+        contents = []
+
+        async def read_single_file(file_obj, index: int) -> tuple | None:
+            try:
+                fp = file_obj.get("file_path") if isinstance(file_obj, dict) else file_obj
+                off = file_obj.get("offset") if isinstance(file_obj, dict) else None
+                lim = file_obj.get("limit") if isinstance(file_obj, dict) else None
+
+                if not isinstance(fp, str) or not fp:
+                    return (None, None, f"File {index + 1}: Missing or invalid file_path", None, None)
+
+                if not os.path.exists(fp):
+                    return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
+
+                async with aiofiles.open(fp, encoding=encoding) as f:
+                    lines = await f.readlines()
+                total_lines = len(lines)
+
+                # Apply offset (default 1) and limit
+                start_idx = (off - 1) if off is not None and isinstance(off, int) and off > 0 else 0
+                if lim is not None:
+                    if not isinstance(lim, int) or lim < 1:
+                        lim = 100
+                    end_idx = start_idx + lim
+                else:
+                    end_idx = total_lines
+
+                # Truncate at 2000 lines
+                if end_idx - start_idx > 2000:
+                    end_idx = start_idx + 2000
+
+                start_idx = max(0, min(start_idx, total_lines))
+                end_idx = max(0, min(end_idx, total_lines))
+
+                content = "".join(lines[start_idx:end_idx])
+
+                return (fp, content, None, start_idx + 1, end_idx - start_idx)
+            except Exception as e:
+                return (None, None, f"File {index + 1}: {str(e)}", None, None)
+
+        # Run all reads in parallel
+        results = await asyncio.gather(*[read_single_file(f, i) for i, f in enumerate(files)])
+
+        for result in results:
+            if result is None:
+                continue
+            file_path, content, error, offset_used, lines_returned = result
+            if content is not None:
+                contents.append(f"--- {file_path} ---\n{content}")
+                processed_files.append({"file": file_path, "offset": offset_used, "lines": lines_returned})
+            if error:
+                skipped_files.append({"path": file_path or "unknown", "reason": error})
+
+        if not contents:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"No files could be read. Skipped files: {skipped_files}"
+            )
+
+        concatenated = "\n".join(contents)
+        metadata = {
+            "processed_files": processed_files,
+            "skipped_files": skipped_files,
+            "total_files_processed": len(processed_files),
+            "total_files_skipped": len(skipped_files),
+        }
+
+        return ToolOutput(
+            success=True,
+            result=concatenated,
+            metadata=metadata
+        )
+
+    
+    
 
 class FileWriteTool(BaseTool):
     """Tool for writing content to files (OpenClaude style)"""

@@ -14,7 +14,7 @@ from textual.scroll_view import ScrollView
 from textual.strip import Strip
 from textual.widgets import Static
 
-from interface.textual_ui.cli_adapters import LogEntry, LogReader, decode_log_message
+from interface.textual_ui.cli_adapters import LogEntry as LogEntryData, LogReader, decode_log_message
 
 LOG_LEVEL_COLORS: dict[str, str] = {
     "DEBUG": "dim",
@@ -204,11 +204,11 @@ class DebugConsole(Vertical):
         if self._log_view is None:
             return
         result = self._log_reader.get_logs(
-            limit=self._page_size, offset=self._cursor or 0
+            n=self._page_size, offset=0
         )
-        self._cursor = result.cursor
-        self._has_more = result.has_more
-        markups = [self._format_entry(e) for e in reversed(result.entries)]
+        self._cursor = 0
+        self._has_more = len(result) >= self._page_size
+        markups = [self._format_entry(e) for e in reversed(result)]
         self._log_view.prepend_lines(markups)
 
     def _fill_viewport(self) -> None:
@@ -226,18 +226,18 @@ class DebugConsole(Vertical):
         else:
             self._log_view.scroll_end(animate=False)
 
-    def _on_log_entry(self, entry: LogEntry) -> None:
+    def _on_log_entry(self, entry: LogEntryData) -> None:
         self.app.call_from_thread(self._append_log_entry, entry)
 
-    def _append_log_entry(self, entry: LogEntry) -> None:
+    def _append_log_entry(self, entry: LogEntryData) -> None:
         if self._log_view is None:
             return
         self._log_view.write_line(self._format_entry(entry))
 
     @staticmethod
-    def _format_entry(entry: LogEntry) -> str:
+    def _format_entry(entry: LogEntryData) -> str:
         color = LOG_LEVEL_COLORS.get(entry.level, "dim")
-        ts = entry.timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        ts = entry.timestamp if isinstance(entry.timestamp, str) else entry.timestamp
         message = decode_log_message(entry.message)
         safe_message = escape(message)
         return f"[dim]{ts}[/dim] [{color}]{entry.level:<8}[/{color}] {safe_message}"

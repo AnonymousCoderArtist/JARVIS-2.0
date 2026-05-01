@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, TypeAlias, TYPE_CHECKING
 
@@ -16,11 +17,23 @@ if TYPE_CHECKING:
 # Type aliases
 MetadataDict: TypeAlias = dict[str, Any]
 ToolDefDict: TypeAlias = dict[str, Any]
+ToolArgs: TypeAlias = dict[str, Any]
 
 
 class ToolInput(BaseModel):
     """Base model for tool inputs"""
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+
+    # Common file tool fields
+    filePath: str | None = None
+    filePaths: list[str] | None = None
+    files: list[Any] | None = None
+    offset: int | None = None
+    limit: int | None = None
+    encoding: str = "utf-8"
+    exclude: list[str] | None = None
+    use_default_excludes: bool = True
+    file_filtering_options: dict[str, Any] | None = None
 
 
 class ToolOutput(BaseModel):
@@ -68,7 +81,52 @@ class BaseTool(ABC):
         """
         pass
 
-    def validate_input(self, input_data: dict[str, Any]) -> bool:
+    async def execute_async(self, input_data: ToolInput, timeout: float | None = None) -> ToolOutput:
+        """
+        Execute the tool asynchronously with optional timeout
+
+        This method can be overridden by tools that need special async handling,
+        such as running sync code in an executor.
+
+        Args:
+            input_data: ToolInput instance with tool parameters
+            timeout: Optional timeout in seconds
+
+        Returns:
+            ToolOutput with execution results
+        """
+        # Default implementation: call the async execute method with timeout
+        if timeout is not None:
+            try:
+                return await asyncio.wait_for(self.execute(input_data), timeout=timeout)
+            except asyncio.TimeoutError:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=f"Tool execution timed out after {timeout}s"
+                )
+        return await self.execute(input_data)
+
+    async def execute_sync_in_executor(self, input_data: ToolInput, timeout: float | None = None) -> ToolOutput:
+        """
+        Execute the tool's sync version in an executor (for CPU-bound or blocking I/O)
+
+        This is a helper method for tools that have blocking operations that should
+        be run in a thread pool to avoid blocking the event loop.
+        Tools should override execute_sync() if they have a sync implementation.
+
+        Args:
+            input_data: ToolInput instance with tool parameters
+            timeout: Optional timeout in seconds
+
+        Returns:
+            ToolOutput with execution results
+        """
+        # Default: just call the async version
+        # Tools with blocking operations should override this and use run_in_executor
+        return await self.execute_async(input_data, timeout)
+
+    def validate_input(self, input_data: ToolArgs) -> bool:
         """
         Validate input data against the tool's schema
 
@@ -100,7 +158,7 @@ class BaseTool(ABC):
             },
         }
 
-    async def safe_execute(self, input_data: dict[str, Any]) -> ToolOutput:
+    async def safe_execute(self, input_data: ToolArgs) -> ToolOutput:
         """
         Safely execute the tool with error handling
 
@@ -128,7 +186,7 @@ class BaseTool(ABC):
                 error=f"Tool execution failed: {str(e)}",
             )
 
-    def resolve_permission(self, args: dict[str, Any]) -> PermissionContext | None:
+    def resolve_permission(self, args: ToolArgs) -> PermissionContext | None:
         """
         Resolve permission requirements for this tool execution
 
@@ -141,7 +199,7 @@ class BaseTool(ABC):
         # Default implementation - tools can override for custom permission logic
         return None
 
-    def get_file_snapshot(self, args: dict[str, Any]) -> dict[str, Any] | None:
+    def get_file_snapshot(self, args: ToolArgs) -> dict[str, Any] | None:
         """
         Get a snapshot of files that will be modified by this tool
 

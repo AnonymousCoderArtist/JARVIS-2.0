@@ -174,10 +174,8 @@ class ActivateSkillTool(BaseTool):
                 )
 
             # Store skill content in the tool registry's context for the agent to access
-            if self.tool_registry:
-                if not hasattr(self.tool_registry, 'active_skills'):
-                    self.tool_registry.active_skills = {}
-                self.tool_registry.active_skills[skill_name] = content
+            if self.tool_registry and hasattr(self.tool_registry, 'active_skills'):
+                self.tool_registry.active_skills[skill_name] = content or ""
 
             return ToolOutput(
                 success=True,

@@ -33,6 +33,7 @@ class Banner(Static):
         self,
         config: Settings,
         skill_manager: SkillManagerAdapter,
+        model: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -42,6 +43,7 @@ class Banner(Static):
             skill_manager=skill_manager,
             connectors_count=0,
             plan_description="",
+            model=model,
         )
         self._animated = True
 
@@ -53,7 +55,7 @@ class Banner(Static):
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("JARVIS Agent", id="banner-brand")
                     yield NoMarkupStatic(" ", classes="banner-spacer")
-                    yield NoMarkupStatic(f"v{self._initial_state.active_model.split()[0]} · ", classes="banner-meta")
+                    yield NoMarkupStatic(f"{self._initial_state.active_model.split()[0]} · ", classes="banner-meta")
                     yield NoMarkupStatic("", id="banner-model")
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("", id="banner-meta-counts")
@@ -84,9 +86,10 @@ class Banner(Static):
         mcp_registry: Any = None,
         connectors_count: int = 0,
         plan_description: str = "",
+        model: str | None = None,
     ) -> None:
         self.state = self._build_state(
-            config, skill_manager, connectors_count, plan_description
+            config, skill_manager, connectors_count, plan_description, model
         )
 
     @staticmethod
@@ -95,10 +98,15 @@ class Banner(Static):
         skill_manager: SkillManagerAdapter,
         connectors_count: int = 0,
         plan_description: str = "",
+        model: str | None = None,
     ) -> BannerState:
-        model_name = getattr(config, "model", "gpt-4o")
-        if not isinstance(model_name, str):
-            model_name = config.get("model", "selected", {}).get("id", "gpt-4o")
+        # Use provided model or try to get from config
+        if model:
+            model_name = model
+        else:
+            model_name = getattr(config, "model", "gpt-4o")
+            if not isinstance(model_name, str):
+                model_name = config.get("model", "selected", {}).get("id", "gpt-4o")
 
         return BannerState(
             active_model=f"{model_name}",

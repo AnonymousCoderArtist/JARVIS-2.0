@@ -25,6 +25,7 @@ from interface.textual_ui.cli_adapters import (
 
 if TYPE_CHECKING:
     from interface.textual_ui.cli_adapters import MCPServer, ToolManager
+    from interface.textual_ui.agent_loop import ToolManagerAdapter
 
 
 class MCPSourceKind(StrEnum):
@@ -40,7 +41,7 @@ class MCPToolIndex(NamedTuple):
 
 def collect_mcp_tool_index(
     mcp_servers: Sequence[MCPServer],
-    tool_manager: ToolManager,
+    tool_manager: ToolManager | ToolManagerAdapter,
     connector_names: Sequence[str] = (),
 ) -> MCPToolIndex:
     registered = tool_manager.registered_tools
@@ -50,13 +51,13 @@ def collect_mcp_tool_index(
     server_tools: dict[str, list[tuple[str, type[MCPTool]]]] = {}
     connector_tools: dict[str, list[tuple[str, type[MCPTool]]]] = {}
 
-    for tool_name, cls in registered.items():
+    for tool_name, cls in list(registered.items()):
         if not issubclass(cls, MCPTool):
             continue
         server_name = cls.get_server_name()
         if server_name is None:
             continue
-        if cls.is_connector() and server_name in connector_set:
+        if cls.is_connector() and connector_set and server_name in connector_set:
             connector_tools.setdefault(server_name, []).append((tool_name, cls))
         elif server_name in configured_servers:
             server_tools.setdefault(server_name, []).append((tool_name, cls))
@@ -111,7 +112,7 @@ class MCPApp(Container):
             self,
             connector_name: str,
             connector_registry: ConnectorRegistry,
-            tool_manager: ToolManager,
+            tool_manager: ToolManager | ToolManagerAdapter,
         ) -> None:
             super().__init__()
             self.connector_name = connector_name
@@ -121,24 +122,24 @@ class MCPApp(Container):
     def __init__(
         self,
         mcp_servers: Sequence[MCPServer],
-        tool_manager: ToolManager,
+        tool_manager: ToolManager | ToolManagerAdapter,
         initial_server: str = "",
         connector_registry: ConnectorRegistry | None = None,
         get_connector_configs: Callable[[], list[ConnectorConfig]] | None = None,
         refresh_callback: Callable[[], Awaitable[str]] | None = None,
     ) -> None:
         super().__init__(id="mcp-app")
-        self._mcp_servers = mcp_servers
+        self._mcp_servers: Sequence[MCPServer] = mcp_servers
         self._connector_registry = connector_registry
         self._get_connector_configs = get_connector_configs or (lambda: [])
         connector_names = (
             connector_registry.get_connector_names() if connector_registry else []
         )
-        self._connector_names = connector_names
+        self._connector_names: list[str] = connector_names
         self._sorted_connector_names = _sort_connector_names_for_menu(
             connector_names, connector_registry
         )
-        self._tool_manager = tool_manager
+        self._tool_manager: ToolManager | ToolManagerAdapter = tool_manager
         self._index = collect_mcp_tool_index(mcp_servers, tool_manager, connector_names)
         # Track both the name and the kind to disambiguate entries that
         # share the same normalised name.
@@ -321,7 +322,7 @@ class MCPApp(Container):
             for srv in self._mcp_servers:
                 if srv.name == server_name:
                     srv.disabled_tools = updated_tool_list(
-                        srv.disabled_tools, remote_name, disabled
+                        srv.disabled_tools or [], remote_name, disabled
                     )
                     break
         else:
@@ -333,7 +334,7 @@ class MCPApp(Container):
                 self._get_connector_configs().append(cfg)
             else:
                 cfg.disabled_tools = updated_tool_list(
-                    cfg.disabled_tools, remote_name, disabled
+                    cfg.disabled_tools or [], remote_name, disabled
                 )
 
         self.post_message(
@@ -393,8 +394,8 @@ class MCPApp(Container):
         option_list = self.query_one(OptionList)
         option_list.clear_options()
 
-        server_names = {s.name for s in self._mcp_servers}
-        all_names = server_names | set(self._connector_names)
+        server_names: set[str] = {s.name for s in self._mcp_servers if s.name}
+        all_names: set[str] = server_names | set(self._connector_names or [])
         if server_name is None or server_name not in all_names:
             self._show_list_view(option_list, index)
             return
@@ -462,8 +463,8 @@ class MCPApp(Container):
             option_list.add_option(Option(label, id=f"server:{srv.name}"))
 
     def _list_connectors(self, option_list: OptionList, index: MCPToolIndex) -> None:
-        ordered_connector_names = self._sorted_connector_names
-        max_name = max(len(n) for n in ordered_connector_names)
+        ordered_connector_names: list[str] = self._sorted_connector_names or []
+        max_name: int = max((len(n) for n in ordered_connector_names), default=0)
         type_tag = "[connector]"
         type_width = len(type_tag)
         tool_texts: dict[str, str] = {}
@@ -472,7 +473,7 @@ class MCPApp(Container):
             total = len(tools)
             enabled = sum(1 for t, _ in tools if t in index.enabled_tools)
             tool_texts[n] = _tool_count_text(enabled, total)
-        max_tools = max(len(t) for t in tool_texts.values())
+        max_tools: int = max((len(t) for t in tool_texts.values()), default=0)
         option_list.add_option(
             Option(
                 Text("Workspace Connectors", style="bold", no_wrap=True), disabled=True
@@ -575,10 +576,8 @@ def _tool_count_text(enabled: int, total: int | None = None) -> str:
 def _sort_connector_names_for_menu(
     connector_names: Sequence[str], connector_registry: ConnectorRegistry | None
 ) -> list[str]:
-    return sorted(
-        connector_names,
-        key=lambda name: (
-            not connector_registry.is_connected(name) if connector_registry else True,
-            name.lower(),
-        ),
-    )
+    def _sort_key(name: str) -> tuple[bool, str]:
+        is_connected = connector_registry.is_connected(name) if connector_registry else False
+        return (not is_connected, name.lower() if name else "")
+
+    return sorted(connector_names, key=_sort_key)

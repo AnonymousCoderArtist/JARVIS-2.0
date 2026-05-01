@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from enum import StrEnum, auto
+from enum import Enum
 from typing import Protocol
 
 
-class NotificationContext(StrEnum):
-    ACTION_REQUIRED = auto()
-    COMPLETE = auto()
+class NotificationContext(str, Enum):
+    ACTION_REQUIRED = "action_required"
+    COMPLETE = "complete"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class NotificationPort(Protocol):

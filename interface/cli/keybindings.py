@@ -5,6 +5,7 @@ from prompt_toolkit import Application
 from prompt_toolkit.key_binding import KeyBindings, ConditionalKeyBindings
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.keys import Keys
+from prompt_toolkit.application import Application as App
 
 from .config import ConfigManager
 from .display import DisplayManager
@@ -205,40 +206,40 @@ class ViKeyBindings:
             event.app.vi_state.input_mode = "navigation"
         
         # Navigation
-        @bindings.add("h", filter=Condition(lambda app: app.vi_state.input_mode == "navigation"))
+        @bindings.add("h")
         def _(event):
             """Move left."""
             event.app.current_buffer.cursor_left()
-        
-        @bindings.add("l", filter=Condition(lambda app: app.vi_state.input_mode == "navigation"))
+
+        @bindings.add("l")
         def _(event):
             """Move right."""
             event.app.current_buffer.cursor_right()
-        
-        @bindings.add("j", filter=Condition(lambda app: app.vi_state.input_mode == "navigation"))
+
+        @bindings.add("j")
         def _(event):
             """Move down."""
             event.app.current_buffer.cursor_down()
-        
-        @bindings.add("k", filter=Condition(lambda app: app.vi_state.input_mode == "navigation"))
+
+        @bindings.add("k")
         def _(event):
             """Move up."""
             event.app.current_buffer.cursor_up()
-        
+
         # Insert mode
-        @bindings.add("i", filter=Condition(lambda app: app.vi_state.input_mode == "navigation"))
+        @bindings.add("i")
         def _(event):
             """Enter insert mode."""
             event.app.vi_state.input_mode = "insert"
-        
-        @bindings.add("a", filter=Condition(lambda app: app.vi_state.input_mode == "navigation"))
+
+        @bindings.add("a")
         def _(event):
             """Append after cursor."""
             event.app.vi_state.input_mode = "insert"
             event.app.current_buffer.cursor_right()
-        
+
         # Commands
-        @bindings.add(":", filter=Condition(lambda app: app.vi_state.input_mode == "navigation"))
+        @bindings.add(":")
         def _(event):
             """Enter command mode."""
             event.app.current_buffer.insert_text(":")
@@ -328,11 +329,9 @@ def create_key_bindings(config_manager: ConfigManager, display_manager: DisplayM
     mode = config_manager.config.keybindings.mode.lower()
     
     if mode == "vi":
-        vi_bindings = ViKeyBindings.create_vi_bindings()
-        return ConditionalKeyBindings(vi_bindings, Condition(lambda app: True))
+        return ViKeyBindings.create_vi_bindings()
     elif mode == "emacs":
-        emacs_bindings = EmacsKeyBindings.create_emacs_bindings()
-        return ConditionalKeyBindings(emacs_bindings, Condition(lambda app: True))
+        return EmacsKeyBindings.create_emacs_bindings()
     else:
         # Default/custom bindings
         return manager.get_key_bindings()

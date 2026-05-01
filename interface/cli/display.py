@@ -137,10 +137,12 @@ class DisplayManager:
         table = Table(title="Commands", show_header=True, header_style="bold cyan")
         table.add_column("Command", style="cyan", width=15)
         table.add_column("Description", style="white", width=40)
-        
+
         commands = [
             ("/help", "Show this help"),
             ("/status", "Show system status"),
+            ("/themes", "List available UI themes"),
+            ("/theme <name>", "Switch to a different theme"),
             ("/trust [path]", "Trust a folder for this session and future runs"),
             ("/untrust [path]", "Mark a folder as untrusted"),
             ("/trust-status [path]", "Show trust-folder status"),
@@ -148,10 +150,10 @@ class DisplayManager:
             ("/exit", "Exit JARVIS"),
             ("! <cmd>", "Run shell command"),
         ]
-        
+
         for cmd, desc in commands:
             table.add_row(cmd, desc)
-        
+
         self.console.print(table)
         self.console.print("\nJust type your message and press Enter to chat with JARVIS.\n")
     
@@ -319,6 +321,53 @@ Tools:    {tool_count}
             self.cprint(f"Recent memory items (last {count})", style="cyan")
             # Note: Actual memory display would be implemented with agent memory access
             self.cprint("(Memory items would be displayed here)", style="dim")
+
+    def show_themes(self, themes: dict, current_theme: str):
+        """Display available themes with color previews."""
+        from rich.table import Table
+
+        table = Table(title="Available Themes", show_header=True, header_style="bold cyan")
+        table.add_column("Theme", style="cyan", width=15)
+        table.add_column("Colors", style="white", width=50)
+        table.add_column("Status", style="white", width=10)
+
+        for theme_name, theme_config in themes.items():
+            # Get colors dict from ThemeConfig or use defaults
+            colors = getattr(theme_config, 'colors', theme_config) if isinstance(theme_config, dict) else theme_config.colors
+
+            # Create color preview strings
+            color_samples = []
+            for color_key in ['primary', 'secondary', 'success', 'error', 'warning', 'info']:
+                color_val = colors.get(color_key, '#ffffff')
+                color_samples.append(f"[{color_val}]{'█' * 2}[/]")
+
+            color_preview = " ".join(color_samples)
+            status = "active" if theme_name == current_theme else ""
+
+            table.add_row(theme_name, color_preview, status)
+
+        self.console.print(table)
+
+    def set_theme(self, theme_name: str, themes: dict | None = None):
+        """Update the active theme at runtime."""
+        if themes and theme_name in themes:
+            # Handle both dict format themes and ThemeConfig objects
+            theme_data = themes[theme_name]
+            if hasattr(theme_data, 'colors'):
+                self.theme = theme_data.colors
+            else:
+                self.theme = theme_data
+            self.theme_name = theme_name
+        elif theme_name == "dark":
+            self.theme = Theme.DARK_THEME
+            self.theme_name = "dark"
+        elif theme_name == "light":
+            self.theme = Theme.LIGHT_THEME
+            self.theme_name = "light"
+        else:
+            # Fallback to dark theme
+            self.theme = Theme.DARK_THEME
+            self.theme_name = "dark"
 
 
 class StreamingResponse:

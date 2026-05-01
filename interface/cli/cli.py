@@ -12,10 +12,15 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.output import DummyOutput
-from pygments.lexers import PythonLexer, BashLexer, MarkdownLexer
+from prompt_toolkit.application import get_app
+from prompt_toolkit.formatted_text import HTML
+from pygments.lexers.python import PythonLexer
+from pygments.lexers.shell import BashLexer
+from pygments.lexers.markup import MarkdownLexer
 
 from core.agents.coding_agent import CodingAgent
 from core.agents.manager import AgentManager
+from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.config.settings import Settings
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
@@ -29,6 +34,7 @@ from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDir
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool, ReadMemoryTool
 from core.tools.registry import ToolRegistry
+from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool
 
@@ -114,7 +120,7 @@ class CLIInterface:
         self.apikey = apikey
         self.sdk = sdk
         self.bypass = bypass
-        self.tool_registry = ToolRegistry()
+        self.tool_registry = AsyncToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
         self._current_provider = None
 
@@ -207,13 +213,26 @@ class CLIInterface:
         )
         self.skill_manager = SkillManager()
 
-        # Create agent with profile config getter
+        # Initialize async agent manager for concurrent operations (optional)
+        settings = Settings()
+        async_config = AsyncAgentConfig(
+            max_concurrent_agents=settings.max_concurrent_agents,
+            max_concurrent_tools=settings.max_concurrent_tools,
+            default_timeout=settings.default_timeout,
+            enable_background_tasks=settings.enable_background_tasks,
+            resource_monitoring=settings.resource_monitoring,
+            progress_updates=settings.progress_updates
+        )
+        self.async_agent_manager = AsyncAgentManager(async_config)
+
+        # Create agent with profile config getter and concurrent tools enabled
         self.jarvis_agent = CodingAgent(
             provider,
             self.tool_registry,
             model=self.model,
             config_getter=lambda: self.agent_manager.config,
-            bypass_tool_permissions=self.bypass
+            bypass_tool_permissions=self.bypass,
+            use_concurrent_tools=True
         )
 
         # Set bypass mode on agent
@@ -232,7 +251,7 @@ class CLIInterface:
         self.command_handler.update_status_info(
             model=self.model,
             sdk=self.sdk,
-            base_url=self.base_url,
+            base_url=self.base_url or "",
             tool_count=len(self.tool_registry.list_tools())
         )
 
@@ -241,7 +260,7 @@ class CLIInterface:
         self.display_manager.show_banner(
             model=self.model,
             sdk=self.sdk,
-            base_url=self.base_url,
+            base_url=self.base_url or "",
             tool_count=len(self.tool_registry.list_tools())
         )
     
@@ -319,10 +338,7 @@ class CLIInterface:
         while True:
             try:
                 # Use prompt_toolkit with advanced features
-                prompt_msg = [
-                    ('class:prompt', 'YOU '),
-                    ('class:arrow', '> '),
-                ]
+                prompt_msg = HTML("<b><ansiblue>YOU </ansiblue><ansired>> </ansired></b>")
 
                 # Use completer (removed lexer to fix display issues)
                 user_input = await self.session.prompt_async(
@@ -358,4 +374,4 @@ async def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | N
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

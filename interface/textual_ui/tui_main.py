@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core.agents.coding_agent import CodingAgent
+from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
@@ -19,6 +20,7 @@ from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDir
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool
 from core.tools.registry import ToolRegistry
+from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool
 
@@ -114,9 +116,9 @@ def get_env_config() -> dict[str, str | None]:
     }
 
 
-def create_tool_registry() -> ToolRegistry:
+def create_tool_registry() -> AsyncToolRegistry:
     """Create and configure tool registry with all JARVIS tools."""
-    tool_registry = ToolRegistry()
+    tool_registry = AsyncToolRegistry()
     
     # Register file operations
     tool_registry.register(FileReadTool())
@@ -161,7 +163,7 @@ def create_sdk_instance(sdk: str, api_key: str | None, base_url: str | None) -> 
         return OpenAISDK(api_key=api_key or "", base_url=base_url)
 
 
-def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai") -> None:
+def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = False) -> None:
     """Main TUI entry point with enhanced JARVIS core integration."""
     # Get environment config as fallback
     env_config = get_env_config()
@@ -202,12 +204,24 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         initial_agent="default"
     )
 
-    # Create JARVIS agent with full core integration and profile config getter
+    # Initialize async agent manager for concurrent operations (optional)
+    async_config = AsyncAgentConfig(
+        max_concurrent_agents=settings.max_concurrent_agents,
+        max_concurrent_tools=settings.max_concurrent_tools,
+        default_timeout=settings.default_timeout,
+        enable_background_tasks=settings.enable_background_tasks,
+        resource_monitoring=settings.resource_monitoring,
+        progress_updates=settings.progress_updates
+    )
+    async_agent_manager = AsyncAgentManager(async_config)
+
+    # Create JARVIS agent with full core integration, profile config getter, and concurrent tools enabled
     jarvis_agent = CodingAgent(
         provider,
         tool_registry,
         model=model,
-        config_getter=lambda: agent_manager.config
+        config_getter=lambda: agent_manager.config,
+        use_concurrent_tools=True
     )
     
     # Rebuild system prompt with dynamic tool descriptions
@@ -225,7 +239,7 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
     from interface.textual_ui.agent_loop import AgentLoop
     agent_loop = AgentLoop(
         agent=jarvis_agent,
-        config=config,
+        config=settings,
         tool_registry=tool_registry,
         agent_manager=agent_manager
     )

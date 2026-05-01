@@ -10,8 +10,8 @@ class CodingAgent(BaseAgent):
 
     SYSTEM_PROMPT = JARVIS_SYSTEM_PROMPT
 
-    def __init__(self, llm_provider, tool_registry, model: str | None = None, config_getter=None):
-        super().__init__(llm_provider, tool_registry, self.SYSTEM_PROMPT, model, config_getter)
+    def __init__(self, llm_provider, tool_registry, model: str | None = None, config_getter=None, bypass_tool_permissions: bool = False, use_concurrent_tools: bool = True):
+        super().__init__(llm_provider, tool_registry, self.SYSTEM_PROMPT, model, config_getter, bypass_tool_permissions, use_concurrent_tools)
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()
 

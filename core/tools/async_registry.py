@@ -18,13 +18,14 @@ class AsyncToolRegistry(ToolRegistry):
         self.max_concurrent_tools = max_concurrent_tools
         self.semaphore = asyncio.Semaphore(max_concurrent_tools)
 
-    async def execute_tool_async(self, name: str, input_data: dict) -> ToolOutput:
+    async def execute_tool_async(self, name: str, input_data: dict, timeout: float | None = None) -> ToolOutput:
         """
         Execute a tool asynchronously with semaphore control
 
         Args:
             name: Tool name
             input_data: Input parameters dictionary
+            timeout: Optional timeout in seconds
 
         Returns:
             ToolOutput with execution results
@@ -38,7 +39,12 @@ class AsyncToolRegistry(ToolRegistry):
                     error=f"Tool '{name}' not found",
                 )
 
-            return await tool.safe_execute(input_data)
+            # Use execute_async with timeout if available
+            if hasattr(tool, 'execute_async'):
+                return await tool.execute_async(ToolInput(**input_data), timeout=timeout)
+            else:
+                # Fallback to safe_execute
+                return await tool.safe_execute(input_data)
 
     async def execute_tools_concurrent(
         self,

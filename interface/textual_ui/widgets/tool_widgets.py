@@ -82,9 +82,17 @@ class ToolApprovalWidget[TArgs: BaseModel](Vertical):
     def compose(self) -> ComposeResult:
         MAX_MSG_SIZE = 150
         model_cls = type(self.args)
-        field_names = model_cls.model_fields or self.args.model_extra or {}
+        
+        # Handle both BaseModel and plain dict args
+        if isinstance(self.args, BaseModel):
+            field_names = model_cls.model_fields or {}
+        elif isinstance(self.args, dict):
+            field_names = self.args.keys()
+        else:
+            field_names = {}
+        
         for field_name in field_names:
-            value = getattr(self.args, field_name, None)
+            value = getattr(self.args, field_name, None) if not isinstance(self.args, dict) else self.args.get(field_name)
             if value is None or value in ("", []):
                 continue
             value_str = str(value)
@@ -123,12 +131,21 @@ class ToolResultWidget[TResult: BaseModel](Static):
     def compose(self) -> ComposeResult:
         """Default: show result fields."""
         if not self.collapsed and self.result:
-            for field_name in type(self.result).model_fields:
-                value = getattr(self.result, field_name)
-                if value is not None and value not in ("", []):
-                    yield NoMarkupStatic(
-                        f"{field_name}: {value}", classes="tool-result-detail"
-                    )
+            # Handle both BaseModel and plain dict results
+            if isinstance(self.result, BaseModel):
+                field_names = type(self.result).model_fields or {}
+                for field_name in field_names:
+                    value = getattr(self.result, field_name)
+                    if value is not None and value not in ("", []):
+                        yield NoMarkupStatic(
+                            f"{field_name}: {value}", classes="tool-result-detail"
+                        )
+            elif isinstance(self.result, dict):
+                for field_name, value in self.result.items():
+                    if value is not None and value not in ("", []):
+                        yield NoMarkupStatic(
+                            f"{field_name}: {value}", classes="tool-result-detail"
+                        )
         yield from self._footer()
 
 

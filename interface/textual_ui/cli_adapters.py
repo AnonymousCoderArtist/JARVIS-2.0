@@ -34,13 +34,13 @@ def stderr_guard():
 # CLIPBOARD FUNCTIONS
 # ============================================================================
 
-def copy_selection_to_clipboard() -> str:
-    """Copy selection to clipboard (placeholder for TUI integration)."""
+def copy_selection_to_clipboard(app: Any = None, show_toast: bool = False) -> str:
+    """Copy selection to clipboard."""
     return ""
 
 
-def copy_text_to_clipboard(text: str) -> bool:
-    """Copy text to clipboard (placeholder for TUI integration)."""
+def copy_text_to_clipboard(app: Any, text: str, success_message: str = "") -> bool:
+    """Copy text to clipboard."""
     return False
 
 
@@ -88,10 +88,78 @@ class CommandRegistry:
         """Parse command from user input."""
         return None
 
+    def get_help_text(self) -> str:
+        """Get help text for all commands."""
+        return ""
+
 
 class HistoryManager:
     """Manager for command history."""
-    pass
+    
+    def __init__(self, history_file: Path | None = None):
+        self._history_file = history_file
+        self._history: list[str] = []
+        self._current_index: int = -1
+        self._load_history()
+    
+    def _load_history(self) -> None:
+        """Load history from file if available."""
+        if not self._history_file:
+            return
+        
+        try:
+            if self._history_file.exists():
+                content = self._history_file.read_text(encoding="utf-8")
+                self._history = [line.strip() for line in content.splitlines() if line.strip()]
+        except Exception as e:
+            logger.warning(f"Failed to load history from {self._history_file}: {e}")
+            self._history = []
+    
+    def _save_history(self) -> None:
+        """Save history to file if available."""
+        if not self._history_file:
+            return
+        
+        try:
+            self._history_file.parent.mkdir(parents=True, exist_ok=True)
+            self._history_file.write_text("\n".join(self._history), encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Failed to save history to {self._history_file}: {e}")
+    
+    def add(self, entry: str) -> None:
+        """Add an entry to history."""
+        if entry and (not self._history or self._history[-1] != entry):
+            self._history.append(entry)
+            self._save_history()
+    
+    def get_previous(self, current_text: str) -> str | None:
+        """Get the previous history entry."""
+        if not self._history:
+            return None
+        
+        if self._current_index == -1:
+            self._current_index = len(self._history) - 1
+        else:
+            self._current_index = max(0, self._current_index - 1)
+        
+        if 0 <= self._current_index < len(self._history):
+            return self._history[self._current_index]
+        return None
+    
+    def get_next(self) -> str | None:
+        """Get the next history entry."""
+        if not self._history or self._current_index == -1:
+            return None
+        
+        self._current_index = min(len(self._history) - 1, self._current_index + 1)
+        
+        if 0 <= self._current_index < len(self._history):
+            return self._history[self._current_index]
+        return None
+    
+    def reset_navigation(self) -> None:
+        """Reset history navigation index."""
+        self._current_index = -1
 
 
 class PathCompletionController:
@@ -268,9 +336,13 @@ class WhoAmIPlanType(str, Enum):
     """Plan type."""
     FREE = "free"
     PRO = "pro"
+    API = "api"
+    UNAUTHORIZED = "unauthorized"
     # Lowercase aliases for compatibility
     free = "free"
     pro = "pro"
+    api = "api"
+    unauthorized = "unauthorized"
 
     def __str__(self) -> str:
         return self.value
@@ -289,7 +361,12 @@ class HttpWhoAmIGateway(WhoAmIGateway):
 @dataclass
 class PlanInfo:
     """Plan information."""
-    pass
+    plan_type: str = ""
+    is_free_mistral_code_plan: bool = False
+
+    def is_free_mistral_code_plan_method(self) -> bool:
+        """Check if this is a free Mistral code plan."""
+        return self.is_free_mistral_code_plan
 
 
 async def decide_plan_offer(api_key: str | None = None, gateway: WhoAmIGateway | None = None) -> PlanInfo | None:
@@ -341,18 +418,18 @@ class FileSystemUpdateCacheRepository(UpdateCacheRepository):
     pass
 
 
+@dataclass
+class UpdateAvailability:
+    should_notify: bool = False
+    latest_version: str = ""
+
+
 async def get_update_if_available(
     update_notifier: Any = None,
     current_version: str = "",
     update_cache_repository: Any = None
-) -> "UpdateAvailability" | None:
+) -> UpdateAvailability | None:
     return None
-
-
-@dataclass
-class UpdateAvailability:
-    latest_version: str = ""
-    should_notify: bool = False
 
 
 def load_whats_new_content() -> str:
@@ -380,10 +457,12 @@ class TranscribeState(str, Enum):
     IDLE = "idle"
     RECORDING = "recording"
     PROCESSING = "processing"
+    FLUSHING = "flushing"
     # Lowercase aliases for compatibility
     idle = "idle"
     recording = "recording"
     processing = "processing"
+    flushing = "flushing"
 
     def __str__(self) -> str:
         return self.value
@@ -397,10 +476,40 @@ class VoiceManagerPort:
     def cancel_recording(self) -> None:
         pass
 
+    def toggle_voice_mode(self) -> None:
+        pass
+
+    def add_listener(self, listener: Any) -> None:
+        """Add a voice manager listener."""
+        pass
+
+    def remove_listener(self, listener: Any) -> None:
+        """Remove a voice manager listener."""
+        pass
+
+    def peak(self) -> str | None:
+        """Get the current transcription without consuming it."""
+        return None
+
+    async def stop_recording(self) -> None:
+        """Stop the current recording."""
+        pass
+
+    async def start_recording(self) -> None:
+        """Start a new recording."""
+        pass
+
+    async def stop_recording(self) -> None:
+        """Stop the current recording."""
+        pass
+
 
 class VoiceManagerListener:
     """Listener for voice events."""
-    pass
+
+    def on_state_change(self, state: TranscribeState) -> None:
+        """Called when transcription state changes."""
+        pass
 
 
 class RecordingStartError(Exception):
@@ -432,8 +541,11 @@ class VoiceManager(VoiceManagerPort):
     
     async def stop_recording(self) -> None:
         pass
-    
-    def start_recording(self) -> None:
+
+    async def start_recording(self) -> None:
+        pass
+
+    def toggle_voice_mode(self) -> None:
         pass
 
 
@@ -474,6 +586,9 @@ class TelemetryClient:
     def send_slash_command_used(self, cmd_name: str, cmd_type: str) -> None:
         pass
 
+    def send_user_copied_text(self, text: str = "") -> None:
+        pass
+
 
 @dataclass
 class CacheFile:
@@ -493,7 +608,7 @@ class AgentProfile:
     """Agent profile."""
     name: str = "jarvis"
     display_name: str = "JARVIS"
-    safety: str = "standard"
+    safety: AgentSafety = AgentSafety.NEUTRAL
 
 
 # ============================================================================
@@ -550,12 +665,19 @@ class ConnectorConfig:
     """Connector configuration."""
     name: str
     disabled: bool = False
+    disabled_tools: list[str] = field(default_factory=list)
 
 
 @dataclass
 class MCPServer:
     """MCP server configuration."""
     name: str = ""
+    transport: str = "stdio"
+    command: str = ""
+    args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
+    disabled: bool = False
+    disabled_tools: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -694,18 +816,36 @@ class HookEndEvent(HookEvent):
 # LOG SYSTEM
 # ============================================================================
 
+@dataclass
+class LogEntry:
+    """Log entry."""
+    level: str = ""
+    message: str = ""
+    timestamp: str = ""
+
+
 class LogReader:
     """Reader for log files."""
-    
+
+    def set_consumer(self, consumer: Any) -> None:
+        """Set a consumer for log entries."""
+        pass
+
     def shutdown(self) -> None:
         """Shutdown the log reader."""
         pass
 
+    def start_watching(self, pattern: str = "") -> None:
+        """Start watching for log files."""
+        pass
 
-@dataclass
-class LogEntry:
-    """Log entry."""
-    pass
+    def stop_watching(self) -> None:
+        """Stop watching for log files."""
+        pass
+
+    def get_logs(self, n: int = 100, offset: int = 0) -> list[LogEntry]:
+        """Get recent log entries."""
+        return []
 
 
 def decode_log_message(msg: str) -> str:
@@ -752,11 +892,11 @@ class ResumeSessionSource(str, Enum):
         return self.value
 
 
-def list_local_resume_sessions(config: Any = None, cwd: Path | None = None) -> list[ResumeSessionInfo]:
+def list_local_resume_sessions(config: Any = None, cwd: Path | None = None, end_time: str | None = None, limit: int | None = None) -> list[ResumeSessionInfo]:
     return []
 
 
-def list_remote_resume_sessions(config: Any = None) -> list[ResumeSessionInfo]:
+async def list_remote_resume_sessions(config: Any = None) -> list[ResumeSessionInfo]:
     return []
 
 
@@ -801,6 +941,10 @@ class SkillManager:
         all_skills = self._core_manager.get_all_available_skills()
         builtin = self._core_manager.get_builtin_skills()
         return len(all_skills) - len(builtin)
+
+    @staticmethod
+    def build_skill_prompt(user_input: str, skill: Any) -> str:
+        return user_input
 
 
 # ============================================================================
@@ -855,7 +999,8 @@ class TeleportPushRequiredEvent:
 
 class TeleportPushResponseEvent:
     """Teleport push response event."""
-    pass
+    def __init__(self, approved: bool = False):
+        self.approved = approved
 
 
 class TeleportStartingWorkflowEvent:
@@ -918,9 +1063,9 @@ class WriteFileArgs(BaseModel):
 # ============================================================================
 
 class AskUserQuestionArgs(BaseModel):
-    question: str
-    choices: list[str] = []
-    allow_other: bool = False
+    questions: list[Question] = field(default_factory=list)
+    cancelled: bool = False
+    content_preview: str = ""
 
 
 class AskUserQuestionResult(BaseModel):
@@ -938,6 +1083,7 @@ class Answer(BaseModel):
 class Choice:
     """Choice for a question."""
     label: str = ""
+    description: str = ""
 
 
 @dataclass
@@ -947,6 +1093,7 @@ class Question:
     header: str = ""
     options: list[Choice] = field(default_factory=list)
     hide_other: bool = False
+    multi_select: bool = False
 
 
 # ============================================================================
@@ -956,17 +1103,39 @@ class Question:
 class ConnectorRegistry:
     """Registry for connectors."""
     connector_count: int = 0
-    
+
     def get_connector_names(self) -> list[str]:
         return []
+
+    def is_connected(self, name: str) -> bool:
+        """Check if a connector is connected."""
+        return False
+
+    def remove_listener(self, listener: Any) -> None:
+        """Remove a listener."""
+        pass
+
+    def get_auth_url(self, name: str) -> str | None:
+        """Get auth URL for a connector."""
+        return None
+
+    def refresh_connector_async(self, name: str) -> Any:
+        """Refresh a connector asynchronously."""
+        return None
 
 
 def connectors_enabled() -> bool:
     return False
 
 
-def persist_mcp_toggle() -> None:
+def persist_mcp_toggle(config: Any, name: str, is_connector: bool, disabled: bool, tool_name: str | None = None) -> None:
     pass
+
+
+class MCPSourceKind:
+    """MCP source kind."""
+    CONNECTOR = "connector"
+    SERVER = "server"
 
 
 class MCPTool:
@@ -974,13 +1143,30 @@ class MCPTool:
     pass
 
 
-def updated_tool_list() -> list[str]:
-    return []
+def updated_tool_list(
+    disabled_tools: list[str] | None, tool_name: str, disabled: bool
+) -> list[str]:
+    """Update a list of disabled tools by adding or removing a tool name."""
+    tools = disabled_tools or []
+    if disabled and tool_name not in tools:
+        return tools + [tool_name]
+    elif not disabled and tool_name in tools:
+        return [t for t in tools if t != tool_name]
+    return tools
 
 
 class ToolManager:
     """Manager for tools."""
-    pass
+    registered_tools: dict[str, Any] = {}
+    available_tools: list[str] = []
+
+    def get_tool_config(self, tool_name: str) -> dict[str, Any] | None:
+        """Get tool configuration."""
+        return None
+
+    async def integrate_connectors_async(self) -> None:
+        """Integrate connector tools."""
+        pass
 
 
 class ToolUIDataAdapter:
@@ -1085,7 +1271,25 @@ def unset_proxy_var(var: str) -> None:
 
 class RemoteEventsSource:
     """Source for remote events."""
-    pass
+    def __init__(self, session_id: str, config: Any) -> None:
+        self.session_id: str = session_id
+        self.config: Any = config
+        self.is_terminated: bool = False
+        self.is_failed: bool = False
+        self.is_canceled: bool = False
+        self.is_waiting_for_input: bool = False
+
+    async def send_prompt(self, message: str) -> None:
+        """Send prompt to remote session."""
+        pass
+
+    async def close(self) -> None:
+        """Close the events source."""
+        pass
+
+    async def attach(self) -> Any:
+        """Attach to the events stream."""
+        return self
 
 
 # ============================================================================
@@ -1098,19 +1302,5 @@ class ReadResult:
     text: str = ""
 
 
-def read_safe(path: str) -> ReadResult:
+def read_safe(path: str | Path) -> ReadResult:
     return ReadResult()
-
-
-# ============================================================================
-# CLIPBOARD FUNCTIONS
-# ============================================================================
-
-def copy_selection_to_clipboard(app: Any = None, show_toast: bool = False) -> str:
-    """Copy selection to clipboard."""
-    return ""
-
-
-def copy_text_to_clipboard(text: str) -> bool:
-    """Copy text to clipboard."""
-    return False

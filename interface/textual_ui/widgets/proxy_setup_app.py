@@ -37,7 +37,7 @@ class ProxySetupApp(Container):
     def __init__(self) -> None:
         super().__init__(id="proxysetup-app")
         self.inputs: dict[str, Input] = {}
-        self.initial_values: dict[str, str | None] = {}
+        self.initial_values: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         self.initial_values = get_current_proxy_settings()

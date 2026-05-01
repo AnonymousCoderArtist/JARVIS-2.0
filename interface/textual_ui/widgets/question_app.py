@@ -15,14 +15,12 @@ from interface.textual_ui.ansi_markdown import AnsiMarkdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.vscode_compat import VscodeCompatInput
 
-if TYPE_CHECKING:
-    from interface.textual_ui.cli_adapters import (
-        AskUserQuestionArgs,
-        Choice,
-        Question,
-    )
-
-from interface.textual_ui.cli_adapters import Answer
+from interface.textual_ui.cli_adapters import (
+    Answer,
+    AskUserQuestionArgs,
+    Choice,
+    Question,
+)
 
 
 class QuestionApp(Container):

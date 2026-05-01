@@ -54,15 +54,16 @@ dependencies = [
     "pygments>=2.16.0",
     # TUI dependencies
     "textual>=0.50.0",
+    # Resource monitoring
+    "psutil>=5.9.0",
 ]
-
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "black>=23.12.0",
     "ruff>=0.1.0",
-    "ty>=0.0.33",
+    "ty==0.0.33",
 ]
 
 [project.scripts]
@@ -137,7 +138,7 @@ exclude = [
 "__init__.py" = ["F401"]
 
 [tool.ty.environment]
-python-version = "3.10"
+python-version = "3.12"
 
 [tool.ty.rules]
 possibly-unresolved-reference = "warn"

@@ -7,12 +7,14 @@ from pathlib import Path
 try:
     import tomllib
 except ImportError:
-    import tomli as tomllib
+    import tomli as tomllib  # type: ignore
 
+tomli_w = None
 try:
-    import tomli_w
+    import tomli_w as _tomli_w
+    tomli_w = _tomli_w
 except ImportError:
-    tomli_w = None
+    pass
 
 
 class TrustedFoldersManager:

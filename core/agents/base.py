@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -61,6 +62,7 @@ class BaseAgent(ABC):
         model: str | None = None,
         config_getter: ConfigGetter | None = None,
         bypass_tool_permissions: bool = False,
+        use_concurrent_tools: bool = True,
     ):
         self.llm: BaseLLMProvider = llm_provider
         self.tools: ToolRegistry = tool_registry
@@ -74,6 +76,16 @@ class BaseAgent(ABC):
         self.tool_call_callback: ToolCallCallback | None = None
         self.tool_result_callback: ToolResultCallback | None = None
         self.reasoning_callback: ReasoningCallback | None = None
+
+        # Progress and status callbacks for async operations
+        self.progress_callback: ProgressCallback | None = None
+        self.status_callback: StatusCallback | None = None
+
+        # Async configuration
+        self.use_concurrent_tools = use_concurrent_tools
+
+        # Background task manager (initialized lazily)
+        self._background_task_manager = None
 
         # Permission system
         self.approval_callback: ApprovalCallback | None = None
@@ -238,6 +250,24 @@ class BaseAgent(ABC):
             config_getter: Function that returns the current Settings
         """
         self._config_getter = config_getter
+
+    def set_progress_callback(self, callback: ProgressCallback) -> None:
+        """
+        Set the callback for progress updates
+
+        Args:
+            callback: Function to call for progress updates (stage, progress)
+        """
+        self.progress_callback = callback
+
+    def set_status_callback(self, callback: StatusCallback) -> None:
+        """
+        Set the callback for status updates
+
+        Args:
+            callback: Function to call for status updates (status_message)
+        """
+        self.status_callback = callback
 
     async def _should_execute_tool(
         self, tool_name: str, tool_args: dict[str, Any], tool_call_id: str
@@ -528,7 +558,11 @@ class BaseAgent(ABC):
                             "content": full_response,
                             "tool_calls": [{"function": {"name": tc.name, "arguments": tc.arguments}, "id": tc.id} for tc in tool_calls]
                         }
-                        updated_messages = await self._execute_tools_and_update_messages(response_dict, updated_messages)
+                        updated_messages = await self._execute_tools_and_update_messages(
+                            response_dict,
+                            updated_messages,
+                            use_concurrent=self.use_concurrent_tools
+                        )
                         continue  # Loop again with updated messages
 
                     return full_response
@@ -564,7 +598,11 @@ class BaseAgent(ABC):
                 self.stream_callback(content)
 
             if response.get("tool_calls"):
-                updated_messages = await self._execute_tools_and_update_messages(response, updated_messages)
+                updated_messages = await self._execute_tools_and_update_messages(
+                    response,
+                    updated_messages,
+                    use_concurrent=self.use_concurrent_tools
+                )
                 continue  # Loop again with updated messages
 
             return content
@@ -572,7 +610,8 @@ class BaseAgent(ABC):
     async def _execute_tools_and_update_messages(
         self,
         response: MessageDict,
-        messages: list[MessageDict]
+        messages: list[MessageDict],
+        use_concurrent: bool = False
     ) -> list[MessageDict]:
         """
         Execute tool calls and update message history with results
@@ -580,6 +619,7 @@ class BaseAgent(ABC):
         Args:
             response: LLM response with tool calls
             messages: Current message history
+            use_concurrent: Whether to execute tools concurrently
 
         Returns:
             Updated message history
@@ -596,65 +636,70 @@ class BaseAgent(ABC):
         tool_calls = cast(list[dict[str, Any]], response.get("tool_calls", []))
         tool_results: list[dict[str, Any]] = []
 
-        for tool_call in tool_calls:
-            function_data = cast(dict[str, Any], tool_call["function"])
-            tool_name = str(function_data["name"])
-            tool_args_raw = function_data["arguments"]
-            tool_call_id = str(tool_call.get("id", f"call_{len(tool_results)}"))
+        if use_concurrent and len(tool_calls) > 1 and hasattr(self.tools, 'execute_tools_concurrent'):
+            # Concurrent execution path
+            tool_results = await self._execute_tools_concurrent(tool_calls)
+        else:
+            # Sequential execution path
+            for tool_call in tool_calls:
+                function_data = cast(dict[str, Any], tool_call["function"])
+                tool_name = str(function_data["name"])
+                tool_args_raw = function_data["arguments"]
+                tool_call_id = str(tool_call.get("id", f"call_{len(tool_results)}"))
 
-            try:
-                if isinstance(tool_args_raw, str):
-                    tool_args = cast(dict[str, Any], json.loads(tool_args_raw))
+                try:
+                    if isinstance(tool_args_raw, str):
+                        tool_args = cast(dict[str, Any], json.loads(tool_args_raw))
+                    else:
+                        tool_args = cast(dict[str, Any], tool_args_raw)
+                except json.JSONDecodeError:
+                    tool_args = {}
+
+                # Check permissions before executing
+                decision = await self._should_execute_tool(tool_name, tool_args, tool_call_id)
+
+                if decision.verdict == "skip":
+                    # Tool execution skipped
+                    tool_result_content = decision.feedback or f"Tool '{tool_name}' execution was skipped."
+                    tool_results.append({
+                        "tool": tool_name,
+                        "success": False,
+                        "result": None,
+                        "error": decision.feedback,
+                        "content": tool_result_content,
+                        "skipped": True,
+                    })
+                    continue
+
+                # Invoke tool call callback if set
+                if self.tool_call_callback:
+                    self.tool_call_callback(tool_name, tool_args)
+
+                result = await self.tools.execute_tool(tool_name, tool_args)
+                if self.tool_result_callback:
+                    self.tool_result_callback(tool_name, tool_args, result)
+
+                # Rebuild system prompt if a skill was activated
+                if tool_name == "activate_skill" and hasattr(result, "success") and result.success:
+                    self.rebuild_system_prompt()
+
+                # Format tool result for LLM
+                success = getattr(result, "success", False)
+                res_val = getattr(result, "result", None)
+                err_val = getattr(result, "error", "Unknown error")
+
+                if success:
+                    tool_result_content = f"Tool {tool_name} executed successfully. Result: {res_val}"
                 else:
-                    tool_args = cast(dict[str, Any], tool_args_raw)
-            except json.JSONDecodeError:
-                tool_args = {}
+                    tool_result_content = f"Tool {tool_name} failed. Error: {err_val}. Please adjust your approach and try again with different parameters."
 
-            # Check permissions before executing
-            decision = await self._should_execute_tool(tool_name, tool_args, tool_call_id)
-
-            if decision.verdict == "skip":
-                # Tool execution skipped
-                tool_result_content = decision.feedback or f"Tool '{tool_name}' execution was skipped."
                 tool_results.append({
                     "tool": tool_name,
-                    "success": False,
-                    "result": None,
-                    "error": decision.feedback,
-                    "content": tool_result_content,
-                    "skipped": True,
+                    "success": success,
+                    "result": res_val,
+                    "error": err_val,
+                    "content": tool_result_content
                 })
-                continue
-
-            # Invoke tool call callback if set
-            if self.tool_call_callback:
-                self.tool_call_callback(tool_name, tool_args)
-
-            result = await self.tools.execute_tool(tool_name, tool_args)
-            if self.tool_result_callback:
-                self.tool_result_callback(tool_name, tool_args, result)
-
-            # Rebuild system prompt if a skill was activated
-            if tool_name == "activate_skill" and hasattr(result, "success") and result.success:
-                self.rebuild_system_prompt()
-
-            # Format tool result for LLM
-            success = getattr(result, "success", False)
-            res_val = getattr(result, "result", None)
-            err_val = getattr(result, "error", "Unknown error")
-
-            if success:
-                tool_result_content = f"Tool {tool_name} executed successfully. Result: {res_val}"
-            else:
-                tool_result_content = f"Tool {tool_name} failed. Error: {err_val}. Please adjust your approach and try again with different parameters."
-
-            tool_results.append({
-                "tool": tool_name,
-                "success": success,
-                "result": res_val,
-                "error": err_val,
-                "content": tool_result_content
-            })
 
         # Add tool results to conversation history as user message
         updated_messages.append({
@@ -663,6 +708,112 @@ class BaseAgent(ABC):
         })
 
         return updated_messages
+
+    async def _execute_tools_concurrent(
+        self,
+        tool_calls: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Execute multiple tool calls concurrently
+
+        Args:
+            tool_calls: List of tool call dictionaries
+
+        Returns:
+            List of tool result dictionaries
+        """
+        # First, check permissions for all tools
+        approved_tool_calls = []
+        skipped_results = []
+
+        for tool_call in tool_calls:
+            function_data = tool_call["function"]
+            tool_name = str(function_data["name"])
+            tool_args_raw = function_data["arguments"]
+            tool_call_id = str(tool_call.get("id", ""))
+
+            try:
+                if isinstance(tool_args_raw, str):
+                    tool_args = json.loads(tool_args_raw)
+                else:
+                    tool_args = tool_args_raw
+            except json.JSONDecodeError:
+                tool_args = {}
+
+            # Check permissions before executing
+            decision = await self._should_execute_tool(tool_name, tool_args, tool_call_id)
+
+            if decision.verdict == "skip":
+                skipped_results.append({
+                    "tool": tool_name,
+                    "success": False,
+                    "result": None,
+                    "error": decision.feedback,
+                    "content": decision.feedback or f"Tool '{tool_name}' execution was skipped.",
+                    "skipped": True,
+                })
+            else:
+                # Invoke tool call callback if set
+                if self.tool_call_callback:
+                    self.tool_call_callback(tool_name, tool_args)
+                approved_tool_calls.append((tool_name, tool_args, tool_call))
+
+        # Check if tools registry supports concurrent execution
+        if hasattr(self.tools, 'execute_tools_concurrent') and approved_tool_calls:
+            # Use async registry's concurrent execution
+            tool_call_tuples = [(name, args) for name, args, _ in approved_tool_calls]
+
+            from core.tools.async_registry import AsyncToolRegistry
+            async_registry = cast(AsyncToolRegistry, self.tools)
+            tool_outputs = await async_registry.execute_tools_concurrent(tool_call_tuples)
+
+            # Convert ToolOutput to result dictionaries
+            results = []
+            for i, output in enumerate(tool_outputs):
+                tool_name, _, tool_call = approved_tool_calls[i]
+                if self.tool_result_callback:
+                    self.tool_result_callback(tool_name, tool_call["function"]["arguments"], output)
+
+                # Rebuild system prompt if a skill was activated
+                if tool_name == "activate_skill" and hasattr(output, "success") and output.success:
+                    self.rebuild_system_prompt()
+
+                results.append({
+                    "tool": tool_name,
+                    "success": output.success,
+                    "result": output.result,
+                    "error": output.error,
+                    "content": (
+                        f"Tool {tool_name} executed successfully. Result: {output.result}"
+                        if output.success
+                        else f"Tool {tool_name} failed. Error: {output.error}"
+                    )
+                })
+            return skipped_results + results
+        else:
+            # Fallback to sequential execution
+            results = skipped_results.copy()
+            for tool_name, tool_args, tool_call in approved_tool_calls:
+                result = await self.tools.execute_tool(tool_name, tool_args)
+                if self.tool_result_callback:
+                    self.tool_result_callback(tool_name, tool_call["function"]["arguments"], result)
+
+                # Rebuild system prompt if a skill was activated
+                if tool_name == "activate_skill" and hasattr(result, "success") and result.success:
+                    self.rebuild_system_prompt()
+
+                results.append({
+                    "tool": tool_name,
+                    "success": result.success,
+                    "result": result.result,
+                    "error": result.error,
+                    "content": (
+                        f"Tool {tool_name} executed successfully. Result: {result.result}"
+                        if result.success
+                        else f"Tool {tool_name} failed. Error: {result.error}"
+                    )
+                })
+            return results
 
     async def _process_without_tools(
         self,
@@ -719,23 +870,23 @@ class BaseAgent(ABC):
             messages=messages,
             model=self.model,
         )
-        
+
         # Handle dict response
         if isinstance(result, dict):
             res_dict = cast(dict[str, Any], result)
             content = str(res_dict.get("content", ""))
             reasoning = str(res_dict.get("reasoning_content", "") or res_dict.get("reasoning", ""))
-            
+
             # Call reasoning callback if set and content exists
             if reasoning and reasoning.strip() and self.reasoning_callback:
                 self.reasoning_callback(reasoning)
-            
+
             # Always emit content via stream_callback if set
             if self.stream_callback and content:
                 self.stream_callback(content)
-            
+
             return content
-        
+
         # Handle string response
         if isinstance(result, str):
             if self.stream_callback and result:
@@ -755,9 +906,130 @@ class BaseAgent(ABC):
                         self.reasoning_callback(chunk_reasoning)
             else:
                 full_response += str(chunk)
-        
+
         # Always emit content via stream_callback if set
         if self.stream_callback and full_response:
             self.stream_callback(full_response)
-        
+
         return full_response
+
+    async def process_with_progress(
+        self,
+        input: str,
+        context: dict[str, Any] | None = None
+    ) -> str:
+        """
+        Process input with progress updates
+
+        This method provides stage-based progress reporting with callbacks
+        for user feedback during long-running operations.
+
+        Args:
+            input: User input string
+            context: Optional context dictionary
+
+        Returns:
+            Agent response string
+        """
+        stages = ["Understanding", "Planning", "Execution", "Verification"]
+        total_stages = len(stages)
+        
+        if self.status_callback:
+            self.status_callback("Starting processing...")
+        
+        # Stage 1: Understanding
+        if self.progress_callback:
+            self.progress_callback(stages[0], 0.0)
+        if self.status_callback:
+            self.status_callback(f"Stage 1/{total_stages}: {stages[0]}")
+        await asyncio.sleep(0)  # Yield control
+        
+        # Stage 2: Planning
+        if self.progress_callback:
+            self.progress_callback(stages[1], 0.25)
+        if self.status_callback:
+            self.status_callback(f"Stage 2/{total_stages}: {stages[1]}")
+        await asyncio.sleep(0)  # Yield control
+        
+        # Stage 3: Execution (the actual processing)
+        if self.progress_callback:
+            self.progress_callback(stages[2], 0.5)
+        if self.status_callback:
+            self.status_callback(f"Stage 3/{total_stages}: {stages[2]}")
+        
+        # Process normally
+        result = await self.process(input, context)
+        
+        # Stage 4: Verification
+        if self.progress_callback:
+            self.progress_callback(stages[3], 0.75)
+        if self.status_callback:
+            self.status_callback(f"Stage 4/{total_stages}: {stages[3]}")
+        await asyncio.sleep(0)  # Yield control
+        
+        # Complete
+        if self.progress_callback:
+            self.progress_callback("Complete", 1.0)
+        if self.status_callback:
+            self.status_callback("Processing complete")
+        
+        return result
+
+    def _get_background_task_manager(self):
+        """Get or create the background task manager"""
+        if self._background_task_manager is None:
+            from core.agents.background_task_manager import BackgroundTaskManager
+            from core.config.settings import Settings
+            
+            settings = self._config_getter() if self._config_getter else Settings()
+            
+            self._background_task_manager = BackgroundTaskManager(
+                max_concurrent_tasks=settings.max_concurrent_agents,
+                result_cache_ttl=3600,
+                cleanup_interval=300
+            )
+            
+            # Set the tool executor
+            async def tool_executor(tool_name: str, tool_args: dict) -> Any:
+                return await self.tools.execute_tool(tool_name, tool_args)
+            
+            self._background_task_manager.set_tool_executor(tool_executor)
+        
+        return self._background_task_manager
+
+    async def delegate_to_background(
+        self,
+        task: str,
+        tool_name: str,
+        args: dict[str, Any],
+        timeout: int = 300
+    ) -> str:
+        """
+        Delegate a long-running task to background processing
+
+        Args:
+            task: Task description
+            tool_name: Name of the tool to execute
+            args: Tool arguments
+            timeout: Timeout in seconds
+
+        Returns:
+            Task ID for tracking
+        """
+        try:
+            # Get or create background task manager
+            bg_manager = self._get_background_task_manager()
+            
+            # Submit task to background manager
+            task_id = await bg_manager.submit_task(
+                tool_name=tool_name,
+                args=args,
+                timeout=timeout
+            )
+            
+            logger.info(f"Delegated task '{task}' to background with ID: {task_id}")
+            return f"Task delegated to background. ID: {task_id}"
+
+        except Exception as e:
+            logger.error(f"Background task delegation failed: {e}")
+            return f"Background task delegation failed: {str(e)}"

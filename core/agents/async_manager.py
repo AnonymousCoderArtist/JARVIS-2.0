@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable
+from typing import Any, Callable, cast
 from collections.abc import Awaitable
 
 from core.agents.base import BaseAgent
@@ -124,7 +124,7 @@ class AsyncAgentManager:
             except Exception as e:
                 logger.error(f"Error in task processing loop: {e}")
 
-    async def stop_processing(self) -> None:
+    async def stop_monitoring(self) -> None:
         """Stop processing tasks"""
         self._processing = False
         logger.info("Stopping async task processing")
@@ -199,7 +199,7 @@ class AsyncAgentManager:
     async def execute_concurrent(
         self,
         tasks: list[tuple[BaseAgent, str, dict[str, Any] | None]]
-    ) -> list[str]:
+    ) -> list[str | BaseException]:
         """
         Execute multiple agent tasks concurrently
 
@@ -207,7 +207,7 @@ class AsyncAgentManager:
             tasks: List of (agent, task, context) tuples
 
         Returns:
-            List of results
+            List of results or exceptions
         """
         async def execute_single(agent: BaseAgent, task: str, context: dict[str, Any] | None) -> str:
             async with self.semaphore:
@@ -220,9 +220,9 @@ class AsyncAgentManager:
 
         results = await asyncio.gather(*coroutines, return_exceptions=True)
 
-        # Convert exceptions to error strings
+        # Return list of results or exceptions
         return [
-            str(result) if isinstance(result, Exception) else result
+            result
             for result in results
         ]
 
