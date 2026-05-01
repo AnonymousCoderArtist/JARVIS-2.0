@@ -207,7 +207,7 @@ Usage:
 
 
 class RunTestsTool(BaseTool):
-    """Tool for running tests (OpenClaude style)"""
+    """Tool for running tests"""
 
     name = "run_tests"
     description = """Run tests using pytest or unittest frameworks. Use this to execute test suites and verify code correctness.

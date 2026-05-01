@@ -2,7 +2,7 @@
 
 ## Overview
 
-The JARVIS agent system implements a single-agent architecture with comprehensive capabilities for both coding and knowledge work. The system is inspired by Claude Code and OpenClaude, providing a unified agentic assistant that can handle a wide range of tasks through intelligent tool usage.
+The JARVIS agent system implements a single-agent architecture with comprehensive capabilities for both coding and knowledge work. The system is inspired by Claude Code and mistral-vibe, providing a unified agentic assistant that can handle a wide range of tasks through intelligent tool usage.
 
 ## Architecture
 

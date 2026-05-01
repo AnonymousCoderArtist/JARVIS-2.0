@@ -12,7 +12,7 @@ from core.tools.permissions import (
 
 
 class EditTool(BaseTool):
-    """Tool for editing files (OpenClaude style)"""
+    """Tool for editing files"""
 
     name = "edit"
     description = """Edit files by replacing text. Use for precise edits to existing files.

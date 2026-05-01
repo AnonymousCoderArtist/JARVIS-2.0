@@ -15,7 +15,7 @@
 
 ## 🚀 Overview
 
-JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and OpenClaude. It provides unified agentic assistance for coding, research, documentation, and knowledge work through intelligent tool usage.
+JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and mistral-vibe. It provides unified agentic assistance for coding, research, documentation, and knowledge work through intelligent tool usage.
 
 ### Key Features
 
