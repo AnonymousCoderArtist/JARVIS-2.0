@@ -44,7 +44,11 @@ This is **JARVIS v2.0.beta-coding** - the core Coding harness of JARVIS 2.0
 | ✅ TUI Interface | Complete |
 | ✅ Permission System | Complete |
 | 🔄 More Specialized Agents | Coming Soon |
-
+| 🔄 Additional Tools | Coming Soon |
+| 🔄 Better Skill System | Coming Soon |
+| 🔄 Updated Conversation Management | Coming Soon |
+| 🔄 Auto Compact | Coming Soon |
+| 🔄 More Sub-Agents | Coming Soon |
 ---
 
 ## 🏗️ Architecture
@@ -116,6 +120,7 @@ graph LR
         S3[trusted_folders.py<br/>Folder Trust]
     end
 ```
+
 ## 🧩 Key Modules
 
 | Module | Purpose |
