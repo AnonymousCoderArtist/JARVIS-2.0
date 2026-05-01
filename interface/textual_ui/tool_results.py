@@ -30,7 +30,8 @@ class WriteFileResult(BaseModel):
 
 
 class SearchReplaceResult(BaseModel):
-    path: str
+    path: str = ""
     old_str: str = ""
     new_str: str = ""
     replacements: int = 0
+    content: str = ""

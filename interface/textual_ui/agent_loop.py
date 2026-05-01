@@ -354,7 +354,8 @@ class AgentLoop:
                 return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result))
             if tool_name == "edit":
                 # For edit, we might want to return the first diff or a summary
-                return SearchReplaceResult(content=raw_result)
+                path = str(arguments.get("path") or arguments.get("filePath", ""))
+                return SearchReplaceResult(path=path, content=raw_result)
 
         # Special case for grep: list of dicts to formatted string
         if tool_name == "grep" and isinstance(raw_result, list):
