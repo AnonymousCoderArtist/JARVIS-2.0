@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class Role(str, Enum):
@@ -112,7 +113,7 @@ class ToolCallEvent(BaseEvent):
 class ToolResultEvent(BaseEvent):
     """Tool result event."""
     tool_name: str = ""
-    result: str = ""
+    result: Any = None
     tool_call_id: str = ""
     tool_class: str = ""
     error: str = ""

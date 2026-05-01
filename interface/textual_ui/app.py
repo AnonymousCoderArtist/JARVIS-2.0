@@ -128,7 +128,6 @@ from interface.textual_ui.cli_adapters import (
     VoiceManager,
     VoiceManagerPort,
     TranscribeState,
-    AgentLoop,
     TeleportError,
     AgentProfile,
     AudioPlayer,
@@ -179,6 +178,7 @@ from interface.textual_ui.cli_adapters import (
     make_transcribe_client,
     stderr_guard,
 )
+from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.types import (
     AgentStats,
     ApprovalResponse,

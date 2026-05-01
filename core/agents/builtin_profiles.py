@@ -2,13 +2,17 @@
 
 from core.agents.profiles import AgentProfile, AgentSafety, AgentType
 
-# Default agent - requires approval for tool executions
+# Default agent - requires approval for tool executions, edit tool always
 DEFAULT = AgentProfile(
     name="default",
     display_name="Default",
-    description="Requires approval for tool executions",
+    description="Requires approval for tool executions, edit tool auto-approved",
     safety=AgentSafety.NEUTRAL,
-    overrides={},
+    overrides={
+        "tools": {
+            "edit": {"permission": "always"},
+        }
+    },
 )
 
 # Plan agent - read-only for exploration and planning

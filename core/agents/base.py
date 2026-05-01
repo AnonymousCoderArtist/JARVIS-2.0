@@ -13,7 +13,8 @@ from typing import Any, cast
 from core.agents.system_prompts import get_system_context
 from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import ToolCall
-from core.tools.permissions import ToolPermission
+from core.config.settings import Settings
+from core.tools.permissions import ApprovedRule, PermissionContext, PermissionScope, ToolPermission
 from core.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class BaseAgent(ABC):
         tool_registry: ToolRegistry,
         system_prompt: str,
         model: str | None = None,
+        config_getter: Callable[[], Settings] | None = None,
     ):
         self.llm = llm_provider
         self.tools = tool_registry
@@ -58,6 +60,7 @@ class BaseAgent(ABC):
         # Permission system
         self.approval_callback: Callable | None = None
         self._session_rules: list = []
+        self._config_getter = config_getter or (lambda: Settings())
 
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
@@ -206,6 +209,15 @@ class BaseAgent(ABC):
         """Clear all session-level rules"""
         self._session_rules.clear()
 
+    def set_config_getter(self, config_getter: Callable[[], Settings]) -> None:
+        """
+        Set the configuration getter function
+
+        Args:
+            config_getter: Function that returns the current Settings
+        """
+        self._config_getter = config_getter
+
     async def _should_execute_tool(
         self, tool_name: str, tool_args: dict, tool_call_id: str
     ) -> ToolDecision:
@@ -221,25 +233,35 @@ class BaseAgent(ABC):
             ToolDecision with verdict and approval type
         """
         # Get permission context from tool
-        tool = self.tools.get_tool(tool_name)
+        tool = self.tools.get(tool_name)
+        ctx = None
         if tool and hasattr(tool, "resolve_permission"):
             ctx = tool.resolve_permission(tool_args)
-        else:
-            # Default to ASK if tool doesn't implement permission checking
-            from core.tools.permissions import PermissionContext
+        
+        if ctx is None:
+            # Default to ASK if tool doesn't implement permission checking or returns None
             ctx = PermissionContext(permission=ToolPermission.ASK)
 
         # Check configuration for tool-level permission
-        from core.config.settings import Settings
-        config = Settings()
-        if config.bypass_tool_permissions:
+        config = self._config_getter()
+
+        # Handle both dict and Settings objects
+        if isinstance(config, dict):
+            bypass = config.get("bypass_tool_permissions", False)
+            tools_config = config.get("tools", {})
+        else:
+            # Assume it's a Settings object
+            bypass = getattr(config, "bypass_tool_permissions", False)
+            tools_config = getattr(config, "tools", {})
+
+        if bypass:
             return ToolDecision(
                 verdict="execute",
                 approval_type=ToolPermission.ALWAYS,
             )
 
         # Check tool-level permission from config
-        tool_config = config.tools.get(tool_name, {})
+        tool_config = tools_config.get(tool_name, {})
         tool_perm = ToolPermission(tool_config.get("permission", "ask"))
 
         if tool_perm == ToolPermission.ALWAYS:
@@ -352,9 +374,6 @@ class BaseAgent(ABC):
             required_permissions: List of required permissions
             save_permanently: Whether to save permanently to config
         """
-        from core.tools.permissions import ApprovedRule, PermissionScope
-        from core.config.settings import Settings
-
         if required_permissions:
             # Add session rules for each required permission
             for rp in required_permissions:

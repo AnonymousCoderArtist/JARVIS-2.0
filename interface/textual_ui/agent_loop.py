@@ -22,6 +22,14 @@ from interface.textual_ui.types import (
     UserMessageEvent,
     WaitingForInputEvent,
 )
+from interface.textual_ui.tool_results import (
+    BashResult,
+    GrepResult,
+    ReadFileResult,
+    SearchReplaceResult,
+    TodoResult,
+    WriteFileResult,
+)
 
 
 # Use the core AgentProfile directly
@@ -108,20 +116,29 @@ class AgentLoop:
         agent: CodingAgent,
         config: Any,
         tool_registry: ToolRegistry,
+        agent_manager: Any = None,
     ):
         self.agent = agent
         self.config = config
         self.base_config = config
         self.tool_registry = tool_registry
 
-        # Initialize agent manager with safety profiles
-        from core.config.settings import Settings
-        settings = Settings()
-        self.agent_manager = AgentManager(
-            config_getter=lambda: settings,
-            initial_agent="default"
-        )
+        # Use provided agent manager or create a new one
+        if agent_manager is not None:
+            self.agent_manager = agent_manager
+        else:
+            # Initialize agent manager with safety profiles
+            from core.config.settings import Settings
+            settings = Settings()
+            self.agent_manager = AgentManager(
+                config_getter=lambda: settings,
+                initial_agent="default"
+            )
         self.agent_profile = self.agent_manager.active_profile
+
+        # Set the config getter on the agent to use profile-applied configuration
+        if hasattr(self.agent, 'set_config_getter'):
+            self.agent.set_config_getter(lambda: self.agent_manager.config)
 
         self.stats = Stats()
         self.telemetry_client = TelemetryClient()
@@ -217,12 +234,11 @@ class AgentLoop:
         self.agent_manager.switch_profile(profile_name)
         self.agent_profile = self.agent_manager.active_profile
 
-        # Apply profile overrides to config
-        from core.config.settings import Settings
-        settings = Settings()
-        merged_config = self.agent_profile.apply_to_config(settings.model_dump())
+        # Update the config getter to use the new profile configuration
+        if hasattr(self.agent, 'set_config_getter'):
+            self.agent.set_config_getter(lambda: self.agent_manager.config)
 
-        # Update bypass_tool_permissions in agent
+        # Clear session rules when switching profiles
         if hasattr(self.agent, '_session_rules'):
             self.agent.clear_session_rules()
 
@@ -270,6 +286,41 @@ class AgentLoop:
             tool_class=tool_class
         ))
 
+    def _map_tool_result(self, tool_name: str, arguments: dict[str, Any], result: Any) -> Any:
+        """Map raw tool output to structured result models for TUI."""
+        # If result is a ToolOutput (from core), use its inner result
+        raw_result = result
+        if hasattr(result, 'result'):
+            raw_result = result.result
+        
+        # If result is already a string but we need an object, wrap it
+        if isinstance(raw_result, str):
+            if tool_name == "bash":
+                return BashResult(stdout=raw_result, returncode=0)
+            if tool_name == "grep":
+                return GrepResult(matches=raw_result)
+            if tool_name in ("read", "read_file"):
+                path = arguments.get("path") or arguments.get("filePath", "")
+                return ReadFileResult(path=path, content=raw_result)
+            if tool_name in ("write", "write_file"):
+                path = arguments.get("path") or arguments.get("filePath", "")
+                return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result))
+            if tool_name == "edit":
+                # For edit, we might want to return the first diff or a summary
+                return SearchReplaceResult(content=raw_result)
+        
+        # Special case for grep: list of dicts to formatted string
+        if tool_name == "grep" and isinstance(raw_result, list):
+            formatted = []
+            for m in raw_result:
+                file = m.get("file", "unknown")
+                line = m.get("line", "?")
+                content = m.get("content", "")
+                formatted.append(f"{file}:{line}:{content}")
+            return GrepResult(matches="\n".join(formatted))
+            
+        return raw_result
+
     def _on_tool_result(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
         """Handle tool result event from agent."""
         # Queue tool result event for UI synchronously
@@ -286,18 +337,17 @@ class AgentLoop:
             error = str(e)
         
         # Determine if result indicates success or failure
-        result_str = str(result)
+        error = ""
         if hasattr(result, 'success') and not result.success:
             if hasattr(result, 'error'):
                 error = result.error
-        if hasattr(result, 'result') and result.result is not None:
-            result_str = str(result.result)
-        elif error:
-            result_str = error
+        
+        # Map result to structured model for UI
+        mapped_result = self._map_tool_result(tool_name, arguments, result)
         
         self._get_event_queue().put_nowait(ToolResultEvent(
             tool_name=tool_name,
-            result=result_str,
+            result=mapped_result,
             tool_call_id=tool_call_id,
             tool_class=tool_class,
             error=error,
@@ -568,6 +618,7 @@ class SessionLoggerAdapter:
     """Adapter for session logging."""
 
     def __init__(self):
+        from pathlib import Path
         self.enabled = False
         self.session_id = None
         self.session_dir = Path.cwd()
@@ -575,6 +626,7 @@ class SessionLoggerAdapter:
 
     def resume_existing_session(self, session_id, session_path):
         """Resume an existing session."""
+        from pathlib import Path
         self.session_id = session_id
         self.session_dir = Path(session_path).parent
 

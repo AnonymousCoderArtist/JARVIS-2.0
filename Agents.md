@@ -57,6 +57,16 @@ See [docs/AGENT_PROFILES.md](docs/AGENT_PROFILES.md) for detailed configuration.
 - `core/tools/permission_manager.py` - Permission management logic
 - `core/tools/base.py` - Tool permission resolution interface
 
+**Profile Integration:**
+The permission system is integrated with agent profiles through the `config_getter` mechanism. When an agent is initialized with a `config_getter` function that returns profile-applied configuration, the permission system automatically respects the active profile's tool permissions. This ensures that:
+
+- **Plan profile**: File write and edit tools are set to `NEVER` permission
+- **Accept Edits profile**: File write and edit tools are set to `ALWAYS` permission
+- **Auto Approve profile**: All tools bypass permission checks via `bypass_tool_permissions`
+- **Default profile**: Tools use their default `ASK` permission unless overridden
+
+The `AgentManager` handles applying profile overrides to the base configuration through the `apply_to_config()` method, and the agent uses this merged configuration for permission checks.
+
 ### Trust Folder System
 
 JARVIS includes a trust folder system to prevent accidental execution in sensitive directories:
@@ -111,9 +121,24 @@ async def plan(self, task: str) -> list[dict[str, Any]]
 def set_approval_callback(self, callback: Callable) -> None
 def add_session_rule(self, rule: ApprovedRule) -> None
 def clear_session_rules(self) -> None
+def set_config_getter(self, config_getter: Callable[[], Settings]) -> None
 async def _should_execute_tool(self, tool_name: str, tool_args: dict, tool_call_id: str) -> ToolDecision
 def approve_always(self, tool_name: str, required_permissions: list, save_permanently: bool = False) -> None
 ```
+
+**Constructor Parameters:**
+```python
+def __init__(
+    self,
+    llm_provider: BaseLLMProvider,
+    tool_registry: ToolRegistry,
+    system_prompt: str,
+    model: str | None = None,
+    config_getter: Callable[[], Settings] | None = None,
+)
+```
+
+The `config_getter` parameter is crucial for proper permission system integration. It should be a function that returns the current `Settings` object with agent profile overrides applied. This ensures that tool permissions respect the active agent profile's safety settings.
 
 **Usage:**
 ```python
@@ -167,9 +192,23 @@ The main JARVIS agent for all tasks (coding, research, documentation, etc.).
 **Example Usage:**
 ```python
 from core.agents.coding_agent import CodingAgent
+from core.agents.manager import AgentManager
+from core.config.settings import Settings
 
-# Initialize agent
-jarvis = CodingAgent(provider, tool_registry, model="gpt-4o")
+# Initialize agent manager for profile support
+settings = Settings()
+agent_manager = AgentManager(
+    config_getter=lambda: settings,
+    initial_agent="default"
+)
+
+# Initialize agent with profile config getter
+jarvis = CodingAgent(
+    provider,
+    tool_registry,
+    model="gpt-4o",
+    config_getter=lambda: agent_manager.config
+)
 
 # Rebuild system prompt with dynamic tool descriptions
 jarvis.rebuild_system_prompt()
@@ -208,12 +247,22 @@ A specialized subagent for comprehensive codebase exploration and analysis.
 **Example Usage:**
 ```python
 from core.agents import ExploreAgent
+from core.agents.manager import AgentManager
+from core.config.settings import Settings
+
+# Initialize agent manager for profile support
+settings = Settings()
+agent_manager = AgentManager(
+    config_getter=lambda: settings,
+    initial_agent="default"
+)
 
 # Initialize explore subagent (uses same model as main agent)
 explore_agent = ExploreAgent(
     llm_provider=provider,
     tool_registry=tool_registry,
-    model="gpt-4o"  # Same model as main agent
+    model="gpt-4o",  # Same model as main agent
+    config_getter=lambda: agent_manager.config
 )
 
 # Explore codebase

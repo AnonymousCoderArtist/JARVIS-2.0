@@ -192,9 +192,23 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         llm_provider=provider,
         model=model
     )
-    
-    # Create JARVIS agent with full core integration
-    jarvis_agent = CodingAgent(provider, tool_registry, model=model)
+
+    # Initialize agent manager for profile support
+    from core.agents.manager import AgentManager
+    from core.config.settings import Settings
+    settings = Settings()
+    agent_manager = AgentManager(
+        config_getter=lambda: settings,
+        initial_agent="default"
+    )
+
+    # Create JARVIS agent with full core integration and profile config getter
+    jarvis_agent = CodingAgent(
+        provider,
+        tool_registry,
+        model=model,
+        config_getter=lambda: agent_manager.config
+    )
     
     # Rebuild system prompt with dynamic tool descriptions
     jarvis_agent.rebuild_system_prompt()
@@ -213,6 +227,7 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         agent=jarvis_agent,
         config=config,
         tool_registry=tool_registry,
+        agent_manager=agent_manager
     )
     
     # Launch textual UI

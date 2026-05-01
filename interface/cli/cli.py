@@ -128,7 +128,22 @@ class CLIInterface:
         # Store provider reference for tool registry
         self._current_provider = provider
 
-        self.jarvis_agent = CodingAgent(provider, self.tool_registry, model=self.model)
+        # Initialize agent manager for profile support
+        from core.agents.manager import AgentManager
+        from core.config.settings import Settings
+        settings = Settings()
+        self.agent_manager = AgentManager(
+            config_getter=lambda: settings,
+            initial_agent="default"
+        )
+
+        # Create agent with profile config getter
+        self.jarvis_agent = CodingAgent(
+            provider,
+            self.tool_registry,
+            model=self.model,
+            config_getter=lambda: self.agent_manager.config
+        )
         
         # Update command handler with current status info
         self.command_handler.update_status_info(

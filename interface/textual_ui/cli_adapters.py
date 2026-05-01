@@ -6,7 +6,8 @@ from enum import StrEnum
 import json
 from logging import getLogger
 from pathlib import Path
-from typing import Any
+from pydantic import BaseModel
+from typing import Any, Optional
 
 logger = getLogger(__name__)
 
@@ -412,9 +413,6 @@ class VoiceManager:
 # CORE AGENT LOOP (REAL IMPLEMENTATION)
 # ============================================================================
 
-# Import the real AgentLoop from agent_loop.py
-from interface.textual_ui.agent_loop import AgentLoop
-
 
 # ============================================================================
 # TELEPORT SYSTEM
@@ -810,89 +808,59 @@ class BashToolConfig:
     max_output_bytes: int = 100000
 
 
-class BashArgs:
-    """Bash arguments."""
-    pass
+class BashArgs(BaseModel):
+    command: str
+    is_background: bool = False
 
 
-class BashResult:
-    """Bash result."""
-    pass
+class GrepArgs(BaseModel):
+    pattern: str
+    path: str = "."
+    max_matches: Optional[int] = None
 
 
-class GrepArgs:
-    """Grep arguments."""
-    pass
-
-
-class GrepResult:
-    """Grep result."""
-    pass
-
-
-class ReadFileArgs:
-    """Read file arguments."""
-    pass
-
-
-class ReadFileResult:
-    """Read file result."""
-    pass
+class ReadFileArgs(BaseModel):
+    path: str
+    offset: int = 0
+    limit: Optional[int] = None
 
 
 SEARCH_REPLACE_BLOCK_RE = ""
 
 
-class SearchReplaceArgs:
-    """Search replace arguments."""
-    pass
+class SearchReplaceArgs(BaseModel):
+    file_path: str
+    content: str
 
 
-class SearchReplaceResult:
-    """Search replace result."""
-    pass
+class TodoArgs(BaseModel):
+    action: str
+    todos: list = []
 
 
-class TodoArgs:
-    """Todo arguments."""
-    pass
-
-
-class TodoResult:
-    """Todo result."""
-    pass
-
-
-class WriteFileArgs:
-    """Write file arguments."""
-    pass
-
-
-class WriteFileResult:
-    """Write file result."""
-    pass
+class WriteFileArgs(BaseModel):
+    path: str
+    content: str
 
 
 # ============================================================================
 # QUESTION SYSTEM
 # ============================================================================
 
-@dataclass
-class AskUserQuestionArgs:
-    """Ask user question arguments."""
-    pass
+class AskUserQuestionArgs(BaseModel):
+    question: str
+    choices: list[str] = []
+    allow_other: bool = False
 
 
-@dataclass
-class AskUserQuestionResult:
-    """Ask user question result."""
-    pass
+class AskUserQuestionResult(BaseModel):
+    answers: list["Answer"] = []
 
 
-@dataclass
-class Answer:
-    """Answer to a question."""
-    pass
+class Answer(BaseModel):
+    question: str = ""
+    answer: str = ""
+    is_other: bool = False
 
 
 @dataclass

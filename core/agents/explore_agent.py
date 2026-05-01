@@ -101,7 +101,7 @@ You are a thorough explorer. Leave no stone unturned when investigating codebase
 class ExploreAgent(BaseAgent):
     """Explore subagent for codebase exploration and analysis"""
 
-    def __init__(self, llm_provider, tool_registry, model=None):
+    def __init__(self, llm_provider, tool_registry, model=None, config_getter=None):
         """
         Initialize the explore agent
 
@@ -109,13 +109,15 @@ class ExploreAgent(BaseAgent):
             llm_provider: LLM provider instance
             tool_registry: Tool registry instance
             model: Model to use (defaults to same as parent if not specified)
+            config_getter: Function to get current configuration with profile overrides
         """
         # Use the same model as provided, or default
         super().__init__(
             llm_provider=llm_provider,
             tool_registry=tool_registry,
             system_prompt=EXPLORE_SYSTEM_PROMPT,
-            model=model
+            model=model,
+            config_getter=config_getter
         )
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()

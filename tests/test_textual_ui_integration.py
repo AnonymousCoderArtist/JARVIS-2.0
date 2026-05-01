@@ -98,7 +98,7 @@ async def test_agent_loop_streams_chunks_without_duplicate_final_response() -> N
 
 @pytest.mark.asyncio
 async def test_core_agent_falls_back_when_model_rejects_tools() -> None:
-    agent = CodingAgent(FakeNoToolsProvider(), ToolRegistry(), model="fake-no-tools")
+    agent = CodingAgent(FakeNoToolsProvider(), ToolRegistry(), model="fake-no-tools", config_getter=None)
     chunks: list[str] = []
     agent.stream_callback = chunks.append
 
@@ -138,7 +138,7 @@ def test_system_prompt_includes_registered_tool_descriptions() -> None:
         input_schema = {"type": "object", "properties": {}}
 
     registry.register(ExampleTool())
-    agent = CodingAgent(FakeNoToolsProvider(), registry, model="fake-no-tools")
+    agent = CodingAgent(FakeNoToolsProvider(), registry, model="fake-no-tools", config_getter=None)
 
     assert "### example_tool" in agent.system_prompt
     assert "Example tool description." in agent.system_prompt

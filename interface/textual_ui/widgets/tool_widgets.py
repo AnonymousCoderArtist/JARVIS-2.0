@@ -13,17 +13,19 @@ from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.cli_adapters import (
     AskUserQuestionResult,
     BashArgs,
-    BashResult,
     GrepArgs,
-    GrepResult,
     ReadFileArgs,
-    ReadFileResult,
     SEARCH_REPLACE_BLOCK_RE,
     SearchReplaceArgs,
-    SearchReplaceResult,
     TodoArgs,
-    TodoResult,
     WriteFileArgs,
+)
+from interface.textual_ui.tool_results import (
+    BashResult,
+    GrepResult,
+    ReadFileResult,
+    SearchReplaceResult,
+    TodoResult,
     WriteFileResult,
 )
 

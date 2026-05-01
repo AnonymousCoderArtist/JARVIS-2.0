@@ -6,9 +6,9 @@ import time
 from interface.textual_ui.cli_adapters import (
     read_cache,
     write_cache,
-    AgentLoop,
     CACHE_FILE,
 )
+from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.types import Role
 
 FEEDBACK_PROBABILITY = 0.2

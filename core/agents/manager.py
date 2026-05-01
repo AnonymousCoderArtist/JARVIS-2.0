@@ -94,7 +94,7 @@ class AgentManager:
         return base
 
     @property
-    def config(self) -> Settings:
+    def config(self) -> dict[str, Any]:
         """Get configuration with active profile applied"""
         if self._cached_config is None:
             self._cached_config = self.active_profile.apply_to_config(
