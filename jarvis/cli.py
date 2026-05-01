@@ -86,14 +86,20 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, str, str, str, str]:
         help="Launch the Textual UI (TUI)"
     )
 
+    parser.add_argument(
+        "--bypass", "--yolo",
+        action="store_true",
+        help="Bypass all tool permission checks (yolo mode)"
+    )
+
     args = parser.parse_args(argv)
 
-    return args.cli, args.tui, args.model, args.base_url, args.apikey, args.sdk
+    return args.cli, args.tui, args.model, args.base_url, args.apikey, args.sdk, args.bypass
 
 
 def main() -> None:
     """Entry point for the jarvis command."""
-    launch_cli, launch_tui, model, base_url, apikey, sdk = _parse_args(sys.argv[1:])
+    launch_cli, launch_tui, model, base_url, apikey, sdk, bypass = _parse_args(sys.argv[1:])
 
     # Default to CLI if no mode specified
     if not launch_cli and not launch_tui:
@@ -106,9 +112,9 @@ def main() -> None:
         tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk)
     else:
         from interface.cli.cli import main as cli_main
-        # CLI needs asyncio
+        # CLI is now async
         import asyncio
-        asyncio.run(cli_main(launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk))
+        asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
 
 
 if __name__ == "__main__":

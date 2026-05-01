@@ -1,7 +1,14 @@
 """Abstract base class for LLM providers"""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
+from typing import Any, TypeAlias
+
+# Type aliases for messages and tool definitions
+MessageDict: TypeAlias = dict[str, Any]
+ToolDefDict: TypeAlias = dict[str, Any]
 
 
 class BaseLLMProvider(ABC):
@@ -10,12 +17,12 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def generate(
         self,
-        messages: list[dict],
+        messages: list[MessageDict],
         model: str,
         temperature: float = 0.7,
         max_tokens: int | None = None,
         stream: bool = False,
-    ) -> str | AsyncGenerator:
+    ) -> str | AsyncGenerator[Any, None]:
         """
         Generate a response from the LLM
 
@@ -34,11 +41,12 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def generate_with_tools(
         self,
-        messages: list[dict],
-        tools: list[dict],
+        messages: list[MessageDict],
+        tools: list[ToolDefDict],
         model: str,
-        **kwargs
-    ) -> dict | AsyncGenerator:
+        stream: bool = False,
+        **kwargs: Any
+    ) -> dict[str, Any] | AsyncGenerator[Any, None]:
         """
         Generate a response with tool calling support
 
@@ -46,6 +54,7 @@ class BaseLLMProvider(ABC):
             messages: List of message dictionaries
             tools: List of tool definitions
             model: Model name to use
+            stream: Whether to stream the response
             **kwargs: Additional parameters
 
         Returns:

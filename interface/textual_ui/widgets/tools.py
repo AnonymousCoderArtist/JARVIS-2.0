@@ -15,7 +15,7 @@ from interface.textual_ui.widgets.status_message import StatusMessage
 from interface.textual_ui.widgets.tool_widgets import get_result_widget
 
 
-def _format_tool_value(value: Any, *, max_length: int = 120) -> str:
+def _format_tool_value(value: Any, *, max_length: int = 80) -> str:
     if isinstance(value, str):
         text = value.replace("\n", "\\n")
     else:
@@ -25,7 +25,7 @@ def _format_tool_value(value: Any, *, max_length: int = 120) -> str:
             text = str(value)
     if len(text) > max_length:
         hidden = len(text) - max_length
-        text = f"{text[:max_length]}... ({hidden} more chars)"
+        text = f"{text[:max_length]}…"
     return text
 
 
@@ -44,7 +44,7 @@ def _format_tool_args(args: dict[str, Any] | None) -> list[str]:
     ]
     ordered = [key for key in priority_keys if key in args]
     ordered.extend(key for key in args if key not in priority_keys)
-    return [f"{key}: {_format_tool_value(args[key])}" for key in ordered[:6]]
+    return [f"{key}: {_format_tool_value(args[key])}" for key in ordered[:4]]
 
 
 class ToolCallMessage(StatusMessage):
@@ -67,15 +67,17 @@ class ToolCallMessage(StatusMessage):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="tool-call-container"):
-            with Horizontal():
+            with Horizontal(classes="tool-call-header"):
                 self._indicator_widget = NonSelectableStatic(
                     self._spinner.current_frame(), classes="status-indicator-icon"
                 )
                 yield self._indicator_widget
                 self._text_widget = NoMarkupStatic("", classes="status-indicator-text")
                 yield self._text_widget
-            for line in self._get_argument_lines():
-                yield NoMarkupStatic(line, classes="tool-call-detail")
+            args = self._get_argument_lines()
+            if args:
+                for line in args[:2]:
+                    yield NoMarkupStatic(line, classes="tool-call-detail")
             self._stream_widget = NoMarkupStatic("", classes="tool-stream-message")
             self._stream_widget.display = False
             yield self._stream_widget

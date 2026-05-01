@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from core.tools.permissions import (
     ApprovedRule,
     PermissionContext,
+    PermissionScope,
     RequiredPermission,
     ToolPermission,
+    resolve_path_permission,
+    resolve_file_tool_permission,
 )
 from core.tools.utils import wildcard_match
 
@@ -19,7 +23,7 @@ if TYPE_CHECKING:
 class PermissionManager:
     """Manages tool permissions and session rules"""
 
-    def __init__(self, config_getter: callable[[], Settings]):
+    def __init__(self, config_getter: Callable[[], Settings]):
         self._config_getter = config_getter
         self.session_rules: list[ApprovedRule] = []
         self.tool_permissions: dict[str, ToolPermission] = {}
@@ -49,6 +53,11 @@ class PermissionManager:
         if self._config.bypass_tool_permissions:
             return PermissionContext(permission=ToolPermission.ALWAYS)
 
+        # Check path-aware tool permissions first so trusted folders can short-circuit.
+        path_ctx = self._resolve_path_permission(tool_name, args)
+        if path_ctx is not None and path_ctx.permission in (ToolPermission.ALWAYS, ToolPermission.NEVER):
+            return path_ctx
+
         # Check session rules
         required_permissions = self._get_required_permissions(tool_name, args)
 
@@ -70,6 +79,62 @@ class PermissionManager:
             required_permissions=uncovered,
         )
 
+    def _resolve_path_permission(
+        self, tool_name: str, args: dict
+    ) -> PermissionContext | None:
+        """Resolve immediate allow/deny decisions for path-aware tools."""
+        from core.tools.permissions import is_path_within_workdir
+
+        if tool_name in ("read", "write", "edit") and "filePath" in args:
+            file_path = args["filePath"]
+            allowlist = self._config.tools.get("allowlist", [])
+            denylist = self._config.tools.get("denylist", [])
+            sensitive_patterns = self._config.tools.get("sensitive_patterns", [])
+            config_permission = ToolPermission(
+                self._config.tools.get(tool_name, {}).get("permission", "ask")
+            )
+            return resolve_file_tool_permission(
+                file_path,
+                tool_name=tool_name,
+                allowlist=allowlist,
+                denylist=denylist,
+                config_permission=config_permission,
+                sensitive_patterns=sensitive_patterns,
+            )
+
+        if tool_name == "list_dir" and "path" in args:
+            allowlist = self._config.tools.get("allowlist", [])
+            denylist = self._config.tools.get("denylist", [])
+            path = args["path"]
+
+            result = resolve_path_permission(
+                path,
+                allowlist=allowlist,
+                denylist=denylist,
+            )
+            if result is not None:
+                return result
+
+            if not is_path_within_workdir(path):
+                from pathlib import Path
+
+                resolved = Path(path).expanduser().resolve()
+                parent_dir = str(resolved.parent)
+                glob = str(Path(parent_dir) / "*")
+                return PermissionContext(
+                    permission=ToolPermission.ASK,
+                    required_permissions=[
+                        RequiredPermission(
+                            scope=PermissionScope.OUTSIDE_DIRECTORY,
+                            invocation_pattern=str(resolved),
+                            session_pattern=glob,
+                            label=f"list {resolved}",
+                        )
+                    ],
+                )
+
+        return None
+
     def _get_required_permissions(
         self, tool_name: str, args: dict
     ) -> list[RequiredPermission]:
@@ -83,10 +148,7 @@ class PermissionManager:
         Returns:
             List of required permissions
         """
-        from core.tools.permissions import (
-            resolve_file_tool_permission,
-            is_path_within_workdir,
-        )
+        from core.tools.permissions import is_path_within_workdir
 
         permissions = []
 

@@ -7,23 +7,39 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
-from enum import StrEnum, auto
-from typing import Any, cast
+from enum import Enum, auto
+from typing import Any, TypeAlias, cast
 
 from core.agents.system_prompts import get_system_context
-from core.llm.base import BaseLLMProvider
+from core.llm.base import BaseLLMProvider, MessageDict, ToolDefDict
 from core.llm_sdk.base.sdk import ToolCall
 from core.config.settings import Settings
-from core.tools.permissions import ApprovedRule, PermissionContext, PermissionScope, ToolPermission
+from core.tools.permissions import ApprovedRule, PermissionContext, ToolPermission
 from core.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
+# Type aliases for messages and tool definitions
+# MessageDict and ToolDefDict are imported from core.llm.base
 
-class ApprovalResponse(StrEnum):
+# Type aliases for callbacks
+StreamCallback: TypeAlias = Callable[[str], None]
+ToolCallCallback: TypeAlias = Callable[[str, dict[str, Any]], None]
+ToolResultCallback: TypeAlias = Callable[[str, dict[str, Any], Any], None]
+ReasoningCallback: TypeAlias = Callable[[str], None]
+ApprovalCallback: TypeAlias = Callable[[str, dict[str, Any], str, list[Any]], Any]
+ConfigGetter: TypeAlias = Callable[[], Settings]
+ProgressCallback: TypeAlias = Callable[[str, float], None]
+StatusCallback: TypeAlias = Callable[[str], None]
+
+
+class ApprovalResponse(str, Enum):
     """Response types for tool approval"""
-    YES = auto()
-    NO = auto()
+    YES = "yes"
+    NO = "no"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 @dataclass
@@ -43,29 +59,32 @@ class BaseAgent(ABC):
         tool_registry: ToolRegistry,
         system_prompt: str,
         model: str | None = None,
-        config_getter: Callable[[], Settings] | None = None,
+        config_getter: ConfigGetter | None = None,
+        bypass_tool_permissions: bool = False,
     ):
-        self.llm = llm_provider
-        self.tools = tool_registry
-        self.base_system_prompt = system_prompt
-        self.model = model or "gpt-4"  # Use provided model or default
-        self.memory: list[dict[str, Any]] = []
+        self.llm: BaseLLMProvider = llm_provider
+        self.tools: ToolRegistry = tool_registry
+        self.base_system_prompt: str = system_prompt
+        self.system_prompt: str = ""
+        self.model: str = model or "gpt-4"  # Use provided model or default
+        self.memory: list[MessageDict] = []
         self.context: dict[str, Any] = {}
         # Callbacks for streaming and tool calls
-        self.stream_callback: Callable | None = None
-        self.tool_call_callback: Callable | None = None
-        self.tool_result_callback: Callable | None = None
-        self.reasoning_callback: Callable | None = None
+        self.stream_callback: StreamCallback | None = None
+        self.tool_call_callback: ToolCallCallback | None = None
+        self.tool_result_callback: ToolResultCallback | None = None
+        self.reasoning_callback: ReasoningCallback | None = None
 
         # Permission system
-        self.approval_callback: Callable | None = None
-        self._session_rules: list = []
-        self._config_getter = config_getter or (lambda: Settings())
+        self.approval_callback: ApprovalCallback | None = None
+        self._session_rules: list[ApprovedRule] = []
+        self._config_getter: ConfigGetter = config_getter or (lambda: Settings())
+        self.bypass_tool_permissions: bool = bypass_tool_permissions
 
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
     
-    def _build_system_prompt(self):
+    def _build_system_prompt(self) -> None:
         """Build the full system prompt with system context and active skills."""
         # Get system context
         system_context = get_system_context()
@@ -78,7 +97,8 @@ class BaseAgent(ABC):
         # Add active skills if any
         if hasattr(self.tools, 'active_skills') and self.tools.active_skills:
             skills_section = "\n\n## Active Skills\n\n"
-            for skill_name, skill_content in self.tools.active_skills.items():
+            active_skills = cast(dict[str, str], self.tools.active_skills)
+            for skill_name, skill_content in active_skills.items():
                 skills_section += f"### {skill_name}\n{skill_content}\n\n"
             full_prompt += skills_section
 
@@ -93,10 +113,9 @@ class BaseAgent(ABC):
             # If skill manager fails, continue without skill descriptions
             pass
 
-
         self.system_prompt = full_prompt
 
-    def rebuild_system_prompt(self):
+    def rebuild_system_prompt(self) -> None:
         """Rebuild the system prompt with current tool descriptions and active skills.
 
         Call this after modifying the tool registry or activating skills to update the agent's
@@ -131,7 +150,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    def add_to_memory(self, entry: dict[str, Any]):
+    def add_to_memory(self, entry: MessageDict) -> None:
         """
         Add an entry to agent memory
 
@@ -156,11 +175,13 @@ class BaseAgent(ABC):
 
         context_parts = []
         for entry in recent_memory:
-            context_parts.append(f"- {entry.get('content', '')}")
+            content = entry.get('content', '')
+            if content:
+                context_parts.append(f"- {content}")
 
         return "Relevant context:\n" + "\n".join(context_parts)
 
-    def update_context(self, key: str, value: Any):
+    def update_context(self, key: str, value: Any) -> None:
         """
         Update the agent's context
 
@@ -183,11 +204,11 @@ class BaseAgent(ABC):
         """
         return self.context.get(key, default)
 
-    def clear_memory(self):
+    def clear_memory(self) -> None:
         """Clear agent memory"""
         self.memory = []
 
-    def set_approval_callback(self, callback: Callable) -> None:
+    def set_approval_callback(self, callback: ApprovalCallback) -> None:
         """
         Set the callback for tool approval
 
@@ -196,7 +217,7 @@ class BaseAgent(ABC):
         """
         self.approval_callback = callback
 
-    def add_session_rule(self, rule) -> None:
+    def add_session_rule(self, rule: ApprovedRule) -> None:
         """
         Add a session-level permission rule
 
@@ -209,7 +230,7 @@ class BaseAgent(ABC):
         """Clear all session-level rules"""
         self._session_rules.clear()
 
-    def set_config_getter(self, config_getter: Callable[[], Settings]) -> None:
+    def set_config_getter(self, config_getter: ConfigGetter) -> None:
         """
         Set the configuration getter function
 
@@ -219,7 +240,7 @@ class BaseAgent(ABC):
         self._config_getter = config_getter
 
     async def _should_execute_tool(
-        self, tool_name: str, tool_args: dict, tool_call_id: str
+        self, tool_name: str, tool_args: dict[str, Any], tool_call_id: str
     ) -> ToolDecision:
         """
         Check if a tool should be executed based on permissions
@@ -245,14 +266,9 @@ class BaseAgent(ABC):
         # Check configuration for tool-level permission
         config = self._config_getter()
 
-        # Handle both dict and Settings objects
-        if isinstance(config, dict):
-            bypass = config.get("bypass_tool_permissions", False)
-            tools_config = config.get("tools", {})
-        else:
-            # Assume it's a Settings object
-            bypass = getattr(config, "bypass_tool_permissions", False)
-            tools_config = getattr(config, "tools", {})
+        # Check bypass from instance attribute first, then config
+        bypass = self.bypass_tool_permissions or config.bypass_tool_permissions
+        tools_config = config.tools
 
         if bypass:
             return ToolDecision(
@@ -262,7 +278,11 @@ class BaseAgent(ABC):
 
         # Check tool-level permission from config
         tool_config = tools_config.get(tool_name, {})
-        tool_perm = ToolPermission(tool_config.get("permission", "ask"))
+        if isinstance(tool_config, dict):
+            raw_perm = tool_config.get("permission", "ask")
+            tool_perm = ToolPermission(raw_perm)
+        else:
+            tool_perm = ToolPermission.ASK
 
         if tool_perm == ToolPermission.ALWAYS:
             return ToolDecision(
@@ -295,7 +315,7 @@ class BaseAgent(ABC):
         # Ask for approval
         return await self._ask_approval(tool_name, tool_args, tool_call_id, uncovered)
 
-    def _is_permission_covered(self, tool_name: str, required_permission) -> bool:
+    def _is_permission_covered(self, tool_name: str, required_permission: Any) -> bool:
         """
         Check if a required permission is covered by session rules
 
@@ -318,7 +338,7 @@ class BaseAgent(ABC):
         )
 
     async def _ask_approval(
-        self, tool_name: str, tool_args: dict, tool_call_id: str, required_permissions: list
+        self, tool_name: str, tool_args: dict[str, Any], tool_call_id: str, required_permissions: list[Any]
     ) -> ToolDecision:
         """
         Ask user for approval via callback
@@ -340,9 +360,14 @@ class BaseAgent(ABC):
             )
 
         try:
-            response, feedback = await self.approval_callback(
+            result = await self.approval_callback(
                 tool_name, tool_args, tool_call_id, required_permissions
             )
+            
+            if isinstance(result, tuple) and len(result) == 2:
+                response, feedback = result
+            else:
+                response, feedback = result, ""
 
             if response == ApprovalResponse.YES:
                 return ToolDecision(
@@ -364,7 +389,7 @@ class BaseAgent(ABC):
             )
 
     def approve_always(
-        self, tool_name: str, required_permissions: list, save_permanently: bool = False
+        self, tool_name: str, required_permissions: list[Any], save_permanently: bool = False
     ) -> None:
         """
         Handle 'Allow Always' approval
@@ -388,17 +413,21 @@ class BaseAgent(ABC):
             # Set tool-level permission
             if save_permanently:
                 config = Settings()
-                if "tools" not in config._config:
-                    config._config["tools"] = {}
-                if tool_name not in config._config["tools"]:
-                    config._config["tools"][tool_name] = {}
-                config._config["tools"][tool_name]["permission"] = "always"
+                config_data = config.model_dump()
+                if "tools" not in config_data:
+                    config_data["tools"] = {}
+                if tool_name not in config_data["tools"]:
+                    config_data["tools"][tool_name] = {}
+                
+                config_data["tools"][tool_name]["permission"] = "always"
+                # Need to update config back - ideally Settings should have a better way
+                config.set("tools", tool_name, {"permission": "always"})
                 config.save()
             else:
                 # Store in session (would need session-level config)
                 pass
 
-    def _build_messages(self, user_content: str, include_memory: bool = True) -> list[dict[str, Any]]:
+    def _build_messages(self, user_content: str, include_memory: bool = True) -> list[MessageDict]:
         """
         Build message list with system, user, and memory context
 
@@ -409,7 +438,7 @@ class BaseAgent(ABC):
         Returns:
             List of message dictionaries with proper roles
         """
-        messages = [
+        messages: list[MessageDict] = [
             {"role": "system", "content": self.system_prompt}
         ]
 
@@ -426,7 +455,7 @@ class BaseAgent(ABC):
 
     async def _process_with_tools(
         self,
-        messages: list[dict[str, Any]],
+        messages: list[MessageDict],
         stream: bool = False
     ) -> str:
         """
@@ -454,7 +483,7 @@ class BaseAgent(ABC):
             if self.stream_callback:
                 full_response = ""
                 reasoning_content = ""
-                tool_calls = []
+                tool_calls: list[ToolCall] = []
                 try:
                     stream_result = cast(
                         AsyncGenerator[Any, None],
@@ -468,35 +497,38 @@ class BaseAgent(ABC):
                     async for chunk in stream_result:
                         if isinstance(chunk, dict):
                             if chunk["type"] == "text":
-                                full_response += chunk["content"]
-                                self.stream_callback(chunk["content"])
+                                chunk_content = cast(str, chunk["content"])
+                                full_response += chunk_content
+                                self.stream_callback(chunk_content)
                             elif chunk["type"] == "reasoning":
-                                reasoning_content += chunk["content"]
+                                chunk_reasoning = cast(str, chunk["content"])
+                                reasoning_content += chunk_reasoning
                                 # Call reasoning callback if set and content exists
-                                if chunk["content"] and chunk["content"].strip():
-                                    if hasattr(self, 'reasoning_callback') and self.reasoning_callback:
-                                        self.reasoning_callback(chunk["content"])
+                                if chunk_reasoning and chunk_reasoning.strip():
+                                    if self.reasoning_callback:
+                                        self.reasoning_callback(chunk_reasoning)
                             elif chunk["type"] == "tool_calls":
-                                for tc in chunk.get("tool_calls", []):
+                                for tc in cast(list[dict[str, Any]], chunk.get("tool_calls", [])):
                                     tool_calls.append(ToolCall(
                                         id=tc.get("id", ""),
                                         name=tc.get("name", ""),
                                         arguments=tc.get("arguments", "")
                                     ))
                             elif chunk["type"] == "tool_call":
-                                tool_calls.append(chunk["tool_call"])
+                                tool_calls.append(cast(ToolCall, chunk["tool_call"]))
                         else:
                             # Backward compatibility for string chunks
-                            full_response += chunk
-                            self.stream_callback(chunk)
+                            chunk_text = str(chunk)
+                            full_response += chunk_text
+                            self.stream_callback(chunk_text)
 
                     # If tool calls were encountered, execute them
                     if tool_calls:
-                        response = {
+                        response_dict: dict[str, Any] = {
                             "content": full_response,
-                            "tool_calls": [{"function": {"name": tc.name, "arguments": tc.arguments}} for tc in tool_calls]
+                            "tool_calls": [{"function": {"name": tc.name, "arguments": tc.arguments}, "id": tc.id} for tc in tool_calls]
                         }
-                        updated_messages = await self._execute_tools_and_update_messages(response, updated_messages)
+                        updated_messages = await self._execute_tools_and_update_messages(response_dict, updated_messages)
                         continue  # Loop again with updated messages
 
                     return full_response
@@ -517,21 +549,17 @@ class BaseAgent(ABC):
                 )
                 return await self._process_without_tools(updated_messages, stream=stream)
             
-            # Handle dict response (from SDK adapter)
-            if isinstance(raw_response, dict):
-                response = raw_response
-            else:
-                response = cast(dict[str, Any], raw_response)
+            # Handle response
+            response: MessageDict = cast(MessageDict, raw_response)
 
-            content = response.get("content", "")
-            reasoning = response.get("reasoning_content", "") or response.get("reasoning", "")
+            content = str(response.get("content", ""))
+            reasoning = str(response.get("reasoning_content", "") or response.get("reasoning", ""))
             
             # Handle reasoning content in non-streaming mode
-            if reasoning and reasoning.strip() and hasattr(self, 'reasoning_callback') and self.reasoning_callback:
+            if reasoning and reasoning.strip() and self.reasoning_callback:
                 self.reasoning_callback(reasoning)
             
             # Always emit content via stream_callback if set, even in non-streaming mode
-            # This ensures TUI gets events even when streaming fails
             if self.stream_callback and content:
                 self.stream_callback(content)
 
@@ -543,9 +571,9 @@ class BaseAgent(ABC):
 
     async def _execute_tools_and_update_messages(
         self,
-        response: dict[str, Any],
-        messages: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+        response: MessageDict,
+        messages: list[MessageDict]
+    ) -> list[MessageDict]:
         """
         Execute tool calls and update message history with results
 
@@ -569,15 +597,16 @@ class BaseAgent(ABC):
         tool_results: list[dict[str, Any]] = []
 
         for tool_call in tool_calls:
-            tool_name = tool_call["function"]["name"]
-            tool_args_str = tool_call["function"]["arguments"]
-            tool_call_id = tool_call.get("id", f"call_{len(tool_results)}")
+            function_data = cast(dict[str, Any], tool_call["function"])
+            tool_name = str(function_data["name"])
+            tool_args_raw = function_data["arguments"]
+            tool_call_id = str(tool_call.get("id", f"call_{len(tool_results)}"))
 
             try:
-                if isinstance(tool_args_str, str):
-                    tool_args = json.loads(tool_args_str)
+                if isinstance(tool_args_raw, str):
+                    tool_args = cast(dict[str, Any], json.loads(tool_args_raw))
                 else:
-                    tool_args = tool_args_str
+                    tool_args = cast(dict[str, Any], tool_args_raw)
             except json.JSONDecodeError:
                 tool_args = {}
 
@@ -606,34 +635,38 @@ class BaseAgent(ABC):
                 self.tool_result_callback(tool_name, tool_args, result)
 
             # Rebuild system prompt if a skill was activated
-            if tool_name == "activate_skill" and result.success:
+            if tool_name == "activate_skill" and hasattr(result, "success") and result.success:
                 self.rebuild_system_prompt()
 
             # Format tool result for LLM
-            if result.success:
-                tool_result_content = f"Tool {tool_name} executed successfully. Result: {result.result}"
+            success = getattr(result, "success", False)
+            res_val = getattr(result, "result", None)
+            err_val = getattr(result, "error", "Unknown error")
+
+            if success:
+                tool_result_content = f"Tool {tool_name} executed successfully. Result: {res_val}"
             else:
-                tool_result_content = f"Tool {tool_name} failed. Error: {result.error}. Please adjust your approach and try again with different parameters."
+                tool_result_content = f"Tool {tool_name} failed. Error: {err_val}. Please adjust your approach and try again with different parameters."
 
             tool_results.append({
                 "tool": tool_name,
-                "success": result.success,
-                "result": result.result,
-                "error": result.error,
+                "success": success,
+                "result": res_val,
+                "error": err_val,
                 "content": tool_result_content
             })
 
         # Add tool results to conversation history as user message
         updated_messages.append({
             "role": "user",
-            "content": "\n".join([tr["content"] for tr in tool_results])
+            "content": "\n".join([str(tr["content"]) for tr in tool_results])
         })
 
         return updated_messages
 
     async def _process_without_tools(
         self,
-        messages: list[dict[str, Any]],
+        messages: list[MessageDict],
         stream: bool = False
     ) -> str:
         """
@@ -663,17 +696,19 @@ class BaseAgent(ABC):
                 async for chunk in stream_result:
                     if isinstance(chunk, dict):
                         if chunk["type"] == "text":
-                            full_response += chunk["content"]
-                            self.stream_callback(chunk["content"])
+                            chunk_text = cast(str, chunk["content"])
+                            full_response += chunk_text
+                            self.stream_callback(chunk_text)
                         elif chunk["type"] == "reasoning":
-                            reasoning_content += chunk["content"]
+                            chunk_reasoning = cast(str, chunk["content"])
+                            reasoning_content += chunk_reasoning
                             # Call reasoning callback if set and content exists
-                            if chunk["content"] and chunk["content"].strip():
-                                if hasattr(self, 'reasoning_callback') and self.reasoning_callback:
-                                    self.reasoning_callback(chunk["content"])
+                            if chunk_reasoning and chunk_reasoning.strip():
+                                if self.reasoning_callback:
+                                    self.reasoning_callback(chunk_reasoning)
                     else:
                         # Backward compatibility for string chunks
-                        chunk_text = chunk if isinstance(chunk, str) else str(chunk)
+                        chunk_text = str(chunk)
                         full_response += chunk_text
                         self.stream_callback(chunk_text)
                 return full_response
@@ -685,25 +720,24 @@ class BaseAgent(ABC):
             model=self.model,
         )
         
-        # Handle dict response (from SDK adapter with reasoning)
+        # Handle dict response
         if isinstance(result, dict):
-            content = result.get("content", "")
-            reasoning = result.get("reasoning_content", "") or result.get("reasoning", "")
+            res_dict = cast(dict[str, Any], result)
+            content = str(res_dict.get("content", ""))
+            reasoning = str(res_dict.get("reasoning_content", "") or res_dict.get("reasoning", ""))
             
             # Call reasoning callback if set and content exists
-            if reasoning and reasoning.strip() and hasattr(self, 'reasoning_callback') and self.reasoning_callback:
+            if reasoning and reasoning.strip() and self.reasoning_callback:
                 self.reasoning_callback(reasoning)
             
-            # Always emit content via stream_callback if set, even in non-streaming mode
-            # This ensures TUI gets events even when streaming fails
+            # Always emit content via stream_callback if set
             if self.stream_callback and content:
                 self.stream_callback(content)
             
             return content
         
-        # Handle string response (backward compatibility)
+        # Handle string response
         if isinstance(result, str):
-            # Always emit content via stream_callback if set, even in non-streaming mode
             if self.stream_callback and result:
                 self.stream_callback(result)
             return result
@@ -713,17 +747,16 @@ class BaseAgent(ABC):
         async for chunk in cast(AsyncGenerator[Any, None], result):
             if isinstance(chunk, dict):
                 if chunk["type"] == "text":
-                    full_response += chunk["content"]
+                    chunk_text = cast(str, chunk["content"])
+                    full_response += chunk_text
                 elif chunk["type"] == "reasoning":
-                    # Call reasoning callback if set and content exists
-                    if chunk["content"] and chunk["content"].strip():
-                        if hasattr(self, 'reasoning_callback') and self.reasoning_callback:
-                            self.reasoning_callback(chunk["content"])
+                    chunk_reasoning = cast(str, chunk["content"])
+                    if chunk_reasoning and chunk_reasoning.strip() and self.reasoning_callback:
+                        self.reasoning_callback(chunk_reasoning)
             else:
-                # Backward compatibility for string chunks
-                full_response += chunk if isinstance(chunk, str) else str(chunk)
+                full_response += str(chunk)
         
-        # Always emit content via stream_callback if set, even in non-streaming mode
+        # Always emit content via stream_callback if set
         if self.stream_callback and full_response:
             self.stream_callback(full_response)
         

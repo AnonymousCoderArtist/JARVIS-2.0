@@ -3,19 +3,23 @@
 import asyncio
 import shlex
 import sys
+from pathlib import Path
 from typing import Callable, Awaitable, Dict, List, Optional, Any
+
+from core.trusted_folders import trusted_folders_manager
 
 from .display import DisplayManager
 
 
 class Command:
     """Base class for CLI commands."""
-    
-    def __init__(self, name: str, description: str, handler: Callable[[List[str]], Awaitable[None]]):
+
+    def __init__(self, name: str, description: str, handler: Callable[[List[str]], Awaitable[None]], hidden: bool = False):
         self.name = name
         self.description = description
         self.handler = handler
-    
+        self.hidden = hidden
+
     async def execute(self, args: List[str]) -> None:
         """Execute the command with given arguments."""
         await self.handler(args)
@@ -35,6 +39,9 @@ class CommandRegistry:
         self.register(Command("help", "Show available commands", self._cmd_help))
         self.register(Command("clear", "Clear the screen", self._cmd_clear))
         self.register(Command("status", "Show system status", self._cmd_status))
+        self.register(Command("trust", "Trust a folder for this session and future runs", self._cmd_trust))
+        self.register(Command("untrust", "Mark a folder as untrusted", self._cmd_untrust))
+        self.register(Command("trust-status", "Show current trust-folder status", self._cmd_trust_status))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
         self.register(Command("quit", "Exit JARVIS", self._cmd_exit))
         
@@ -114,6 +121,73 @@ class CommandRegistry:
             base_url="Loading...", 
             tool_count=0
         )
+
+    def _resolve_trust_path(self, args: List[str]) -> Path:
+        """Resolve a trust command target path.
+
+        If no path is supplied, default to the current working directory.
+        """
+        if not args:
+            return Path.cwd()
+
+        raw_target = args[0]
+        if raw_target in {".", "cwd", "current", "here"}:
+            return Path.cwd()
+
+        return Path(raw_target).expanduser().resolve()
+
+    async def _cmd_trust(self, args: List[str]):
+        """Trust a folder for the current session and persist the decision."""
+        try:
+            target = self._resolve_trust_path(args)
+            trusted_folders_manager.add_trusted(target)
+            trusted_folders_manager.trust_for_session(target)
+            self.display_manager.show_success(
+                f"Trusted folder: {target}\n\n"
+                f"This folder is now trusted for the current session and future runs."
+            )
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to trust folder: {e}")
+
+    async def _cmd_untrust(self, args: List[str]):
+        """Mark a folder as untrusted and remove any session trust for it."""
+        try:
+            target = self._resolve_trust_path(args)
+            trusted_folders_manager.add_untrusted(target)
+            trusted_folders_manager.untrust_for_session(target)
+            self.display_manager.show_success(
+                f"Untrusted folder: {target}\n\n"
+                f"This folder is now blocked for future runs and removed from session trust."
+            )
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to untrust folder: {e}")
+
+    async def _cmd_trust_status(self, args: List[str]):
+        """Show the trust status for the current working directory."""
+        try:
+            target = self._resolve_trust_path(args)
+            status = trusted_folders_manager.is_trusted(target)
+            trust_root = trusted_folders_manager.find_trust_root(target)
+            stats = trusted_folders_manager.get_stats()
+
+            if status is True:
+                status_text = "trusted"
+            elif status is False:
+                status_text = "untrusted"
+            else:
+                status_text = "undecided"
+
+            message = (
+                f"Path: {target}\n"
+                f"Status: {status_text}\n"
+                f"Trust root: {trust_root if trust_root else 'none'}\n\n"
+                f"Trusted folders: {stats['trusted']}\n"
+                f"Untrusted folders: {stats['untrusted']}\n"
+                f"Session-trusted folders: {stats['session_trusted']}"
+            )
+            self.display_manager.show_success(message, title="Trust Status")
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to read trust status: {e}")
     
     async def _cmd_exit(self, args: List[str]):
         """Handle exit command."""
@@ -169,36 +243,148 @@ class ShellCommand:
 
 class CommandHandler:
     """Main command handler that orchestrates command and shell execution."""
-    
+
     def __init__(self, display_manager: DisplayManager):
         self.display_manager = display_manager
         self.command_registry = CommandRegistry(display_manager)
         self.shell_command = ShellCommand(display_manager)
-    
+        # These will be set by CLIInterface after initialization
+        self.agent_manager = None
+        self.tool_registry = None
+        self.skill_manager = None
+        self.jarvis_agent = None
+
     async def handle_input(self, user_input: str) -> bool:
         """Handle user input and route to appropriate handler."""
         if not user_input.strip():
             return False
-        
+
         # Handle CLI commands
         if user_input.startswith("/"):
             return await self.command_registry.execute_command(user_input)
-        
+
         # Handle shell commands
         if user_input.startswith("!"):
             return await self.shell_command.execute(user_input[1:].strip())
-        
+
         # Regular chat input - not handled here
         return False
-    
+
     def update_status_info(self, model: str, sdk: str, base_url: str, tool_count: int):
         """Update status information for the status command."""
         # Create a closure that captures the current status
         async def _cmd_status(args: List[str]):
             self.display_manager.show_status(model, sdk, base_url, tool_count)
-        
+
         # Replace the status command handler
         self.command_registry.register(
             Command("status", "Show system status", _cmd_status)
         )
+
+    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent):
+        """Set references to managers for command handlers."""
+        self.agent_manager = agent_manager
+        self.tool_registry = tool_registry
+        self.skill_manager = skill_manager
+        self.jarvis_agent = jarvis_agent
+
+        # Register new commands that depend on these managers
+        self._register_profile_command()
+        self._register_tools_command()
+        self._register_skills_command()
+        self._register_memory_command()
+
+    def _register_profile_command(self):
+        """Register the /profile command."""
+        async def _cmd_profile(args: List[str]):
+            if not self.agent_manager:
+                self.display_manager.show_error("Agent manager not initialized")
+                return
+
+            if not args:
+                # List available profiles
+                profiles = self.agent_manager.list_profiles()
+                current = self.agent_manager.get_current_profile()
+                self.display_manager.show_profiles(profiles, current)
+            else:
+                # Switch profile
+                profile_name = args[0]
+                try:
+                    self.agent_manager.switch_profile(profile_name)
+                    self.display_manager.show_success(f"Switched to profile: {profile_name}")
+                except Exception as e:
+                    self.display_manager.show_error(f"Failed to switch profile: {e}")
+
+        self.command_registry.register(Command("profile", "Switch or list agent profiles", _cmd_profile))
+
+    def _register_tools_command(self):
+        """Register the /tools command."""
+        async def _cmd_tools(args: List[str]):
+            if not self.tool_registry:
+                self.display_manager.show_error("Tool registry not initialized")
+                return
+
+            tools = self.tool_registry.list_tools()
+            self.display_manager.show_tools(tools)
+
+        self.command_registry.register(Command("tools", "List available tools", _cmd_tools))
+
+    def _register_skills_command(self):
+        """Register the /skills command."""
+        async def _cmd_skills(args: List[str]):
+            if not self.skill_manager:
+                self.display_manager.show_error("Skill manager not initialized")
+                return
+
+            if not args:
+                # List available skills
+                skills = self.skill_manager.get_builtin_skills()
+                self.display_manager.show_skills(skills)
+            elif args[0] == "activate" and len(args) > 1:
+                # Activate a skill
+                skill_name = args[1]
+                skill = self.skill_manager.get_skill_profile(skill_name)
+                if skill:
+                    self.display_manager.show_success(f"Skill '{skill_name}' ready for activation")
+                    # Get skill content if available
+                    content = self.skill_manager.get_skill_content(skill_name)
+                    if content:
+                        preview = content[:200] + "..." if len(content) > 200 else content
+                        self.display_manager.cprint(f"Content: {preview}", style="dim")
+                    else:
+                        self.display_manager.cprint("No content file found for this skill", style="dim")
+                else:
+                    self.display_manager.show_error(f"Skill '{skill_name}' not found")
+            else:
+                self.display_manager.show_error("Usage: /skills [activate <name>]")
+
+        self.command_registry.register(Command("skills", "List and manage skills", _cmd_skills))
+
+    def _register_memory_command(self):
+        """Register the /memory command."""
+        async def _cmd_memory(args: List[str]):
+            if not self.jarvis_agent:
+                self.display_manager.show_error("Agent not initialized")
+                return
+
+            if not args:
+                # Show recent memory
+                self.display_manager.show_memory("recent", 10, "")
+            elif args[0] == "show" and len(args) > 1:
+                count = int(args[1]) if args[1].isdigit() else 10
+                self.display_manager.show_memory("recent", count, "")
+            elif args[0] == "clear":
+                # Clear memory (we'll need to implement this)
+                if hasattr(self.jarvis_agent, 'clear_memory'):
+                    self.jarvis_agent.clear_memory()
+                    self.display_manager.show_success("Memory cleared")
+                else:
+                    self.display_manager.show_error("Memory clearing not supported")
+            elif args[0] == "search" and len(args) > 1:
+                query = " ".join(args[1:])
+                self.display_manager.show_memory("search", 10, query)
+            else:
+                self.display_manager.show_error("Usage: /memory [show <count>|clear|search <query>]")
+
+        self.command_registry.register(Command("memory", "View and manage conversation memory", _cmd_memory))
     

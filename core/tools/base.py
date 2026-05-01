@@ -1,18 +1,26 @@
 """Base classes for tool system"""
 
-from abc import ABC, abstractmethod
-from typing import Any
+from __future__ import annotations
 
-from pydantic import BaseModel
+from abc import ABC, abstractmethod
+from typing import Any, TypeAlias, TYPE_CHECKING
+
+from pydantic import BaseModel, ConfigDict
 
 from core.tools.permissions import PermissionContext
+
+if TYPE_CHECKING:
+    from core.tools.registry import ToolRegistry
+    from core.llm.base import BaseLLMProvider
+
+# Type aliases
+MetadataDict: TypeAlias = dict[str, Any]
+ToolDefDict: TypeAlias = dict[str, Any]
 
 
 class ToolInput(BaseModel):
     """Base model for tool inputs"""
-
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ToolOutput(BaseModel):
@@ -21,7 +29,7 @@ class ToolOutput(BaseModel):
     success: bool
     result: Any
     error: str | None = None
-    metadata: dict[str, Any] | None = None
+    metadata: MetadataDict | None = None
 
 
 class BaseTool(ABC):
@@ -31,7 +39,12 @@ class BaseTool(ABC):
     description: str = ""
     input_schema: dict[str, Any] = {}
 
-    def __init__(self, tool_registry=None, llm_provider=None, model=None):
+    def __init__(
+        self,
+        tool_registry: ToolRegistry | None = None,
+        llm_provider: BaseLLMProvider | None = None,
+        model: str | None = None
+    ):
         if not self.name:
             raise ValueError("Tool must have a name")
         if not self.description:
@@ -55,7 +68,7 @@ class BaseTool(ABC):
         """
         pass
 
-    def validate_input(self, input_data: dict) -> bool:
+    def validate_input(self, input_data: dict[str, Any]) -> bool:
         """
         Validate input data against the tool's schema
 
@@ -71,7 +84,7 @@ class BaseTool(ABC):
         except Exception:
             return False
 
-    def get_function_definition(self) -> dict[str, Any]:
+    def get_function_definition(self) -> ToolDefDict:
         """
         Get the tool definition in OpenAI function calling format
 
@@ -87,7 +100,7 @@ class BaseTool(ABC):
             },
         }
 
-    async def safe_execute(self, input_data: dict) -> ToolOutput:
+    async def safe_execute(self, input_data: dict[str, Any]) -> ToolOutput:
         """
         Safely execute the tool with error handling
 
@@ -115,7 +128,7 @@ class BaseTool(ABC):
                 error=f"Tool execution failed: {str(e)}",
             )
 
-    def resolve_permission(self, args: dict) -> PermissionContext | None:
+    def resolve_permission(self, args: dict[str, Any]) -> PermissionContext | None:
         """
         Resolve permission requirements for this tool execution
 
@@ -128,7 +141,7 @@ class BaseTool(ABC):
         # Default implementation - tools can override for custom permission logic
         return None
 
-    def get_file_snapshot(self, args: dict) -> dict | None:
+    def get_file_snapshot(self, args: dict[str, Any]) -> dict[str, Any] | None:
         """
         Get a snapshot of files that will be modified by this tool
 

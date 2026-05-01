@@ -7,6 +7,10 @@ import aiofiles
 from .base import BaseTool, ToolInput, ToolOutput
 from core.tools.permissions import (
     PermissionContext,
+    PermissionScope,
+    RequiredPermission,
+    is_path_within_workdir,
+    resolve_path_permission,
     resolve_file_tool_permission,
     ToolPermission,
 )
@@ -303,6 +307,46 @@ Usage:
         },
         "required": ["path"]
     }
+
+    def resolve_permission(self, args: dict) -> PermissionContext | None:
+        """Resolve permission for directory listing with trust-folder and workdir checks."""
+        path = args.get("path")
+        if not path:
+            return None
+
+        from core.config.settings import Settings
+
+        settings = Settings()
+        allowlist = settings.tools.get("allowlist", [])
+        denylist = settings.tools.get("denylist", [])
+
+        result = resolve_path_permission(
+            path,
+            allowlist=allowlist,
+            denylist=denylist,
+        )
+        if result is not None:
+            return result
+
+        if not is_path_within_workdir(path):
+            from pathlib import Path
+
+            resolved = Path(path).expanduser().resolve()
+            parent_dir = str(resolved.parent)
+            glob = str(Path(parent_dir) / "*")
+            return PermissionContext(
+                permission=ToolPermission.ASK,
+                required_permissions=[
+                    RequiredPermission(
+                        scope=PermissionScope.OUTSIDE_DIRECTORY,
+                        invocation_pattern=str(resolved),
+                        session_pattern=glob,
+                        label=f"list {resolved}",
+                    )
+                ],
+            )
+
+        return None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:

@@ -94,12 +94,15 @@ class AgentManager:
         return base
 
     @property
-    def config(self) -> dict[str, Any]:
+    def config(self) -> Settings:
         """Get configuration with active profile applied"""
+        from core.config.settings import Settings
+        
         if self._cached_config is None:
-            self._cached_config = self.active_profile.apply_to_config(
+            merged_dict = self.active_profile.apply_to_config(
                 self._config.model_dump()
             )
+            self._cached_config = Settings(initial_config=merged_dict)
         return self._cached_config
 
     def switch_profile(self, name: str) -> None:
@@ -257,3 +260,11 @@ class AgentManager:
         import fnmatch
 
         return any(fnmatch.fnmatch(name, pattern) for pattern in patterns)
+
+    def list_profiles(self) -> list[str]:
+        """List all available profile names"""
+        return list(self.available_agents.keys())
+
+    def get_current_profile(self) -> str:
+        """Get the current profile name"""
+        return self.active_profile.name

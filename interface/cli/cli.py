@@ -10,12 +10,17 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
 from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.output import DummyOutput
 from pygments.lexers import PythonLexer, BashLexer, MarkdownLexer
 
 from core.agents.coding_agent import CodingAgent
+from core.agents.manager import AgentManager
+from core.config.settings import Settings
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
+from core.skills.manager import SkillManager
 from core.tools.agent_tools import ActivateSkillTool, InvokeAgentTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
@@ -33,20 +38,86 @@ from .config import ConfigManager, load_config
 from .keybindings import create_key_bindings
 
 
+class CommandCompleter(Completer):
+    """Completer for CLI commands and file paths."""
+
+    def __init__(self, command_handler: CommandHandler, tool_registry=None):
+        self.command_handler = command_handler
+        self.tool_registry = tool_registry
+
+    def get_completions(self, document, complete_event):
+        text = document.get_word_before_cursor()
+
+        # Command completion (slash commands)
+        if text.startswith('/'):
+            for cmd_name, cmd in self.command_handler.command_registry.commands.items():
+                if cmd_name.startswith(text[1:]):
+                    yield Completion(f'/{cmd_name}', start_position=-len(text[1:]))
+        # File path completion (after certain triggers)
+        elif text.startswith('~') or '/' in text or '\\' in text:
+            import os
+            base_path = text
+            if '/' in text:
+                base_path = text[:text.rfind('/') + 1]
+                prefix = text[text.rfind('/') + 1:]
+            else:
+                base_path = './'
+                prefix = text
+
+            try:
+                for item in os.listdir(base_path):
+                    if item.startswith(prefix):
+                        yield Completion(item, start_position=-len(prefix))
+            except (FileNotFoundError, PermissionError):
+                pass
+
+
+
+
+class DynamicLexer:
+    """Dynamic lexer that switches based on input type."""
+
+    def __init__(self, command_handler: CommandHandler):
+        self.command_handler = command_handler
+
+    def _get_lexer_for_text(self, text: str):
+        """Determine which lexer to use based on text content."""
+        text_lower = text.lower().strip()
+
+        if text_lower.startswith('python') or 'def ' in text or 'class ' in text:
+            return PygmentsLexer(PythonLexer)
+        elif text_lower.startswith('!') or 'cd ' in text or 'ls ' in text or 'bash ' in text:
+            return PygmentsLexer(BashLexer)
+        elif '#' in text or '**' in text or '##' in text:
+            return PygmentsLexer(MarkdownLexer)
+        return None
+
+    def lex_document(self, document):
+        """Return a function that lexes a document."""
+        lexer = self._get_lexer_for_text(document.text)
+        if lexer:
+            return lexer.lex_document(document)
+        # Return a no-op lexer function
+        return lambda i: []
+
+    def __call__(self, document, _):
+        """Make this callable for compatibility."""
+        return self._get_lexer_for_text(document.text)
 
 
 class CLIInterface:
     """Modern CLI interface for JARVIS with rich display and modular architecture."""
 
-    def __init__(self, model: str, base_url: str | None, apikey: str | None, sdk: str):
+    def __init__(self, model: str, base_url: str | None, apikey: str | None, sdk: str, bypass: bool = True):
         self.model = model
         self.base_url = base_url
         self.apikey = apikey
         self.sdk = sdk
+        self.bypass = bypass
         self.tool_registry = ToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
         self._current_provider = None
-        
+
         # Initialize modular components
         self.config_manager = load_config()
         self.display_manager = DisplayManager(
@@ -54,35 +125,35 @@ class CLIInterface:
             width=self.config_manager.config.display.width
         )
         self.command_handler = CommandHandler(self.display_manager)
-        
+
         # Prompt toolkit setup
         history_path = Path.home() / ".jarvis_history"
-        self.session = PromptSession(history=FileHistory(str(history_path)))
+
+        # Handle terminal compatibility
+        output = None
+        try:
+            import os
+            if 'xterm' in os.environ.get('TERM', '') or 'WSL' in os.environ.get('OSTYPE', ''):
+                output = DummyOutput()
+        except Exception:
+            pass
+
+        self.session = PromptSession(history=FileHistory(str(history_path)), output=output)
         self.style = Style.from_dict({
             'prompt': f'bold {self.display_manager.theme["prompt"]}',
             'arrow': self.display_manager.theme["arrow"],
         })
-        
+
         # Setup key bindings
         self.key_bindings = create_key_bindings(self.config_manager, self.display_manager)
-        
-        # Lexer for syntax highlighting
-        self.lexer = None  # Will be set based on input context
-        
-        self._initialize_systems()
 
-    def _detect_input_type(self, text: str) -> str:
-        """Detect the type of input for appropriate lexer."""
-        text_lower = text.lower().strip()
-        
-        if text_lower.startswith('python') or text_lower.startswith('def ') or text_lower.startswith('class '):
-            return 'python'
-        elif text_lower.startswith('!') or text_lower.startswith('cd ') or text_lower.startswith('ls '):
-            return 'bash'
-        elif '#' in text or '**' in text or '##' in text:
-            return 'markdown'
-        else:
-            return 'text'
+        # Completer for tab completion
+        self.completer = CommandCompleter(self.command_handler, self.tool_registry)
+
+        # Dynamic lexer for syntax highlighting
+        self.dynamic_lexer = DynamicLexer(self.command_handler)
+
+        self._initialize_systems()
 
     def _initialize_systems(self):
         self._initialize_tools()
@@ -128,23 +199,35 @@ class CLIInterface:
         # Store provider reference for tool registry
         self._current_provider = provider
 
-        # Initialize agent manager for profile support
-        from core.agents.manager import AgentManager
-        from core.config.settings import Settings
+        # Initialize settings and managers
         settings = Settings()
         self.agent_manager = AgentManager(
             config_getter=lambda: settings,
             initial_agent="default"
         )
+        self.skill_manager = SkillManager()
 
         # Create agent with profile config getter
         self.jarvis_agent = CodingAgent(
             provider,
             self.tool_registry,
             model=self.model,
-            config_getter=lambda: self.agent_manager.config
+            config_getter=lambda: self.agent_manager.config,
+            bypass_tool_permissions=self.bypass
         )
-        
+
+        # Set bypass mode on agent
+        if self.bypass:
+            self.jarvis_agent.bypass_tool_permissions = True
+
+        # Update command handler with managers for new commands
+        self.command_handler.set_managers(
+            agent_manager=self.agent_manager,
+            tool_registry=self.tool_registry,
+            skill_manager=self.skill_manager,
+            jarvis_agent=self.jarvis_agent
+        )
+
         # Update command handler with current status info
         self.command_handler.update_status_info(
             model=self.model,
@@ -177,29 +260,31 @@ class CLIInterface:
             return
 
         print()
-        
+
         # State tracking for chat responses
-        response_state = StreamingResponse()
         in_tool_call = [False]
 
         def stream_callback(chunk: str):
-            if in_tool_call[0]: return
-            response_state.content += chunk
-            # Update live markdown display
-            self.display_manager.update_live_display(response_state.content)
+            if in_tool_call[0]:
+                return
+            # Print streaming content with markdown rendering
+            from rich.console import Console
+            from rich.markdown import Markdown
+            import sys
+            import os
+
+            # Use the main display manager's console for rendering
+            self.display_manager.console.print(Markdown(chunk), end="")
+            self.display_manager.console.file.flush() if hasattr(self.display_manager.console.file, 'flush') else None
 
         def reasoning_callback(chunk: str):
-            if in_tool_call[0]: return
-            response_state.reasoning += chunk
+            if in_tool_call[0]:
+                return
+            # Print reasoning as dimmed text
+            self.display_manager.cprint(f"[dim]{chunk}[/dim]", end="")
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             in_tool_call[0] = True
-            
-            # Stop live display and clear current response buffer
-            self.display_manager.stop_live_display()
-            response_state.reasoning = ""
-            response_state.content = ""
-            
             # Show tool call
             self.display_manager.show_tool_call(tool_name, tool_args)
 
@@ -220,13 +305,6 @@ class CLIInterface:
             self.display_manager.show_error("Task timed out.")
         except Exception as e:
             self.display_manager.show_error(f"Execution Error: {e}")
-        
-        # Stop live display
-        self.display_manager.stop_live_display()
-        
-        # Show "(no response)" only if there was no content at all
-        if not response_state.reasoning.strip() and not response_state.content.strip():
-            self.display_manager.cprint("(no response)", style="dim")
 
         print()
 
@@ -245,16 +323,15 @@ class CLIInterface:
                     ('class:prompt', 'YOU '),
                     ('class:arrow', '> '),
                 ]
-                
-                # Detect input type for syntax highlighting
-                input_type = 'text'  # Default
-                
+
+                # Use completer (removed lexer to fix display issues)
                 user_input = await self.session.prompt_async(
                     prompt_msg,
                     style=self.style,
                     multiline=False,
                     key_bindings=self.key_bindings,
-                    lexer=self.lexer
+                    completer=self.completer,
+                    complete_while_typing=True
                 )
 
                 if not user_input.strip():
@@ -270,14 +347,14 @@ class CLIInterface:
                 self.display_manager.stop_live_display()
 
 
-def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai"):
+async def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = True):
     """Main CLI entry point."""
     if not launch_cli:
         print("Error: CLI mode not enabled. Use --cli flag.")
         sys.exit(1)
-    
-    cli = CLIInterface(model=model, base_url=base_url, apikey=apikey, sdk=sdk)
-    asyncio.run(cli.run())
+
+    cli = CLIInterface(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass)
+    await cli.run()
 
 
 if __name__ == "__main__":

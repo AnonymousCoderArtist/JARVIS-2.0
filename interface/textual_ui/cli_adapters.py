@@ -2,7 +2,7 @@
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import Enum
 import json
 from logging import getLogger
 from pathlib import Path
@@ -51,11 +51,14 @@ def copy_text_to_clipboard(text: str) -> bool:
 ALT_KEY = "alt"
 
 
-class CompletionResult(StrEnum):
+class CompletionResult(str, Enum):
     """Completion result types."""
     IGNORED = "ignored"
     HANDLED = "handled"
     SUBMIT = "submit"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 @dataclass
@@ -133,7 +136,7 @@ class SlashCommandController:
 # NARRATOR SYSTEM
 # ============================================================================
 
-class NarratorState(StrEnum):
+class NarratorState(str, Enum):
     """Narrator state."""
     IDLE = "idle"
     SUMMARIZING = "summarizing"
@@ -143,11 +146,14 @@ class NarratorState(StrEnum):
     summarizing = "summarizing"
     speaking = "speaking"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class NarratorManagerPort:
     """Port for narrator manager."""
 
-    state: NarratorState
+    state: NarratorState = NarratorState.IDLE
 
     @property
     def is_playing(self) -> bool:
@@ -174,7 +180,7 @@ class NarratorManagerPort:
     def on_turn_error(self, message: str) -> None:
         pass
 
-    def on_turn_cancel(self) -> None:
+    def on_turn_cancel(self, event: Any = None) -> None:
         pass
 
     def on_turn_end(self) -> None:
@@ -191,7 +197,7 @@ class NarratorManagerListener:
         pass
 
 
-class NarratorManager:
+class NarratorManager(NarratorManagerPort):
     """Manager for text-to-speech narration."""
     
     def __init__(self, config_getter: Any, audio_player: Any = None, telemetry_client: Any = None):
@@ -241,7 +247,7 @@ class NarratorManager:
         """Hook called when an agent turn errors."""
         self._set_state(NarratorState.IDLE)
 
-    def on_turn_cancel(self) -> None:
+    def on_turn_cancel(self, event: Any = None) -> None:
         """Hook called when an agent turn is cancelled."""
         self._set_state(NarratorState.IDLE)
 
@@ -258,13 +264,16 @@ class NarratorManager:
 # PLAN OFFER SYSTEM
 # ============================================================================
 
-class WhoAmIPlanType(StrEnum):
+class WhoAmIPlanType(str, Enum):
     """Plan type."""
     FREE = "free"
     PRO = "pro"
     # Lowercase aliases for compatibility
     free = "free"
     pro = "pro"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class WhoAmIGateway:
@@ -283,11 +292,11 @@ class PlanInfo:
     pass
 
 
-def decide_plan_offer() -> PlanInfo | None:
+async def decide_plan_offer(api_key: str | None = None, gateway: WhoAmIGateway | None = None) -> PlanInfo | None:
     return None
 
 
-def plan_offer_cta() -> str:
+def plan_offer_cta(plan_info: PlanInfo | None = None) -> str:
     return ""
 
 
@@ -295,7 +304,7 @@ def plan_title(plan_info: PlanInfo | None = None) -> str:
     return ""
 
 
-def resolve_api_key_for_plan() -> str | None:
+def resolve_api_key_for_plan(provider: str | None = None) -> str | None:
     return None
 
 
@@ -305,7 +314,9 @@ def resolve_api_key_for_plan() -> str | None:
 
 class UpdateError(Exception):
     """Update error."""
-    pass
+    def __init__(self, message: str = ""):
+        self.message = message
+        super().__init__(message)
 
 
 class UpdateGateway:
@@ -330,15 +341,25 @@ class FileSystemUpdateCacheRepository(UpdateCacheRepository):
     pass
 
 
-def get_update_if_available() -> tuple[str, str] | None:
+async def get_update_if_available(
+    update_notifier: Any = None,
+    current_version: str = "",
+    update_cache_repository: Any = None
+) -> "UpdateAvailability" | None:
     return None
+
+
+@dataclass
+class UpdateAvailability:
+    latest_version: str = ""
+    should_notify: bool = False
 
 
 def load_whats_new_content() -> str:
     return ""
 
 
-def mark_version_as_seen(version: str) -> None:
+async def mark_version_as_seen(version: str, update_cache_repository: Any = None) -> None:
     pass
 
 
@@ -346,7 +367,7 @@ async def should_show_whats_new(current_version: str, update_cache_repository: U
     return False
 
 
-def do_update() -> bool:
+async def do_update() -> bool:
     return False
 
 
@@ -354,7 +375,7 @@ def do_update() -> bool:
 # VOICE SYSTEM
 # ============================================================================
 
-class TranscribeState(StrEnum):
+class TranscribeState(str, Enum):
     """Transcription state."""
     IDLE = "idle"
     RECORDING = "recording"
@@ -364,10 +385,17 @@ class TranscribeState(StrEnum):
     recording = "recording"
     processing = "processing"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class VoiceManagerPort:
     """Port for voice manager."""
-    pass
+    transcribe_state: TranscribeState = TranscribeState.IDLE
+    is_enabled: bool = False
+
+    def cancel_recording(self) -> None:
+        pass
 
 
 class VoiceManagerListener:
@@ -380,7 +408,7 @@ class RecordingStartError(Exception):
     pass
 
 
-class VoiceManager:
+class VoiceManager(VoiceManagerPort):
     """Manager for voice input and transcription."""
     
     def __init__(self, config_getter: Any, audio_recorder: Any = None, transcribe_client: Any = None, telemetry_client: Any = None):
@@ -527,7 +555,13 @@ class ConnectorConfig:
 @dataclass
 class MCPServer:
     """MCP server configuration."""
-    pass
+    name: str = ""
+
+
+@dataclass
+class SessionLoggingConfig:
+    """Session logging configuration."""
+    enabled: bool = False
 
 
 @dataclass
@@ -546,9 +580,9 @@ class VibeConfig:
     file_watcher_for_autocomplete: bool = False
     bypass_tool_permissions: bool = False
     mcp_servers: list[MCPServer] = field(default_factory=list)
-    session_logging_enabled: bool = False
+    session_logging: SessionLoggingConfig = field(default_factory=SessionLoggingConfig)
     api_timeout: float = 30.0
-    installed_agents: list[AgentProfile] = field(default_factory=list)
+    installed_agents: list[str] = field(default_factory=list)
     enable_update_checks: bool = False
     enable_auto_update: bool = False
     autocopy_to_clipboard: bool = False
@@ -581,8 +615,16 @@ class VibeConfig:
     def get_active_provider(self) -> str:
         return self.sdk
 
+    @classmethod
+    def load(cls) -> "VibeConfig":
+        return cls()
 
-class ThinkingLevel(StrEnum):
+    @staticmethod
+    def save_updates(updates: dict[str, Any]) -> None:
+        pass
+
+
+class ThinkingLevel(str, Enum):
     """Thinking level."""
     LOW = "low"
     MEDIUM = "medium"
@@ -591,6 +633,9 @@ class ThinkingLevel(StrEnum):
     low = "low"
     medium = "medium"
     high = "high"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 THINKING_LEVELS = [ThinkingLevel.LOW, ThinkingLevel.MEDIUM, ThinkingLevel.HIGH]
@@ -603,42 +648,46 @@ DATA_RETENTION_MESSAGE = ""
 # HOOK SYSTEM
 # ============================================================================
 
-class HookStartEvent:
-    """Hook start event."""
-    pass
-
-
-class HookEndEvent:
-    """Hook end event."""
-    pass
-
-
-class HookEvent:
-    """Hook event."""
-    pass
-
-
-class HookRunEndEvent:
-    """Hook run end event."""
-    pass
-
-
-class HookRunStartEvent:
-    """Hook run start event."""
-    pass
-
-
-class HookMessageSeverity(StrEnum):
+class HookMessageSeverity(str, Enum):
     """Hook message severity."""
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
     OK = "ok"
-    # Lowercase aliases for compatibility
-    info = "info"
-    warning = "warning"
-    error = "error"
-    ok = "ok"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class HookEvent:
+    """Base hook event."""
+    pass
+
+
+@dataclass
+class HookRunStartEvent(HookEvent):
+    """Hook run start event."""
+    pass
+
+
+@dataclass
+class HookRunEndEvent(HookEvent):
+    """Hook run end event."""
+    pass
+
+
+@dataclass
+class HookStartEvent(HookEvent):
+    """Hook start event."""
+    hook_name: str = ""
+
+
+@dataclass
+class HookEndEvent(HookEvent):
+    """Hook end event."""
+    hook_name: str = ""
+    content: str = ""
+    status: HookMessageSeverity = HookMessageSeverity.INFO
 
 
 # ============================================================================
@@ -684,10 +733,14 @@ class RewindError(Exception):
 @dataclass
 class ResumeSessionInfo:
     """Resume session information."""
-    pass
+    option_id: str = ""
+    session_id: str = ""
+    source: str = "local"
+    title: str | None = None
+    status: str | None = None
 
 
-class ResumeSessionSource(StrEnum):
+class ResumeSessionSource(str, Enum):
     """Resume session source."""
     LOCAL = "local"
     REMOTE = "remote"
@@ -695,22 +748,39 @@ class ResumeSessionSource(StrEnum):
     local = "local"
     remote = "remote"
 
+    def __str__(self) -> str:
+        return self.value
 
-def list_local_resume_sessions() -> list[ResumeSessionInfo]:
+
+def list_local_resume_sessions(config: Any = None, cwd: Path | None = None) -> list[ResumeSessionInfo]:
     return []
 
 
-def list_remote_resume_sessions() -> list[ResumeSessionInfo]:
+def list_remote_resume_sessions(config: Any = None) -> list[ResumeSessionInfo]:
     return []
 
 
-def short_session_id(session_id: str) -> str:
+def short_session_id(session_id: str, source: str = "local") -> str:
     return session_id[:8]
 
 
 class SessionLoader:
     """Loader for sessions."""
-    pass
+    @staticmethod
+    def get_first_user_message(session_id: str, session_logging: Any = None) -> str:
+        return ""
+
+    @staticmethod
+    def find_session_by_id(session_id: str, session_logging: Any = None) -> Path | None:
+        return None
+
+    @staticmethod
+    def load_session(session_path: Path) -> tuple[list[Any], dict[str, Any]]:
+        return [], {}
+
+    @staticmethod
+    def does_session_exist(session_id: str, session_logging: Any = None) -> Path | None:
+        return None
 
 
 # ============================================================================
@@ -855,6 +925,7 @@ class AskUserQuestionArgs(BaseModel):
 
 class AskUserQuestionResult(BaseModel):
     answers: list["Answer"] = []
+    cancelled: bool = False
 
 
 class Answer(BaseModel):
@@ -866,13 +937,16 @@ class Answer(BaseModel):
 @dataclass
 class Choice:
     """Choice for a question."""
-    pass
+    label: str = ""
 
 
 @dataclass
 class Question:
     """Question."""
-    pass
+    question: str = ""
+    header: str = ""
+    options: list[Choice] = field(default_factory=list)
+    hide_other: bool = False
 
 
 # ============================================================================
@@ -881,7 +955,10 @@ class Question:
 
 class ConnectorRegistry:
     """Registry for connectors."""
-    pass
+    connector_count: int = 0
+    
+    def get_connector_names(self) -> list[str]:
+        return []
 
 
 def connectors_enabled() -> bool:
@@ -970,7 +1047,7 @@ class ToolUIDataAdapter:
         class Display:
             success: bool = True
             message: str = ""
-            warnings: list = None
+            warnings: list[Any] | None = None
         
         if hasattr(event, 'error') and event.error:
             tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
@@ -1023,3 +1100,17 @@ class ReadResult:
 
 def read_safe(path: str) -> ReadResult:
     return ReadResult()
+
+
+# ============================================================================
+# CLIPBOARD FUNCTIONS
+# ============================================================================
+
+def copy_selection_to_clipboard(app: Any = None, show_toast: bool = False) -> str:
+    """Copy selection to clipboard."""
+    return ""
+
+
+def copy_text_to_clipboard(text: str) -> bool:
+    """Copy text to clipboard."""
+    return False

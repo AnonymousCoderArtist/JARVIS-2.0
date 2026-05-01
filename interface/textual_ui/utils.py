@@ -14,8 +14,21 @@ class CancellationReason(StrEnum):
 
 
 class TaggedText:
-    """Stub for TaggedText"""
-    pass
+    """Text with optional tagging for display"""
+
+    def __init__(self, text: str = "", tags: list[str] | None = None):
+        self.text = text
+        self.tags = tags or []
+
+    @property
+    def message(self) -> str:
+        """Return the text content"""
+        return self.text
+
+    @classmethod
+    def from_string(cls, text: str) -> "TaggedText":
+        """Create a TaggedText from a string"""
+        return cls(text=text)
 
 
 def get_user_cancellation_message(reason: Any) -> str:

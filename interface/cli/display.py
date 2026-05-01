@@ -1,6 +1,8 @@
 """Display module for JARVIS CLI - handles all UI rendering and rich components."""
 
 import re
+import sys
+import time
 from typing import Any, Optional
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.markdown import Markdown
@@ -57,17 +59,19 @@ class Theme:
 
 class DisplayManager:
     """Manages all display operations using rich console."""
-    
+
     def __init__(self, theme: str = "dark", width: int = 80):
         self.theme_name = theme
         self.theme = Theme.DARK_THEME if theme == "dark" else Theme.LIGHT_THEME
         self.console = Console(
-            width=width, 
+            width=width,
             legacy_windows=False,
-            color_system="auto"
+            color_system="auto",
+            file=sys.stdout
         )
         self._live_display: Optional[Live] = None
         self._current_content = ""
+        self._stream_buffer = ""
     
     def cprint(self, text: str, color: str = "", style: str = "", end: str = "\n"):
         """Print with color and style using rich console."""
@@ -93,24 +97,12 @@ class DisplayManager:
         return capture.get()
     
     def update_live_display(self, content: str):
-        """Update the live markdown display with new content."""
+        """Update the live display with new content."""
+        # Use simple streaming instead of Live to avoid conflicts with prompt_toolkit
         if content.strip():
-            try:
-                markdown = Markdown(content)
-                if self._live_display is None:
-                    self._live_display = Live(
-                        markdown, 
-                        console=self.console, 
-                        refresh_per_second=4,
-                        transient=False
-                    )
-                    self._live_display.start()
-                else:
-                    self._live_display.update(markdown)
-                self._current_content = content
-            except Exception:
-                # Fallback to regular print if markdown parsing fails
-                self.console.print(content, end="")
+            self._stream_buffer += content
+            # Print directly to stdout
+            print(content, end="", flush=True)
     
     def stop_live_display(self):
         """Stop the live display if it's active."""
@@ -121,6 +113,8 @@ class DisplayManager:
                 pass
             finally:
                 self._live_display = None
+        # Print newline to move past streaming content
+        print()
     
     def show_banner(self, model: str, sdk: str, base_url: str, tool_count: int):
         """Display the welcome banner with rich formatting."""
@@ -147,6 +141,9 @@ class DisplayManager:
         commands = [
             ("/help", "Show this help"),
             ("/status", "Show system status"),
+            ("/trust [path]", "Trust a folder for this session and future runs"),
+            ("/untrust [path]", "Mark a folder as untrusted"),
+            ("/trust-status [path]", "Show trust-folder status"),
             ("/clear", "Clear the screen"),
             ("/exit", "Exit JARVIS"),
             ("! <cmd>", "Run shell command"),
@@ -258,14 +255,85 @@ Tools:    {tool_count}
         """Display a visual separator."""
         self.console.print()
 
+    def show_profiles(self, profiles: list, current: str):
+        """Display available profiles in a table."""
+        from rich.table import Table
+
+        table = Table(title="Agent Profiles", show_header=True, header_style="bold cyan")
+        table.add_column("Profile", style="cyan", width=20)
+        table.add_column("Status", style="white", width=10)
+
+        for profile in profiles:
+            status = "active" if profile == current else ""
+            table.add_row(profile, status)
+
+        self.console.print(table)
+
+    def show_tools(self, tools: list):
+        """Display available tools in a table."""
+        from rich.table import Table
+
+        table = Table(title="Available Tools", show_header=True, header_style="bold cyan")
+        table.add_column("Tool", style="cyan", width=20)
+        table.add_column("Description", style="white", width=50)
+
+        for tool in tools:
+            # Handle both dict format (from list_tools) and object format
+            if isinstance(tool, dict):
+                name = tool.get('name', str(tool))
+                desc = tool.get('description', '')[:50]
+            else:
+                name = getattr(tool, 'name', str(tool))
+                desc = getattr(tool, 'description', '')[:50]
+            table.add_row(name, desc)
+
+        self.console.print(table)
+
+    def show_skills(self, skills: dict):
+        """Display available skills."""
+        from rich.table import Table
+
+        table = Table(title="Available Skills", show_header=True, header_style="bold cyan")
+        table.add_column("Skill", style="cyan", width=25)
+        table.add_column("Description", style="white", width=45)
+
+        for name, skill in skills.items():
+            # Handle both dict and SkillProfile formats
+            if hasattr(skill, 'description'):
+                desc = skill.description[:45]
+            elif isinstance(skill, dict):
+                desc = skill.get('description', '')[:45]
+            else:
+                desc = "No description"
+            table.add_row(name, desc)
+
+        self.console.print(table)
+
+    def show_memory(self, mode: str, count: int, query: str = ""):
+        """Display memory items."""
+        if mode == "search" and query:
+            self.cprint(f"Memory search results for: {query}", style="cyan")
+            # Note: Actual search would be implemented with agent memory access
+            self.cprint(f"(Showing {count} results)", style="dim")
+        else:
+            self.cprint(f"Recent memory items (last {count})", style="cyan")
+            # Note: Actual memory display would be implemented with agent memory access
+            self.cprint("(Memory items would be displayed here)", style="dim")
+
 
 class StreamingResponse:
     """Helper class to track streaming reasoning and response content."""
-    
+
     def __init__(self):
         self.reasoning = ""
         self.content = ""
-    
+        self._start_time = time.time()
+
+    @property
+    def elapsed_time(self) -> float:
+        """Get elapsed time since start."""
+        return time.time() - self._start_time
+
     def to_plain_text(self, display_manager: DisplayManager) -> str:
         """Return combined text representation using display manager."""
         parts = []
@@ -276,3 +344,25 @@ class StreamingResponse:
                 parts.append("")
             parts.append(display_manager.render_markdown(self.content))
         return "\n".join(parts) if parts else ""
+
+    def show_thinking_indicator(self, display_manager: DisplayManager):
+        """Show a thinking indicator with spinner."""
+        import threading
+        import itertools
+        import sys
+        import time
+
+        stop_event = threading.Event()
+
+        def animate():
+            chars = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+            while not stop_event.is_set():
+                char = next(chars)
+                sys.stdout.write(f"\r{char} Thinking...")
+                sys.stdout.flush()
+                time.sleep(0.1)
+            sys.stdout.write("\r" + " " * 20 + "\r")
+
+        thread = threading.Thread(target=animate, daemon=True)
+        thread.start()
+        return stop_event

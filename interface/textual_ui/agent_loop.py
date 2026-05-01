@@ -6,48 +6,51 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias, cast
 
 from core.agents.coding_agent import CodingAgent
 from core.agents.manager import AgentManager
-from core.agents.profiles import AgentProfile as CoreAgentProfile, AgentSafety
+from core.agents.profiles import AgentProfile as CoreAgentProfile
+from core.config.settings import Settings
 from core.tools.registry import ToolRegistry
 
 from interface.textual_ui.types import (
+    AgentStats,
     AssistantEvent,
     BaseEvent,
     ReasoningEvent,
     ToolCallEvent,
     ToolResultEvent,
     UserMessageEvent,
-    WaitingForInputEvent,
 )
 from interface.textual_ui.tool_results import (
     BashResult,
     GrepResult,
     ReadFileResult,
     SearchReplaceResult,
-    TodoResult,
     WriteFileResult,
 )
 
 
 # Use the core AgentProfile directly
-AgentProfile = CoreAgentProfile
+AgentProfile: TypeAlias = CoreAgentProfile
+
+# Type alias for event types
+Event: TypeAlias = BaseEvent | AssistantEvent | ReasoningEvent | ToolCallEvent | ToolResultEvent | UserMessageEvent
 
 
 @dataclass
 class TelemetryClient:
     """Stub telemetry client."""
-    def send_telemetry_event(self, event: str, data: dict[str, Any] | None = None, **kwargs) -> None:
+    def send_telemetry_event(self, event: str, data: dict[str, Any] | None = None, **kwargs: Any) -> None:
         """Send telemetry event."""
         pass
     
-    def send_user_rating_feedback(self, rating: int = 0, comment: str | None = None, **kwargs) -> None:
+    def send_user_rating_feedback(self, rating: int = 0, comment: str | None = None, **kwargs: Any) -> None:
         """Send user rating feedback."""
         pass
     
-    def send_slash_command_used(self, command: str = "", command_type: str = "", **kwargs) -> None:
+    def send_slash_command_used(self, command: str = "", command_type: str = "", **kwargs: Any) -> None:
         """Send slash command used."""
         pass
     
@@ -55,26 +58,27 @@ class TelemetryClient:
         """Check if telemetry is active."""
         return False
 
-    def send_user_cancelled_action(self, action: str = "", **kwargs) -> None:
+    def send_user_cancelled_action(self, action: str = "", **kwargs: Any) -> None:
         """Track a user cancellation action."""
         pass
 
-    def send_user_copied_text(self, text: str = "", **kwargs) -> None:
+    def send_user_copied_text(self, text: str = "", **kwargs: Any) -> None:
         """Track copied text."""
         pass
 
 
 @dataclass
-class Stats:
+class Stats(AgentStats):
     """Statistics tracker using JARVIS agent data."""
-    context_tokens: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
-    total_cost: float = 0.0
-    _listeners: dict[str, list[Callable]] = field(default_factory=dict)
+    steps: int = 0
+    session_prompt_tokens: int = 0
+    session_completion_tokens: int = 0
+    session_total_llm_tokens: int = 0
+    last_turn_total_tokens: int = 0
+    session_cost: float = 0.0
+    _listeners: dict[str, list[Callable[[Stats], None]]] = field(default_factory=dict)
     
-    def add_listener(self, metric: str, callback: Callable) -> None:
+    def add_listener(self, metric: str, callback: Callable[[Stats], None]) -> None:
         """Add listener for metric changes."""
         if metric not in self._listeners:
             self._listeners[metric] = []
@@ -101,11 +105,21 @@ class Stats:
         
         # Try to get token info from LLM provider if available
         if hasattr(agent, 'llm') and hasattr(agent.llm, 'last_token_usage'):
-            usage = agent.llm.last_token_usage
-            if usage:
-                self.prompt_tokens = usage.get('prompt_tokens', 0)
-                self.completion_tokens = usage.get('completion_tokens', 0)
-                self.total_tokens = self.prompt_tokens + self.completion_tokens
+            # This is a bit dynamic as last_token_usage might not exist on all providers
+            usage = getattr(agent.llm, 'last_token_usage', {})
+            if isinstance(usage, dict):
+                p_tokens = int(usage.get('prompt_tokens', 0))
+                c_tokens = int(usage.get('completion_tokens', 0))
+                self.prompt_tokens = p_tokens
+                self.completion_tokens = c_tokens
+                self.total_tokens = p_tokens + c_tokens
+                
+                # Update session totals
+                self.session_prompt_tokens += p_tokens
+                self.session_completion_tokens += c_tokens
+                self.session_total_llm_tokens += (p_tokens + c_tokens)
+                self.last_turn_total_tokens = p_tokens + c_tokens
+                self.steps += 1
 
 
 class AgentLoop:
@@ -114,31 +128,28 @@ class AgentLoop:
     def __init__(
         self,
         agent: CodingAgent,
-        config: Any,
+        config: Settings,
         tool_registry: ToolRegistry,
-        agent_manager: Any = None,
+        agent_manager: AgentManager | None = None,
     ):
-        self.agent = agent
-        self.config = config
-        self.base_config = config
-        self.tool_registry = tool_registry
+        self.agent: CodingAgent = agent
+        self.config: Settings = config
+        self.base_config: Settings = config
+        self.tool_registry: ToolRegistry = tool_registry
 
         # Use provided agent manager or create a new one
         if agent_manager is not None:
-            self.agent_manager = agent_manager
+            self.agent_manager: AgentManager = agent_manager
         else:
             # Initialize agent manager with safety profiles
-            from core.config.settings import Settings
-            settings = Settings()
             self.agent_manager = AgentManager(
-                config_getter=lambda: settings,
+                config_getter=lambda: self.config,
                 initial_agent="default"
             )
-        self.agent_profile = self.agent_manager.active_profile
+        self.agent_profile: CoreAgentProfile = self.agent_manager.active_profile
 
         # Set the config getter on the agent to use profile-applied configuration
-        if hasattr(self.agent, 'set_config_getter'):
-            self.agent.set_config_getter(lambda: self.agent_manager.config)
+        self.agent.set_config_getter(lambda: self.agent_manager.config)
 
         self.stats = Stats()
         self.telemetry_client = TelemetryClient()
@@ -146,17 +157,17 @@ class AgentLoop:
         self.skill_manager = SkillManagerAdapter()
         self.mcp_registry = MCPRegistryAdapter()
         self.connector_registry = ConnectorRegistryAdapter()
-        self.hook_config_issues = []
+        self.hook_config_issues: list[str] = []
         self.tool_manager = ToolManagerAdapter(tool_registry)
         self.session_logger = SessionLoggerAdapter()
-        self.session_id = None
-        self.parent_session_id = None
+        self.session_id: str | None = None
+        self.parent_session_id: str | None = None
         self.rewind_manager = RewindManagerAdapter()
 
         # Integration with JARVIS's actual memory system
-        self._approval_callback: Callable[[str, list[str]], Any] | None = None
+        self._approval_callback: Callable[[str, dict[str, Any], str, list[Any]], Any] | None = None
         self._user_input_callback: Callable[[str], str] | None = None
-        self._event_queue: asyncio.Queue[Any] | None = None
+        self._event_queue: asyncio.Queue[Event] | None = None
         self._stream_chunks: list[str] = []
         self._reasoning_chunks: list[str] = []
         self._is_running = False
@@ -169,54 +180,85 @@ class AgentLoop:
         self.agent.reasoning_callback = self._on_reasoning
     
     @property
-    def messages(self) -> list[dict[str, Any]]:
+    def messages(self) -> list[LLMMessage]:
         """Get messages from agent's memory."""
-        # Convert agent memory to LLM message format
-        messages = []
+        from interface.textual_ui.types import LLMMessage, Role
+        
+        # Convert agent memory to TUI LLMMessage format
+        messages: list[LLMMessage] = []
         for entry in self.agent.memory:
             content = entry.get('content', '')
             response = entry.get('response', '')
             
             # Add user message
             if content:
-                messages.append({
-                    "role": "user",
-                    "content": content
-                })
+                messages.append(LLMMessage(
+                    role=Role.user,
+                    content=str(content)
+                ))
             
             # Add assistant response
             if response:
-                messages.append({
-                    "role": "assistant",
-                    "content": response
-                })
+                messages.append(LLMMessage(
+                    role=Role.assistant,
+                    content=str(response)
+                ))
         
         return messages
-    
+
+    async def teleport_to_vibe_code(self, prompt: str | None) -> AsyncGenerator[Event, TeleportPushResponseEvent | None]:
+        """Stub for teleport functionality."""
+        from interface.textual_ui.types import UserMessageEvent, AssistantEvent
+        if prompt:
+            yield UserMessageEvent(content=prompt)
+        yield AssistantEvent(content="Teleport to vibe code not fully implemented in adapter.")
+
+    def reset_messages(self, messages: list[LLMMessage]) -> None:
+        """Reset agent memory with new messages."""
+        self.agent.clear_memory()
+        for msg in messages:
+            if msg.role == Role.user:
+                self.agent.add_to_memory({"content": msg.content})
+            elif msg.role == Role.assistant:
+                self.agent.add_to_memory({"response": msg.content})
+
+    async def reload_with_initial_messages(self, base_config: Settings) -> None:
+        """Reload agent with initial messages."""
+        self.agent.clear_memory()
+        self.agent.rebuild_system_prompt()
+
+    async def clear_history(self) -> None:
+        """Clear agent history."""
+        self.agent.clear_memory()
+
+    async def compact(self, extra_instructions: str | None = None) -> None:
+        """Compact conversation history."""
+        # Stub for compaction
+        pass
+
     async def wait_until_ready(self) -> None:
         """Wait until agent is ready."""
         # JARVIS agent is ready immediately after initialization
         await asyncio.sleep(0)
     
-    def set_approval_callback(self, callback: Callable[[str, list[str]], Any]) -> None:
+    def set_approval_callback(self, callback: Callable[[str, Any, str, list[Any] | None], Any]) -> None:
         """Set approval callback for tool execution."""
         self._approval_callback = callback
+        self.agent.set_approval_callback(callback)
     
-    def set_user_input_callback(self, callback: Callable[[str], str]) -> None:
+    def set_user_input_callback(self, callback: Callable[[Any], Any]) -> None:
         """Set user input callback."""
         self._user_input_callback = callback
     
-    def approve_always(self, tool_name: str, permissions: list[str]) -> None:
+    def approve_always(self, tool_name: str, permissions: list[Any]) -> None:
         """Approve tool always (store in config or agent state)."""
-        # Could be implemented to store approved tools
-        pass
+        self.agent.approve_always(tool_name, permissions)
     
     def emit_new_session_telemetry(self) -> None:
         """Emit new session telemetry."""
         if self.telemetry_client.is_active():
             self.telemetry_client.send_telemetry_event("session_start", {
-                "model": self.config.model,
-                "sdk": self.config.sdk
+                "model": self.agent.model,
             })
     
     def refresh_config(self) -> None:
@@ -235,12 +277,10 @@ class AgentLoop:
         self.agent_profile = self.agent_manager.active_profile
 
         # Update the config getter to use the new profile configuration
-        if hasattr(self.agent, 'set_config_getter'):
-            self.agent.set_config_getter(lambda: self.agent_manager.config)
+        self.agent.set_config_getter(lambda: self.agent_manager.config)
 
         # Clear session rules when switching profiles
-        if hasattr(self.agent, '_session_rules'):
-            self.agent.clear_session_rules()
+        self.agent.clear_session_rules()
 
         # Refresh system prompt if needed
         await self.refresh_system_prompt()
@@ -258,7 +298,7 @@ class AgentLoop:
             except Exception:
                 break
     
-    def _get_event_queue(self) -> asyncio.Queue[Any]:
+    def _get_event_queue(self) -> asyncio.Queue[Event]:
         if self._event_queue is None:
             self._event_queue = asyncio.Queue()
         return self._event_queue
@@ -291,7 +331,7 @@ class AgentLoop:
         # If result is a ToolOutput (from core), use its inner result
         raw_result = result
         if hasattr(result, 'result'):
-            raw_result = result.result
+            raw_result = getattr(result, 'result')
         
         # If result is already a string but we need an object, wrap it
         if isinstance(raw_result, str):
@@ -300,10 +340,10 @@ class AgentLoop:
             if tool_name == "grep":
                 return GrepResult(matches=raw_result)
             if tool_name in ("read", "read_file"):
-                path = arguments.get("path") or arguments.get("filePath", "")
+                path = str(arguments.get("path") or arguments.get("filePath", ""))
                 return ReadFileResult(path=path, content=raw_result)
             if tool_name in ("write", "write_file"):
-                path = arguments.get("path") or arguments.get("filePath", "")
+                path = str(arguments.get("path") or arguments.get("filePath", ""))
                 return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result))
             if tool_name == "edit":
                 # For edit, we might want to return the first diff or a summary
@@ -312,10 +352,10 @@ class AgentLoop:
         # Special case for grep: list of dicts to formatted string
         if tool_name == "grep" and isinstance(raw_result, list):
             formatted = []
-            for m in raw_result:
-                file = m.get("file", "unknown")
-                line = m.get("line", "?")
-                content = m.get("content", "")
+            for m in cast(list[dict[str, Any]], raw_result):
+                file = str(m.get("file", "unknown"))
+                line = str(m.get("line", "?"))
+                content = str(m.get("content", ""))
                 formatted.append(f"{file}:{line}:{content}")
             return GrepResult(matches="\n".join(formatted))
             
@@ -337,10 +377,9 @@ class AgentLoop:
             error = str(e)
         
         # Determine if result indicates success or failure
-        error = ""
-        if hasattr(result, 'success') and not result.success:
+        if hasattr(result, 'success') and not getattr(result, 'success'):
             if hasattr(result, 'error'):
-                error = result.error
+                error = str(getattr(result, 'error'))
         
         # Map result to structured model for UI
         mapped_result = self._map_tool_result(tool_name, arguments, result)
@@ -381,7 +420,7 @@ class AgentLoop:
         self._drain_event_queue()
 
         # We need an event queue for strings
-        string_queue = asyncio.Queue()
+        string_queue: asyncio.Queue[str] = asyncio.Queue()
 
         # Set up streaming callback
         def stream_callback(chunk: str) -> None:
@@ -411,7 +450,7 @@ class AgentLoop:
 
             # Check for exception
             try:
-                response = task.result()
+                response = await task
             except Exception as e:
                 yield f"Error processing request: {str(e)}"
                 return
@@ -438,7 +477,7 @@ class AgentLoop:
             self._is_running = False
             self.agent.stream_callback = None
 
-    async def act(self, prompt: str) -> AsyncGenerator[BaseEvent, None]:
+    async def act(self, prompt: str) -> AsyncGenerator[Event, None]:
         """Act on a prompt and yield events for the TUI.
         
         This is the main method the TUI uses to get agent responses.
@@ -505,7 +544,7 @@ class AgentLoop:
 
             # Check if task raised an exception
             try:
-                response = task.result()
+                response = await task
             except Exception as e:
                 # Yield error event if processing fails
                 import traceback
@@ -538,7 +577,7 @@ class AgentLoop:
         """Run the agent loop (not used in TUI mode)."""
         pass
     
-    async def get_events(self) -> AsyncGenerator[dict[str, Any], None]:
+    async def get_events(self) -> AsyncGenerator[Event, None]:
         """Get events from the event queue."""
         while self._is_running:
             try:
@@ -553,12 +592,12 @@ from core.skills.manager import SkillManager as CoreSkillManager
 class SkillManagerAdapter:
     """Adapter for JARVIS SkillManager."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._core_manager = CoreSkillManager()
     
     @property
-    def available_skills(self) -> dict:
-        return self._core_manager.get_all_available_skills()
+    def available_skills(self) -> dict[str, Any]:
+        return cast(dict[str, Any], self._core_manager.get_all_available_skills())
         
     @property
     def custom_skills_count(self) -> int:
@@ -577,7 +616,7 @@ class SkillManagerAdapter:
 class MCPRegistryAdapter:
     """Adapter for MCP Registry (Currently unsupported in JARVIS core)."""
     
-    def count_loaded(self, servers):
+    def count_loaded(self, servers: list[Any]) -> int:
         """Count loaded MCP servers."""
         return 0
 
@@ -585,7 +624,7 @@ class MCPRegistryAdapter:
 class ConnectorRegistryAdapter:
     """Adapter for Connector Registry (Currently unsupported in JARVIS core)."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.connector_count = 0
 
 
@@ -602,14 +641,14 @@ class ToolManagerAdapter:
     def available_tools(self) -> list[str]:
         return list(self.tool_registry.get_tools().keys())
     
-    def get_tool_config(self, tool_name: str):
+    def get_tool_config(self, tool_name: str) -> dict[str, str] | None:
         """Get tool configuration."""
         tool = self.tool_registry.get(tool_name)
         if tool:
             return {"name": tool.name, "description": tool.description}
         return None
         
-    async def refresh_remote_tools_async(self):
+    async def refresh_remote_tools_async(self) -> None:
         """Refresh remote tools (noop for now)."""
         pass
 
@@ -617,14 +656,14 @@ class ToolManagerAdapter:
 class SessionLoggerAdapter:
     """Adapter for session logging."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         from pathlib import Path
         self.enabled = False
-        self.session_id = None
+        self.session_id: str | None = None
         self.session_dir = Path.cwd()
-        self.session_config = None
+        self.session_config: dict[str, Any] | None = None
 
-    def resume_existing_session(self, session_id, session_path):
+    def resume_existing_session(self, session_id: str, session_path: str) -> None:
         """Resume an existing session."""
         from pathlib import Path
         self.session_id = session_id
@@ -634,10 +673,10 @@ class SessionLoggerAdapter:
 class RewindManagerAdapter:
     """Adapter for session rewinding."""
     
-    def has_file_changes_at(self, index):
+    def has_file_changes_at(self, index: int) -> bool:
         """Check if there are file changes at a specific message index."""
         return False
     
-    async def rewind_to_message(self, index, restore_files=False):
+    async def rewind_to_message(self, index: int, restore_files: bool = False) -> tuple[str, list[Any]]:
         """Rewind the session to a specific message index."""
         return "Rewind successful (stub)", []

@@ -4,16 +4,23 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import aclosing
 from dataclasses import dataclass
-from enum import StrEnum, auto
+from enum import Enum, auto
 import gc
 import os
 from pathlib import Path
 import signal
 import subprocess
 import time
-from typing import Any, ClassVar, assert_never, cast
+from typing import Any, ClassVar, cast, TYPE_CHECKING
 from weakref import WeakKeyDictionary
 import webbrowser
+
+if TYPE_CHECKING:
+    from typing_extensions import assert_never
+else:
+    def assert_never(value: Any) -> None:
+        raise AssertionError(f"Unhandled value: {value}")
+
 
 from pydantic import BaseModel
 from rich import print as rprint
@@ -209,7 +216,7 @@ def _compute_connectors_count(
     return total - len(disabled_names & known_names)
 
 
-class BottomApp(StrEnum):
+class BottomApp(str, Enum):
     """Bottom panel app types.
 
     Convention: Each value must match the widget class name with "App" suffix removed.
@@ -217,18 +224,22 @@ class BottomApp(StrEnum):
     This allows dynamic lookup via: BottomApp[type(widget).__name__.removesuffix("App")]
     """
 
-    Approval = auto()
-    Config = auto()
-    ConnectorAuth = auto()
-    Input = auto()
-    MCP = auto()
-    ModelPicker = auto()
-    ProxySetup = auto()
-    Question = auto()
-    ThinkingPicker = auto()
-    Rewind = auto()
-    SessionPicker = auto()
-    Voice = auto()
+    Approval = "Approval"
+    Config = "Config"
+    ConnectorAuth = "ConnectorAuth"
+    Input = "Input"
+    MCP = "MCP"
+    ModelPicker = "ModelPicker"
+    ProxySetup = "ProxySetup"
+    Question = "Question"
+    ThinkingPicker = "ThinkingPicker"
+    Rewind = "Rewind"
+    SessionPicker = "SessionPicker"
+    Voice = "Voice"
+
+    def __str__(self) -> str:
+        return self.value
+
 
 
 class ChatScroll(VerticalScroll):
@@ -268,8 +279,8 @@ class ChatScroll(VerticalScroll):
         pass
 
 
-PRUNE_LOW_MARK = 1000
-PRUNE_HIGH_MARK = 1500
+PRUNE_LOW_MARK = 500
+PRUNE_HIGH_MARK = 800
 DOUBLE_ESC_DELAY = 0.2
 
 
@@ -381,7 +392,7 @@ class VibeApp(App):  # noqa: PLR0904
         self._chat_input_container: ChatInputContainer | None = None
         self._current_bottom_app: BottomApp = BottomApp.Input
 
-        self.history_file = HISTORY_FILE.path
+        self.history_file = Path(HISTORY_FILE.path)
 
         self._tools_collapsed = True
         self._windowing = SessionWindowing(load_more_batch_size=LOAD_MORE_BATCH_SIZE)
@@ -421,7 +432,7 @@ class VibeApp(App):  # noqa: PLR0904
 
     @property
     def config(self) -> VibeConfig:
-        return self.agent_loop.config
+        return cast(VibeConfig, self.agent_loop.config)
 
     @property
     def _connectors_enabled(self) -> bool:

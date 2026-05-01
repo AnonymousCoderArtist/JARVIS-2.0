@@ -1,6 +1,8 @@
 """Type definitions for textual UI."""
 
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -11,6 +13,9 @@ class Role(str, Enum):
     assistant = "assistant"
     system = "system"
     tool = "tool"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 @dataclass
@@ -24,12 +29,8 @@ class ToolCallFunction:
 class ToolCall:
     """Tool call."""
     id: str = ""
-    function: ToolCallFunction = None
+    function: ToolCallFunction = field(default_factory=ToolCallFunction)
     type: str = ""
-
-    def __post_init__(self):
-        if self.function is None:
-            self.function = ToolCallFunction()
 
 
 @dataclass
@@ -37,14 +38,10 @@ class LLMMessage:
     """LLM message."""
     role: Role = Role.user
     content: str = ""
-    tool_calls: list[ToolCall] = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
     injected: bool = False
     tool_call_id: str = ""
     name: str = ""
-
-    def __post_init__(self):
-        if self.tool_calls is None:
-            self.tool_calls = []
 
 
 class HookMessageSeverity(str, Enum):
@@ -53,6 +50,9 @@ class HookMessageSeverity(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     OK = "ok"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class ContextTooLongError(Exception):
@@ -65,9 +65,11 @@ class RateLimitError(Exception):
     pass
 
 
+from core.agents.base import ApprovalResponse
+
 @dataclass
-class ApprovalResponse:
-    """Approval response."""
+class ToolApprovalResult:
+    """Result of an approval request."""
     approved: bool = False
     message: str = ""
 
@@ -104,7 +106,7 @@ class ReasoningEvent(BaseEvent):
 class ToolCallEvent(BaseEvent):
     """Tool call event."""
     tool_name: str = ""
-    tool_args: dict = None
+    tool_args: dict[str, Any] = field(default_factory=dict)
     tool_call_id: str = ""
     tool_class: str = ""
 

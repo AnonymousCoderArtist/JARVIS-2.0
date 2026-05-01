@@ -2,26 +2,34 @@
 
 from __future__ import annotations
 
-from enum import StrEnum, auto
+from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from core.trusted_folders import trusted_folders_manager
 
-class ToolPermission(StrEnum):
+
+class ToolPermission(str, Enum):
     """Permission levels for tool execution"""
-    ALWAYS = auto()
-    NEVER = auto()
-    ASK = auto()
+    ALWAYS = "always"
+    NEVER = "never"
+    ASK = "ask"
+
+    def __str__(self) -> str:
+        return self.value
 
 
-class PermissionScope(StrEnum):
+class PermissionScope(str, Enum):
     """Scopes for permission rules"""
-    COMMAND_PATTERN = auto()
-    OUTSIDE_DIRECTORY = auto()
-    FILE_PATTERN = auto()
-    URL_PATTERN = auto()
-    SENSITIVE_FILE = auto()
+    COMMAND_PATTERN = "command_pattern"
+    OUTSIDE_DIRECTORY = "outside_directory"
+    FILE_PATTERN = "file_pattern"
+    URL_PATTERN = "url_pattern"
+    SENSITIVE_FILE = "sensitive_file"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class RequiredPermission(BaseModel):
@@ -67,6 +75,7 @@ def resolve_path_permission(
 ) -> PermissionContext | None:
     """Resolve permission for a file path against glob patterns.
     Returns NEVER on denylist match, ALWAYS on allowlist match, None otherwise.
+    Trusted folders are treated as ALWAYS and explicit untrusted folders as NEVER.
     """
     from pathlib import Path
 
@@ -76,10 +85,17 @@ def resolve_path_permission(
 
     file_str = str(path.resolve())
 
+    trust_status = trusted_folders_manager.is_trusted(path)
+    if trust_status is False:
+        return PermissionContext(permission=ToolPermission.NEVER)
+
     # Check denylist first (deny takes precedence)
     for pattern in denylist:
         if wildcard_match(file_str, pattern):
             return PermissionContext(permission=ToolPermission.NEVER)
+
+    if trust_status is True:
+        return PermissionContext(permission=ToolPermission.ALWAYS)
 
     # Check allowlist
     for pattern in allowlist:
@@ -144,6 +160,46 @@ def resolve_file_tool_permission(
 
     # Scratchpad paths are always allowed
     if is_scratchpad_path(path_str):
+        return PermissionContext(permission=ToolPermission.ALWAYS)
+
+    path = Path(path_str).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+
+    resolved_path = path.resolve()
+    trust_status = trusted_folders_manager.is_trusted(resolved_path)
+
+    if trust_status is False:
+        return PermissionContext(permission=ToolPermission.NEVER)
+
+    if trust_status is True:
+        file_str = str(resolved_path)
+
+        # Explicit deny rules still win over trust.
+        for pattern in denylist:
+            if wildcard_match(file_str, pattern):
+                return PermissionContext(permission=ToolPermission.NEVER)
+
+        required: list[RequiredPermission] = []
+
+        # Trusted paths can still trigger sensitivity checks.
+        for pattern in sensitive_patterns:
+            if PurePath(file_str).match(pattern):
+                required.append(
+                    RequiredPermission(
+                        scope=PermissionScope.SENSITIVE_FILE,
+                        invocation_pattern=path.name,
+                        session_pattern="*",
+                        label=f"accessing sensitive files ({tool_name})",
+                    )
+                )
+                break
+
+        if required:
+            return PermissionContext(
+                permission=ToolPermission.ASK, required_permissions=required
+            )
+
         return PermissionContext(permission=ToolPermission.ALWAYS)
 
     # Check allowlist/denylist

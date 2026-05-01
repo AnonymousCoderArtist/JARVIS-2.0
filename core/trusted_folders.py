@@ -34,6 +34,16 @@ class TrustedFoldersManager:
         """
         self._session_trusted.append(self._normalize_path(path))
 
+    def untrust_for_session(self, path: Path) -> None:
+        """
+        Remove a path from the current session trust list.
+
+        Args:
+            path: Path to untrust for the current session
+        """
+        normalized = self._normalize_path(path)
+        self._session_trusted = [p for p in self._session_trusted if p != normalized]
+
     def _normalize_path(self, path: Path) -> str:
         """Normalize a path to absolute string"""
         return str(path.expanduser().resolve())

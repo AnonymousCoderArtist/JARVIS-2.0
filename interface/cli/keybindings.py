@@ -69,7 +69,13 @@ class KeyBindingManager:
         def _(event):
             """Handle F10 - exit."""
             event.app.exit()
-    
+
+        @self.key_bindings.add("escape")
+        def _(event):
+            """Handle Escape - in multiline mode, insert newline instead of exiting."""
+            # Allow escape to insert newline in multiline mode
+            pass
+
     def _setup_custom_bindings(self):
         """Setup custom key bindings from configuration."""
         custom_bindings = self.config_manager.config.keybindings.custom_bindings

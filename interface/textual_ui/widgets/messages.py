@@ -314,9 +314,9 @@ class HookRunContainer(Vertical):
 
 
 _HOOK_SEVERITY_ICONS: dict[HookMessageSeverity, str] = {
-    HookMessageSeverity.ok: "✓",
-    HookMessageSeverity.warning: "⚠",
-    HookMessageSeverity.error: "✗",
+    HookMessageSeverity.OK: "✓",
+    HookMessageSeverity.WARNING: "⚠",
+    HookMessageSeverity.ERROR: "✗",
 }
 
 
@@ -325,7 +325,7 @@ class HookSystemMessageLine(Static):
         self,
         hook_name: str,
         content: str,
-        severity: HookMessageSeverity = HookMessageSeverity.warning,
+        severity: HookMessageSeverity = HookMessageSeverity.WARNING,
     ) -> None:
         super().__init__()
         self.add_class("hook-system-message")
@@ -336,7 +336,7 @@ class HookSystemMessageLine(Static):
 
     def compose(self) -> ComposeResult:
         icon = _HOOK_SEVERITY_ICONS.get(
-            self._severity, _HOOK_SEVERITY_ICONS[HookMessageSeverity.warning]
+            self._severity, _HOOK_SEVERITY_ICONS[HookMessageSeverity.WARNING]
         )
         with Horizontal(classes="hook-system-container"):
             yield NonSelectableStatic(icon, classes="hook-system-icon")
