@@ -29,6 +29,7 @@ class ApprovalApp(Container):
         Binding("2", "select_2", "Always Tool Session", show=False),
         Binding("3", "select_3", "No", show=False),
         Binding("n", "select_3", "No", show=False),
+        Binding("escape", "reject", "Reject", show=False),
     ]
 
     class ApprovalGranted(Message):
@@ -83,7 +84,7 @@ class ApprovalApp(Container):
                 yield widget
             yield NoMarkupStatic("")
             self.help_widget = NoMarkupStatic(
-                "↑↓ navigate  Enter select  ESC reject", classes="approval-help"
+                "↑↓ navigate  1-3/y/n direct  Enter select  ESC reject", classes="approval-help"
             )
             yield self.help_widget
 
@@ -204,6 +205,18 @@ class ApprovalApp(Container):
                 )
 
     def on_blur(self, event: events.Blur) -> None:
-        # Don't force refocus - this was causing the "stuck" issue
-        # The approval app will be properly cleaned up by the parent app
-        pass
+        # Refocus if needed to prevent getting stuck without keyboard control
+        self.call_after_refresh(self._refocus_if_needed)
+
+    def _refocus_if_needed(self) -> None:
+        if self.has_focus:
+            return
+        # Only refocus if we are still visible and part of the DOM
+        if self.is_mounted and self.display and not self.is_closing:
+            self.focus()
+
+    @property
+    def is_closing(self) -> bool:
+        """Check if the widget is in the process of being removed."""
+        return not self.is_mounted or self._closing
+
