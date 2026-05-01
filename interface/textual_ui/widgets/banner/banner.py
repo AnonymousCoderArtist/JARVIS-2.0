@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from jarvis import __version__
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
@@ -55,13 +56,12 @@ class Banner(Static):
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("JARVIS Agent", id="banner-brand")
                     yield NoMarkupStatic(" ", classes="banner-spacer")
+                    yield NoMarkupStatic(f"v{__version__} · ", classes="banner-meta")
                     yield NoMarkupStatic("", id="banner-model")
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("", id="banner-meta-counts")
                 with Horizontal(classes="banner-line"):
-                    yield NoMarkupStatic("Type ", classes="banner-meta")
-                    yield NoMarkupStatic("/help", classes="banner-cmd")
-                    yield NoMarkupStatic(" for more information", classes="banner-meta")
+                    yield NoMarkupStatic("made by @OEvortex", id="banner-attribution")
 
     def on_mount(self) -> None:
         self.state = self._initial_state
