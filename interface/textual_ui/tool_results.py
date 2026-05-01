@@ -19,10 +19,6 @@ class ReadFileResult(BaseModel):
     content: str = ""
 
 
-class SearchReplaceResult(BaseModel):
-    content: str = ""
-
-
 class TodoResult(BaseModel):
     todos: list = []
 
@@ -31,3 +27,10 @@ class WriteFileResult(BaseModel):
     path: str
     bytes_written: int = 0
     content: str = ""
+
+
+class SearchReplaceResult(BaseModel):
+    path: str
+    old_str: str = ""
+    new_str: str = ""
+    replacements: int = 0

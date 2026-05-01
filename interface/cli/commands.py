@@ -293,7 +293,6 @@ class CommandHandler:
         self._register_tools_command()
         self._register_skills_command()
         self._register_memory_command()
-        self._register_theme_command()
 
     def _register_profile_command(self):
         """Register the /profile command."""
@@ -389,59 +388,5 @@ class CommandHandler:
 
         self.command_registry.register(Command("memory", "View and manage conversation memory", _cmd_memory))
 
-    def _register_theme_command(self):
-        """Register the /themes and /theme commands."""
-        async def _cmd_themes(args: List[str]):
-            if not args:
-                # List available themes
-                from .config import load_config
-                config_manager = load_config()
-                self.display_manager.show_themes(
-                    config_manager.config.themes,
-                    config_manager.config.display.theme
-                )
-            elif args[0] == "set" and len(args) > 1:
-                # Set theme via /themes set <name>
-                theme_name = args[1]
-                try:
-                    from .config import load_config
-                    config_manager = load_config()
-                    if theme_name in config_manager.config.themes:
-                        config_manager.set_theme(theme_name)
-                        config_manager.save_config()
-                        self.display_manager.show_success(f"Theme switched to: {theme_name}")
-                        # Update display manager theme
-                        self.display_manager.set_theme(theme_name, config_manager.config.themes)
-                    else:
-                        available = ", ".join(config_manager.config.themes.keys())
-                        self.display_manager.show_error(f"Unknown theme: {theme_name}. Available: {available}")
-                except Exception as e:
-                    self.display_manager.show_error(f"Failed to switch theme: {e}")
-            else:
-                self.display_manager.show_error("Usage: /themes [set <name>]")
-
-        self.command_registry.register(Command("themes", "List and manage UI themes", _cmd_themes))
-
-        # Also register /theme as an alias for convenience
-        async def _cmd_theme(args: List[str]):
-            if not args:
-                self.display_manager.show_error("Usage: /theme <name>\nUse /themes to list available themes.")
-                return
-            theme_name = args[0]
-            try:
-                from .config import load_config
-                config_manager = load_config()
-                if theme_name in config_manager.config.themes:
-                    config_manager.set_theme(theme_name)
-                    config_manager.save_config()
-                    self.display_manager.show_success(f"Theme switched to: {theme_name}")
-                    # Update display manager theme
-                    self.display_manager.set_theme(theme_name, config_manager.config.themes)
-                else:
-                    available = ", ".join(config_manager.config.themes.keys())
-                    self.display_manager.show_error(f"Unknown theme: {theme_name}. Available: {available}")
-            except Exception as e:
-                self.display_manager.show_error(f"Failed to switch theme: {e}")
-
-        self.command_registry.register(Command("theme", "Switch UI theme by name", _cmd_theme))
+    
     

@@ -1487,6 +1487,22 @@ class VibeApp(App):  # noqa: PLR0904
         help_text = self.commands.get_help_text()
         await self._mount_and_scroll(UserCommandMessage(help_text))
 
+    async def _show_tools(self, **kwargs: Any) -> None:
+        tools = self.agent_loop.tool_manager.tool_registry.get_tools()
+        tool_list = "\n".join(f"  - {name}" for name in sorted(tools.keys()))
+        await self._mount_and_scroll(UserCommandMessage(f"Available tools:\n{tool_list}"))
+
+    async def _show_skills(self, **kwargs: Any) -> None:
+        skills = self.agent_loop.skill_manager.available_skills
+        skill_list = "\n".join(f"  - {name}: {info.description}" for name, info in sorted(skills.items()))
+        await self._mount_and_scroll(UserCommandMessage(f"Available skills:\n{skill_list}"))
+
+    async def _show_memory(self, **kwargs: Any) -> None:
+        await self._mount_and_scroll(UserCommandMessage("Memory management is available via the memory system."))
+
+    async def _switch_to_profile_app(self, **kwargs: Any) -> None:
+        await self._mount_and_scroll(UserCommandMessage("Profile switching is available via Shift+Tab in TUI."))
+
     def _get_last_assistant_message_text(self) -> str | None:
         messages_area = self._cached_messages_area or self.query_one("#messages")
         for child in reversed(messages_area.children):
@@ -1578,6 +1594,35 @@ class VibeApp(App):  # noqa: PLR0904
 - **Cost**: ${stats.session_cost:.4f}
 """
         await self._mount_and_scroll(UserCommandMessage(status_text))
+
+    async def _show_themes(self, cmd_args: str = "", **kwargs: Any) -> None:
+        """Show available themes and allow switching."""
+        from interface.cli.config import load_config
+        config_manager = load_config()
+        current_theme = config_manager.config.display.theme
+
+        if not cmd_args:
+            # List available themes
+            theme_lines = ["## Available Themes\n"]
+            for theme_name in config_manager.config.themes.keys():
+                marker = "**" if theme_name == current_theme else ""
+                theme_lines.append(f"- {marker}{theme_name}{marker}")
+            await self._mount_and_scroll(UserCommandMessage("\n".join(theme_lines)))
+        else:
+            # Switch theme
+            parts = cmd_args.strip().split()
+            if parts and parts[0] in config_manager.config.themes:
+                theme_name = parts[0]
+                config_manager.set_theme(theme_name)
+                config_manager.save_config()
+                await self._mount_and_scroll(
+                    UserCommandMessage(f"Theme switched to: {theme_name}")
+                )
+            else:
+                themes = ", ".join(config_manager.config.themes.keys())
+                await self._mount_and_scroll(
+                    UserCommandMessage(f"Unknown theme. Available: {themes}")
+                )
 
     async def _show_config(self, **kwargs: Any) -> None:
         """Switch to the configuration app in the bottom panel."""

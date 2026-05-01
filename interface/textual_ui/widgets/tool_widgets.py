@@ -15,8 +15,6 @@ from interface.textual_ui.cli_adapters import (
     BashArgs,
     GrepArgs,
     ReadFileArgs,
-    SEARCH_REPLACE_BLOCK_RE,
-    SearchReplaceArgs,
     TodoArgs,
     WriteFileArgs,
 )
@@ -24,7 +22,6 @@ from interface.textual_ui.tool_results import (
     BashResult,
     GrepResult,
     ReadFileResult,
-    SearchReplaceResult,
     TodoResult,
     WriteFileResult,
 )
@@ -37,38 +34,6 @@ def _truncate_lines(content: str, max_lines: int) -> tuple[str, str | None]:
         return "\n".join(lines), None
     remaining = len(lines) - max_lines
     return "\n".join(lines[:max_lines]), f"… ({remaining} more lines)"
-
-
-def parse_search_replace_to_diff(content: str) -> list[str]:
-    """Parse SEARCH/REPLACE blocks and generate unified diff lines."""
-    all_diff_lines: list[str] = []
-    matches = SEARCH_REPLACE_BLOCK_RE.findall(content)
-    if not matches:
-        return [content[:500]] if content else []
-
-    for i, (search_text, replace_text) in enumerate(matches):
-        if i > 0:
-            all_diff_lines.append("")  # Separator between blocks
-        search_lines = search_text.strip("\n").split("\n")
-        replace_lines = replace_text.strip("\n").split("\n")
-        diff = difflib.unified_diff(search_lines, replace_lines, lineterm="", n=2)
-        all_diff_lines.extend(list(diff)[2:])  # Skip file headers
-
-    return all_diff_lines
-
-
-def render_diff_line(line: str) -> Static:
-    """Render a single diff line with appropriate styling."""
-    if line.startswith("---") or line.startswith("+++"):
-        return NoMarkupStatic(line, classes="diff-header")
-    elif line.startswith("-"):
-        return NoMarkupStatic(line, classes="diff-removed")
-    elif line.startswith("+"):
-        return NoMarkupStatic(line, classes="diff-added")
-    elif line.startswith("@@"):
-        return NoMarkupStatic(line, classes="diff-range")
-    else:
-        return NoMarkupStatic(line, classes="diff-context")
 
 
 class ToolApprovalWidget[TArgs: BaseModel](Vertical):
@@ -151,7 +116,8 @@ class ToolResultWidget[TResult: BaseModel](Static):
 
 class BashApprovalWidget(ToolApprovalWidget[BashArgs]):
     def compose(self) -> ComposeResult:
-        yield Markdown(f"```bash\n{self.args.command}\n```")
+        command = self.args.command if isinstance(self.args, BaseModel) else self.args.get("command", "")
+        yield Markdown(f"```bash\n{command}\n```")
 
 
 class BashResultWidget(ToolResultWidget[BashResult]):
@@ -186,12 +152,14 @@ class BashResultWidget(ToolResultWidget[BashResult]):
 
 class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
     def compose(self) -> ComposeResult:
-        path = Path(self.args.path)
+        file_path = self.args.filePath if isinstance(self.args, BaseModel) else self.args.get("filePath", "")
+        path = Path(file_path)
         file_extension = path.suffix.lstrip(".") or "text"
+        content = self.args.content if isinstance(self.args, BaseModel) else self.args.get("content", "")
 
-        yield NoMarkupStatic(f"File: {self.args.path}", classes="approval-description")
+        yield NoMarkupStatic(f"File: {file_path}", classes="approval-description")
         yield NoMarkupStatic("")
-        yield Markdown(f"```{file_extension}\n{self.args.content}\n```")
+        yield Markdown(f"```{file_extension}\n{content}\n```")
 
 
 class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
@@ -218,39 +186,16 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
         yield from self._footer()
 
 
-class SearchReplaceApprovalWidget(ToolApprovalWidget[SearchReplaceArgs]):
-    def compose(self) -> ComposeResult:
-        yield NoMarkupStatic(
-            f"File: {self.args.file_path}", classes="approval-description"
-        )
-        yield NoMarkupStatic("")
-
-        diff_lines = parse_search_replace_to_diff(self.args.content)
-        for line in diff_lines:
-            yield render_diff_line(line)
-
-
-class SearchReplaceResultWidget(ToolResultWidget[SearchReplaceResult]):
-    def compose(self) -> ComposeResult:
-        if not self.result:
-            yield from self._footer()
-            return
-        for warning in self.warnings:
-            yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning")
-        if self.result.content:
-            for line in parse_search_replace_to_diff(self.result.content):
-                yield render_diff_line(line)
-        yield from self._footer()
-
-
 class TodoApprovalWidget(ToolApprovalWidget[TodoArgs]):
     def compose(self) -> ComposeResult:
+        action = self.args.action if isinstance(self.args, BaseModel) else self.args.get("action", "")
         yield NoMarkupStatic(
-            f"Action: {self.args.action}", classes="approval-description"
+            f"Action: {action}", classes="approval-description"
         )
-        if self.args.todos:
+        todos = self.args.todos if isinstance(self.args, BaseModel) else self.args.get("todos", [])
+        if todos:
             yield NoMarkupStatic(
-                f"Todos: {len(self.args.todos)} items", classes="approval-description"
+                f"Todos: {len(todos)} items", classes="approval-description"
             )
 
 
@@ -287,15 +232,10 @@ class TodoResultWidget(ToolResultWidget[TodoResult]):
 
 class ReadFileApprovalWidget(ToolApprovalWidget[ReadFileArgs]):
     def compose(self) -> ComposeResult:
-        yield NoMarkupStatic(f"path: {self.args.path}", classes="approval-description")
-        if self.args.offset > 0:
-            yield NoMarkupStatic(
-                f"offset: {self.args.offset}", classes="approval-description"
-            )
-        if self.args.limit is not None:
-            yield NoMarkupStatic(
-                f"limit: {self.args.limit}", classes="approval-description"
-            )
+        files = self.args.files if isinstance(self.args, BaseModel) else self.args.get("files", [])
+        encoding = self.args.encoding if isinstance(self.args, BaseModel) else self.args.get("encoding", "utf-8")
+        yield NoMarkupStatic(f"files: {len(files)} file(s)", classes="approval-description")
+        yield NoMarkupStatic(f"encoding: {encoding}", classes="approval-description")
 
 
 class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
@@ -320,13 +260,16 @@ class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
 
 class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
     def compose(self) -> ComposeResult:
+        pattern = self.args.pattern if isinstance(self.args, BaseModel) else self.args.get("pattern", "")
+        path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", "")
+        max_matches = self.args.max_matches if isinstance(self.args, BaseModel) else self.args.get("max_matches")
         yield NoMarkupStatic(
-            f"pattern: {self.args.pattern}", classes="approval-description"
+            f"pattern: {pattern}", classes="approval-description"
         )
-        yield NoMarkupStatic(f"path: {self.args.path}", classes="approval-description")
-        if self.args.max_matches is not None:
+        yield NoMarkupStatic(f"path: {path}", classes="approval-description")
+        if max_matches is not None:
             yield NoMarkupStatic(
-                f"max_matches: {self.args.max_matches}", classes="approval-description"
+                f"max_matches: {max_matches}", classes="approval-description"
             )
 
 
@@ -364,7 +307,6 @@ APPROVAL_WIDGETS: dict[str, type[ToolApprovalWidget]] = {
     "bash": BashApprovalWidget,
     "read_file": ReadFileApprovalWidget,
     "write_file": WriteFileApprovalWidget,
-    "search_replace": SearchReplaceApprovalWidget,
     "grep": GrepApprovalWidget,
     "todo": TodoApprovalWidget,
 }
@@ -373,15 +315,32 @@ RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
     "bash": BashResultWidget,
     "read_file": ReadFileResultWidget,
     "write_file": WriteFileResultWidget,
-    "search_replace": SearchReplaceResultWidget,
     "grep": GrepResultWidget,
     "todo": TodoResultWidget,
     "ask_user_question": AskUserQuestionResultWidget,
 }
 
+# Mapping from tool names to their args BaseModel classes
+ARGS_MODELS: dict[str, type[BaseModel]] = {
+    "bash": BashArgs,
+    "read_file": ReadFileArgs,
+    "write_file": WriteFileArgs,
+    "grep": GrepArgs,
+    "todo": TodoArgs,
+}
 
-def get_approval_widget(tool_name: str, args: BaseModel) -> ToolApprovalWidget:
+
+def get_approval_widget(tool_name: str, args: BaseModel | dict) -> ToolApprovalWidget:
     widget_class = APPROVAL_WIDGETS.get(tool_name, ToolApprovalWidget)
+    # Convert dict to appropriate BaseModel if needed
+    if isinstance(args, dict):
+        args_model_cls = ARGS_MODELS.get(tool_name)
+        if args_model_cls:
+            args = args_model_cls(**args)
+        else:
+            # Fallback: wrap in generic container
+            from pydantic import create_model
+            args = create_model("GenericArgs", **{k: (type(v), v) for k, v in args.items()})(**args)
     return widget_class(args)
 
 

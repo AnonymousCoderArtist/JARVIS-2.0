@@ -7,6 +7,7 @@ import json
 from logging import getLogger
 from pathlib import Path
 from pydantic import BaseModel
+import re
 from typing import Any, Optional
 
 logger = getLogger(__name__)
@@ -18,6 +19,12 @@ from core.tools.permissions import RequiredPermission as CoreRequiredPermission
 # Use core types
 AgentSafety = CoreAgentSafety
 RequiredPermission = CoreRequiredPermission
+
+# Try to import Completion for completers
+try:
+    from prompt_toolkit.completion import Completion
+except ImportError:
+    Completion = None  # type: ignore
 
 
 # ============================================================================
@@ -69,28 +76,130 @@ class CommandAvailabilityContext:
     plan_info: Any = None
 
 
+@dataclass
+class Command:
+    """Represents a slash command."""
+    aliases: tuple[str, ...]  # e.g., ("/help", "/h")
+    description: str = ""
+    handler: str = ""  # method name on the app
+    exits: bool = False  # whether command exits the app
+    hidden: bool = False  # whether to hide from completion
+
+
 class CommandRegistry:
     """Registry for available commands."""
-    
+
     def __init__(self, availability_context: CommandAvailabilityContext | None = None):
         self.availability_context = availability_context
-        self.commands: dict[str, Any] = {}
-    
+        self.commands: dict[str, Command] = {}
+        self._built = False
+        self._build_commands()
+
+    def _build_commands(self) -> None:
+        """Build the available commands."""
+        if self._built:
+            return
+        self._built = True
+
+        # Register core commands
+        self._register_core_commands()
+
+    def _register_core_commands(self) -> None:
+        """Register built-in commands."""
+        # Help command
+        self.commands["help"] = Command(
+            aliases=("/help", "/h"),
+            description="Show available commands",
+            handler="_show_help",
+        )
+
+        # Status command
+        self.commands["status"] = Command(
+            aliases=("/status", "/st"),
+            description="Show system status",
+            handler="_show_status",
+        )
+
+        # Clear command
+        self.commands["clear"] = Command(
+            aliases=("/clear",),
+            description="Clear the screen",
+            handler="_clear_history",
+        )
+
+        # Exit command
+        self.commands["exit"] = Command(
+            aliases=("/exit", "/quit"),
+            description="Exit JARVIS",
+            handler="_exit_app",
+            exits=True,
+        )
+
+        # Profile command
+        self.commands["profile"] = Command(
+            aliases=("/profile",),
+            description="Switch or list agent profiles",
+            handler="_switch_to_profile_app",
+        )
+
+        # Tools command
+        self.commands["tools"] = Command(
+            aliases=("/tools",),
+            description="List available tools",
+            handler="_show_tools",
+        )
+
+        # Skills command
+        self.commands["skills"] = Command(
+            aliases=("/skills",),
+            description="List and manage skills",
+            handler="_show_skills",
+        )
+
+        # Memory command
+        self.commands["memory"] = Command(
+            aliases=("/memory",),
+            description="View and manage conversation memory",
+            handler="_show_memory",
+        )
+
+        # Themes command
+        self.commands["themes"] = Command(
+            aliases=("/themes",),
+            description="List and manage UI themes",
+            handler="_show_themes",
+        )
+
     def refresh(self, availability_context: CommandAvailabilityContext) -> None:
         """Refresh command availability based on context."""
         self.availability_context = availability_context
-    
+
     def has_command(self, command_name: str) -> bool:
         """Check if a command exists."""
-        return command_name in self.commands
-    
-    def parse_command(self, user_input: str) -> Any:
+        return command_name in self.commands or any(
+            command_name in cmd.aliases for cmd in self.commands.values()
+        )
+
+    def parse_command(self, user_input: str) -> tuple[str, Command, str] | None:
         """Parse command from user input."""
+        user_input = user_input.strip()
+
+        # Find matching command by alias
+        for cmd_name, cmd in self.commands.items():
+            for alias in cmd.aliases:
+                if user_input == alias or user_input.startswith(alias + " "):
+                    args = user_input[len(alias):].strip()
+                    return cmd_name, cmd, args
+
         return None
 
     def get_help_text(self) -> str:
         """Get help text for all commands."""
-        return ""
+        lines = ["Available commands:"]
+        for cmd_name, cmd in sorted(self.commands.items()):
+            aliases = "/".join(cmd.aliases)
+            lines.append(f"  {aliases} - {cmd.description}")
+        return "\n".join(lines)
 
 
 class HistoryManager:
@@ -167,18 +276,72 @@ class PathCompletionController:
     def __init__(self, completer: Any, parent: Any):
         self.completer = completer
         self.parent = parent
-    
+        self._suggestions: list[tuple[str, str]] = []
+        self._selected_index = 0
+        self._popup_visible = False
+
     def can_handle(self, text: str, cursor_index: int) -> bool:
-        return False
-    
+        # Handle @ paths or ~ paths
+        if cursor_index == 0:
+            return False
+        before_cursor = text[:cursor_index]
+        return before_cursor.rstrip().endswith((" ", "@", "~")) or before_cursor.endswith(("/", "\\")) or "@" in before_cursor
+
     def on_text_changed(self, text: str, cursor_index: int) -> None:
-        pass
-    
+        if not self.can_handle(text, cursor_index):
+            self._suggestions = []
+            self._popup_visible = False
+            return
+
+        # Get the word being completed
+        before_cursor = text[:cursor_index]
+        parts = before_cursor.split()
+        if parts:
+            word = parts[-1] if parts else ""
+            # Get suggestions from completer
+            self._suggestions = self.completer.get_completions(word, self.parent) if hasattr(self.completer, 'get_completions') else []
+            self._popup_visible = bool(self._suggestions)
+            if self._suggestions and self.parent:
+                self.parent.render_completion_suggestions(self._suggestions, 0)
+
     def on_key(self, event: Any, text: str, cursor_index: int) -> CompletionResult:
+        if not self._popup_visible or not self._suggestions:
+            return CompletionResult.IGNORED
+
+        if event.key == "tab" or event.key == "enter":
+            if 0 <= self._selected_index < len(self._suggestions):
+                replacement = self._suggestions[self._selected_index][0]
+                if self.parent and hasattr(self.parent, 'replace_completion_range'):
+                    self.parent.replace_completion_range(cursor_index - len(self._get_word_before_cursor(text, cursor_index)), 
+                                                          cursor_index, replacement + " ")
+                return CompletionResult.HANDLED
+        elif event.key == "escape":
+            self.reset()
+            return CompletionResult.HANDLED
+        elif event.key == "up":
+            self._selected_index = max(0, self._selected_index - 1)
+            if self.parent:
+                self.parent.render_completion_suggestions(self._suggestions, self._selected_index)
+            return CompletionResult.HANDLED
+        elif event.key == "down":
+            self._selected_index = min(len(self._suggestions) - 1, self._selected_index + 1)
+            if self.parent:
+                self.parent.render_completion_suggestions(self._suggestions, self._selected_index)
+            return CompletionResult.HANDLED
+
         return CompletionResult.IGNORED
-    
+
+    def _get_word_before_cursor(self, text: str, cursor_index: int) -> str:
+        before_cursor = text[:cursor_index]
+        parts = before_cursor.split()
+        return parts[-1] if parts else ""
+
     def reset(self) -> None:
-        pass
+        self._suggestions = []
+        self._selected_index = 0
+        self._popup_visible = False
+        if self.parent:
+            self.parent.clear_completion_suggestions()
 
 
 class SlashCommandController:
@@ -186,18 +349,86 @@ class SlashCommandController:
     def __init__(self, completer: Any, parent: Any):
         self.completer = completer
         self.parent = parent
-    
+        self._suggestions: list[tuple[str, str]] = []
+        self._selected_index = 0
+        self._popup_visible = False
+
     def can_handle(self, text: str, cursor_index: int) -> bool:
-        return False
-    
+        # Handle slash commands - check if we're in a slash command context
+        text_before_cursor = text[:cursor_index]
+        # Check if we're at the start of a slash command or typing it
+        return text_before_cursor.lstrip().startswith("/") or \
+               (cursor_index > 0 and text[cursor_index - 1] == "/" and not text[:cursor_index - 1].strip().endswith(" "))
+
     def on_text_changed(self, text: str, cursor_index: int) -> None:
-        pass
-    
+        if not self.can_handle(text, cursor_index):
+            self._suggestions = []
+            self._popup_visible = False
+            return
+
+        # Extract the command being typed
+        text_before_cursor = text[:cursor_index]
+        parts = text_before_cursor.lstrip().split()
+
+        if parts and parts[0].startswith("/"):
+            cmd_prefix = parts[0]
+            # Get matching commands from completer
+            entries = self.completer.entries_getter() if hasattr(self.completer, 'entries_getter') else []
+            self._suggestions = [(label, desc) for label, desc in entries if label.lower().startswith(cmd_prefix.lower())]
+            self._popup_visible = bool(self._suggestions)
+            if self._suggestions and self.parent:
+                self.parent.render_completion_suggestions(self._suggestions, 0)
+
     def on_key(self, event: Any, text: str, cursor_index: int) -> CompletionResult:
+        if not self._popup_visible or not self._suggestions:
+            return CompletionResult.IGNORED
+
+        if event.key == "tab":
+            if 0 <= self._selected_index < len(self._suggestions):
+                replacement = self._suggestions[self._selected_index][0]
+                if self.parent and hasattr(self.parent, 'replace_completion_range'):
+                    # Replace the current word with the suggestion
+                    self.parent.replace_completion_range(cursor_index - len(self._get_current_word(text, cursor_index)),
+                                                          cursor_index, replacement)
+            return CompletionResult.HANDLED
+        elif event.key == "enter":
+            # Only handle enter if popup is visible and we have a selection
+            # Otherwise let it pass through for command execution
+            if 0 <= self._selected_index < len(self._suggestions):
+                replacement = self._suggestions[self._selected_index][0]
+                if self.parent and hasattr(self.parent, 'replace_completion_range'):
+                    self.parent.replace_completion_range(cursor_index - len(self._get_current_word(text, cursor_index)),
+                                                          cursor_index, replacement)
+                return CompletionResult.HANDLED
+            return CompletionResult.IGNORED
+        elif event.key == "escape":
+            self.reset()
+            return CompletionResult.HANDLED
+        elif event.key == "up":
+            self._selected_index = max(0, self._selected_index - 1)
+            if self.parent:
+                self.parent.render_completion_suggestions(self._suggestions, self._selected_index)
+            return CompletionResult.HANDLED
+        elif event.key == "down":
+            self._selected_index = min(len(self._suggestions) - 1, self._selected_index + 1)
+            if self.parent:
+                self.parent.render_completion_suggestions(self._suggestions, self._selected_index)
+            return CompletionResult.HANDLED
+
         return CompletionResult.IGNORED
-    
+
+    def _get_current_word(self, text: str, cursor_index: int) -> str:
+        # Get the last word before cursor
+        before_cursor = text[:cursor_index]
+        parts = before_cursor.split()
+        return parts[-1] if parts else ""
+
     def reset(self) -> None:
-        pass
+        self._suggestions = []
+        self._selected_index = 0
+        self._popup_visible = False
+        if self.parent:
+            self.parent.clear_completion_suggestions()
 
 
 # ============================================================================
@@ -617,16 +848,44 @@ class AgentProfile:
 
 class CommandCompleter:
     """Completer for commands."""
-    
+
     def __init__(self, entries_getter: Any):
         self.entries_getter = entries_getter
+        self.entries_getter = entries_getter
+
+    def get_completions(self, document, complete_event):
+        text = document.get_word_before_cursor()
+        if text.startswith('/'):
+            entries = self.entries_getter() if self.entries_getter else []
+            for label, _ in entries:
+                if label.lower().startswith(text.lower()):
+                    if Completion:
+                        yield Completion(label, start_position=-len(text))
 
 
 class PathCompleter:
     """Completer for file paths."""
-    
+
     def __init__(self, watcher_enabled_getter: Any = None):
         self.watcher_enabled_getter = watcher_enabled_getter
+
+    def get_completions(self, document, complete_event):
+        text = document.get_word_before_cursor()
+        if text.startswith('@') or text.startswith('/') or text.startswith('~'):
+            import os
+            base_path = text
+            if '/' in text:
+                base_path = text[:text.rfind('/') + 1]
+                prefix = text[text.rfind('/') + 1:]
+            else:
+                base_path = './'
+                prefix = text
+            try:
+                for item in os.listdir(base_path):
+                    if item.startswith(prefix) and Completion:
+                        yield Completion(item, start_position=-len(prefix))
+            except (FileNotFoundError, PermissionError):
+                pass
 
 
 # ============================================================================
@@ -1035,17 +1294,10 @@ class GrepArgs(BaseModel):
 
 
 class ReadFileArgs(BaseModel):
-    path: str
-    offset: int = 0
-    limit: Optional[int] = None
-
-
-SEARCH_REPLACE_BLOCK_RE = ""
-
-
-class SearchReplaceArgs(BaseModel):
-    file_path: str
-    content: str
+    # Matches the read_file tool schema which uses 'files' array with 'file_path'
+    # The files array contains dicts with file_path, offset, and limit
+    files: list = []
+    encoding: str = "utf-8"
 
 
 class TodoArgs(BaseModel):
@@ -1054,7 +1306,12 @@ class TodoArgs(BaseModel):
 
 
 class WriteFileArgs(BaseModel):
-    path: str
+    filePath: str
+    content: str
+
+
+class SearchReplaceArgs(BaseModel):
+    filePath: str
     content: str
 
 

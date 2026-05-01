@@ -17,6 +17,7 @@ from prompt_toolkit.formatted_text import HTML
 from pygments.lexers.python import PythonLexer
 from pygments.lexers.shell import BashLexer
 from pygments.lexers.markup import MarkdownLexer
+from rich.markdown import Markdown
 
 from core.agents.coding_agent import CodingAgent
 from core.agents.manager import AgentManager
@@ -287,23 +288,20 @@ class CLIInterface:
             if in_tool_call[0]:
                 return
             # Print streaming content with markdown rendering
-            from rich.console import Console
-            from rich.markdown import Markdown
-            import sys
-            import os
-
-            # Use the main display manager's console for rendering
-            self.display_manager.console.print(Markdown(chunk), end="")
-            self.display_manager.console.file.flush() if hasattr(self.display_manager.console.file, 'flush') else None
+            # Note: Rich's Markdown doesn't support incremental rendering well,
+            # so we print raw chunks for immediate feedback
+            self.display_manager.console.print(chunk, end="", highlight=False)
 
         def reasoning_callback(chunk: str):
             if in_tool_call[0]:
                 return
             # Print reasoning as dimmed text
-            self.display_manager.cprint(f"[dim]{chunk}[/dim]", end="")
+            self.display_manager.console.print(chunk, end="", style="dim", highlight=False)
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             in_tool_call[0] = True
+            # Add newline before tool call for better separation
+            self.display_manager.console.print()
             # Show tool call
             self.display_manager.show_tool_call(tool_name, tool_args)
 
@@ -338,11 +336,14 @@ class CLIInterface:
         while True:
             try:
                 # Use prompt_toolkit with advanced features
-                prompt_msg = HTML("<b><ansiblue>YOU </ansiblue><ansired>> </ansired></b>")
+                from rich.text import Text
+                prompt_text = Text()
+                prompt_text.append("YOU", style="bold cyan")
+                prompt_text.append(" > ", style="bold green")
 
                 # Use completer (removed lexer to fix display issues)
                 user_input = await self.session.prompt_async(
-                    prompt_msg,
+                    prompt_text,
                     style=self.style,
                     multiline=False,
                     key_bindings=self.key_bindings,
@@ -356,7 +357,8 @@ class CLIInterface:
                 await self._handle_submit(user_input)
 
             except (KeyboardInterrupt, EOFError):
-                self.display_manager.cprint("\nGoodbye!", color="green")
+                self.display_manager.console.print()
+                self.display_manager.console.print("[bold green]Goodbye![/bold green]")
                 break
             except Exception as e:
                 self.display_manager.show_error(f"Fatal Error: {e}")

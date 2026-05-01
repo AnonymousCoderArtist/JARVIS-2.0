@@ -17,6 +17,7 @@ class SkillProfile:
     when_not_to_use: str
     file_path: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    user_invocable: bool = True
 
     @classmethod
     def from_file(cls, path: Path) -> SkillProfile:
