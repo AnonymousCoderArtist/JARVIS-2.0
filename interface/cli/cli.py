@@ -293,9 +293,10 @@ class CLIInterface:
         def reasoning_callback(chunk: str):
             if in_tool_call[0]:
                 return
-            # Stream reasoning in real-time
+            # Stream reasoning in real-time with dim styling
             import sys
-            sys.stdout.write(chunk)
+            # Use ANSI escape code for dim text (2 = dim/faint)
+            sys.stdout.write(f"\033[2m{chunk}\033[0m")
             sys.stdout.flush()
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
