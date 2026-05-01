@@ -5,6 +5,7 @@ import platform
 import sys
 
 from .base import BaseTool, ToolInput, ToolOutput
+from core.tools.permissions import PermissionContext, PermissionScope, RequiredPermission, ToolPermission
 
 
 class BashTool(BaseTool):
@@ -53,6 +54,48 @@ Usage:
         },
         "required": ["command"]
     }
+
+    def resolve_permission(self, args: dict) -> PermissionContext | None:
+        """Resolve permission for bash command with dangerous pattern detection"""
+        command = args.get("command", "")
+        if not command:
+            return None
+
+        # Dangerous command patterns that require special approval
+        dangerous_patterns = [
+            "rm -rf",
+            "rm -r",
+            "delete",
+            "format",
+            "truncate",
+            "dd if=",
+            "mkfs",
+            "fdisk",
+            "shred",
+            "wipe",
+            "> /dev/",
+            "chmod 777",
+            "chown",
+            "sudo rm",
+            "sudo dd",
+            "sudo mkfs",
+        ]
+
+        for pattern in dangerous_patterns:
+            if pattern in command.lower():
+                return PermissionContext(
+                    permission=ToolPermission.ASK,
+                    required_permissions=[
+                        RequiredPermission(
+                            scope=PermissionScope.COMMAND_PATTERN,
+                            invocation_pattern=pattern,
+                            session_pattern=command,
+                            label=f"execute dangerous command '{command}'",
+                        )
+                    ],
+                )
+
+        return None
 
     def __init__(self):
         super().__init__()

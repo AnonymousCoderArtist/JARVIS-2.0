@@ -4,6 +4,11 @@ import difflib
 import os
 
 from .base import BaseTool, ToolInput, ToolOutput
+from core.tools.permissions import (
+    PermissionContext,
+    resolve_file_tool_permission,
+    ToolPermission,
+)
 
 
 class EditTool(BaseTool):
@@ -51,6 +56,36 @@ Usage:
         },
         "required": ["replacements"]
     }
+
+    def resolve_permission(self, args: dict) -> PermissionContext | None:
+        """Resolve permission for file edit operation with granular checks"""
+        replacements = args.get("replacements", [])
+        if not replacements:
+            return None
+
+        # Check the first file path for permission
+        first_file = replacements[0].get("file_path") if replacements else None
+        if not first_file:
+            return None
+
+        # Get configuration
+        from core.config.settings import Settings
+        settings = Settings()
+        allowlist = settings.tools.get("allowlist", [])
+        denylist = settings.tools.get("denylist", [])
+        sensitive_patterns = settings.tools.get("sensitive_patterns", [])
+        config_permission = ToolPermission(
+            settings.tools.get("edit", {}).get("permission", "ask")
+        )
+
+        return resolve_file_tool_permission(
+            first_file,
+            tool_name="edit",
+            allowlist=allowlist,
+            denylist=denylist,
+            config_permission=config_permission,
+            sensitive_patterns=sensitive_patterns,
+        )
 
     async def edit(self, input_data: ToolInput) -> ToolOutput:
         """Edit files by replacing text"""

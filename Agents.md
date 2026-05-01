@@ -51,21 +51,118 @@ See [docs/AGENT_PROFILES.md](docs/AGENT_PROFILES.md) for detailed configuration.
 - Tool-level permissions (configurable per tool)
 - Session rules (temporary permissions for specific patterns)
 - Required permissions (fine-grained checks based on arguments)
+- **Vibe-style granular permissions**:
+  - **Path-based allowlist/denylist**: Files matching allowlist patterns are always allowed, denylist patterns are never allowed
+  - **Sensitive file patterns**: Files matching sensitive patterns (e.g., *secret*, *.env) require special approval
+  - **Workdir boundary**: Files outside working directory require approval
+  - **Scratchpad paths**: Files in scratchpad directories are always allowed
+  - **Dangerous command patterns**: Bash commands with dangerous patterns (e.g., rm -rf, dd if=) require special approval
 
 **Implementation:**
-- `core/tools/permissions.py` - Permission models and enums
+- `core/tools/permissions.py` - Permission models, enums, and Vibe-style granular permission functions
 - `core/tools/permission_manager.py` - Permission management logic
 - `core/tools/base.py` - Tool permission resolution interface
+
+**Granular Permission Functions:**
+- `resolve_file_tool_permission()` - Checks scratchpad, allowlist/denylist, sensitive patterns, and workdir boundary
+- `resolve_path_permission()` - Checks path against allowlist/denylist patterns
+- `is_path_within_workdir()` - Checks if path is inside working directory
+- `is_scratchpad_path()` - Checks if path is in scratchpad directory
+- `wildcard_match()` - Matches text against wildcard patterns with optional trailing parts
 
 **Profile Integration:**
 The permission system is integrated with agent profiles through the `config_getter` mechanism. When an agent is initialized with a `config_getter` function that returns profile-applied configuration, the permission system automatically respects the active profile's tool permissions. This ensures that:
 
-- **Plan profile**: File write and edit tools are set to `NEVER` permission
-- **Accept Edits profile**: File write and edit tools are set to `ALWAYS` permission
+- **Default profile**: Read operations (`read`, `list_dir`, `glob`, `grep`, `read_memory`) are `ALWAYS`, write operations require approval (`ASK`), and `edit` is auto-approved (`ALWAYS`) - similar to Vibe's approach
+- **Plan profile**: Explore-level tools (`read`, `list_dir`, `glob`, `grep`) are `ALWAYS`, all other tools are `NEVER`
+- **Accept Edits profile**: File write and edit tools are set to `ALWAYS` permission, other tools use default `ASK`
 - **Auto Approve profile**: All tools bypass permission checks via `bypass_tool_permissions`
-- **Default profile**: Tools use their default `ASK` permission unless overridden
+- **Explore profile** (subagent only): Explore-level tools (`read`, `list_dir`, `glob`, `grep`) are `ALWAYS`, all other tools are `NEVER`
 
 The `AgentManager` handles applying profile overrides to the base configuration through the `apply_to_config()` method, and the agent uses this merged configuration for permission checks.
+
+### Vibe-Style Granular Permission System
+
+JARVIS implements a comprehensive permission system inspired by mistral-vibe, providing granular control over tool execution based on file paths, patterns, and command safety.
+
+#### Permission Resolution Flow
+
+For file-based tools (`read`, `write`, `edit`), the permission system checks in this order:
+
+1. **Scratchpad Check**: Files in `.jarvis/scratchpad` or `/tmp/scratchpad` are always allowed
+2. **Denylist Check**: Files matching denylist patterns (e.g., `~/.ssh/*`, `*.key`) are never allowed
+3. **Allowlist Check**: Files matching allowlist patterns (e.g., `*.py`, `*.md`) are always allowed
+4. **Sensitive Pattern Check**: Files matching sensitive patterns (e.g., `*secret*`, `*.env`) require special approval
+5. **Workdir Boundary Check**: Files outside working directory require approval
+
+#### Configuration
+
+The granular permission system is configured in `core/config/settings.py`:
+
+```python
+"tools": {
+    # Tool-level permissions
+    "read": {"permission": "always"},
+    "write": {"permission": "ask"},
+    "edit": {"permission": "ask"},
+
+    # Granular path-based permissions
+    "allowlist": [
+        "*.md", "*.txt", "*.py", "*.js", "*.ts",
+        "*.json", "*.yaml", "*.yml", "*.toml",
+    ],
+    "denylist": [
+        "/etc/passwd", "/etc/shadow", "~/.ssh/*",
+        "~/.aws/*", "*.key", "*.pem",
+    ],
+    "sensitive_patterns": [
+        "*secret*", "*password*", "*credential*",
+        "*token*", "*.env", "config/production*",
+    ],
+}
+```
+
+#### Tool-Level Permission Resolution
+
+Tools can implement custom permission logic by overriding the `resolve_permission()` method:
+
+```python
+def resolve_permission(self, args: dict) -> PermissionContext | None:
+    """Resolve permission for this tool execution"""
+    file_path = args.get("filePath")
+    if not file_path:
+        return None
+
+    return resolve_file_tool_permission(
+        file_path,
+        tool_name=self.name,
+        allowlist=config.allowlist,
+        denylist=config.denylist,
+        config_permission=config_permission,
+        sensitive_patterns=config.sensitive_patterns,
+    )
+```
+
+#### Dangerous Command Detection
+
+The bash tool automatically detects dangerous command patterns:
+
+- File deletion: `rm -rf`, `rm -r`, `delete`, `shred`, `wipe`
+- Disk operations: `dd if=`, `mkfs`, `fdisk`, `format`, `truncate`
+- Permission changes: `chmod 777`, `chown`
+- System operations: `sudo rm`, `sudo dd`, `sudo mkfs`
+
+These commands trigger special approval with clear warning labels.
+
+#### Approval Dialog
+
+When granular permissions are required, the approval dialog shows specific reasons:
+
+1. **Yes** - Approve this single execution
+2. **Yes and always allow for this session** - Add session rule for this pattern (e.g., "outside workdir", "accessing sensitive files")
+3. **No and tell the agent what to do instead** - Reject with feedback
+
+This allows users to make informed decisions based on the specific permission requirements.
 
 ### Trust Folder System
 

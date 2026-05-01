@@ -2,11 +2,11 @@
 
 from core.agents.profiles import AgentProfile, AgentSafety, AgentType
 
-# Default agent - requires approval for tool executions, edit tool always
+# Default agent - Vibe-style: read operations always allowed, write operations require approval, edit tool auto-approved
 DEFAULT = AgentProfile(
     name="default",
     display_name="Default",
-    description="Requires approval for tool executions, edit tool auto-approved",
+    description="Read operations always allowed, write operations require approval, edit tool auto-approved",
     safety=AgentSafety.NEUTRAL,
     overrides={
         "tools": {
@@ -23,8 +23,24 @@ PLAN = AgentProfile(
     safety=AgentSafety.SAFE,
     overrides={
         "tools": {
-            "write_file": {"permission": "never"},
+            # Explore-level tools - always allowed
+            "read": {"permission": "always"},
+            "list_dir": {"permission": "always"},
+            "glob": {"permission": "always"},
+            "grep": {"permission": "always"},
+            # All other tools - disabled
+            "write": {"permission": "never"},
             "edit": {"permission": "never"},
+            "bash": {"permission": "never"},
+            "run_tests": {"permission": "never"},
+            "repl": {"permission": "never"},
+            "list_background_processes": {"permission": "never"},
+            "read_background_output": {"permission": "never"},
+            "save_memory": {"permission": "never"},
+            "read_memory": {"permission": "never"},
+            "fetch_webpage": {"permission": "never"},
+            "invoke_agent": {"permission": "never"},
+            "activate_skill": {"permission": "never"},
         }
     },
 )
@@ -60,7 +76,26 @@ EXPLORE = AgentProfile(
     safety=AgentSafety.SAFE,
     agent_type=AgentType.SUBAGENT,
     overrides={
-        "enabled_tools": ["grep", "read_file", "glob"],
+        "tools": {
+            # Explore-level tools - always allowed
+            "read": {"permission": "always"},
+            "list_dir": {"permission": "always"},
+            "glob": {"permission": "always"},
+            "grep": {"permission": "always"},
+            # All other tools - disabled
+            "write": {"permission": "never"},
+            "edit": {"permission": "never"},
+            "bash": {"permission": "never"},
+            "run_tests": {"permission": "never"},
+            "repl": {"permission": "never"},
+            "list_background_processes": {"permission": "never"},
+            "read_background_output": {"permission": "never"},
+            "save_memory": {"permission": "never"},
+            "read_memory": {"permission": "never"},
+            "fetch_webpage": {"permission": "never"},
+            "invoke_agent": {"permission": "never"},
+            "activate_skill": {"permission": "never"},
+        },
         "system_prompt_id": "explore",
     },
 )

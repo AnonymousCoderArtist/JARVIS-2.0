@@ -9,29 +9,30 @@ JARVIS comes with the following built-in agent profiles:
 ### Default
 - **Name**: `default`
 - **Safety Level**: NEUTRAL
-- **Description**: Requires approval for tool executions
-- **Best for**: General use with safety checks
+- **Description**: Read operations always allowed, write operations require approval, edit tool auto-approved
+- **Best for**: General use with safety checks (Vibe-style approach)
+- **Permissions**: Read operations (`read`, `list_dir`, `glob`, `grep`, `read_memory`) are `ALWAYS`, write operations (`write`, `bash`, etc.) are `ASK`, `edit` is `ALWAYS`
 
 ### Plan
 - **Name**: `plan`
 - **Safety Level**: SAFE
 - **Description**: Read-only agent for exploration and planning
 - **Best for**: Code exploration, planning, and analysis
-- **Restrictions**: File write and edit tools disabled
+- **Permissions**: Explore tools (`read`, `list_dir`, `glob`, `grep`) are `ALWAYS`, all others `NEVER`
 
 ### Accept Edits
 - **Name**: `accept-edits`
 - **Safety Level**: DESTRUCTIVE
 - **Description**: Auto-approves file edits only
 - **Best for**: Code refactoring tasks
-- **Restrictions**: File write and edit tools auto-approved
+- **Permissions**: File write and edit tools are `ALWAYS`, other tools use default `ASK`
 
 ### Auto Approve
 - **Name**: `auto-approve`
 - **Safety Level**: YOLO
 - **Description**: Auto-approves all tool executions
 - **Best for**: Trusted environments (use with caution)
-- **Restrictions**: All tools auto-approved
+- **Permissions**: All tools bypass permission checks
 
 ### Explore
 - **Name**: `explore`
@@ -39,6 +40,7 @@ JARVIS comes with the following built-in agent profiles:
 - **Description**: Read-only subagent for codebase exploration
 - **Best for**: Delegated exploration tasks
 - **Type**: Subagent (cannot be selected as primary agent)
+- **Permissions**: Explore tools (`read`, `list_dir`, `glob`, `grep`) are `ALWAYS`, all others `NEVER`
 
 ## Creating Custom Agent Profiles
 
@@ -152,6 +154,48 @@ The permission system supports granular control through:
 1. **Tool-level permissions**: Set default behavior for a tool
 2. **Session rules**: Temporary permissions for specific patterns
 3. **Required permissions**: Fine-grained checks based on tool arguments
+4. **Vibe-style granular permissions**:
+   - **Path-based allowlist/denylist**: Files matching allowlist patterns are always allowed, denylist patterns are never allowed
+   - **Sensitive file patterns**: Files matching sensitive patterns (e.g., *secret*, *.env) require special approval
+   - **Workdir boundary**: Files outside working directory require approval
+   - **Scratchpad paths**: Files in scratchpad directories are always allowed
+   - **Dangerous command patterns**: Bash commands with dangerous patterns (e.g., rm -rf, dd if=) require special approval
+
+### Granular Permission Configuration
+
+The granular permission system is configured in the default settings:
+
+```toml
+[tools]
+# Tool-level permissions
+read = { permission = "always" }
+write = { permission = "ask" }
+edit = { permission = "ask" }
+
+# Granular path-based permissions
+allowlist = [
+    "*.md", "*.txt", "*.py", "*.js", "*.ts",
+    "*.json", "*.yaml", "*.yml", "*.toml",
+]
+denylist = [
+    "/etc/passwd", "/etc/shadow", "~/.ssh/*",
+    "~/.aws/*", "*.key", "*.pem",
+]
+sensitive_patterns = [
+    "*secret*", "*password*", "*credential*",
+    "*token*", "*.env", "config/production*",
+]
+```
+
+### Permission Resolution Flow
+
+For file-based tools, the permission system checks in this order:
+
+1. **Scratchpad Check**: Files in `.jarvis/scratchpad` are always allowed
+2. **Denylist Check**: Files matching denylist patterns are never allowed
+3. **Allowlist Check**: Files matching allowlist patterns are always allowed
+4. **Sensitive Pattern Check**: Files matching sensitive patterns require special approval
+5. **Workdir Boundary Check**: Files outside working directory require approval
 
 ### Example Tool Configuration
 

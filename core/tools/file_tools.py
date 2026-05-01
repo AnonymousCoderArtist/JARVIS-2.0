@@ -5,6 +5,11 @@ import os
 import aiofiles
 
 from .base import BaseTool, ToolInput, ToolOutput
+from core.tools.permissions import (
+    PermissionContext,
+    resolve_file_tool_permission,
+    ToolPermission,
+)
 
 
 class FileReadTool(BaseTool):
@@ -51,6 +56,31 @@ Usage:
         },
         "required": ["filePath", "offset", "limit"]
     }
+
+    def resolve_permission(self, args: dict) -> PermissionContext | None:
+        """Resolve permission for file read operation with granular checks"""
+        file_path = args.get("filePath")
+        if not file_path:
+            return None
+
+        # Get configuration
+        from core.config.settings import Settings
+        settings = Settings()
+        allowlist = settings.tools.get("allowlist", [])
+        denylist = settings.tools.get("denylist", [])
+        sensitive_patterns = settings.tools.get("sensitive_patterns", [])
+        config_permission = ToolPermission(
+            settings.tools.get("read", {}).get("permission", "ask")
+        )
+
+        return resolve_file_tool_permission(
+            file_path,
+            tool_name="read",
+            allowlist=allowlist,
+            denylist=denylist,
+            config_permission=config_permission,
+            sensitive_patterns=sensitive_patterns,
+        )
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
@@ -176,6 +206,31 @@ class FileWriteTool(BaseTool):
         },
         "required": ["filePath", "content"]
     }
+
+    def resolve_permission(self, args: dict) -> PermissionContext | None:
+        """Resolve permission for file write operation with granular checks"""
+        file_path = args.get("filePath")
+        if not file_path:
+            return None
+
+        # Get configuration
+        from core.config.settings import Settings
+        settings = Settings()
+        allowlist = settings.tools.get("allowlist", [])
+        denylist = settings.tools.get("denylist", [])
+        sensitive_patterns = settings.tools.get("sensitive_patterns", [])
+        config_permission = ToolPermission(
+            settings.tools.get("write", {}).get("permission", "ask")
+        )
+
+        return resolve_file_tool_permission(
+            file_path,
+            tool_name="write",
+            allowlist=allowlist,
+            denylist=denylist,
+            config_permission=config_permission,
+            sensitive_patterns=sensitive_patterns,
+        )
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:

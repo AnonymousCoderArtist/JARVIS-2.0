@@ -83,27 +83,54 @@ class PermissionManager:
         Returns:
             List of required permissions
         """
+        from core.tools.permissions import (
+            resolve_file_tool_permission,
+            is_path_within_workdir,
+        )
+
         permissions = []
 
-        # Check for file operations outside working directory
-        if "path" in args:
+        # Check for file operations with granular permissions
+        if tool_name in ("read", "write", "edit") and "filePath" in args:
+            file_path = args["filePath"]
+            allowlist = self._config.tools.get("allowlist", [])
+            denylist = self._config.tools.get("denylist", [])
+            sensitive_patterns = self._config.tools.get("sensitive_patterns", [])
+            config_permission = ToolPermission(
+                self._config.tools.get(tool_name, {}).get("permission", "ask")
+            )
+
+            ctx = resolve_file_tool_permission(
+                file_path,
+                tool_name=tool_name,
+                allowlist=allowlist,
+                denylist=denylist,
+                config_permission=config_permission,
+                sensitive_patterns=sensitive_patterns,
+            )
+
+            if ctx and ctx.required_permissions:
+                permissions.extend(ctx.required_permissions)
+
+        # Check for list_dir operations
+        elif tool_name == "list_dir" and "path" in args:
             from pathlib import Path
 
             path = Path(args["path"])
-            if not path.resolve().is_relative_to(Path.cwd()):
+            if not is_path_within_workdir(args["path"]):
                 permissions.append(
                     RequiredPermission(
                         scope=PermissionScope.OUTSIDE_DIRECTORY,
                         invocation_pattern=str(path),
                         session_pattern=str(path.parent),
-                        label=f"access {path}",
+                        label=f"list {path}",
                     )
                 )
 
         # Check for dangerous command patterns
         if tool_name == "bash" and "command" in args:
             command = args["command"]
-            dangerous_patterns = ["rm -rf", "delete", "format", "truncate"]
+            dangerous_patterns = ["rm -rf", "delete", "format", "truncate", "dd if=", "mkfs"]
             for pattern in dangerous_patterns:
                 if pattern in command.lower():
                     permissions.append(
