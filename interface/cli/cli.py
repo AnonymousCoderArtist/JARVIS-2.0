@@ -300,9 +300,9 @@ class CLIInterface:
             sys.stdout.flush()
 
         def reasoning_done_callback():
-            # Add newline after reasoning is complete
+            # Add blank line after reasoning is complete for spacing
             import sys
-            sys.stdout.write("\n")
+            sys.stdout.write("\n\n")
 
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             in_tool_call[0] = True
