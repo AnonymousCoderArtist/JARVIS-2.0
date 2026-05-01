@@ -1,62 +1,205 @@
-# JARVIS 2.0 - Fully Agentic AI Assistant
+<div align="center">
 
-JARVIS 2.0 is a fully agentic AI assistant with Claude Code-style coding capabilities and Claude Coworker-style knowledge work features. It features a rich CLI interface with streaming assistant output, tool calls, slash commands, and provider/model status.
+# JARVIS v2.0.beta-coding
 
-## Features
+<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/github/v/release/OEvortex/JARVIS?label=version&style=for-the-badge&color=blue"></a>
+<a href="https://github.com/OEvortex/JARVIS/blob/main/LICENSE"><img src="https://img.shields.io/github/license/OEvortex/JARVIS?style=for-the-badge&color=green"></a>
+<a href="https://github.com/OEvortex/JARVIS/stargazers"><img src="https://img.shields.io/github/stars/OEvortex/JARVIS?style=for-the-badge&color=yellow"></a>
+<a href="https://github.com/OEvortex/JARVIS/issues"><img src="https://img.shields.io/github/issues/OEvortex/JARVIS?style=for-the-badge&color=red"></a>
 
-- **Multi-LLM Provider Support**: OpenAI (GPT-4, GPT-4o) and Anthropic (Claude 3.5, Claude 4) with easy plugin system for adding new providers
-- **Agentic Capabilities**: Specialized agents for coding (Claude Code style) and knowledge work (Claude Coworker style) with intelligent task coordination
-- **Tool System**: Extensible plugin architecture with file operations (read, write, list, search), code execution (Python, shell), and document processing (PDF, summarization, data extraction)
-- **Semantic Memory**: Long-term memory with embeddings and importance-based retention using sentence-transformers
-- **Enhanced RAG**: Hybrid retrieval system combining semantic and keyword search with document indexing
-- **Safety Layer**: Permission system, checkpoint/undo functionality, and destructive action detection
-- **Conversation Management**: Context-aware conversation history with automatic trimming and token limit optimization
-- **Text-First Interface**: CLI interface with help, status, and tool listing commands
+**Your Personal AI Assistant - Fully Agentic PI with Claude Code-style Capabilities**
 
-## Architecture
+</div>
+
+---
+
+## 🚀 Overview
+
+JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and OpenClaude. It provides unified agentic assistance for coding, research, documentation, and knowledge work through intelligent tool usage.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **🤖 Fully Agentic** | JARVIS agent handles coding, research, documentation, and complex tasks autonomously |
+| **🔍 Explore Subagent** | Specialized agent for codebase exploration and architecture analysis |
+| **🔧 14+ Tools** | Comprehensive tools for file ops, code execution, web fetching, and more |
+| **🔒 Safety First** | Granular permission system with 5 agent profiles (SAFE to YOLO) |
+| **💻 Dual Interfaces** | Rich CLI and modern TUI (Textual-based) with streaming support |
+| **🔌 Multi-LLM** | OpenAI and Anthropic SDKs with easy configuration |
+
+---
+
+## 🎯 Current Status
+
+This is **JARVIS v2.0.beta-coding** - the core Coding harness of JARVIS 2.0
+
+| Component | Status |
+|-----------|--------|
+| ✅ LLM Provider Abstraction | Complete |
+| ✅ Tool System | Complete (14 tools) |
+| ✅ JARVIS Agent (PI) | Complete |
+| ✅ Explore Subagent | Ready |
+| ✅ CLI Interface | Complete |
+| ✅ TUI Interface | Complete |
+| ✅ Permission System | Complete |
+| 🔄 More Specialized Agents | Coming Soon |
+
+---
+
+## 🏗️ Architecture
+
+### System Overview
 
 ```
-JARVIS 2.0/
-├── core/
-│   ├── llm/              # LLM provider abstraction
-│   ├── agents/           # Agent system
-│   ├── tools/            # Tool system
-│   ├── memory/           # Semantic memory
-│   ├── rag/              # RAG system
-│   ├── safety/           # Safety manager
-│   └── config/           # Configuration
-├── interface/
-│   ├── cli/              # Command-line interface
-│   └── web_ui/           # Web interface (future)
-└── tests/                # Test suite
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              JARVIS Agent                                   │
+│                    (Unified Agentic Assistant)                               │
+└──────────────────────────────┬───────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Core Components                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
+│  │   Agents     │    │     Tools    │    │   Config     │                  │
+│  │              │    │              │    │              │                  │
+│  │ ┌──────────┐ │    │ ┌──────────┐ │    │ ┌──────────┐ │                  │
+│  │ │BaseAgent │ │    │ │Registry  │ │    │ │Settings  │ │                  │
+│  │ ├──────────┤ │    │ ├──────────┤ │    │ ├──────────┤ │                  │
+│  │ │CodingAgent│ │    │ │ToolImpl  │ │    │ │Models   │ │                  │
+│  │ ├──────────┤ │    │ │(14+ tools)│ │    │ └──────────┘ │                  │
+│  │ │ExploreAgent│ │    │ └──────────┘ │    │ └──────────┘ │                  │
+│  │ └──────────┘ │    │ └──────────┘ │    │ └──────────┘ │                  │
+│  └──────────────┘    └──────────────┘    └──────────────┘                  │
+│         │                    │                    │                         │
+│         └────────────────────┴────────────────────┘                         │
+│                              │                                               │
+│                              ▼                                               │
+│                    ┌──────────────────┐                                      │
+│                    │   LLM Provider   │                                      │
+│                    │   (OpenAI/Anthro)│                                      │
+│                    └──────────────────┘                                      │
+│                              │                                               │
+│                              ▼                                               │
+│                    ┌──────────────────┐                                      │
+│                    │     Streaming    │                                      │
+│                    │   & Callbacks    │                                      │
+│                    └──────────────────┘                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Installation
+### Detailed Component Architecture
+
+#### Agent System (`core/agents/`)
+
+```
+agents/
+├── base.py              # Abstract BaseAgent with memory, context, tool integration
+├── coding_agent.py      # Main JARVIS agent for all tasks
+├── explore_agent.py     # Specialized codebase exploration subagent
+├── manager.py           # AgentManager for profile management
+├── profiles.py          # Agent profile definitions
+├── system_prompts.py    # System prompts for each agent type
+├── builtin_profiles.py  # Predefined safety profiles
+├── async_manager.py     # Async execution management
+├── resource_monitor.py  # Resource usage monitoring
+└── background_task_manager.py
+```
+
+#### Tool System (`core/tools/`)
+
+```
+tools/
+├── base.py              # Base tool class with permission resolution
+├── permissions.py       # Permission models and granular checks
+├── permission_manager.py # Permission management logic
+├── file_tools/          # Read, write, edit, list_dir, glob
+├── code_tools/          # Bash, REPL, run_tests
+├── search_tools/        # Grep search
+├── web_tools/           # WebFetch
+├── memory_tools/        # Save/Read memory
+├── agent_tools/         # InvokeAgent, ActivateSkill
+└── background_tools/    # Process management
+```
+
+#### LLM Provider Layer (`core/llm_sdk/`)
+
+```
+llm_sdk/
+├── openai/sdk.py        # OpenAI SDK adapter
+├── anthropic/sdk.py     # Anthropic SDK adapter
+├── copilot/sdk.py       # Copilot SDK adapter
+├── base/sdk.py          # Base SDK interface
+└── http_client.py       # HTTP client for API calls
+```
+
+#### Configuration & Safety (`core/config/`, `core/safety/`)
+
+```
+config/
+├── settings.py          # Application settings and tool permissions
+├── models.py            # Configuration models
+
+safety/
+├── trusted_folders.py   # Trust folder management
+└── permissions.py       # Safety checks and validations
+```
+
+#### Supporting Systems (`core/memory/`, `core/rag/`)
+
+```
+memory/
+└── conversation_manager.py  # Conversation history management
+
+rag/
+└── (RAG system for knowledge retrieval)
+```
+
+### Core Components
+
+| Component | Description |
+|-----------|-------------|
+| **BaseAgent** | Abstract base class providing memory, context management, streaming, and tool integration |
+| **CodingAgent** | Main JARVIS agent for coding, research, documentation, and general assistance |
+| **ExploreAgent** | Specialized subagent for comprehensive codebase exploration and analysis |
+| **ToolRegistry** | Central registry managing all available tools with dynamic descriptions |
+| **AgentManager** | Manages agent profiles and applies permission overrides |
+| **Permission System** | Vibe-style granular permissions with path-based allowlist/denylist |
+
+---
+
+## 📦 Installation
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- pip package manager
+- **Python 3.10+** (recommended 3.11+)
+- **pip** package manager
+- **API Key** from OpenAI or Anthropic
 
-### Setup
+### Quick Setup
 
-1. Clone the repository:
 ```bash
-git clone <repository-url>
+# Clone the repository
+git clone https://github.com/OEvortex/JARVIS.git
 cd JARVIS
-```
 
-2. Install dependencies:
-```bash
+# Install dependencies (using uv recommended)
+uv pip install -e .
+
+# Or using pip
 pip install -e .
 ```
 
-3. (Optional) Configure environment variables:
+### Configuration
+
+Create a `.env` file with your API keys:
+
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` file to set your provider configuration:
 ```env
 JARVIS_MODEL=gpt-4o
 JARVIS_BASE_URL=https://api.openai.com/v1
@@ -64,151 +207,221 @@ JARVIS_API_KEY=your_api_key_here
 JARVIS_SDK=openai
 ```
 
-## Usage
+---
 
-### Running JARVIS
+## 🚀 Usage
 
-JARVIS now uses CLI flags for configuration. You can run it with:
+### CLI Mode
 
 ```bash
 # Using CLI flags
-jarvis --cli --model gpt-4o --base_url https://api.openai.com/v1 --apikey YOUR_KEY --sdk openai
+jarvis --cli --model gpt-4o --apikey YOUR_KEY --sdk openai
 
-# Using .env file (if configured)
+# Using .env configuration
 jarvis --cli
 
 # Using short flags
 jarvis --cli -m gpt-4o --apikey YOUR_KEY
 ```
 
-**Available CLI Flags:**
-- `--model, -m`: Model name (e.g., gpt-4o, claude-3-5-sonnet-20241022)
-- `--base_url`: Base URL for the LLM API
-- `--apikey, --api-key`: API key for the LLM provider
-- `--sdk`: SDK mode (openai, anthropic, standard)
-- `--cli`: Launch the Rich CLI
+### TUI Mode
 
-### CLI Commands
-
-Once JARVIS is running, you can use these commands:
-
-- `/help` - Show help information
-- `/status` - Display system status
-- `/clear` - Clear the screen
-- `/exit` - Exit JARVIS
-- `! <cmd>` - Run shell command
-
-### Basic Usage
-
-```
-JARVIS > /help
-JARVIS > /status
-JARVIS > What can you help me with?
-JARVIS > ! ls -la
-```
-
-## Implementation Status
-
-**All core phases (1-4) are now complete!** The system includes:
-
-- ✅ LLM Provider Abstraction with OpenAI and Anthropic support
-- ✅ Configuration management with environment variables
-- ✅ Tool system with 9 built-in tools (file, code, document operations)
-- ✅ Single JARVIS agent with comprehensive capabilities
-- ✅ Dynamic tool description injection (OpenClaude style)
-- ✅ Semantic Memory with embedding support
-- ✅ Enhanced RAG with hybrid retrieval
-- ✅ Conversation Manager for context tracking
-- ✅ Safety Manager with checkpoints and permission system
-- ✅ CLI interface with integrated agent and tools
-
-The system is ready for use. Run JARVIS with CLI flags or configure a `.env` file for convenience.
-
-## Configuration
-
-JARVIS uses CLI flags for configuration, with optional support for `.env` files. The old `config.toml` and `providers.json` files are no longer required.
-
-**CLI Flags (take precedence):**
 ```bash
-jarvis --cli --model gpt-4o --base_url https://api.openai.com/v1 --apikey YOUR_KEY --sdk openai
+# Launch TUI interface
+jarvis --tui --model gpt-4o --apikey YOUR_KEY
+
+# With custom base URL (for local LLMs)
+jarvis --tui --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --sdk openai
 ```
 
-**Environment Variables (.env):**
+### Available CLI Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--model` | `-m` | Model name (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`) |
+| `--base_url` | | Base URL for LLM API |
+| `--apikey` | `--api-key` | API key for the provider |
+| `--sdk` | | SDK mode: `openai`, `anthropic`, or `standard` |
+| `--cli` | | Launch CLI interface |
+| `--tui` | `--TUI` | Launch TUI interface |
+| `--bypass` | `--yolo` | Bypass all tool permissions |
+
+---
+
+## 🛠️ Available Tools
+
+JARVIS comes with 14+ built-in tools for comprehensive task handling:
+
+### File Operations
+
+| Tool | Description |
+|------|-------------|
+| `read` | Read file(s) with parallel support and offset/limit |
+| `write` | Create new files (fails if exists) |
+| `edit` | Edit existing files with string replacements |
+| `list_dir` | List directory contents |
+| `glob` | Search files by glob pattern |
+
+### Code Execution
+
+| Tool | Description |
+|------|-------------|
+| `bash` | Execute shell commands |
+| `repl` | Interactive Python REPL |
+| `run_tests` | Run test files with pytest |
+
+### Search & Discovery
+
+| Tool | Description |
+|------|-------------|
+| `grep` | Search for patterns in files |
+
+### Web & Background
+
+| Tool | Description |
+|------|-------------|
+| `web_fetch` | Fetch web content |
+| `list_background_processes` | List running background processes |
+| `read_background_output` | Read background process output |
+
+### Memory & Agents
+
+| Tool | Description |
+|------|-------------|
+| `save_memory` | Save information to memory |
+| `read_memory` | Read from memory |
+| `invoke_agent` | Invoke the Explore subagent for codebase analysis |
+| `activate_skill` | Activate specialized skills |
+
+---
+
+## 👤 Agent Profiles
+
+**JARVIS** is your main **Personal AI Assistant (PI)** agent. The Explore subagent handles specialized codebase analysis. Switch between safety levels for your workflow:
+
+| Profile | Safety Level | Description |
+|---------|--------------|-------------|
+| `default` | NEUTRAL | Read ops allowed, writes and commands need approval |
+| `plan` | SAFE | Read-only for exploration and planning |
+| `accept-edits` | DESTRUCTIVE | Auto-approves file edits |
+| `auto-approve` | YOLO | Auto-approves all (use with caution) |
+| `explore` | SAFE (Subagent) | Read-only subagent for codebase exploration |
+
+**Cycle profiles with `Shift+Tab` in TUI.**
+
+### Permission System
+
+**Permission Levels:**
+- **ALWAYS**: Tool executes without asking
+- **NEVER**: Tool is permanently disabled
+- **ASK**: Tool requires user approval (default)
+
+**Granular Permissions (Vibe-style):**
+- **Path-based allowlist/denylist**: Files matching patterns are always/never allowed
+- **Sensitive file patterns**: Files matching sensitive patterns require special approval
+- **Workdir boundary**: Files outside working directory require approval
+- **Scratchpad paths**: Files in scratchpad directories are always allowed
+- **Dangerous command patterns**: Bash commands with dangerous patterns require special approval
+
+---
+
+## 🔧 Configuration Reference
+
+### Environment Variables
+
 ```env
+# LLM Configuration
 JARVIS_MODEL=gpt-4o
 JARVIS_BASE_URL=https://api.openai.com/v1
-JARVIS_API_KEY=your_api_key_here
+JARVIS_API_KEY=your_api_key
 JARVIS_SDK=openai
 
 # Token Limits (optional)
-# Default: 128K total context (109K input + 16K output)
-# 1K = 1024 tokens
 JARVIS_MAX_CONTEXT_TOKENS=131072
 JARVIS_MAX_INPUT_TOKENS=111616
 JARVIS_MAX_OUTPUT_TOKENS=16384
 ```
 
-**Configuration Priority:**
-1. CLI flags (highest priority)
-2. .env file values
-3. Default values (gpt-4o, openai SDK)
+### Agent Model Selection
 
-## Development
+```python
+# Initialize with specific model
+jarvis = CodingAgent(provider, tool_registry, model="gpt-4o")
+```
+
+---
+
+## 💻 Development
 
 ### Running Tests
 
 ```bash
+# Run all tests
 pytest tests/
+
+# Run with coverage
+pytest tests/ --cov=core
 ```
 
-### Code Formatting
+### Code Quality
 
 ```bash
-black core/
-ruff check core/
+# Format code
+black core/ interface/ jarvis/
+
+# Lint
+ruff check core/ interface/ jarvis/
 ```
 
-## Roadmap
+### Project Structure
 
-### Phase 1: Foundation ✅ COMPLETED
-- [x] LLM Provider Abstraction Layer
-- [x] Configuration System
-- [x] Tool System Foundation
-- [x] Basic CLI Interface
+```
+JARVIS/
+├── core/
+│   ├── agents/          # Agent system (CodingAgent, ExploreAgent)
+│   ├── config/          # Configuration and settings
+│   ├── llm_sdk/         # LLM provider SDKs
+│   ├── tools/           # Tool implementations
+│   ├── memory/          # Semantic memory system
+│   ├── rag/             # RAG system
+│   ├── safety/          # Safety manager
+│   └── skills/          # Skill management
+├── interface/
+│   ├── cli/             # Rich CLI interface
+│   └── textual_ui/      # TUI interface
+├── jarvis/              # Entry point
+├── tests/               # Test suite
+└── docs/                # Documentation
+```
 
-### Phase 2: Core Agents ✅ COMPLETED
-- [x] Base Agent Architecture
-- [x] JARVIS Agent (unified coding and knowledge capabilities)
-- [x] Dynamic tool description injection
-- [x] Agentic tool calling and error recovery
+---
 
-### Phase 3: Memory & Context ✅ COMPLETED
-- [x] Semantic Memory System
-- [x] Enhanced RAG System
-- [x] Conversation Manager
-
-### Phase 4: Safety & Advanced Features ✅ COMPLETED
-- [x] Safety Manager
-- [x] Checkpoint/Undo System
-- [x] Advanced Tool Implementations
-
-### Future Extensions
-- [ ] Voice Interface Plugin
-- [ ] Web Search Tool
-- [ ] Web UI
-- [ ] Mobile App
-- [ ] Advanced Agents
-- [ ] Collaboration Features
-- [ ] Cloud Sync
-
-## License
-
-[Your License Here]
-
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please read our contributing guidelines before submitting PRs.
 
-## Support
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-For issues and questions, please open an issue on GitHub.
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🔗 Links
+
+- **Repository**: https://github.com/OEvortex/JARVIS
+- **Issues**: https://github.com/OEvortex/JARVIS/issues
+- **Author**: [OEvortex](https://github.com/OEvortex)
+
+---
+
+<div align="center">
+<sub>Built with ❤️ for developers who want a truly agentic AI assistant</sub>
+</div>
