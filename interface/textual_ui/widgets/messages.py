@@ -160,7 +160,7 @@ class AssistantMessage(StreamingMessageBase):
 
 
 class ReasoningMessage(SpinnerMixin, StreamingMessageBase):
-    SPINNER_TYPE = SpinnerType.PULSE
+    SPINNER_TYPE = SpinnerType.BRAILLE
     SPINNING_TEXT = "Thinking"
     COMPLETED_TEXT = "Thought"
 

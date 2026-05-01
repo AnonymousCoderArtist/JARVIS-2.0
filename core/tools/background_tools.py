@@ -43,7 +43,7 @@ async def _capture_output(pid: int):
     await process.wait()
 
 class ListBackgroundProcessesTool(BaseTool):
-    """Tool for listing active background processes (OpenClaude style)"""
+    """Tool for listing active background processes"""
 
     name = "list_background_processes"
     description = """List all active and recently completed background processes. Use this to monitor long-running commands started with the bash tool's is_background parameter.
@@ -78,7 +78,7 @@ Usage:
         )
 
 class ReadBackgroundOutputTool(BaseTool):
-    """Tool for reading output of a background process (OpenClaude style)"""
+    """Tool for reading output of a background process"""
 
     name = "read_background_output"
     description = """Read the output log of a background shell process. Use this to check the progress and results of long-running commands.

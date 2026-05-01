@@ -2,7 +2,7 @@
 
 ## Overview
 
-The JARVIS agent system implements a single-agent architecture with comprehensive capabilities for both coding and knowledge work. The system is inspired by Claude Code and OpenClaude, providing a unified agentic assistant that can handle a wide range of tasks through intelligent tool usage.
+The JARVIS agent system implements a single-agent architecture with comprehensive capabilities for both coding and knowledge work. The system is inspired by Claude Code and mistral-vibe, providing a unified agentic assistant that can handle a wide range of tasks through intelligent tool usage.
 
 ## Architecture
 
@@ -639,7 +639,7 @@ jarvis --cli --model gpt-4o --base_url https://api.openai.com/v1 --apikey YOUR_K
 - `--model, -m`: Model name (e.g., gpt-4o, claude-3-5-sonnet-20241022)
 - `--base_url`: Base URL for the LLM API
 - `--apikey, --api-key`: API key for the LLM provider
-- `--sdk`: SDK mode (openai, anthropic, standard)
+- `--sdk`: SDK mode (openai or anthropic)
 - `--cli`: Launch the Rich CLI
 
 **Environment Variables (.env):**
@@ -653,7 +653,7 @@ JARVIS_BASE_URL=
 # API key for the LLM provider
 JARVIS_API_KEY=
 
-# SDK mode (openai, anthropic, standard)
+# SDK mode (openai or anthropic)
 JARVIS_SDK=openai
 ```
 

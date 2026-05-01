@@ -81,7 +81,7 @@ IMPORTANT: Only activate skills when the task clearly requires specialized exper
 
 
 class InvokeAgentTool(BaseTool):
-    """Tool for invoking specialized agents (OpenClaude style)"""
+    """Tool for invoking specialized agents"""
 
     name = "invoke_agent"
     description = """Invoke a specialized subagent to perform a specific task or investigation. Use this to delegate work to agents with specialized capabilities.
@@ -213,7 +213,7 @@ Usage:
 
 
 class ActivateSkillTool(BaseTool):
-    """Tool for activating specialized agent skills (OpenClaude style)"""
+    """Tool for activating specialized agent skills"""
 
     name = "activate_skill"
     description = get_skill_description()

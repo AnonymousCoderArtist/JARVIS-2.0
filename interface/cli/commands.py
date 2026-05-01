@@ -191,10 +191,8 @@ class CommandRegistry:
     
     async def _cmd_exit(self, args: List[str]):
         """Handle exit command."""
-        self.display_manager.cprint("Goodbye!", color="green")
+        self.display_manager.cprint("Goodbye!", style="success")
         sys.exit(0)
-
-
 
 
 class ShellCommand:
@@ -208,10 +206,7 @@ class ShellCommand:
         if not command.strip():
             return False
         
-        self.display_manager.console.print()
-        self.display_manager.console.print("shell", style="dim")
-        self.display_manager.console.print(f"$ {command}", style="dim")
-        self.display_manager.console.print()
+        self.display_manager.show_rule(f"Shell: {command}", style="secondary")
         
         try:
             process = await asyncio.create_subprocess_shell(
@@ -227,13 +222,8 @@ class ShellCommand:
                     self.display_manager.console.print(output)
             
             if stderr:
-                self.display_manager.console.print()
-                error_panel = self.display_manager.console.print(
-                    stderr.decode(),
-                    style="red bold"
-                )
+                self.display_manager.console.print(stderr.decode(), style="error")
             
-            self.display_manager.console.print()
             return True
             
         except Exception as e:
@@ -281,18 +271,54 @@ class CommandHandler:
             Command("status", "Show system status", _cmd_status)
         )
 
-    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent):
+    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent, config_manager=None):
         """Set references to managers for command handlers."""
         self.agent_manager = agent_manager
         self.tool_registry = tool_registry
         self.skill_manager = skill_manager
         self.jarvis_agent = jarvis_agent
+        self.config_manager = config_manager
 
         # Register new commands that depend on these managers
         self._register_profile_command()
         self._register_tools_command()
         self._register_skills_command()
         self._register_memory_command()
+        self._register_theme_command()
+
+    def _register_theme_command(self):
+        """Register theme management commands."""
+        async def _cmd_themes(args: List[str]):
+            if not self.config_manager:
+                self.display_manager.show_error("Config manager not initialized")
+                return
+            
+            self.display_manager.show_themes(
+                self.config_manager.config.themes, 
+                self.config_manager.config.display.theme
+            )
+
+        async def _cmd_theme(args: List[str]):
+            if not self.config_manager:
+                self.display_manager.show_error("Config manager not initialized")
+                return
+
+            if not args:
+                self.display_manager.show_error("Usage: /theme <name>")
+                return
+
+            theme_name = args[0]
+            try:
+                self.config_manager.set_theme(theme_name)
+                self.display_manager.set_theme(theme_name)
+                self.display_manager.show_success(f"Switched to theme: {theme_name}")
+                # Save config to persist choice
+                self.config_manager.save_config()
+            except Exception as e:
+                self.display_manager.show_error(f"Failed to switch theme: {e}")
+
+        self.command_registry.register(Command("themes", "List available UI themes", _cmd_themes))
+        self.command_registry.register(Command("theme", "Switch UI theme", _cmd_theme))
 
     def _register_profile_command(self):
         """Register the /profile command."""

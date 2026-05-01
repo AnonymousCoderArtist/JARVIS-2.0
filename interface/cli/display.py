@@ -1,10 +1,9 @@
 """Display module for JARVIS CLI - handles all UI rendering and rich components."""
 
-import re
 import sys
 import time
-from typing import Any, Optional
-from rich.console import Console, ConsoleOptions, RenderResult
+from typing import Any, Optional, Union
+from rich.console import Console
 from rich.markdown import Markdown
 from rich.live import Live
 from rich.panel import Panel
@@ -15,137 +14,154 @@ from rich.columns import Columns
 from rich.text import Text
 from rich.align import Align
 from rich.rule import Rule
-
-
-class Colors:
-    """ANSI color codes for fallback rendering."""
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
+from rich.syntax import Syntax
+from rich.theme import Theme as RichTheme
 
 
 class Theme:
     """Color theme definitions for the CLI."""
     
-    DARK_THEME = {
-        "primary": "#ff8700",
+    DARK_THEME = RichTheme({
+        "primary": "bold #ff8700",
         "secondary": "#666666",
-        "success": "#00ff00",
-        "error": "#ff0000",
-        "warning": "#ffff00",
-        "info": "#00ffff",
-        "prompt": "#ff8700",
-        "arrow": "#666666",
-    }
+        "success": "bold #00ff00",
+        "error": "bold #ff0000",
+        "warning": "bold #ffff00",
+        "info": "bold #00ffff",
+        "prompt": "bold #ff8700",
+        "user": "bold #5fafff",
+        "jarvis": "bold #ff8700",
+        "reasoning": "italic dim #888888",
+        "tool_call": "bold #00afff",
+        "tool_args": "#87d7ff",
+        "tool_result": "#bcbcbc",
+    })
     
-    LIGHT_THEME = {
-        "primary": "#ff6600",
+    LIGHT_THEME = RichTheme({
+        "primary": "bold #ff6600",
         "secondary": "#888888",
-        "success": "#00aa00",
-        "error": "#cc0000",
-        "warning": "#cc9900",
-        "info": "#0099cc",
-        "prompt": "#ff6600",
-        "arrow": "#888888",
-    }
+        "success": "bold #00aa00",
+        "error": "bold #cc0000",
+        "warning": "bold #cc9900",
+        "info": "bold #0099cc",
+        "prompt": "bold #ff6600",
+        "user": "bold #005fdf",
+        "jarvis": "bold #ff6600",
+        "reasoning": "italic dim #666666",
+        "tool_call": "bold #0087af",
+        "tool_args": "#005f87",
+        "tool_result": "#444444",
+    })
 
 
 class DisplayManager:
     """Manages all display operations using rich console."""
 
-    def __init__(self, theme: str = "dark", width: int = 80):
+    def __init__(self, theme: str = "dark", width: Optional[int] = None, custom_themes: Optional[dict] = None):
         self.theme_name = theme
-        self.theme = Theme.DARK_THEME if theme == "dark" else Theme.LIGHT_THEME
+        self.custom_themes = custom_themes or {}
+        self._current_colors = self._get_theme_colors(theme)
         self.console = Console(
             width=width,
+            theme=RichTheme(self._current_colors),
             legacy_windows=False,
             color_system="auto",
             file=sys.stdout
         )
-        self._live_display: Optional[Live] = None
-        self._current_content = ""
-        self._stream_buffer = ""
+        self._live: Optional[Live] = None
+        self._streaming_content = ""
+        self._streaming_reasoning = ""
+        self._is_reasoning = False
+
+    @property
+    def theme(self) -> dict[str, str]:
+        """Return the current theme colors for external components (e.g. prompt_toolkit)."""
+        # Ensure hex codes start with # for prompt_toolkit compatibility
+        return {k: f"#{v.split('#')[-1]}" if "#" in v else v for k, v in self._current_colors.items()}
+
+    def _get_theme_colors(self, theme_name: str) -> dict[str, str]:
+        """Calculate color definitions for a theme."""
+        # Start with base theme colors
+        colors = {
+            "primary": "bold #ff8700",
+            "secondary": "#666666",
+            "success": "bold #00ff00",
+            "error": "bold #ff0000",
+            "warning": "bold #ffff00",
+            "info": "bold #00ffff",
+            "prompt": "bold #ff8700",
+            "user": "bold #5fafff",
+            "jarvis": "bold #ff8700",
+            "reasoning": "italic dim #888888",
+            "tool_call": "bold #00afff",
+            "tool_args": "#87d7ff",
+            "tool_result": "#bcbcbc",
+            "arrow": "#666666",
+        }
+
+        # Override with custom theme if available
+        if theme_name in self.custom_themes:
+            theme_config = self.custom_themes[theme_name]
+            theme_colors = getattr(theme_config, 'colors', theme_config)
+            if isinstance(theme_colors, dict):
+                for k, v in theme_colors.items():
+                    if k in colors:
+                        # Keep formatting (bold/italic) if it was there
+                        prefix = colors[k].split("#")[0] if "#" in colors[k] else ""
+                        colors[k] = f"{prefix}{v}"
+
+        return colors
+
+    def set_theme(self, theme_name: str):
+        """Update the active theme at runtime."""
+        self.theme_name = theme_name
+        self._current_colors = self._get_theme_colors(theme_name)
+        self.console.push_theme(RichTheme(self._current_colors))
     
-    def cprint(self, text: str, color: str = "", style: str = "", end: str = "\n"):
-        """Print with color and style using rich console."""
-        if color or style:
-            rich_style = ""
-            if style:
-                rich_style += style + " "
-            if color:
-                rich_style += color
-            self.console.print(text, style=rich_style.strip(), end=end)
-        else:
-            self.console.print(text, end=end)
+    def cprint(self, text: str, style: str = "", end: str = "\n"):
+        """Print with style using rich console."""
+        self.console.print(text, style=style, end=end)
     
     def clear_screen(self):
         """Clear the terminal screen."""
-        import os
-        os.system('cls' if os.name == 'nt' else 'clear')
-    
-    def render_markdown(self, md: str) -> str:
-        """Render markdown using rich console and return as string."""
-        with self.console.capture() as capture:
-            self.console.print(Markdown(md))
-        return capture.get()
-    
-    def update_live_display(self, content: str):
-        """Update the live display with new content."""
-        # Use simple streaming instead of Live to avoid conflicts with prompt_toolkit
-        if content.strip():
-            self._stream_buffer += content
-            # Print directly to stdout
-            print(content, end="", flush=True)
-    
-    def stop_live_display(self):
-        """Stop the live display if it's active."""
-        if self._live_display is not None:
-            try:
-                self._live_display.stop()
-            except Exception:
-                pass
-            finally:
-                self._live_display = None
-        # Print newline to move past streaming content
-        print()
+        self.console.clear()
     
     def show_banner(self, model: str, sdk: str, base_url: str, tool_count: int):
         """Display the welcome banner with rich formatting."""
-        banner_content = [
-            ("JARVIS 2.0", "bold cyan"),
-            ("The professional AI engineering assistant", "dim"),
-            ("", ""),
-            (f"  Model:    {model}", "cyan"),
-            (f"  SDK:      {sdk}", "cyan"),
-            (f"  Base URL: {base_url or 'default'}", "cyan"),
-            (f"  Tools:    {tool_count}", "cyan"),
-            ("", "")
-        ]
+        self.show_rule("JARVIS 2.0", style="primary")
         
-        for text, style in banner_content:
-            self.console.print(text, style=style)
+        banner_table = Table.grid(padding=(0, 2))
+        banner_table.add_column(style="secondary", justify="right")
+        banner_table.add_column(style="info")
+        
+        banner_table.add_row("Model", model)
+        banner_table.add_row("SDK", sdk)
+        banner_table.add_row("Base URL", base_url or "default")
+        banner_table.add_row("Tools", str(tool_count))
+        
+        self.console.print(Align.center(banner_table))
+        self.show_rule(style="secondary")
+        self.console.print()
     
     def show_help(self):
         """Display available commands using rich table."""
-        table = Table(title="Commands", show_header=True, header_style="bold cyan")
-        table.add_column("Command", style="cyan", width=15)
-        table.add_column("Description", style="white", width=40)
+        table = Table(
+            show_header=True, 
+            header_style="primary", 
+            border_style="secondary",
+            box=None,
+            padding=(0, 2)
+        )
+        table.add_column("Command", style="info")
+        table.add_column("Description", style="white")
 
         commands = [
             ("/help", "Show this help"),
             ("/status", "Show system status"),
-            ("/themes", "List available UI themes"),
-            ("/theme <name>", "Switch to a different theme"),
-            ("/trust [path]", "Trust a folder for this session and future runs"),
-            ("/untrust [path]", "Mark a folder as untrusted"),
-            ("/trust-status [path]", "Show trust-folder status"),
+            ("/profile", "Switch or list agent profiles"),
+            ("/tools", "List available tools"),
+            ("/skills", "List and manage skills"),
+            ("/memory", "View and manage conversation memory"),
             ("/clear", "Clear the screen"),
             ("/exit", "Exit JARVIS"),
             ("! <cmd>", "Run shell command"),
@@ -154,221 +170,192 @@ class DisplayManager:
         for cmd, desc in commands:
             table.add_row(cmd, desc)
 
-        self.console.print(table)
-        self.console.print("\nJust type your message and press Enter to chat with JARVIS.\n")
+        self.console.print(Panel(table, title="[primary]Available Commands[/]", border_style="secondary"))
+        self.console.print("\n[dim]Tip: Just type your message and press Enter to chat with JARVIS.[/]\n")
     
-    def show_status(self, model: str, sdk: str, base_url: str, tool_count: int):
-        """Display system status using rich panel."""
-        status_text = f"""
-Model:    {model}
-SDK:      {sdk}
-Base URL: {base_url or 'default'}
-Tools:    {tool_count}
-        """.strip()
-        
-        panel = Panel(
-            status_text,
-            title="Status",
-            title_align="left",
-            border_style="cyan"
+    def start_streaming(self):
+        """Initialize live display for streaming."""
+        self._streaming_content = ""
+        self._streaming_reasoning = ""
+        self._is_reasoning = False
+        self._live = Live(
+            Text(""),
+            console=self.console,
+            refresh_per_second=10,
+            auto_refresh=True,
+            vertical_overflow="visible"
         )
-        self.console.print(panel)
-    
+        self._live.start()
+
+    def update_streaming(self, chunk: str, is_reasoning: bool = False):
+        """Update the live display with a new chunk."""
+        if not self._live:
+            self.start_streaming()
+        
+        if is_reasoning:
+            self._streaming_reasoning += chunk
+            self._is_reasoning = True
+        else:
+            self._streaming_content += chunk
+            self._is_reasoning = False
+
+        # Build the display object
+        parts = []
+        if self._streaming_reasoning:
+            reasoning_text = Text(self._streaming_reasoning, style="reasoning")
+            parts.append(Panel(reasoning_text, title="Reasoning", border_style="secondary", padding=(0, 1)))
+        
+        if self._streaming_content:
+            parts.append(Markdown(self._streaming_content))
+        
+        if parts:
+            if len(parts) > 1:
+                # Combine reasoning panel and content
+                self._live.update(Columns(parts, equal=False, expand=True))
+                # Actually, Columns might not be best for vertical stack
+                from rich.console import Group
+                self._live.update(Group(*parts))
+            else:
+                self._live.update(parts[0])
+
+    def stop_streaming(self):
+        """Finalize and stop live display."""
+        if self._live:
+            self._live.stop()
+            self._live = None
+        self.console.print()
+
     def show_tool_call(self, tool_name: str, tool_args: dict[str, Any]):
         """Display tool call with rich formatting."""
         import json
+        args_str = json.dumps(tool_args, indent=2)
         
-        try:
-            args_json = json.dumps(tool_args, indent=2)
-            
-            panel = Panel(
-                args_json,
-                title=f"{tool_name}()",
-                title_align="left",
-                border_style="cyan bold",
-                padding=(0, 1)
-            )
-            self.console.print(panel)
-        except Exception:
-            self.console.print(f"{tool_name}({tool_args})", style="cyan bold")
+        panel = Panel(
+            Syntax(args_str, "json", theme="monokai", background_color="default"),
+            title=f"Tool Call: [tool_call]{tool_name}[/]",
+            title_align="left",
+            border_style="tool_call",
+            padding=(0, 1)
+        )
+        self.console.print(panel)
     
     def show_tool_result(self, result: Any, max_length: int = 2500):
-        """Display tool result with truncation for large outputs."""
+        """Display tool result with truncation and syntax highlighting if needed."""
         if result and hasattr(result, 'success'):
             res_str = str(result.result) if result.success else f"Error: {result.error}"
+            style = "success" if result.success else "error"
         else:
             res_str = str(result)
+            style = "tool_result"
         
-        # Handle empty results
         if not res_str or res_str == "[]" or res_str == "{}":
             res_str = "(no content)"
         
-        # Truncate large results
         if len(res_str) > max_length:
             res_str = res_str[:max_length] + f"\n... (large output truncated, {len(res_str)} total chars)"
         
-        self.console.print(res_str, style="dim")
+        # Try to detect if it's JSON or other code
+        content_renderable = res_str
+        if res_str.strip().startswith(("{", "[")):
+            try:
+                import json
+                parsed = json.loads(res_str)
+                content_renderable = Syntax(json.dumps(parsed, indent=2), "json", theme="monokai", background_color="default")
+            except:
+                pass
+        
+        panel = Panel(
+            content_renderable,
+            title="Tool Result",
+            title_align="left",
+            border_style=style,
+            padding=(0, 1)
+        )
+        self.console.print(panel)
     
     def show_error(self, message: str, title: str = "Error"):
         """Display error message in a red panel."""
-        panel = Panel(
-            message,
-            title=title,
-            title_align="left",
-            border_style="red bold",
-            padding=(0, 1)
-        )
-        self.console.print(panel)
+        self.console.print(Panel(message, title=title, border_style="error", padding=(0, 1)))
     
     def show_success(self, message: str, title: str = "Success"):
         """Display success message in a green panel."""
-        panel = Panel(
-            message,
-            title=title,
-            title_align="left",
-            border_style="green bold",
-            padding=(0, 1)
-        )
-        self.console.print(panel)
+        self.console.print(Panel(message, title=title, border_style="success", padding=(0, 1)))
     
-    def create_progress(self) -> Progress:
-        """Create a rich progress bar."""
-        return Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeElapsedColumn(),
-            console=self.console
-        )
-    
-    def create_tree(self, title: str) -> Tree:
-        """Create a rich tree for hierarchical data."""
-        return Tree(f"[bold cyan]{title}[/bold cyan]")
-    
-    def create_columns(self, *panels, equal: bool = True, expand: bool = True):
-        """Create columns layout for multiple panels."""
-        return Columns(list(panels), equal=equal, expand=expand)
-    
-    def show_rule(self, title: str = "", style: str = "cyan"):
-        """Display a horizontal rule with optional title."""
+    def show_rule(self, title: str = "", style: str = "secondary"):
+        """Display a horizontal rule."""
         self.console.print(Rule(title, style=style))
-    
-    def show_separator(self):
-        """Display a visual separator."""
-        self.console.print()
+
+    def show_status(self, model: str, sdk: str, base_url: str, tool_count: int):
+        """Display system status using rich panel."""
+        status_table = Table.grid(padding=(0, 2))
+        status_table.add_row("[secondary]Model:[/]", model)
+        status_table.add_row("[secondary]SDK:[/]", sdk)
+        status_table.add_row("[secondary]Base URL:[/]", base_url or "default")
+        status_table.add_row("[secondary]Tools:[/]", str(tool_count))
+        
+        self.console.print(Panel(status_table, title="System Status", border_style="info"))
 
     def show_profiles(self, profiles: list, current: str):
-        """Display available profiles in a table."""
-        from rich.table import Table
-
-        table = Table(title="Agent Profiles", show_header=True, header_style="bold cyan")
-        table.add_column("Profile", style="cyan", width=20)
-        table.add_column("Status", style="white", width=10)
+        """Display available profiles."""
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Profile")
+        table.add_column("Status")
 
         for profile in profiles:
-            status = "active" if profile == current else ""
-            table.add_row(profile, status)
+            is_current = profile == current
+            status = "[success]active[/]" if is_current else ""
+            name = f"[info]{profile}[/]" if is_current else profile
+            table.add_row(name, status)
 
-        self.console.print(table)
+        self.console.print(Panel(table, title="Agent Profiles", border_style="secondary"))
 
     def show_tools(self, tools: list):
-        """Display available tools in a table."""
-        from rich.table import Table
-
-        table = Table(title="Available Tools", show_header=True, header_style="bold cyan")
-        table.add_column("Tool", style="cyan", width=20)
-        table.add_column("Description", style="white", width=50)
+        """Display available tools."""
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Tool", style="info")
+        table.add_column("Description")
 
         for tool in tools:
-            # Handle both dict format (from list_tools) and object format
             if isinstance(tool, dict):
-                name = tool.get('name', str(tool))
-                desc = tool.get('description', '')[:50]
+                name = tool.get('name', 'unknown')
+                desc = tool.get('description', '')
             else:
-                name = getattr(tool, 'name', str(tool))
-                desc = getattr(tool, 'description', '')[:50]
+                name = getattr(tool, 'name', 'unknown')
+                desc = getattr(tool, 'description', '')
             table.add_row(name, desc)
 
-        self.console.print(table)
+        self.console.print(Panel(table, title="Available Tools", border_style="secondary"))
 
     def show_skills(self, skills: dict):
         """Display available skills."""
-        from rich.table import Table
-
-        table = Table(title="Available Skills", show_header=True, header_style="bold cyan")
-        table.add_column("Skill", style="cyan", width=25)
-        table.add_column("Description", style="white", width=45)
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Skill", style="info")
+        table.add_column("Description")
 
         for name, skill in skills.items():
-            # Handle both dict and SkillProfile formats
             if hasattr(skill, 'description'):
-                desc = skill.description[:45]
+                desc = skill.description
             elif isinstance(skill, dict):
-                desc = skill.get('description', '')[:45]
+                desc = skill.get('description', '')
             else:
                 desc = "No description"
             table.add_row(name, desc)
 
-        self.console.print(table)
-
-    def show_memory(self, mode: str, count: int, query: str = ""):
-        """Display memory items."""
-        if mode == "search" and query:
-            self.cprint(f"Memory search results for: {query}", style="cyan")
-            # Note: Actual search would be implemented with agent memory access
-            self.cprint(f"(Showing {count} results)", style="dim")
-        else:
-            self.cprint(f"Recent memory items (last {count})", style="cyan")
-            # Note: Actual memory display would be implemented with agent memory access
-            self.cprint("(Memory items would be displayed here)", style="dim")
+        self.console.print(Panel(table, title="Available Skills", border_style="secondary"))
 
     def show_themes(self, themes: dict, current_theme: str):
-        """Display available themes with color previews."""
-        from rich.table import Table
+        """Display available themes."""
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Theme")
+        table.add_column("Status")
 
-        table = Table(title="Available Themes", show_header=True, header_style="bold cyan")
-        table.add_column("Theme", style="cyan", width=15)
-        table.add_column("Colors", style="white", width=50)
-        table.add_column("Status", style="white", width=10)
+        for theme_name in themes:
+            is_current = theme_name == current_theme
+            status = "[success]active[/]" if is_current else ""
+            name = f"[info]{theme_name}[/]" if is_current else theme_name
+            table.add_row(name, status)
 
-        for theme_name, theme_config in themes.items():
-            # Get colors dict from ThemeConfig or use defaults
-            colors = getattr(theme_config, 'colors', theme_config) if isinstance(theme_config, dict) else theme_config.colors
-
-            # Create color preview strings
-            color_samples = []
-            for color_key in ['primary', 'secondary', 'success', 'error', 'warning', 'info']:
-                color_val = colors.get(color_key, '#ffffff')
-                color_samples.append(f"[{color_val}]{'█' * 2}[/]")
-
-            color_preview = " ".join(color_samples)
-            status = "active" if theme_name == current_theme else ""
-
-            table.add_row(theme_name, color_preview, status)
-
-        self.console.print(table)
-
-    def set_theme(self, theme_name: str, themes: dict | None = None):
-        """Update the active theme at runtime."""
-        if themes and theme_name in themes:
-            # Handle both dict format themes and ThemeConfig objects
-            theme_data = themes[theme_name]
-            if hasattr(theme_data, 'colors'):
-                self.theme = theme_data.colors
-            else:
-                self.theme = theme_data
-            self.theme_name = theme_name
-        elif theme_name == "dark":
-            self.theme = Theme.DARK_THEME
-            self.theme_name = "dark"
-        elif theme_name == "light":
-            self.theme = Theme.LIGHT_THEME
-            self.theme_name = "light"
-        else:
-            # Fallback to dark theme
-            self.theme = Theme.DARK_THEME
-            self.theme_name = "dark"
+        self.console.print(Panel(table, title="Available Themes", border_style="secondary"))
 
 
 class StreamingResponse:
@@ -381,38 +368,4 @@ class StreamingResponse:
 
     @property
     def elapsed_time(self) -> float:
-        """Get elapsed time since start."""
         return time.time() - self._start_time
-
-    def to_plain_text(self, display_manager: DisplayManager) -> str:
-        """Return combined text representation using display manager."""
-        parts = []
-        if self.reasoning.strip():
-            parts.append(f"[dim]{self.reasoning}[/dim]")
-        if self.content.strip():
-            if self.reasoning.strip():
-                parts.append("")
-            parts.append(display_manager.render_markdown(self.content))
-        return "\n".join(parts) if parts else ""
-
-    def show_thinking_indicator(self, display_manager: DisplayManager):
-        """Show a thinking indicator with spinner."""
-        import threading
-        import itertools
-        import sys
-        import time
-
-        stop_event = threading.Event()
-
-        def animate():
-            chars = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
-            while not stop_event.is_set():
-                char = next(chars)
-                sys.stdout.write(f"\r{char} Thinking...")
-                sys.stdout.flush()
-                time.sleep(0.1)
-            sys.stdout.write("\r" + " " * 20 + "\r")
-
-        thread = threading.Thread(target=animate, daemon=True)
-        thread.start()
-        return stop_event

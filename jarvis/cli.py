@@ -70,8 +70,8 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, str, str, str, str, bool]:
         "--sdk",
         type=str,
         default=env_config["sdk"],
-        choices=["openai", "anthropic", "standard"],
-        help="SDK mode to use (openai, anthropic, standard)"
+        choices=["openai", "anthropic"],
+        help="SDK mode to use (openai or anthropic)"
     )
 
     parser.add_argument(

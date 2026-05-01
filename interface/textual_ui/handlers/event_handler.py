@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from interface.textual_ui.widgets.loading import LoadingWidget
 
 # Type aliases for callbacks
-MountCallback = Callable[[Widget], Coroutine[Any, Any, None]]
+MountCallback = Callable[..., Coroutine[Any, Any, None]]
 GetToolsCollapsed = Callable[[], bool]
 OnProfileChanged = Callable[[], None]
 
@@ -61,6 +61,7 @@ class EventHandler:
         self.on_profile_changed: OnProfileChanged | None = on_profile_changed
         self.is_remote: bool = is_remote
         self.tool_calls: dict[str, ToolCallMessage] = {}
+        self.last_tool_call: ToolCallMessage | None = None
         self.current_compact: CompactMessage | None = None
         self.current_streaming_message: AssistantMessage | None = None
         self.current_streaming_reasoning: ReasoningMessage | None = None
@@ -158,6 +159,7 @@ class EventHandler:
             tool_call = ToolCallMessage(event)
             if tool_call_id:
                 self.tool_calls[tool_call_id] = tool_call
+            self.last_tool_call = tool_call
             await self.mount_callback(tool_call)
 
         if loading_widget and event.tool_class:
@@ -172,16 +174,13 @@ class EventHandler:
         call_widget = (
             self.tool_calls.get(event.tool_call_id) if event.tool_call_id else None
         )
-
-        # Assuming ToolResultMessage handles mount internally or needs to be mounted
-        # The original code didn't show wait for mount_callback but it might be needed
-        # Wait, the original code had:
-        # await self.mount_callback(tool_result, after=call_widget)
-        # But my MountCallback doesn't take 'after'.
-        # I should update MountCallback to allow kwargs.
         
-        # Actually, let's keep it simple for now.
-        pass
+        # Fallback to last tool call if ID is missing or mismatched
+        if not call_widget:
+            call_widget = self.last_tool_call
+
+        tool_result = ToolResultMessage(event, call_widget, collapsed=tools_collapsed)
+        await self.mount_callback(tool_result, after=call_widget)
 
     async def _handle_tool_stream(self, event: ToolStreamEvent) -> None:
         tool_call = self.tool_calls.get(event.tool_call_id)

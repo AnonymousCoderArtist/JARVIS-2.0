@@ -7,7 +7,7 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 
 class WebFetchTool(BaseTool):
-    """Tool for fetching and processing content from URLs (OpenClaude style)"""
+    """Tool for fetching and processing content from URLs"""
 
     name = "fetch_webpage"
     description = """Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage. Use this tool when you think the user is looking for information from a specific webpage.

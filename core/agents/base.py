@@ -33,6 +33,7 @@ StreamCallback: TypeAlias = Callable[[str], None]
 ToolCallCallback: TypeAlias = Callable[[str, dict[str, Any]], None]
 ToolResultCallback: TypeAlias = Callable[[str, dict[str, Any], Any], None]
 ReasoningCallback: TypeAlias = Callable[[str], None]
+ReasoningDoneCallback: TypeAlias = Callable[[], None]
 ApprovalCallback: TypeAlias = Callable[[str, dict[str, Any], str, list[Any]], Any]
 ConfigGetter: TypeAlias = Callable[[], Settings]
 ProgressCallback: TypeAlias = Callable[[str, float], None]
@@ -81,6 +82,7 @@ class BaseAgent(ABC):
         self.tool_call_callback: ToolCallCallback | None = None
         self.tool_result_callback: ToolResultCallback | None = None
         self.reasoning_callback: ReasoningCallback | None = None
+        self.reasoning_done_callback: ReasoningDoneCallback | None = None
 
         # Progress and status callbacks for async operations
         self.progress_callback: ProgressCallback | None = None
@@ -590,6 +592,9 @@ class BaseAgent(ABC):
                         )
                         continue  # Loop again with updated messages
 
+                    # Signal that reasoning is done
+                    if self.reasoning_done_callback:
+                        self.reasoning_done_callback()
                     return full_response
                 except Exception as e:
                     logger.warning(f"Streaming with tools failed, falling back to non-streaming: {e}")
@@ -617,6 +622,8 @@ class BaseAgent(ABC):
             # Handle reasoning content in non-streaming mode
             if reasoning and reasoning.strip() and self.reasoning_callback:
                 self.reasoning_callback(reasoning)
+            if self.reasoning_done_callback:
+                self.reasoning_done_callback()
             
             # Always emit content via stream_callback if set, even in non-streaming mode
             if self.stream_callback and content:
