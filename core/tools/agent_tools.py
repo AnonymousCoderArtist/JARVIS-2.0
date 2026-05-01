@@ -1,6 +1,63 @@
 """Agent and Skill management tools"""
 
+from __future__ import annotations
+
+from collections.abc import Iterable
+
 from .base import BaseTool, ToolInput, ToolOutput
+
+
+class _FilteredToolRegistry:
+    """Read-only filtered view over a tool registry."""
+
+    def __init__(
+        self,
+        source_registry,
+        allowed_tools: Iterable[str],
+        llm_provider=None,
+        model=None,
+        config_getter=None,
+    ):
+        self._source_registry = source_registry
+        self._allowed_tools = set(allowed_tools)
+        self.llm_provider = llm_provider
+        self.model = model
+        self.config_getter = config_getter
+        self.active_skills = getattr(source_registry, "active_skills", {})
+
+    def get(self, name: str):
+        if name not in self._allowed_tools:
+            return None
+        return self._source_registry.get(name)
+
+    def get_tools(self) -> dict[str, BaseTool]:
+        return {
+            name: tool
+            for name, tool in self._source_registry.get_tools().items()
+            if name in self._allowed_tools
+        }
+
+    def list_tools(self) -> list[dict[str, object]]:
+        return [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": tool.input_schema,
+            }
+            for tool in self.get_tools().values()
+        ]
+
+    def get_function_definitions(self) -> list[dict[str, object]]:
+        return [tool.get_function_definition() for tool in self.get_tools().values()]
+
+    async def execute_tool(self, name: str, input_data: dict) -> ToolOutput:
+        if name not in self._allowed_tools:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Tool '{name}' is not available to the explore subagent.",
+            )
+        return await self._source_registry.execute_tool(name, input_data)
 
 
 def get_skill_description() -> str:
@@ -106,11 +163,19 @@ Usage:
                 merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
                 return Settings(initial_config=merged_config)
 
+            explore_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=("read", "list_dir", "glob", "grep"),
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=explore_config_getter,
+            )
+
             # Create the appropriate subagent
             if agent_name == "explore":
                 subagent = ExploreAgent(
                     llm_provider=llm_provider,
-                    tool_registry=tool_registry,
+                    tool_registry=explore_registry,
                     model=model,
                     config_getter=explore_config_getter,
                 )

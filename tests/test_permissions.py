@@ -11,7 +11,8 @@ from core.agents.base import BaseAgent
 from core.config.settings import Settings
 from core.tools.agent_tools import InvokeAgentTool
 from core.tools.base import BaseTool, ToolInput, ToolOutput
-from core.tools.file_tools import ListDirectoryTool
+from core.tools.file_tools import FileReadTool, GlobTool, ListDirectoryTool
+from core.tools.grep_tool import GrepSearchTool
 from core.tools.permission_manager import PermissionManager
 from core.tools.permissions import (
     PermissionContext,
@@ -153,6 +154,7 @@ async def test_invoke_agent_applies_explore_profile_to_subagent(monkeypatch) -> 
     class FakeExploreAgent:
         def __init__(self, llm_provider, tool_registry, model=None, config_getter=None):
             captured["config_getter"] = config_getter
+            captured["tool_names"] = list(tool_registry.get_tools().keys())
 
         def rebuild_system_prompt(self) -> None:
             return None
@@ -167,6 +169,17 @@ async def test_invoke_agent_applies_explore_profile_to_subagent(monkeypatch) -> 
 
     registry = MagicMock()
     registry.config_getter = lambda: Settings()
+    registry.get_tools = MagicMock(
+        return_value={
+            "read": FileReadTool(),
+            "list_dir": ListDirectoryTool(),
+            "glob": GlobTool(),
+            "grep": GrepSearchTool(),
+            "invoke_agent": MagicMock(),
+            "bash": MagicMock(),
+        }
+    )
+    registry.execute_tool = MagicMock(return_value=ToolOutput(success=True, result="ok"))
 
     tool = InvokeAgentTool(tool_registry=registry, llm_provider=MagicMock(), model="gpt-4o")
 
@@ -181,3 +194,4 @@ async def test_invoke_agent_applies_explore_profile_to_subagent(monkeypatch) -> 
     assert isinstance(subagent_config, Settings)
     assert subagent_config.tools["read"]["permission"] == "always"
     assert subagent_config.tools["invoke_agent"]["permission"] == "never"
+    assert captured["tool_names"] == ["read", "list_dir", "glob", "grep"]
