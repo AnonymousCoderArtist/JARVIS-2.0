@@ -299,6 +299,11 @@ class CLIInterface:
             sys.stdout.write(f"\033[2m{chunk}\033[0m")
             sys.stdout.flush()
 
+        def reasoning_done_callback():
+            # Add newline after reasoning is complete
+            import sys
+            sys.stdout.write("\n")
+
         def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
             in_tool_call[0] = True
             # Add newline before tool call for better separation
@@ -314,6 +319,7 @@ class CLIInterface:
 
         self.jarvis_agent.stream_callback = stream_callback
         self.jarvis_agent.reasoning_callback = reasoning_callback
+        self.jarvis_agent.reasoning_done_callback = reasoning_done_callback
         self.jarvis_agent.tool_call_callback = tool_call_callback
         self.jarvis_agent.tool_result_callback = tool_result_callback
 
