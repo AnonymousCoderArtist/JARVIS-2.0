@@ -193,7 +193,8 @@ class ToolResultMessage(Static):
         if self._event.tool_class:
             adapter = ToolUIDataAdapter(self._event.tool_class)
             display = adapter.get_result_display(self._event)
-            return display.message
+            # If the tool has a custom result message, use it, otherwise keep the call summary
+            return display.message or self._call_widget.get_content() if self._call_widget else display.message
 
         return f"{self._tool_name} completed"
 

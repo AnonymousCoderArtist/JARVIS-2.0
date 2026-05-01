@@ -282,6 +282,10 @@ Markdown {
     &.success {
         color: ansi_green;
     }
+
+    &.error {
+        color: ansi_red;
+    }
 }
 
 .reasoning-collapsed-text,
@@ -456,7 +460,7 @@ StatusMessage {
 .status-indicator-icon {
     width: auto;
     height: auto;
-    color: ansi_default;
+    color: ansi_bright_black;
     margin-right: 1;
 
     &.success {
