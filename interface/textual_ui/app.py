@@ -639,6 +639,7 @@ class VibeApp(App):  # noqa: PLR0904
     ) -> None:
         if self._pending_approval and not self._pending_approval.done():
             self._pending_approval.set_result((ApprovalResponse.YES, None))
+        await self._switch_to_input_app()
 
     async def on_approval_app_approval_granted_always_tool(
         self, message: ApprovalApp.ApprovalGrantedAlwaysTool
@@ -647,6 +648,7 @@ class VibeApp(App):  # noqa: PLR0904
 
         if self._pending_approval and not self._pending_approval.done():
             self._pending_approval.set_result((ApprovalResponse.YES, None))
+        await self._switch_to_input_app()
 
     async def on_approval_app_approval_rejected(
         self, message: ApprovalApp.ApprovalRejected
@@ -659,6 +661,7 @@ class VibeApp(App):  # noqa: PLR0904
 
         if self._loading_widget and self._loading_widget.parent:
             await self._remove_loading_widget()
+        await self._switch_to_input_app()
 
     async def on_question_app_answered(self, message: QuestionApp.Answered) -> None:
         if self._remote_manager.has_pending_input and self._remote_manager.is_active:
@@ -669,6 +672,7 @@ class VibeApp(App):  # noqa: PLR0904
         if self._pending_question and not self._pending_question.done():
             result = AskUserQuestionResult(answers=message.answers, cancelled=False)
             self._pending_question.set_result(result)
+        await self._switch_to_input_app()
 
     async def on_question_app_cancelled(self, message: QuestionApp.Cancelled) -> None:
         if self._remote_manager.has_pending_input:
@@ -679,6 +683,7 @@ class VibeApp(App):  # noqa: PLR0904
         if self._pending_question and not self._pending_question.done():
             result = AskUserQuestionResult(answers=[], cancelled=True)
             self._pending_question.set_result(result)
+        await self._switch_to_input_app()
 
     def on_chat_text_area_feedback_key_pressed(
         self, message: ChatTextArea.FeedbackKeyPressed
@@ -1204,7 +1209,9 @@ class VibeApp(App):  # noqa: PLR0904
                 return result
             finally:
                 self._pending_approval = None
-                await self._switch_to_input_app()
+                # Only switch back if not already on input app (handlers now switch immediately)
+                if self._current_bottom_app != BottomApp.Input:
+                    await self._switch_to_input_app()
 
     async def _user_input_callback(self, args: BaseModel) -> BaseModel:
         question_args = cast(AskUserQuestionArgs, args)
@@ -1219,7 +1226,9 @@ class VibeApp(App):  # noqa: PLR0904
                 return result
             finally:
                 self._pending_question = None
-                await self._switch_to_input_app()
+                # Only switch back if not already on input app (handlers now switch immediately)
+                if self._current_bottom_app != BottomApp.Input:
+                    await self._switch_to_input_app()
 
     async def _handle_turn_error(self) -> None:
         if self._loading_widget and self._loading_widget.parent:
@@ -2032,6 +2041,8 @@ class VibeApp(App):  # noqa: PLR0904
 
         self._feedback_bar.hide()
 
+        await self._cleanup_bottom_apps()
+
         self._current_bottom_app = BottomApp[type(widget).__name__.removesuffix("App")]
         await bottom_container.mount(widget)
 
@@ -2104,18 +2115,22 @@ class VibeApp(App):  # noqa: PLR0904
             self._current_bottom_app = BottomApp.Input
             self._refresh_profile_widgets()
 
-        for app in BottomApp:
-            if app != BottomApp.Input:
-                try:
-                    await self.query_one(f"#{app.value}-app").remove()
-                except Exception:
-                    pass
+        await self._cleanup_bottom_apps()
 
         if self._chat_input_container:
             self.call_after_refresh(self._chat_input_container.focus_input)
             chat = self._cached_chat or self.query_one("#chat", ChatScroll)
             if chat.is_at_bottom:
                 self.call_after_refresh(chat.anchor)
+
+    async def _cleanup_bottom_apps(self) -> None:
+        """Remove all bottom panel apps except the input container."""
+        for app in BottomApp:
+            if app != BottomApp.Input:
+                try:
+                    await self.query_one(f"#{app.value.lower()}-app").remove()
+                except Exception:
+                    pass
 
     def _focus_current_bottom_app(self) -> None:
         try:
@@ -2557,9 +2572,13 @@ class VibeApp(App):  # noqa: PLR0904
 
     def _refresh_banner(self) -> None:
         if self._banner:
+            connectors_count = _compute_connectors_count(
+                self.config, self.agent_loop.connector_registry if self._connectors_enabled else None
+            )
             self._banner.set_state(
                 self.config,
                 self.agent_loop.skill_manager,
+                connectors_count=connectors_count,
                 model=self.agent_loop.agent.model,
             )
 

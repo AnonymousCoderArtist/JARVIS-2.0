@@ -61,7 +61,7 @@ class Banner(Static):
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("", id="banner-meta-counts")
                 with Horizontal(classes="banner-line"):
-                    yield NoMarkupStatic("made by @OEvortex", id="banner-attribution")
+                    yield NoMarkupStatic("Made by @OEvortex", id="banner-attribution")
 
     def on_mount(self) -> None:
         self.state = self._initial_state
@@ -107,25 +107,8 @@ class Banner(Static):
             if not isinstance(model_name, str):
                 model_name = config.get("model", "selected", {}).get("id", "gpt-4o")
 
-        # Clean up model name for display - extract a readable name
-        # Handle formats like "poolside/laguna-xs.2:free" or "gpt-4o"
-        if "/" in model_name:
-            # Take the last part after "/" (e.g., "laguna-xs.2:free")
-            display_name = model_name.split("/")[-1]
-            # Remove ":free" suffix if present
-            if ":" in display_name:
-                display_name = display_name.split(":")[0]
-        elif ":" in model_name:
-            display_name = model_name.split(":")[0]
-        else:
-            display_name = model_name
-
-        # Truncate if too long
-        if len(display_name) > 30:
-            display_name = display_name[:27] + "..."
-
         return BannerState(
-            active_model=display_name,
+            active_model=model_name,  # Keep full model name as requested
             skills_count=skill_manager.custom_skills_count,
             connectors_count=connectors_count,
             plan_description=plan_description,
@@ -133,8 +116,7 @@ class Banner(Static):
 
     def _format_meta_counts(self) -> str:
         parts = [_pluralize(self.state.skills_count, "skill")]
-        if self.state.connectors_count > 0:
-            parts.append(_pluralize(self.state.connectors_count, "connector"))
+        parts.append(_pluralize(self.state.connectors_count, "connector"))
         if self.state.plan_description:
             parts.append(self.state.plan_description)
         return " · ".join(parts)

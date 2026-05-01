@@ -46,7 +46,7 @@ class ThinkingPickerApp(Container):
     def __init__(
         self, thinking_levels: list[str], current_thinking: str, **kwargs: Any
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(id="thinkingpicker-app", **kwargs)
         self._thinking_levels = thinking_levels
         self._current_thinking = current_thinking
 
