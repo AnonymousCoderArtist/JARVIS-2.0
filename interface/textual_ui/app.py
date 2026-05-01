@@ -487,7 +487,7 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def on_mount(self) -> None:
         # Use ANSI-based theme for consistent terminal styling
-        self.theme = "textual-ansi"
+        self.theme = "ansi-dark"
         self._terminal_notifier.restore()
 
         self._cached_messages_area = self.query_one("#messages")
