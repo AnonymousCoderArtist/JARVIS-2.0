@@ -55,7 +55,6 @@ class Banner(Static):
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("JARVIS Agent", id="banner-brand")
                     yield NoMarkupStatic(" ", classes="banner-spacer")
-                    yield NoMarkupStatic(f"{self._initial_state.active_model.split()[0]} · ", classes="banner-meta")
                     yield NoMarkupStatic("", id="banner-model")
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("", id="banner-meta-counts")
@@ -116,10 +115,9 @@ class Banner(Static):
         )
 
     def _format_meta_counts(self) -> str:
-        parts = [
-            _pluralize(self.state.skills_count, "skill"),
-            _pluralize(self.state.connectors_count, "connector"),
-        ]
+        parts = [_pluralize(self.state.skills_count, "skill")]
+        if self.state.connectors_count > 0:
+            parts.append(_pluralize(self.state.connectors_count, "connector"))
         if self.state.plan_description:
             parts.append(self.state.plan_description)
         return " · ".join(parts)
