@@ -14,19 +14,11 @@ class GrepSearchTool(BaseTool):
     """Tool for searching file contents (OpenClaude style)"""
 
     name = "grep"
-    description = """Do a fast text search in the workspace. Use this tool when you want to search with an exact string or regex pattern.
+    description = """Search file contents by text or regex pattern. Returns matching lines with file paths.
 
-IMPORTANT: Use camelCase parameter names: 'isRegexp', 'includePattern', 'maxResults' (not snake_case).
+{"query": "function|class", "includePattern": "*.py", "isRegexp": true, "maxResults": 20}
 
-Usage:
-- Use regex patterns with alternation (|) or character classes to search for multiple potential words at once instead of making separate searches
-- For example, use 'function|method|procedure' to look for all of those words at once
-- Use includePattern to search within files matching a specific pattern, or in a specific file, using a relative path
-- Use this tool when you want to see an overview of a particular file, instead of using read many times to look for code within a file
-- Search is case-insensitive by default
-- Use maxResults to limit the number of results if needed
-- Set isRegexp to true when using regex patterns, false for exact string matches
-- This tool uses ripgrep (rg) if available for faster results, otherwise falls back to Python regex"""
+Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
     input_schema = {
         "type": "object",
         "properties": {

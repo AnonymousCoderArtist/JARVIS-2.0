@@ -120,21 +120,11 @@ class SkillTool(BaseTool):
     """
 
     name = "skill"
-    description = """Manages skills with create/patch/edit/delete operations following agentskills.io standard.
+    description = """Manage skills: create, patch, edit, delete, list, read, activate.
 
-Usage:
-- Use action 'create' to create a new skill with SKILL.md format
-- Use action 'patch' to update specific fields in an existing skill
-- Use action 'edit' to fully replace skill content
-- Use action 'delete' to remove a skill
-- Use action 'list' to see all available skills
-- Use action 'read' to view skill content
-- Skills are stored in ~/.jarvis/skills/ directory
+{"action": "create", "name": "my-skill", "description": "Skill description"}
 
-Example:
-- Create skill: skill_manage(action='create', name='deploy-app', description='Deploy application to production', when_to_use='When deploying the app', procedure='1. Build\\n2. Deploy')
-- List skills: skill_manage(action='list')
-- Read skill: skill_manage(action='read', name='deploy-app')"""
+Actions: create, patch, edit, delete, list, read, activate. Uses agentskills.io standard."""
 
     input_schema = {
         "type": "object",

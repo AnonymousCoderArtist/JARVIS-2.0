@@ -225,23 +225,11 @@ class SaveMemoryTool(BaseTool):
     """Enhanced tool for saving detailed memories with project-specific and global capabilities"""
 
     name = "save_memory"
-    description = """Saves detailed memories with rich content structure for use across future sessions. Use this to remember important information about the user, project, or general patterns.
+    description = """Save memories for future sessions. Supports private, team, and global scopes.
 
-Usage:
-- Provide detailed content with sections for context, reasoning, and application
-- Use scope parameter to control memory visibility:
-  - 'private': applies to this user (stored in .jarvis/memory/private/)
-  - 'team': shared with team members (stored in .jarvis/memory/team/)
-  - 'global': cross-project knowledge (stored in ~/.jarvis/global_memory/)
-- Use enhanced memory types for better organization:
-  - 'user': personal preferences and information
-  - 'feedback': guidance and corrections
-  - 'project': project-specific information
-  - 'project_context': detailed technical context
-  - 'reference': external resources and references
-  - 'global': universal patterns and best practices
-- Memories use rich Markdown format with structured sections
-- Can include tags, priority, and custom metadata"""
+{"fact": "User prefers dark mode", "scope": "private", "memory_type": "user"}
+
+Scopes: private, team, global. Types: user, feedback, project, reference, global."""
 
     input_schema = {
         "type": "object",
@@ -415,14 +403,11 @@ class ReadMemoryTool(BaseTool):
     """Enhanced tool for reading saved memories with advanced filtering"""
 
     name = "read_memory"
-    description = """Reads saved memories from the memory store with advanced filtering options. Use to retrieve previously saved facts, preferences, and context.
+    description = """Read saved memories with filtering. Retrieve past facts, preferences, and context.
 
-Usage:
-- Read all memories from a scope (private, team, global, or all)
-- Filter by enhanced memory types (user, feedback, project, project_context, reference, global)
-- Search memories by keyword, tags, or project
-- Filter by priority level
-- Returns memories with rich metadata and content"""
+{"scope": "private", "type": "user", "query": "search term"}
+
+Scopes: private, team, global, all. Types: user, feedback, project, reference, global."""
 
     input_schema = {
         "type": "object",
@@ -621,21 +606,11 @@ class MemoryManagementTool(BaseTool):
     """
 
     name = "memory"
-    description = """Manages persistent memory in Hermes-style MEMORY.md and USER.md files.
+    description = """Manage persistent memory in MEMORY.md and USER.md files.
 
-Usage:
-- Use action 'add' to create new MEMORY.md or USER.md entries
-- Use action 'replace' to update existing entries using substring matching
-- Use action 'remove' to delete entries using substring matching
-- Use action 'read' to view current memory content
-- Supported memory types: 'memory' (agent notes, 2200 chars), 'user' (user profile, 1375 chars)
-- All entries are scanned for sensitive data before saving
-- Content uses markdown format with structured sections
+{"action": "add", "memory_type": "user", "content": "User prefers dark mode"}
 
-Example:
-- Add user preference: memory(action='add', memory_type='user', content='Prefers dark mode editor')
-- Update memory: memory(action='replace', memory_type='memory', match='old info', new_content='new info')
-- Read memory: memory(action='read', memory_type='memory')"""
+Actions: add, replace, remove, read. Types: memory (2200 chars), user (1375 chars)."""
 
     input_schema = {
         "type": "object",

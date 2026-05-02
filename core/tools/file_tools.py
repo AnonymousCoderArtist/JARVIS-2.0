@@ -21,55 +21,12 @@ class FileReadTool(BaseTool):
     """Tool for reading file contents - uses files array format"""
 
     name = "read"
-    description = """Read file(s) from the local filesystem. Supports both single file and multiple files formats.
+    description = """Read file contents from local filesystem.
 
-**USAGE - Single File (backward compatible):**
-```json
-{
-  "filePath": "/absolute/path/to/file.py",
-  "offset": 1,
-  "limit": 10,
-  "encoding": "utf-8"
-}
-```
+Single file: {"filePath": "/path/file.py", "offset": 1, "limit": 10}
+Multiple files: {"files": [{"file_path": "/path/file1.py", "offset": 1, "limit": 10}, {"file_path": "/path/file2.py", "offset": 1, "limit": 10}]}
 
-**USAGE - Multiple Files:**
-```json
-{
-  "files": [
-    {"file_path": "/absolute/path/to/file.py", "offset": 1, "limit": 10},
-    {"file_path": "/absolute/path/to/file2.py", "offset": 10, "limit": 10}
-  ],
-  "encoding": "utf-8"
-}
-```
-
-**PARAMETERS - Single File Mode:**
-- `filePath`: Absolute path to the file to read (required)
-- `offset`: 1-based line number to start reading from (optional, default: 1, minimum: 1)
-- `limit`: Maximum number of lines to read (optional, default: 10, minimum: 1, maximum: 1000)
-- `encoding`: Character encoding for reading files (optional, default: "utf-8")
-
-**PARAMETERS - Multiple Files Mode:**
-- `files`: Array of file objects (required)
-  - `file_path`: Absolute path to the file to read (required)
-  - `offset`: 1-based line number to start reading from (required, minimum: 1)
-  - `limit`: Maximum number of lines to read (required, minimum: 1, maximum: 1000)
-- `encoding`: Character encoding for reading files (optional, default: "utf-8")
-
-**BEHAVIOR:**
-- Returns concatenated content with `--- {file_path} ---` separators between files (multiple files mode)
-- Returns content with metadata including file path (single file mode)
-- Files are read in parallel for performance (multiple files mode)
-- Each file respects individual offset/limit settings
-- Read errors for individual files are reported but don't fail the entire operation
-- Supports reading text files with various encodings
-- Lines longer than 2000 characters are truncated
-
-**EXAMPLES:**
-- Single file, first 10 lines: `{"filePath": "/path/to/file.py", "offset": 1, "limit": 10}`
-- Single file, lines 20-30: `{"filePath": "/path/to/file.py", "offset": 20, "limit": 11}`
-- Multiple files: `{"files": [{"file_path": "/path/file1.py", "offset": 1, "limit": 5}, {"file_path": "/path/file2.py", "offset": 1, "limit": 5}]}`"""
+Returns file content with metadata. Files read in parallel. Use absolute paths."""
 
     input_schema = {
         "type": "object",
@@ -360,12 +317,11 @@ class FileWriteTool(BaseTool):
     """Tool for writing content to files (OpenClaude style)"""
 
     name = "write"
-    description = """Create a new file in the workspace with the specified content. The directory will be created if it does not already exist.
+    description = """Create a new file with content. Fails if file exists (use edit tool instead). Creates parent directories automatically.
 
-IMPORTANT: Use the parameter name 'filePath' (camelCase) when calling this tool.
+{"filePath": "/absolute/path/to/file.py", "content": "file content here"}
 
-- This tool will fail if the file already exists (use edit tool instead)
-- Use this tool only when creating new files from scratch"""
+Use absolute paths."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -469,13 +425,11 @@ class ListDirectoryTool(BaseTool):
     """Tool for listing directory contents (OpenClaude style)"""
 
     name = "list_dir"
-    description = """List the contents of a directory. Result will have the name of the child. If the name ends in /, it's a folder, otherwise a file.
+    description = """List directory contents. Returns array of file/directory names with '/' suffix for directories.
 
-Usage:
-- The path parameter must be an absolute path to the directory
-- Returns a list of item names with / suffix for directories
-- Use this to understand the structure of a directory
-- Useful for exploring project structure and finding files"""
+{"path": "/absolute/path/to/directory"}
+
+Use absolute paths."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -574,20 +528,11 @@ class GlobTool(BaseTool):
     """Tool for searching files by pattern (OpenClaude style)"""
 
     name = "glob"
-    description = """Search for files in the workspace by glob pattern. This only returns the paths of matching files. Use this tool when you know the exact filename pattern of the files you're searching for.
+    description = """Search for files by glob pattern. Returns array of matching file paths.
 
-Usage:
-- Glob patterns match from the root of the workspace folder
-- Examples:
-  - **/*.{js,ts} to match all js/ts files in the workspace
-  - src/** to match all files under the top-level src folder
-  - **/foo/**/*.js to match all js files under any foo folder in the workspace
-  - **/*.py to match all Python files recursively
-- Use maxResults parameter to limit the number of results if needed
-- This tool is faster than grep for finding files by name pattern
-- Use grep instead when searching for content within files
+{"query": "**/*.py", "maxResults": 10}
 
-IMPORTANT: Use parameter name 'maxResults' (camelCase) not 'max_results'."""
+Examples: "**/*.py", "src/**/*.js", "**/*.{ts,tsx}". Searches from workspace root."""
     input_schema = {
         "type": "object",
         "properties": {

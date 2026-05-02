@@ -184,23 +184,11 @@ class REPLTool(BaseTool):
     """
 
     name = "repl"
-    description = """Execute Python code in a secure interactive REPL context with state persistence.
+    description = """Execute Python code in secure REPL with state persistence.
 
-Security:
-- Blocks dangerous patterns (os.system, subprocess, eval, etc.)
-- Restricts builtins (open, exec, eval, etc.)
-- Allows only safe module imports (math, json, datetime, etc.)
+{"code": "x = 5; print(x * 2)", "session_id": "my_session"}
 
-Usage:
-- Execute Python code with state persistence across calls
-- Use session_id to maintain separate REPL sessions
-- State (variables, imports, functions) persists within a session
-- Use timeout parameter to limit execution time (default 30 seconds)
-- Use reset parameter to clear session state
-- Useful for testing code, data analysis, quick prototyping
-- Print statements and output are captured and returned
-- Multiple sessions can be maintained for different contexts
-- Maximum 16 concurrent sessions (LRU eviction)"""
+Secure execution with blocked dangerous operations. State persists per session."""
 
     input_schema = {
         "type": "object",

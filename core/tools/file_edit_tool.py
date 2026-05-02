@@ -16,17 +16,14 @@ class EditTool(BaseTool):
     """Tool for editing files"""
 
     name = "edit"
-    description = """Edit files by replacing text. Use for precise edits to existing files.
+    description = """Edit existing files by replacing exact text strings. Use read tool first to get content.
 
-IMPORTANT: You must use the read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
+{"replacements": [{"file_path": "/path/file.py", "old_string": "old text", "new_string": "new text"}]}
 
-Usage:
-- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + arrow. Everything after that is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
-- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
-- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
-- The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.
-- Use the smallest old_string that's clearly unique — usually 2-4 adjacent lines is sufficient. Avoid including 10+ lines of context when less uniquely identifies the target.
-- Use the replacements array for single or multiple edits in a single call"""
+- Preserve exact indentation and whitespace from read output
+- old_string must match exactly (include surrounding context if needed for uniqueness)
+- Supports multiple replacements in single call
+- Fails if file not read first in conversation"""
     input_schema = {
         "type": "object",
         "properties": {
@@ -68,12 +65,35 @@ Usage:
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file edit operation with granular checks"""
+        import json
+        
         replacements = args.get("replacements", [])
         if not replacements:
             return None
 
+        # Handle case where replacements is a JSON string
+        if isinstance(replacements, str):
+            try:
+                replacements = json.loads(replacements)
+            except json.JSONDecodeError:
+                return None
+
+        if not isinstance(replacements, list) or not replacements:
+            return None
+
+        # Get the first replacement and handle if it's a JSON string
+        first_replacement = replacements[0]
+        if isinstance(first_replacement, str):
+            try:
+                first_replacement = json.loads(first_replacement)
+            except json.JSONDecodeError:
+                return None
+
+        if not isinstance(first_replacement, dict):
+            return None
+
         # Check the first file path for permission
-        first_file = replacements[0].get("file_path") if replacements else None
+        first_file = first_replacement.get("file_path") or first_replacement.get("filePath")
         if not first_file:
             return None
 
@@ -121,11 +141,25 @@ Usage:
 
     async def _execute_multiple_replacements(self, replacements: list[dict[str, str]]) -> ToolOutput:
         """Execute multiple replacement operations in a single call"""
+        import json
+        
         results = []
         errors = []
 
         for i, replacement in enumerate(replacements):
             try:
+                # Handle case where replacement is a JSON string
+                if isinstance(replacement, str):
+                    try:
+                        replacement = json.loads(replacement)
+                    except json.JSONDecodeError:
+                        errors.append(f"Replacement {i + 1}: Invalid JSON string provided. Please provide a valid replacement object.")
+                        continue
+
+                if not isinstance(replacement, dict):
+                    errors.append(f"Replacement {i + 1}: Invalid replacement format. Expected an object with 'file_path', 'old_string', and 'new_string' properties.")
+                    continue
+
                 # Support both camelCase and snake_case in each replacement
                 file_path = replacement.get("file_path") or replacement.get("filePath")
                 old_string = replacement.get("old_string") or replacement.get("oldString")

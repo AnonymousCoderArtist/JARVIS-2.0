@@ -13,26 +13,11 @@ class BashTool(BaseTool):
     """Tool for executing shell commands (bash on Unix, PowerShell on Windows)"""
 
     name = "bash"
-    description = """Execute a shell command and return the output. Automatically uses bash on Unix/Linux/macOS and PowerShell on Windows.
+    description = """Execute shell commands. Uses bash on Unix/Linux/macOS, PowerShell on Windows.
 
-Usage:
-- Use for running shell commands, scripts, and system operations
-- Automatically detects platform and uses appropriate shell (bash/PowerShell)
-- Supports background execution with is_background parameter for long-running processes
-- Set timeout parameter to limit execution time (default 30 seconds)
-- Use delay_ms parameter to control when background process output is returned
-- Background processes can be monitored using list_background_processes and read_background_output tools
-- Common uses: running tests, building projects, installing dependencies, git operations
-- Always check command output for errors and handle them appropriately
-- Use absolute paths or ensure you're in the correct working directory
-- On Windows: Use PowerShell syntax (Get-Process, Get-Service, etc.)
-- On Unix/Linux/macOS: Use bash syntax (ls, grep, cd, etc.)
+{"command": "ls -la", "timeout": 30, "is_background": false}
 
-**PARAMETERS:**
-- `command` (string, required): Shell command to execute
-- `is_background` (boolean, optional, default: false): Whether to run in background
-- `delay_ms` (integer, optional, default: 0): Delay in ms before returning
-- `timeout` (integer, optional, default: 30): Max execution time in seconds"""
+Returns command output. Supports background processes. Check output for errors."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -233,21 +218,11 @@ class RunTestsTool(BaseTool):
     """Tool for running tests"""
 
     name = "run_tests"
-    description = """Run tests using pytest or unittest frameworks. Use this to execute test suites and verify code correctness.
+    description = """Run tests using pytest or unittest.
 
-Usage:
-- Specify the path to test file or directory to run tests on
-- Choose framework: pytest (default) or unittest
-- Use args parameter for additional command-line arguments (e.g., -v for verbose, -k for keyword filtering)
-- Common pytest args: -v (verbose), -k (keyword filter), -x (stop on first failure), --cov (coverage)
-- Common unittest args: -v (verbose), -k (keyword filter)
-- Analyze test failures systematically to identify and fix issues
-- Re-run tests after making fixes to verify the changes
+{"path": "tests/", "framework": "pytest", "args": "-v"}
 
-**PARAMETERS:**
-- `path` (string, required): Path to test file or directory
-- `framework` (string, optional, default: pytest): Test framework to use
-- `args` (string, optional): Additional command-line arguments"""
+Returns test results. Use to verify code correctness and catch regressions."""
     input_schema = {
         "type": "object",
         "properties": {

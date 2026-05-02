@@ -225,31 +225,11 @@ class AgentsTool(BaseTool):
     """Tool for invoking specialized agents"""
 
     name = "agents"
-    description = """Invoke a specialized subagent to perform a specific task or investigation. Use this to delegate work to agents with specialized capabilities.
+    description = """Invoke specialized subagents for specific tasks.
 
-Available agents:
-- explore: For codebase exploration and analysis (read-only, understands structure, finds files/patterns)
-- plan: For task decomposition and planning (read-only, creates structured plans with phases and steps)
+{"agent_name": "explore", "prompt": "Analyze codebase structure", "run_in_background": false}
 
-Usage:
-- Specify the agent name to invoke (e.g., 'explore' or 'plan')
-- Provide a complete prompt describing the task for the subagent
-- run_in_background parameter is REQUIRED - you must explicitly set it
-
-Background Execution (run_in_background=true):
-- Use ONLY when you have multiple independent tasks and can do other work while subagent runs
-- The main agent continues working while subagent runs in background
-- Use agent_status tool to check progress and get results
-- Check completion only after doing other meaningful work
-
-Foreground Execution (run_in_background=false):
-- Use for single tasks when you need the result immediately
-- Agent runs synchronously and returns result directly
-- No need to check status - result is returned immediately
-
-When to use which:
-- Single task needing immediate result -> run_in_background=false
-- Multiple tasks, can do other work while subagent runs -> run_in_background=true"""
+Agents: explore (codebase analysis), plan (task planning). Set run_in_background for async execution."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -448,15 +428,11 @@ class AgentStatusTool(BaseTool):
     """Tool for checking status and output of background agents"""
 
     name = "agent_status"
-    description = """Check the status and output of a background agent task.
+    description = """Check status and output of background agent tasks.
 
-Usage:
-- Provide a task_id to check the status of a specific background agent
-- Use 'list' as task_id to see all running background agents
-- Get the task_id from the response when starting a background agent
-- Returns status (pending, running, completed, failed), output, and errors
+{"task_id": "abc123"} or {"task_id": "list"}
 
-The main agent will be automatically notified when background agents complete."""
+Returns status, output, and errors for background agents."""
     input_schema = {
         "type": "object",
         "properties": {

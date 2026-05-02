@@ -12,15 +12,11 @@ class WebFetchTool(BaseTool):
     """Tool for fetching and processing content from URLs"""
 
     name = "fetch_webpage"
-    description = """Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage. Use this tool when you think the user is looking for information from a specific webpage.
+    description = """Fetch content from web pages. Returns main text content with optional query filtering.
 
-Usage:
-- Provide an array of URLs to fetch content from
-- Use the query parameter to describe what information you're looking for in the page content
-- Content is truncated at 2000 characters to manage response size
-- Use this for research, documentation retrieval, and information gathering
-- Note: This tool uses basic HTTP fetching and may not work well with JavaScript-rendered pages
-- For complex web scraping, consider using specialized tools or APIs"""
+{"urls": ["https://example.com"], "query": "specific information"}
+
+Content truncated at 2000 chars. Not suitable for JS-rendered pages."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -102,16 +98,11 @@ class ExaWebSearchTool(BaseTool):
     """Tool for searching the web using Exa MCP API"""
 
     name = "web_search"
-    description = """Searches the web using Exa's MCP API for real-time information. Use this tool when you need to find current information, news, or research topics on the internet.
+    description = """Search the web using Exa API for current information and research.
 
-Usage:
-- Provide a search query as a string
-- Optionally specify the number of results (default: 8)
-- Optionally set search type: 'auto', 'neural', or 'keyword' (default: 'auto')
-- Optionally enable livecrawling for fresh content: 'fallback', 'always', or 'never' (default: 'fallback')
-- Returns structured search results with titles, URLs, and content snippets
-- Ideal for researching recent events, technical documentation, or current topics
-- More reliable than basic web fetching for finding specific information"""
+{"query": "latest AI news", "numResults": 5, "livecrawl": "fallback"}
+
+Returns search results with titles, URLs, and content snippets."""
     input_schema = {
         "type": "object",
         "properties": {
