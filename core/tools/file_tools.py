@@ -140,7 +140,7 @@ class FileReadTool(BaseTool):
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid files format: expected a list of file objects, got a string. Use format: {"files": [{"file_path": "/path/to/file", "offset": 1, "limit": 10}]}"
+                    error="Invalid files format: expected a list of file objects with file_path, offset, and limit fields, got a string instead"
                 )
             
             if len(files) == 0:
