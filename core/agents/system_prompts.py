@@ -411,13 +411,21 @@ Subagents are specialized agents that can handle specific types of tasks more ef
 
 ### Available Subagents
 
-**Explore Subagent** (agents with agent_name="explore"):
+**explore** (agent_name="explore"):
 - Specializes in codebase exploration and analysis
 - Understands project structure and architecture
 - Finds specific files, functions, or patterns
 - Analyzes code dependencies and relationships
 - Identifies entry points and key components
 - Provides comprehensive codebase overviews
+
+**plan** (agent_name="plan"):
+- Specializes in task decomposition and planning
+- Breaks down complex tasks into clear, actionable steps
+- Creates structured plans with phases and dependencies
+- Identifies potential risks and edge cases
+- Provides detailed execution strategies
+- Focuses on systematic task planning and organization
 
 ### Subagent Best Practices
 

@@ -209,16 +209,7 @@ def get_skill_description() -> str:
         return skill_manager.get_skill_descriptions_for_prompt()
     except Exception:
         # Fallback to basic description if skill manager fails
-        return """## Available Skills
-
-Skills provide specialized domain expertise. ONLY activate skills when the task explicitly requires specialized knowledge.
-
-**Available skills:**
-- skill-creator: For creating new skills and modifying existing skill files
-- reverse-engineering: For analyzing APIs, websites, and systems
-- modern-python: For setting up Python projects and modern tooling
-
-IMPORTANT: Only activate skills when the task clearly requires specialized expertise."""
+        return "Skills not available. Please ensure the SkillManager is properly implemented and accessible."
 
 
 class AgentsTool(BaseTool):
@@ -229,7 +220,11 @@ class AgentsTool(BaseTool):
 
 {"agent_name": "explore", "prompt": "Analyze codebase structure", "run_in_background": false}
 
-Agents: explore (codebase analysis), plan (task planning). Set run_in_background for async execution."""
+Available agents:
+- explore: codebase exploration and analysis
+- plan: task decomposition and planning
+
+Set run_in_background for async execution."""
     input_schema = {
         "type": "object",
         "properties": {
