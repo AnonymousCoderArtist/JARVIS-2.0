@@ -427,6 +427,66 @@ Subagents are specialized agents that can handle specific types of tasks more ef
 4. **Avoid Redundancy**: Don't delegate tasks you can handle efficiently yourself
 5. **Iterative Refinement**: Use subagent results to refine your understanding and approach
 
+### Background Agent Execution (IMPORTANT!)
+
+Subagents run in the BACKGROUND by default - this means they execute in parallel while you continue working. The main agent does NOT wait for the subagent to complete.
+
+**CRITICAL RULE: DO NOT CHECK STATUS IMMEDIATELY**
+
+The model tends to check status immediately after starting a background agent. This is WRONG and creates an infinite loop. You MUST follow these rules:
+
+**NEVER do this:**
+- Check status right after starting the agent
+- Check status multiple times in a row
+- Check status in a loop or consecutively
+- Check status just to monitor progress
+
+**ALWAYS do this first:**
+1. After starting a background agent, do OTHER MEANINGFUL WORK first
+2. Handle other parts of the user's request
+3. Process different aspects of the task
+4. Do at least 2-3 other tool calls before checking status
+5. Only check status when you actually NEED the result
+
+**Correct Flow:**
+```
+1. Call agents tool -> get task_id
+2. Do OTHER work (read files, search, etc.) - at least 2-3 tasks
+3. Only THEN check agent_status
+4. If still running, do more work
+5. Check again only when user asks or you need the result
+```
+
+**When to Check Status (only these cases):**
+- After completing at least 2-3 other independent tasks
+- When the user explicitly asks for the result
+- When your next task depends on the subagent output
+- When you have meaningful work to do while waiting
+
+**The agent_status tool will tell you:**
+- "running" - still working, do OTHER work
+- "completed" - result is ready
+- "failed" - check the error
+
+**Example of WRONG behavior:**
+```
+User: explore codebase
+Model: calls agents tool
+Model: immediately checks agent_status <- WRONG!
+Model: checks again <- WRONG!
+Model: checks again <- WRONG!
+```
+
+**Example of CORRECT behavior:**
+```
+User: explore codebase
+Model: calls agents tool, gets task_id abc123
+Model: reads some files to understand context
+Model: searches for key patterns
+Model: does another task
+Model: NOW checks agent_status <- CORRECT!
+```
+
 ## Skill Usage
 
 ### When to Use Skills

@@ -27,7 +27,7 @@ from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tools import ActivateSkillTool, AgentsTool
+from core.tools.agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
@@ -191,6 +191,7 @@ class CLIInterface:
         self.tool_registry.register(SaveMemoryTool())
         self.tool_registry.register(ReadMemoryTool())
         self.tool_registry.register(AgentsTool())
+        self.tool_registry.register(AgentStatusTool())
         self.tool_registry.register(ActivateSkillTool())
 
     def _initialize_agents(self):

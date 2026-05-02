@@ -1,7 +1,7 @@
 """Tools Package"""
 
 # Agent and Skill tools
-from .agent_tools import ActivateSkillTool, AgentsTool
+from .agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
 
 # Permission system
 from .permissions import (
@@ -67,4 +67,5 @@ __all__ = [
     # Agent tools
     "AgentsTool",
     "ActivateSkillTool",
+    "AgentStatusTool",
 ]

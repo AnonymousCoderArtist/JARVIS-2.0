@@ -2,15 +2,39 @@
 
 from core.agents.profiles import AgentProfile, AgentSafety, AgentType
 
-# Default agent - Vibe-style: read operations always allowed, write operations require approval, edit tool auto-approved
+# Default agent - Ask for permission for ALL tools
 DEFAULT = AgentProfile(
     name="default",
     display_name="Default",
-    description="Read operations always allowed, write operations require approval, edit tool auto-approved",
+    description="Ask for permission for all tools",
     safety=AgentSafety.NEUTRAL,
     overrides={
         "tools": {
-            "edit": {"permission": "always"},
+            # File tools
+            "read": {"permission": "ask"},
+            "write_file": {"permission": "ask"},
+            "edit": {"permission": "ask"},
+            "list_dir": {"permission": "ask"},
+            "glob": {"permission": "ask"},
+            # Search tools
+            "grep": {"permission": "ask"},
+            # Code tools
+            "bash": {"permission": "ask"},
+            "run_tests": {"permission": "ask"},
+            "repl": {"permission": "ask"},
+            # Background tools
+            "list_background_processes": {"permission": "ask"},
+            "read_background_output": {"permission": "ask"},
+            # Memory tools
+            "save_memory": {"permission": "ask"},
+            "read_memory": {"permission": "ask"},
+            # Web tools
+            "fetch_webpage": {"permission": "ask"},
+            "web_search": {"permission": "ask"},
+            # Agent tools
+            "agents": {"permission": "ask"},
+            "activate_skill": {"permission": "ask"},
+            "agent_status": {"permission": "ask"},
         }
     },
 )
@@ -45,16 +69,39 @@ PLAN = AgentProfile(
     },
 )
 
-# Accept Edits agent - auto-approves file edits only
+# Accept Edits agent - edit, write, read, glob, grep always; others ask
 ACCEPT_EDITS = AgentProfile(
     name="accept-edits",
     display_name="Accept Edits",
-    description="Auto-approves file edits only",
+    description="edit, write, read, glob, grep always; others ask from user",
     safety=AgentSafety.DESTRUCTIVE,
     overrides={
         "tools": {
-            "write_file": {"permission": "always"},
+            # File operations - always allowed
             "edit": {"permission": "always"},
+            "write_file": {"permission": "always"},
+            "read": {"permission": "always"},
+            # Search operations - always allowed
+            "glob": {"permission": "always"},
+            "grep": {"permission": "always"},
+            "list_dir": {"permission": "always"},
+            # Code tools - ask
+            "bash": {"permission": "ask"},
+            "run_tests": {"permission": "ask"},
+            "repl": {"permission": "ask"},
+            # Background tools - ask
+            "list_background_processes": {"permission": "ask"},
+            "read_background_output": {"permission": "ask"},
+            # Memory tools - ask
+            "save_memory": {"permission": "ask"},
+            "read_memory": {"permission": "ask"},
+            # Web tools - ask
+            "fetch_webpage": {"permission": "ask"},
+            "web_search": {"permission": "ask"},
+            # Agent tools - ask
+            "agents": {"permission": "ask"},
+            "activate_skill": {"permission": "ask"},
+            "agent_status": {"permission": "ask"},
         }
     },
 )
@@ -68,33 +115,40 @@ AUTO_APPROVE = AgentProfile(
     overrides={"bypass_tool_permissions": True},
 )
 
-# Explore agent - read-only subagent for codebase exploration
+# Explore agent - all tools always except bash, edit, and subagent tools
 EXPLORE = AgentProfile(
     name="explore",
     display_name="Explore",
-    description="Read-only subagent for codebase exploration",
+    description="All tools always except bash, edit, and subagent tools",
     safety=AgentSafety.SAFE,
     agent_type=AgentType.SUBAGENT,
     overrides={
         "tools": {
-            # Explore-level tools - always allowed
+            # File tools - always
             "read": {"permission": "always"},
+            "write_file": {"permission": "always"},
+            "edit": {"permission": "never"},  # Excluded
             "list_dir": {"permission": "always"},
             "glob": {"permission": "always"},
+            # Search tools - always
             "grep": {"permission": "always"},
-            # All other tools - disabled
-            "write": {"permission": "never"},
-            "edit": {"permission": "never"},
-            "bash": {"permission": "never"},
-            "run_tests": {"permission": "never"},
-            "repl": {"permission": "never"},
-            "list_background_processes": {"permission": "never"},
-            "read_background_output": {"permission": "never"},
-            "save_memory": {"permission": "never"},
-            "read_memory": {"permission": "never"},
-            "fetch_webpage": {"permission": "never"},
-            "agents": {"permission": "never"},
-            "activate_skill": {"permission": "never"},
+            # Code tools - bash excluded, others always
+            "bash": {"permission": "never"},  # Excluded
+            "run_tests": {"permission": "always"},
+            "repl": {"permission": "always"},
+            # Background tools - always
+            "list_background_processes": {"permission": "always"},
+            "read_background_output": {"permission": "always"},
+            # Memory tools - always
+            "save_memory": {"permission": "always"},
+            "read_memory": {"permission": "always"},
+            # Web tools - always
+            "fetch_webpage": {"permission": "always"},
+            "web_search": {"permission": "always"},
+            # Agent tools - excluded (subagent tools)
+            "agents": {"permission": "never"},  # Excluded
+            "activate_skill": {"permission": "never"},  # Excluded
+            "agent_status": {"permission": "never"},  # Excluded
         },
         "system_prompt_id": "explore",
     },
