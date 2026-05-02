@@ -86,7 +86,12 @@ class FileReadTool(BaseTool):
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file read operation with granular checks"""
         files = args.get("files", [])
-        if files and isinstance(files, list) and len(files) > 0:
+        
+        # Handle case where files is not a list (e.g., passed as string)
+        if not isinstance(files, list):
+            return None
+        
+        if files and len(files) > 0:
             first_file = files[0]
             file_path = first_file.get("file_path") if isinstance(first_file, dict) else None
         else:
@@ -123,7 +128,22 @@ class FileReadTool(BaseTool):
             if not isinstance(encoding, str):
                 encoding = "utf-8"
 
-            if not files or not isinstance(files, list) or len(files) == 0:
+            # Validate files is a list
+            if files is None:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
+                )
+            
+            if not isinstance(files, list):
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid files format: expected a list of file objects, got a string. Use format: {"files": [{"file_path": "/path/to/file", "offset": 1, "limit": 10}]}"
+                )
+            
+            if len(files) == 0:
                 return ToolOutput(
                     success=False,
                     result=None,
@@ -149,9 +169,13 @@ class FileReadTool(BaseTool):
 
         async def read_single_file(file_obj, index: int) -> tuple | None:
             try:
-                fp = file_obj.get("file_path") if isinstance(file_obj, dict) else file_obj
-                off = file_obj.get("offset") if isinstance(file_obj, dict) else None
-                lim = file_obj.get("limit") if isinstance(file_obj, dict) else None
+                # Validate file_obj is a dict
+                if not isinstance(file_obj, dict):
+                    return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path, offset, and limit, got {type(file_obj).__name__}", None, None)
+                
+                fp = file_obj.get("file_path")
+                off = file_obj.get("offset")
+                lim = file_obj.get("limit")
 
                 if not isinstance(fp, str) or not fp:
                     return (None, None, f"File {index + 1}: Missing or invalid file_path", None, None)
