@@ -213,18 +213,27 @@ class Stats(AgentStats):
 
         # Get token usage from LLM provider
         if hasattr(agent, 'llm'):
+            usage: dict[str, Any] | None = None
             # Try to get usage using get_and_clear_usage (handles both streaming and non-streaming)
             if hasattr(agent.llm, 'get_and_clear_usage'):
-                usage = agent.llm.get_and_clear_usage()
-                if usage and isinstance(usage, dict):
-                    p_tokens = int(usage.get('prompt_tokens', usage.get('input_tokens', 0)))
-                    c_tokens = int(usage.get('completion_tokens', usage.get('output_tokens', 0)))
+                get_and_clear = getattr(agent.llm, 'get_and_clear_usage', None)
+                if callable(get_and_clear):
+                    usage = get_and_clear()
             # Fallback: check last_token_usage directly (non-streaming)
             elif hasattr(agent.llm, 'last_token_usage'):
-                usage = agent.llm.last_token_usage
-                if usage and isinstance(usage, dict):
-                    p_tokens = int(usage.get('prompt_tokens', usage.get('input_tokens', 0)))
-                    c_tokens = int(usage.get('completion_tokens', usage.get('output_tokens', 0)))
+                usage = getattr(agent.llm, 'last_token_usage', None)
+
+            if usage and isinstance(usage, dict):
+                # Use .get() with proper type handling
+                prompt_val = usage.get('prompt_tokens')
+                if prompt_val is None:
+                    prompt_val = usage.get('input_tokens', 0)
+                p_tokens = int(prompt_val) if prompt_val is not None else 0
+
+                completion_val = usage.get('completion_tokens')
+                if completion_val is None:
+                    completion_val = usage.get('output_tokens', 0)
+                c_tokens = int(completion_val) if completion_val is not None else 0
 
         # Update stats only if we have actual token counts
         if p_tokens > 0 or c_tokens > 0:
@@ -298,8 +307,18 @@ class AgentLoop:
         # Compaction System
         # ====================================================================
         self.compaction_stats = CompactionStats()
+        max_tokens_val: int = 200000
+        if hasattr(config, 'max_tokens'):
+            mt = config.max_tokens
+            if isinstance(mt, int):
+                max_tokens_val = mt
+            elif isinstance(mt, (str, float)):
+                try:
+                    max_tokens_val = int(mt)
+                except (ValueError, TypeError):
+                    pass
         self.context_window = ContextWindowState(
-            max_tokens=config.max_tokens if hasattr(config, 'max_tokens') else 200000
+            max_tokens=max_tokens_val
         )
         self._compaction_strategy = CompactionStrategy.BALANCED
         self._last_compaction_check: float = 0.0
@@ -453,8 +472,13 @@ class AgentLoop:
         system_prompt = self._get_compaction_system_prompt(strategy)
         user_prompt = self._build_compaction_user_prompt(messages, extra_instructions)
 
-        # Use the agent's LLM provider
-        response = await self.agent.llm.create_chat_completion(
+        # Use the agent's LLM provider - use getattr to safely access the method
+        llm = self.agent.llm
+        create_completion = getattr(llm, 'create_chat_completion', None)
+        if not callable(create_completion):
+            return "LLM provider does not support create_chat_completion."
+
+        response = await create_completion(  # type: ignore[call-arg]
             model=self.agent.model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -464,7 +488,11 @@ class AgentLoop:
             temperature=0.3
         )
 
-        return response.choices[0].message.content or "Summarization failed."
+        # Handle the response - check for choices attribute
+        if hasattr(response, 'choices') and response.choices:
+            content = response.choices[0].message.content
+            return content if content else "Summarization failed."
+        return "Summarization failed: No response from LLM."
 
     def _get_compaction_system_prompt(self, strategy: CompactionStrategy) -> str:
         """Get system prompt for summarization based on strategy."""
@@ -634,6 +662,13 @@ Create a comprehensive summary that captures:
 
         # Update the config getter to use the new profile configuration
         self.agent.set_config_getter(lambda: self.agent_manager.config)
+
+        # Update system prompt based on profile's system_prompt_id
+        system_prompt_id = self.agent_profile.overrides.get("system_prompt_id")
+        if system_prompt_id:
+            from core.agents.coding_agent import CodingAgent
+            new_system_prompt = CodingAgent.get_system_prompt_for_profile(system_prompt_id)
+            self.agent.set_system_prompt(new_system_prompt)
 
         # Clear session rules when switching profiles
         self.agent.clear_session_rules()
