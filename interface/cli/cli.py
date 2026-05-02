@@ -23,11 +23,13 @@ from core.agents.coding_agent import CodingAgent
 from core.agents.manager import AgentManager
 from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.config.settings import Settings
+from core.connectors import ConnectorManager, ConnectorConfig, FilesystemConnector
+from core.learn import LearningManager, LearningConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
+from core.tools.agent_tools import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
@@ -124,6 +126,8 @@ class CLIInterface:
         self.tool_registry = AsyncToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
         self._current_provider = None
+        self.learning_manager: LearningManager | None = None
+        self.connector_manager: ConnectorManager | None = None
 
         # Initialize modular components
         self.config_manager = load_config()
@@ -233,7 +237,8 @@ class CLIInterface:
         self.tool_registry.register(ReadMemoryTool())
         self.tool_registry.register(AgentsTool())
         self.tool_registry.register(AgentStatusTool())
-        self.tool_registry.register(ActivateSkillTool())
+        from core.tools import SkillTool
+        self.tool_registry.register(SkillTool())
 
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
@@ -281,13 +286,31 @@ class CLIInterface:
         if self.bypass:
             self.jarvis_agent.bypass_tool_permissions = True
 
+        # Initialize heartbeat system if enabled in config
+        self.jarvis_agent.initialize_heartbeat(lambda: self.agent_manager.config)
+        if self.jarvis_agent.heartbeat_scheduler:
+            asyncio.create_task(self.jarvis_agent.start_heartbeat())
+
+        # Initialize learning manager
+        self.learning_manager = LearningManager(LearningConfig(enabled=True))
+
+        # Initialize connector manager with filesystem connector
+        self.connector_manager = ConnectorManager()
+        fs_config = ConnectorConfig(
+            name="filesystem",
+            connector_type="filesystem",
+            config={"root_dir": ".", "include_hidden": False}
+        )
+        self.connector_manager.register(FilesystemConnector(fs_config))
+
         # Update command handler with managers for new commands
         self.command_handler.set_managers(
             agent_manager=self.agent_manager,
             tool_registry=self.tool_registry,
             skill_manager=self.skill_manager,
             jarvis_agent=self.jarvis_agent,
-            config_manager=self.config_manager
+            config_manager=self.config_manager,
+            learning_manager=self.learning_manager
         )
 
         # Update command handler with current status info

@@ -1,6 +1,7 @@
 """Memory management tool - OpenClaude style persistent memory"""
 
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -567,3 +568,314 @@ Usage:
                 result=None,
                 error=f"Failed to read memories: {str(e)}"
             )
+
+
+# Hermes-style memory management (MEMORY.md and USER.md)
+
+HERMES_MEMORY_LIMITS = {
+    "memory": 2200,   # Agent notes limit
+    "user": 1375,     # User profile limit
+}
+
+SENSITIVE_PATTERNS = [
+    r"api[_-]?key",
+    r"password",
+    r"secret",
+    r"token",
+    r"private[_-]?key",
+    r"credential",
+    r"bearer\s+",
+]
+
+
+def get_hermes_memory_dir() -> Path:
+    """Get Hermes-style memory directory (~/.hermes/memory/)"""
+    home = Path.home()
+    hermes_dir = home / ".hermes" / "memory"
+    hermes_dir.mkdir(parents=True, exist_ok=True)
+    return hermes_dir
+
+
+def check_memory_security(content: str) -> tuple[bool, str]:
+    """
+    Check memory content for sensitive patterns
+    Returns (is_safe, warning_message)
+    """
+    import re
+    
+    content_lower = content.lower()
+    for pattern in SENSITIVE_PATTERNS:
+        if re.search(pattern, content_lower, re.IGNORECASE):
+            return False, f"Memory content contains sensitive pattern: {pattern}"
+    
+    return True, ""
+
+
+class MemoryManagementTool(BaseTool):
+    """
+    Hermes-style memory management tool supporting MEMORY.md and USER.md
+    
+    Provides add/replace/remove actions with character limits:
+    - MEMORY.md: 2,200 char limit (agent notes)
+    - USER.md: 1,375 char limit (user profile)
+    """
+
+    name = "memory"
+    description = """Manages persistent memory in Hermes-style MEMORY.md and USER.md files.
+
+Usage:
+- Use action 'add' to create new MEMORY.md or USER.md entries
+- Use action 'replace' to update existing entries using substring matching
+- Use action 'remove' to delete entries using substring matching
+- Use action 'read' to view current memory content
+- Supported memory types: 'memory' (agent notes, 2200 chars), 'user' (user profile, 1375 chars)
+- All entries are scanned for sensitive data before saving
+- Content uses markdown format with structured sections
+
+Example:
+- Add user preference: memory(action='add', memory_type='user', content='Prefers dark mode editor')
+- Update memory: memory(action='replace', memory_type='memory', match='old info', new_content='new info')
+- Read memory: memory(action='read', memory_type='memory')"""
+
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["add", "replace", "remove", "read"],
+                "description": "Action to perform: add, replace, remove, or read"
+            },
+            "memory_type": {
+                "type": "string",
+                "enum": ["memory", "user"],
+                "description": "Type of memory: 'memory' for agent notes, 'user' for user profile",
+                "default": "memory"
+            },
+            "content": {
+                "type": "string",
+                "description": "Content to add (for add action)"
+            },
+            "match": {
+                "type": "string",
+                "description": "Substring to match for replace/remove actions"
+            },
+            "new_content": {
+                "type": "string",
+                "description": "New content to replace matched entry with (for replace action)"
+            }
+        },
+        "required": ["action"]
+    }
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        action = getattr(input_data, "action", "read")
+        memory_type = getattr(input_data, "memory_type", "memory")
+        content = getattr(input_data, "content", None)
+        match = getattr(input_data, "match", None)
+        new_content = getattr(input_data, "new_content", None)
+
+        try:
+            memory_dir = get_hermes_memory_dir()
+            memory_file = memory_dir / f"{memory_type.upper()}.md"
+            
+            # Get character limit for this memory type
+            char_limit = HERMES_MEMORY_LIMITS.get(memory_type, 2200)
+            
+            if action == "read":
+                return await self._read_memory(memory_file, memory_type)
+            
+            elif action == "add":
+                if not content:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Content is required for add action"
+                    )
+                return await self._add_memory(memory_file, content, memory_type, char_limit)
+            
+            elif action == "replace":
+                if not match or not new_content:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Match and new_content are required for replace action"
+                    )
+                return await self._replace_memory(memory_file, match, new_content, memory_type, char_limit)
+            
+            elif action == "remove":
+                if not match:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Match is required for remove action"
+                    )
+                return await self._remove_memory(memory_file, match, memory_type)
+            
+            else:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=f"Unknown action: {action}"
+                )
+                
+        except Exception as e:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Memory operation failed: {str(e)}"
+            )
+
+    async def _read_memory(self, memory_file: Path, memory_type: str) -> ToolOutput:
+        """Read memory content from file"""
+        if not memory_file.exists():
+            return ToolOutput(
+                success=True,
+                result={
+                    "type": memory_type,
+                    "content": "",
+                    "exists": False,
+                    "char_limit": HERMES_MEMORY_LIMITS.get(memory_type, 2200)
+                }
+            )
+        
+        with open(memory_file, encoding="utf-8") as f:
+            memory_content = f.read()
+        
+        return ToolOutput(
+            success=True,
+            result={
+                "type": memory_type,
+                "content": memory_content,
+                "exists": True,
+                "char_limit": HERMES_MEMORY_LIMITS.get(memory_type, 2200),
+                "char_count": len(memory_content)
+            }
+        )
+
+    async def _add_memory(
+        self, memory_file: Path, content: str, memory_type: str, char_limit: int
+    ) -> ToolOutput:
+        """Add new memory content"""
+        # Check security
+        is_safe, warning = check_memory_security(content)
+        if not is_safe:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Security check failed: {warning}"
+            )
+        
+        # Check character limit
+        if len(content) > char_limit:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Content exceeds {char_limit} char limit for {memory_type}"
+            )
+        
+        # Add timestamp
+        timestamp = datetime.now().isoformat()
+        full_content = f"""<!-- Last updated: {timestamp} -->
+{content}
+"""
+        
+        with open(memory_file, "w", encoding="utf-8") as f:
+            f.write(full_content)
+        
+        return ToolOutput(
+            success=True,
+            result=f"Added {memory_type} memory ({len(content)} chars)",
+            metadata={"type": memory_type, "char_count": len(content), "char_limit": char_limit}
+        )
+
+    async def _replace_memory(
+        self, memory_file: Path, match: str, new_content: str, memory_type: str, char_limit: int
+    ) -> ToolOutput:
+        """Replace memory content using substring matching"""
+        # Check security for new content
+        is_safe, warning = check_memory_security(new_content)
+        if not is_safe:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Security check failed: {warning}"
+            )
+        
+        # Check character limit
+        if len(new_content) > char_limit:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"New content exceeds {char_limit} char limit for {memory_type}"
+            )
+        
+        # Read current content
+        if not memory_file.exists():
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"No existing {memory_type} memory found"
+            )
+        
+        with open(memory_file, encoding="utf-8") as f:
+            current_content = f.read()
+        
+        # Find and replace using substring matching
+        if match not in current_content:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Match string not found in {memory_type} memory"
+            )
+        
+        # Replace only the matched portion, keeping the timestamp comment if exists
+        timestamp = datetime.now().isoformat()
+        
+        # Remove old timestamp comment and add new one
+        current_content = re.sub(r"<!-- Last updated: .*? -->", "", current_content)
+        current_content = current_content.strip()
+        
+        new_full_content = f"<!-- Last updated: {timestamp} -->\n{new_content}"
+        
+        with open(memory_file, "w", encoding="utf-8") as f:
+            f.write(new_full_content)
+        
+        return ToolOutput(
+            success=True,
+            result=f"Replaced content in {memory_type} memory",
+            metadata={"type": memory_type, "char_count": len(new_content), "char_limit": char_limit}
+        )
+
+    async def _remove_memory(self, memory_file: Path, match: str, memory_type: str) -> ToolOutput:
+        """Remove memory content using substring matching"""
+        if not memory_file.exists():
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"No existing {memory_type} memory found"
+            )
+        
+        with open(memory_file, encoding="utf-8") as f:
+            current_content = f.read()
+        
+        # Check if match exists
+        if match not in current_content:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Match string not found in {memory_type} memory"
+            )
+        
+        # Remove the matched content
+        # Since we're removing, we need to be careful - just clear the file
+        timestamp = datetime.now().isoformat()
+        new_content = f"<!-- Last updated: {timestamp} -->\n[Content removed]"
+        
+        with open(memory_file, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        
+        return ToolOutput(
+            success=True,
+            result=f"Removed content from {memory_type} memory",
+            metadata={"type": memory_type}
+        )

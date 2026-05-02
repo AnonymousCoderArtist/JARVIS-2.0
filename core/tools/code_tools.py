@@ -190,12 +190,19 @@ Usage:
                 )
 
                 output = stdout.decode() if stdout else ""
-                if stderr:
-                    output += f"\nErrors:\n{stderr.decode()}"
+                stderr_output = stderr.decode() if stderr else ""
+                
+                # Set error field when command fails
+                error_msg = None
+                if process.returncode != 0:
+                    error_msg = stderr_output if stderr_output else f"Command failed with return code {process.returncode}"
+                    if output:
+                        output += f"\nErrors:\n{stderr_output}"
 
                 return ToolOutput(
                     success=process.returncode == 0,
                     result=output,
+                    error=error_msg,
                     metadata={"return_code": process.returncode, "shell": self.shell}
                 )
 

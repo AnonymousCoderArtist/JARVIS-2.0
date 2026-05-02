@@ -207,14 +207,44 @@ from interface.textual_ui.utils import (
 def _compute_connectors_count(
     config: VibeConfig, connector_registry: ConnectorRegistry | None
 ) -> int:
-    total = connector_registry.connector_count if connector_registry else 0
-    if total == 0:
+    """Compute the count of active MCP servers.
+    
+    This replaces the old connector counting logic which always returned 0
+    because the ConnectorRegistry is not used. Now counts actual MCP servers.
+    """
+    from pathlib import Path
+    import json
+    
+    # Look for MCP config in same locations as tui_main.py
+    config_path = Path(".mcp.json")
+    if not config_path.exists():
+        config_path = Path.home() / ".jarvis" / "mcp_servers.json"
+    
+    if not config_path.exists():
         return 0
-    disabled_names = {c.name for c in config.connectors if c.disabled}
-    known_names = set(
-        connector_registry.get_connector_names() if connector_registry else []
-    )
-    return total - len(disabled_names & known_names)
+    
+    try:
+        with open(config_path) as f:
+            data = json.load(f)
+        
+        # Handle Claude MCP format: {"mcpServers": {"name": {...}}}
+        if "mcpServers" in data:
+            servers = list(data["mcpServers"].keys())
+        # Handle list format: [{"name": ..., ...}]
+        elif isinstance(data, list):
+            servers = [s.get("name", "") for s in data if s.get("name")]
+        else:
+            servers = []
+        
+        # Get disabled MCP servers from config
+        disabled_names = {c.name for c in config.connectors if c.disabled} if hasattr(config, 'connectors') else set()
+        
+        # Count enabled (non-disabled) MCP servers
+        enabled_count = sum(1 for s in servers if s not in disabled_names)
+        
+        return enabled_count
+    except Exception:
+        return 0
 
 
 class BottomApp(str, Enum):

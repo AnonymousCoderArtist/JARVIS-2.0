@@ -162,6 +162,7 @@ class DisplayManager:
             ("/tools", "List available tools"),
             ("/skills", "List and manage skills"),
             ("/memory", "View and manage conversation memory"),
+            ("/learn", "View learning system status"),
             ("/clear", "Clear the screen"),
             ("/exit", "Exit JARVIS"),
             ("! <cmd>", "Run shell command"),
@@ -356,6 +357,53 @@ class DisplayManager:
             table.add_row(name, status)
 
         self.console.print(Panel(table, title="Available Themes", border_style="secondary"))
+
+    def show_learned_preferences(self, preferences):
+        """Display learned preferences from the learning system."""
+        from core.learn import LearnedPreferences
+        if isinstance(preferences, LearnedPreferences):
+            table = Table(show_header=True, header_style="primary", box=None)
+            table.add_column("Setting", style="info")
+            table.add_column("Value")
+
+            table.add_row("Output Format", preferences.output_format)
+            table.add_row("Preferred Tools", ", ".join(preferences.preferred_tools) or "none")
+            table.add_row("Query Routing", str(len(preferences.query_routing)) + " rules")
+            table.add_row("Last Updated", str(preferences.last_updated)[:19])
+
+            self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
+        else:
+            self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
+
+    def show_learning_metrics(self, metrics):
+        """Display learning metrics from trace analysis."""
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Metric", style="info")
+        table.add_column("Value")
+
+        table.add_row("Total Interactions", str(metrics.total_interactions))
+        table.add_row("Tool Uses", str(metrics.tool_use_count))
+        table.add_row("Errors", str(metrics.error_count))
+        table.add_row("Avg Turns/Session", f"{metrics.avg_turns_per_session:.1f}")
+        table.add_row("Success Rate", f"{metrics.successful_resolution_rate:.1%}")
+
+        self.console.print(Panel(table, title="Learning Metrics", border_style="info"))
+
+    def show_patterns(self, patterns):
+        """Display detected patterns."""
+        if not patterns:
+            self.console.print(Panel("No patterns detected yet.", title="Patterns", border_style="secondary"))
+            return
+
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Pattern", style="info")
+        table.add_column("Type")
+        table.add_column("Confidence")
+
+        for p in patterns[:10]:  # Show top 10
+            table.add_row(p.name, p.category, f"{p.confidence:.0%}")
+
+        self.console.print(Panel(table, title="Detected Patterns", border_style="secondary"))
 
 
 class StreamingResponse:

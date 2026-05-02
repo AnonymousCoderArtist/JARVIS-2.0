@@ -37,6 +37,7 @@ dependencies = [
     "tomli-w>=1.2.0",
     "curl-cffi>=0.7.0",
     "aiofiles>=24.1.0",
+    "PyYAML>=6.0.0",
     # LLM Providers (using curl_cffi)
     # Async support
     # Configuration

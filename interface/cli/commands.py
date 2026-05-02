@@ -271,13 +271,14 @@ class CommandHandler:
             Command("status", "Show system status", _cmd_status)
         )
 
-    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent, config_manager=None):
+    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent, config_manager=None, learning_manager=None):
         """Set references to managers for command handlers."""
         self.agent_manager = agent_manager
         self.tool_registry = tool_registry
         self.skill_manager = skill_manager
         self.jarvis_agent = jarvis_agent
         self.config_manager = config_manager
+        self.learning_manager = learning_manager
 
         # Register new commands that depend on these managers
         self._register_profile_command()
@@ -285,6 +286,7 @@ class CommandHandler:
         self._register_skills_command()
         self._register_memory_command()
         self._register_theme_command()
+        self._register_learning_command()
 
     def _register_theme_command(self):
         """Register theme management commands."""
@@ -413,6 +415,32 @@ class CommandHandler:
                 self.display_manager.show_error("Usage: /memory [show <count>|clear|search <query>]")
 
         self.command_registry.register(Command("memory", "View and manage conversation memory", _cmd_memory))
+
+    def _register_learning_command(self):
+        """Register the /learn command."""
+        async def _cmd_learn(args: List[str]):
+            if not self.learning_manager:
+                self.display_manager.show_error("Learning manager not initialized")
+                return
+
+            if not args:
+                # Show learned preferences
+                import asyncio
+                prefs = asyncio.run(self.learning_manager.load_preferences())
+                self.display_manager.show_learned_preferences(prefs)
+            elif args[0] == "analyze":
+                # Analyze recent sessions
+                import asyncio
+                metrics = await self.learning_manager.trace_analyzer.analyze_sessions(limit=10)
+                self.display_manager.show_learning_metrics(metrics)
+            elif args[0] == "patterns":
+                # Show detected patterns
+                patterns = self.learning_manager.pattern_detector.detected_patterns
+                self.display_manager.show_patterns(patterns)
+            else:
+                self.display_manager.show_error("Usage: /learn [analyze|patterns]")
+
+        self.command_registry.register(Command("learn", "View learning system status", _cmd_learn))
 
     
     

@@ -1,6 +1,41 @@
 from typing import Any
 from pydantic import BaseModel, Field
 
+
+class ActiveHoursSettings(BaseModel):
+    """Active hours configuration for heartbeat"""
+    start: str = "08:00"
+    end: str = "22:00"
+    timezone: str = "America/New_York"
+
+
+class HeartbeatSettings(BaseModel):
+    """Heartbeat system configuration"""
+    enabled: bool = False
+    every: str = "30m"  # e.g., "30m", "1h", "15m"
+    target: str = "last"  # "last", "none", or channel name
+    light_context: bool = False
+    isolated_session: bool = False
+    skip_when_busy: bool = False
+    active_hours: ActiveHoursSettings = Field(default_factory=ActiveHoursSettings)
+    prompt: str = "Read HEARTBEAT.md if exists. Follow strictly. If nothing needs attention, reply HEARTBEAT_OK."
+    ack_max_chars: int = 300
+    show_ok: bool = True
+    show_alerts: bool = True
+    use_indicator: bool = True
+
+
+class LearningSettings(BaseModel):
+    """Learning loop configuration"""
+    enabled: bool = False
+    skill_creation_threshold: int = 5  # Create skill after this many tool calls
+    self_evaluation_interval: int = 15  # Self-eval checkpoint every N tool calls
+    memory_dir: str = "~/.jarvis/memory"
+    skills_dir: str = "~/.jarvis/skills"
+    max_memory_chars: int = 2200
+    max_user_chars: int = 1375
+
+
 class AppSettings(BaseModel):
     name: str = "JARVIS"
     version: str = "2.0.1"
@@ -80,6 +115,8 @@ class JarvisSettings(BaseModel):
     tools: ToolSettings = Field(default_factory=ToolSettings)
     interface: InterfaceSettings = Field(default_factory=InterfaceSettings)
     async_settings: AsyncSettings = Field(default_factory=AsyncSettings, alias="async")
+    heartbeat: HeartbeatSettings = Field(default_factory=HeartbeatSettings)
+    learning: LearningSettings = Field(default_factory=LearningSettings)
     
     bypass_tool_permissions: bool = False
     agent_paths: list[str] = Field(default_factory=list)

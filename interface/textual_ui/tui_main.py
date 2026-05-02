@@ -12,7 +12,7 @@ from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
-from core.tools.agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
+from core.tools.agent_tools import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
@@ -238,7 +238,9 @@ def create_tool_registry() -> AsyncToolRegistry:
     # Register agent tools
     tool_registry.register(AgentsTool())
     tool_registry.register(AgentStatusTool())
-    tool_registry.register(ActivateSkillTool())
+    # Register skill tool
+    from core.tools.skill_manage_tool import SkillTool
+    tool_registry.register(SkillTool())
     
     return tool_registry
 

@@ -16,9 +16,10 @@ class SkillManager:
         self._loaded_skills: dict[str, SkillProfile] = {}
         self._skill_content: dict[str, str] = {}
         self._skill_paths = [
-            Path(os.path.expanduser("~/.claude/skills")),
-            Path(os.path.expanduser("~/.agents/skills")),
-            Path(".devin/skills"),
+            Path(os.path.expanduser("~/.claude/skills")),     # 1️⃣ Claude's skills
+            Path(os.path.expanduser("~/.agents/skills")),    # 2️⃣ Generic agents skills
+            Path(os.path.expanduser("~/.jarvis/skills")),    # 3️⃣ Global JARVIS skills
+            Path(".jarvis/skills"),                           # 4️⃣ Local .jarvis/skills/ folder
         ]
 
     def get_builtin_skills(self) -> dict[str, SkillProfile]:
