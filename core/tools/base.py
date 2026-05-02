@@ -63,7 +63,7 @@ class BaseTool(ABC):
         if not self.description:
             raise ValueError("Tool must have a description")
 
-        # Store references for tools that need them (e.g., InvokeAgentTool)
+        # Store references for tools that need them (e.g., AgentsTool)
         self.tool_registry = tool_registry
         self.llm_provider = llm_provider
         self.model = model

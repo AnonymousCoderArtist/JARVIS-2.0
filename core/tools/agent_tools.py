@@ -80,10 +80,10 @@ Skills provide specialized domain expertise. ONLY activate skills when the task 
 IMPORTANT: Only activate skills when the task clearly requires specialized expertise."""
 
 
-class InvokeAgentTool(BaseTool):
+class AgentsTool(BaseTool):
     """Tool for invoking specialized agents"""
 
-    name = "invoke_agent"
+    name = "agents"
     description = """Invoke a specialized subagent to perform a specific task or investigation. Use this to delegate work to agents with specialized capabilities.
 
 Usage:

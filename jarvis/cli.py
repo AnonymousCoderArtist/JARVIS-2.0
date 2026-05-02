@@ -105,6 +105,10 @@ def main() -> None:
     if not launch_cli and not launch_tui:
         launch_cli = True
 
+    # CLI mode always uses bypass mode for smooth tool execution
+    if launch_cli and not bypass:
+        bypass = True
+
     # Launch appropriate interface
     if launch_tui:
         from interface.textual_ui.tui_main import main as tui_main

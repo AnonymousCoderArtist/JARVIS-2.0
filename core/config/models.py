@@ -51,7 +51,7 @@ class ToolSettings(BaseModel):
     read_background_output: ToolPermissions = Field(default_factory=ToolPermissions)
     save_memory: ToolPermissions = Field(default_factory=ToolPermissions)
     fetch_webpage: ToolPermissions = Field(default_factory=ToolPermissions)
-    invoke_agent: ToolPermissions = Field(default_factory=ToolPermissions)
+    agents: ToolPermissions = Field(default_factory=ToolPermissions)
     activate_skill: ToolPermissions = Field(default_factory=ToolPermissions)
     
     allowlist: list[str] = Field(default_factory=lambda: ["*.md", "*.txt", "*.py", "*.js", "*.ts", "*.json", "*.yaml", "*.yml", "*.toml", "*.cfg", "*.ini"])

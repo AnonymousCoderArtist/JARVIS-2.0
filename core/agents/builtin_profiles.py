@@ -39,7 +39,7 @@ PLAN = AgentProfile(
             "save_memory": {"permission": "never"},
             "read_memory": {"permission": "never"},
             "fetch_webpage": {"permission": "never"},
-            "invoke_agent": {"permission": "never"},
+            "agents": {"permission": "never"},
             "activate_skill": {"permission": "never"},
         }
     },
@@ -93,7 +93,7 @@ EXPLORE = AgentProfile(
             "save_memory": {"permission": "never"},
             "read_memory": {"permission": "never"},
             "fetch_webpage": {"permission": "never"},
-            "invoke_agent": {"permission": "never"},
+            "agents": {"permission": "never"},
             "activate_skill": {"permission": "never"},
         },
         "system_prompt_id": "explore",

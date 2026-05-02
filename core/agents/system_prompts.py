@@ -411,7 +411,7 @@ Subagents are specialized agents that can handle specific types of tasks more ef
 
 ### Available Subagents
 
-**Explore Subagent** (invoke_agent with agent_name="explore"):
+**Explore Subagent** (agents with agent_name="explore"):
 - Specializes in codebase exploration and analysis
 - Understands project structure and architecture
 - Finds specific files, functions, or patterns

@@ -367,10 +367,10 @@ result = await explore_agent.process("Explore the authentication module and iden
 ```
 
 **Invoking via Tool:**
-The ExploreAgent can be invoked by the main agent using the `invoke_agent` tool:
+The ExploreAgent can be invoked by the main agent using the `agents` tool:
 ```python
 # Main agent can invoke explore subagent
-tool_result = await tool_registry.execute_tool("invoke_agent", {
+tool_result = await tool_registry.execute_tool("agents", {
     "agent_name": "explore",
     "prompt": "Find all files that handle user authentication"
 })
@@ -464,12 +464,12 @@ def rebuild_system_prompt(self):
 
 ## Agent Tools (`core/tools/agent_tools.py`)
 
-### InvokeAgentTool
+### AgentsTool
 Allows the agent to invoke specialized subagents programmatically (for future extensibility).
 
 ```python
 {
-    "name": "invoke_agent",
+    "name": "agents",
     "description": "Invoke a specialized agent for specific tasks",
     "parameters": {
         "agent_name": "Name of the subagent",

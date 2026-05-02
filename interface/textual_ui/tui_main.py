@@ -12,7 +12,7 @@ from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
-from core.tools.agent_tools import ActivateSkillTool, InvokeAgentTool
+from core.tools.agent_tools import ActivateSkillTool, AgentsTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
@@ -22,7 +22,7 @@ from core.tools.memory_tool import SaveMemoryTool
 from core.tools.registry import ToolRegistry
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
-from core.tools.web_tools import WebFetchTool
+from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
 
 from interface.textual_ui.app import run_textual_ui
 
@@ -141,12 +141,13 @@ def create_tool_registry() -> AsyncToolRegistry:
     
     # Register web tools
     tool_registry.register(WebFetchTool())
+    tool_registry.register(ExaWebSearchTool())
     
     # Register memory tools
     tool_registry.register(SaveMemoryTool())
     
     # Register agent tools
-    tool_registry.register(InvokeAgentTool())
+    tool_registry.register(AgentsTool())
     tool_registry.register(ActivateSkillTool())
     
     return tool_registry
