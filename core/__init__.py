@@ -1,3 +1,7 @@
 """JARVIS 2.0 Core Package"""
 
-__version__ = "2.0.0"
+# Import version from main jarvis package
+from jarvis import __version__
+
+__all__ = ["__version__"]
+

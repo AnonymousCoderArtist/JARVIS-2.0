@@ -26,8 +26,8 @@ class FileReadTool(BaseTool):
 ```json
 {
   "files": [
-    {"file_path": "/path/to/file.py", "offset": 1, "limit": 100},
-    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 50}
+    {"file_path": "/path/to/file.py", "offset": 1, "limit": 10},
+    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 10}
   ]
 }
 ```
@@ -35,8 +35,8 @@ class FileReadTool(BaseTool):
 **PARAMETERS:**
 - `files`: Array of file objects (required)
   - `file_path`: Absolute path to the file to read (required)
-  - `offset`: 1-based line number to start reading from (default: 1)
-  - `limit`: Maximum number of lines to read (default: all lines, max 2000)
+  - `offset`: 1-based line number to start reading from (required)
+  - `limit`: Maximum number of lines to read (required, default: 10, max: 1000)
 - `encoding`: Character encoding for reading files (default: utf-8)
 
 **BEHAVIOR:**
@@ -64,14 +64,14 @@ class FileReadTool(BaseTool):
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of lines to read (default: all lines, max 2000)",
+                            "description": "Maximum number of lines to read (default: 10, max: 1000)",
                             "minimum": 1
                         }
                     },
-                    "required": ["file_path"]
+                    "required": ["file_path", "offset", "limit"]
                 },
                 "minItems": 1,
-                "description": "Array of file objects with file_path, offset (optional), and limit (optional)"
+                "description": "Array of file objects with file_path, offset, and limit"
             },
             "encoding": {
                 "type": "string",
@@ -86,7 +86,12 @@ class FileReadTool(BaseTool):
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file read operation with granular checks"""
         files = args.get("files", [])
-        if files and isinstance(files, list) and len(files) > 0:
+        
+        # Handle case where files is not a list (e.g., passed as string)
+        if not isinstance(files, list):
+            return None
+        
+        if files and len(files) > 0:
             first_file = files[0]
             file_path = first_file.get("file_path") if isinstance(first_file, dict) else None
         else:
@@ -123,11 +128,26 @@ class FileReadTool(BaseTool):
             if not isinstance(encoding, str):
                 encoding = "utf-8"
 
-            if not files or not isinstance(files, list) or len(files) == 0:
+            # Validate files is a list
+            if files is None:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path'. Each file object can optionally include 'offset' and 'limit'."
+                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
+                )
+            
+            if not isinstance(files, list):
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid files format: expected a list of file objects with file_path, offset, and limit fields, got a string instead"
+                )
+            
+            if len(files) == 0:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
                 )
 
             return await self._execute_files_array(files, encoding)
@@ -149,9 +169,13 @@ class FileReadTool(BaseTool):
 
         async def read_single_file(file_obj, index: int) -> tuple | None:
             try:
-                fp = file_obj.get("file_path") if isinstance(file_obj, dict) else file_obj
-                off = file_obj.get("offset") if isinstance(file_obj, dict) else None
-                lim = file_obj.get("limit") if isinstance(file_obj, dict) else None
+                # Validate file_obj is a dict
+                if not isinstance(file_obj, dict):
+                    return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path, offset, and limit, got {type(file_obj).__name__}", None, None)
+                
+                fp = file_obj.get("file_path")
+                off = file_obj.get("offset")
+                lim = file_obj.get("limit")
 
                 if not isinstance(fp, str) or not fp:
                     return (None, None, f"File {index + 1}: Missing or invalid file_path", None, None)
@@ -167,14 +191,14 @@ class FileReadTool(BaseTool):
                 start_idx = (off - 1) if off is not None and isinstance(off, int) and off > 0 else 0
                 if lim is not None:
                     if not isinstance(lim, int) or lim < 1:
-                        lim = 100
+                        lim = 10
                     end_idx = start_idx + lim
                 else:
                     end_idx = total_lines
 
-                # Truncate at 2000 lines
-                if end_idx - start_idx > 2000:
-                    end_idx = start_idx + 2000
+                # Cap at 1000 lines to prevent abuse
+                if end_idx - start_idx > 1000:
+                    end_idx = start_idx + 1000
 
                 start_idx = max(0, min(start_idx, total_lines))
                 end_idx = max(0, min(end_idx, total_lines))

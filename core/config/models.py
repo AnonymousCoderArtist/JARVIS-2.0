@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 class AppSettings(BaseModel):
     name: str = "JARVIS"
-    version: str = "2.0.0"
+    version: str = "2.0.1"
     debug: bool = False
     installed_agents: list[str] = Field(default_factory=list)
 
@@ -51,7 +51,7 @@ class ToolSettings(BaseModel):
     read_background_output: ToolPermissions = Field(default_factory=ToolPermissions)
     save_memory: ToolPermissions = Field(default_factory=ToolPermissions)
     fetch_webpage: ToolPermissions = Field(default_factory=ToolPermissions)
-    invoke_agent: ToolPermissions = Field(default_factory=ToolPermissions)
+    agents: ToolPermissions = Field(default_factory=ToolPermissions)
     activate_skill: ToolPermissions = Field(default_factory=ToolPermissions)
     
     allowlist: list[str] = Field(default_factory=lambda: ["*.md", "*.txt", "*.py", "*.js", "*.ts", "*.json", "*.yaml", "*.yml", "*.toml", "*.cfg", "*.ini"])

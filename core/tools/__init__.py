@@ -1,7 +1,7 @@
 """Tools Package"""
 
 # Agent and Skill tools
-from .agent_tools import ActivateSkillTool, InvokeAgentTool
+from .agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
 
 # Permission system
 from .permissions import (
@@ -36,7 +36,7 @@ from .registry import ToolRegistry
 from .repl_tool import REPLTool
 
 # Web tools
-from .web_tools import WebFetchTool
+from .web_tools import WebFetchTool, ExaWebSearchTool
 
 __all__ = [
     "BaseTool",
@@ -60,10 +60,12 @@ __all__ = [
     "ReadBackgroundOutputTool",
     # Web tools
     "WebFetchTool",  # fetch_webpage
+    "ExaWebSearchTool",  # web_search
     # Memory tools
     "SaveMemoryTool",
     "ReadMemoryTool",
     # Agent tools
-    "InvokeAgentTool",
+    "AgentsTool",
     "ActivateSkillTool",
+    "AgentStatusTool",
 ]

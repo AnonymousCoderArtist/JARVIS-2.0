@@ -77,6 +77,7 @@ from interface.textual_ui.widgets.compact import CompactMessage
 from interface.textual_ui.widgets.config_app import ConfigApp
 from interface.textual_ui.widgets.connector_auth_app import ConnectorAuthApp
 from interface.textual_ui.widgets.context_progress import ContextProgress, TokenState
+from core.llm_sdk.context_length_manager import context_length_manager
 from interface.textual_ui.widgets.debug_console import DebugConsole
 from interface.textual_ui.widgets.feedback_bar import FeedbackBar
 from interface.textual_ui.widgets.feedback_bar_manager import FeedbackBarManager
@@ -503,16 +504,27 @@ class VibeApp(App):  # noqa: PLR0904
             is_remote=self._remote_manager.is_active,
         )
 
+        # Load model limits from API in background (runs in its own thread)
+        self._load_model_limits()
+
         self._chat_input_container = self.query_one(ChatInputContainer)
         context_progress = self.query_one(ContextProgress)
 
         def update_context_progress(stats: AgentStats) -> None:
+            # Get actual model context limits from context_length_manager
+            model_name = getattr(self.agent_loop.agent, 'model', 'gpt-4o')
+            limits = context_length_manager.get_token_limits(model_name)
+            max_tokens = limits.total_context_tokens
+            
+            # Use actual prompt_tokens from the provider, or 0 if not available
+            current_tokens = stats.prompt_tokens if stats.prompt_tokens > 0 else 0
+            
             context_progress.tokens = TokenState(
-                max_tokens=16000,  # Default auto_compact_threshold
-                current_tokens=stats.context_tokens,
+                max_tokens=max_tokens,
+                current_tokens=current_tokens,
             )
 
-        self.agent_loop.stats.add_listener("context_tokens", update_context_progress)
+        self.agent_loop.stats.add_listener("prompt_tokens", update_context_progress)
         self.agent_loop.stats.trigger_listeners()
 
         self.agent_loop.set_approval_callback(self._approval_callback)
@@ -549,6 +561,11 @@ class VibeApp(App):  # noqa: PLR0904
                 markup=False,
                 timeout=10,
             )
+
+    def _load_model_limits(self) -> None:
+        """Load model limits from models.dev API in background."""
+        # This runs in a background thread internally
+        context_length_manager.load_model_limits()
 
     async def _watch_init_completion(self) -> None:
         """Show 'Initializing' loading indicator until background init finishes."""
@@ -1944,7 +1961,7 @@ class VibeApp(App):  # noqa: PLR0904
                 )
             )
 
-    async def _compact_history(self, cmd_args: str = "", **kwargs: Any) -> None:
+    async def _compact_history(self, cmd_args: str = "", auto_triggered: bool = False, **kwargs: Any) -> None:
         if self._agent_running:
             await self._mount_and_scroll(
                 ErrorMessage(
@@ -1967,22 +1984,36 @@ class VibeApp(App):  # noqa: PLR0904
             return
 
         old_tokens = self.agent_loop.stats.context_tokens
-        compact_msg = CompactMessage()
+        compact_msg = CompactMessage(auto_triggered=auto_triggered)
         self.event_handler.current_compact = compact_msg
         await self._mount_and_scroll(compact_msg)
 
         self._agent_task = asyncio.create_task(
-            self._run_compact(compact_msg, old_tokens, cmd_args.strip())
+            self._run_compact(compact_msg, old_tokens, cmd_args.strip(), auto_triggered=auto_triggered)
         )
 
     async def _run_compact(
-        self, compact_msg: CompactMessage, old_tokens: int, extra_instructions: str = ""
+        self, compact_msg: CompactMessage, old_tokens: int, extra_instructions: str = "",
+        auto_triggered: bool = False
     ) -> None:
         self._agent_running = True
         try:
-            await self.agent_loop.compact(extra_instructions=extra_instructions)
+            result = await self.agent_loop.compact(
+                extra_instructions=extra_instructions,
+                auto_triggered=auto_triggered
+            )
             new_tokens = self.agent_loop.stats.context_tokens
-            compact_msg.set_complete(old_tokens=old_tokens, new_tokens=new_tokens)
+            compact_msg.set_complete(
+                old_tokens=old_tokens,
+                new_tokens=new_tokens,
+                auto_triggered=auto_triggered
+            )
+            if auto_triggered:
+                self.notify(
+                    f"Auto-compacted: {old_tokens - new_tokens} tokens saved",
+                    title="Auto-Compaction",
+                    severity="information"
+                )
 
         except asyncio.CancelledError:
             compact_msg.set_error("Compaction interrupted")
@@ -1994,6 +2025,13 @@ class VibeApp(App):  # noqa: PLR0904
             self._agent_task = None
             if self.event_handler:
                 self.event_handler.current_compact = None
+
+    def action_compact(self, extra_instructions: str = "") -> None:
+        """Manually trigger compaction."""
+        if self._agent_running:
+            self.notify("Cannot compact while agent is running", title="Compaction", severity="warning")
+            return
+        self._agent_loop._ = asyncio.create_task(self._compact_history(extra_instructions))
 
     def _get_session_resume_info(self) -> str | None:
         if self._remote_manager.is_active:

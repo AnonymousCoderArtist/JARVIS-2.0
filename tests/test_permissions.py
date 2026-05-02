@@ -9,7 +9,7 @@ import pytest
 
 from core.agents.base import BaseAgent
 from core.config.settings import Settings
-from core.tools.agent_tools import InvokeAgentTool
+from core.tools.agent_tools import AgentsTool
 from core.tools.base import BaseTool, ToolInput, ToolOutput
 from core.tools.file_tools import FileReadTool, GlobTool, ListDirectoryTool
 from core.tools.grep_tool import GrepSearchTool
@@ -146,7 +146,7 @@ async def test_session_allow_applies_to_generic_tools(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_invoke_agent_applies_explore_profile_to_subagent(monkeypatch) -> None:
+async def test_agents_applies_explore_profile_to_subagent(monkeypatch) -> None:
     import core.agents as agents_module
 
     captured: dict[str, object] = {}
@@ -175,13 +175,13 @@ async def test_invoke_agent_applies_explore_profile_to_subagent(monkeypatch) -> 
             "list_dir": ListDirectoryTool(),
             "glob": GlobTool(),
             "grep": GrepSearchTool(),
-            "invoke_agent": MagicMock(),
+            "agents": MagicMock(),
             "bash": MagicMock(),
         }
     )
     registry.execute_tool = MagicMock(return_value=ToolOutput(success=True, result="ok"))
 
-    tool = InvokeAgentTool(tool_registry=registry, llm_provider=MagicMock(), model="gpt-4o")
+    tool = AgentsTool(tool_registry=registry, llm_provider=MagicMock(), model="gpt-4o")
 
     result = await tool.execute(
         ToolInput.model_validate({"agent_name": "explore", "prompt": "inspect the repo"})
@@ -193,5 +193,5 @@ async def test_invoke_agent_applies_explore_profile_to_subagent(monkeypatch) -> 
     subagent_config = captured["config"]
     assert isinstance(subagent_config, Settings)
     assert subagent_config.tools["read"]["permission"] == "always"
-    assert subagent_config.tools["invoke_agent"]["permission"] == "never"
+    assert subagent_config.tools["agents"]["permission"] == "never"
     assert captured["tool_names"] == ["read", "list_dir", "glob", "grep"]

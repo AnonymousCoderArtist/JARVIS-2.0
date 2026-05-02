@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from collections import deque
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, TypeAlias, cast
 
@@ -69,6 +73,112 @@ class TelemetryClient:
         pass
 
 
+# ============================================================================
+# Compaction System
+# ============================================================================
+
+class CompactionStrategy(Enum):
+    """Compaction strategies for different modes."""
+    AGGRESSIVE = "aggressive"   # Summarize more aggressively, keep fewer messages
+    BALANCED = "balanced"       # Default: good balance of detail and tokens
+    CONSERVATIVE = "conservative"  # Only compact when needed, keep more history
+
+
+class MessageType(Enum):
+    """Types of messages for prioritization during compaction."""
+    SYSTEM = ("system", 8)
+    USER_IMPORTANT = ("user_important", 8)      # Initial user message, task definition
+    TOOL_RESULT_IMPORTANT = ("tool_result_important", 8)  # File write, test results, git ops
+    ASSISTANT_PLAN = ("assistant_plan", 7)       # Agent's plan/approach
+    USER_FOLLOWUP = ("user_followup", 6)         # User follow-ups
+    TOOL_RESULT_NORMAL = ("tool_result_normal", 5)  # Regular tool results
+    REASONING = ("reasoning", 4)                 # Thinking/reasoning blocks
+    FILE_READ = ("file_read", 4)                 # Read file results (redundant content)
+    GREP_RESULT = ("grep_result", 3)             # Search results (often long)
+    ASSISTANT_RESPONSE = ("assistant_response", 3)  # Regular chat response
+    BASH_SIMPLE = ("bash_simple", 2)             # Echo, ls, pwd
+    TOOL_RESULT_TRIVIAL = ("tool_result_trivial", 1)  # Test skip, trivial output
+
+    def __init__(self, label: str, priority: int):
+        self._value_ = label
+        self.priority = priority
+
+
+@dataclass
+class CompactionStats:
+    """Statistics for compaction operations."""
+    total_compactions: int = 0
+    auto_compactions: int = 0
+    manual_compactions: int = 0
+    total_tokens_saved: int = 0
+    last_compaction_time: datetime | None = None
+    last_compaction_tokens_before: int = 0
+    last_compaction_tokens_after: int = 0
+    compaction_history: deque[tuple[datetime, str, int, int]] = field(default_factory=lambda: deque(maxlen=20))
+    compaction_warnings_issued: int = 0
+    compaction_errors: int = 0
+
+    def record_compaction(self, auto: bool, tokens_before: int, tokens_after: int) -> None:
+        self.total_compactions += 1
+        if auto:
+            self.auto_compactions += 1
+        else:
+            self.manual_compactions += 1
+        saved = tokens_before - tokens_after
+        self.total_tokens_saved += saved
+        self.last_compaction_time = datetime.now()
+        self.last_compaction_tokens_before = tokens_before
+        self.last_compaction_tokens_after = tokens_after
+        reason = "auto" if auto else "manual"
+        self.compaction_history.append((datetime.now(), reason, tokens_before, tokens_after))
+
+    def record_warning(self) -> None:
+        self.compaction_warnings_issued += 1
+
+    def record_error(self) -> None:
+        self.compaction_errors += 1
+
+
+@dataclass
+class ContextWindowState:
+    """Current state of the context window."""
+    current_tokens: int = 0
+    max_tokens: int = 0
+    threshold_pct: float = 0.8   # Auto-compact at 80% by default
+    warning_pct: float = 0.7     # Warn at 70%
+    critical_pct: float = 0.9    # Critical at 90%
+    messages_count: int = 0
+    last_check: float = 0.0
+
+    @property
+    def usage_ratio(self) -> float:
+        if self.max_tokens == 0:
+            return 0.0
+        return self.current_tokens / self.max_tokens
+
+    @property
+    def should_warn(self) -> bool:
+        return self.usage_ratio >= self.warning_pct
+
+    @property
+    def should_auto_compact(self) -> bool:
+        return self.usage_ratio >= self.threshold_pct
+
+    @property
+    def is_critical(self) -> bool:
+        return self.usage_ratio >= self.critical_pct
+
+    @property
+    def status(self) -> str:
+        if self.is_critical:
+            return "critical"
+        elif self.should_warn:
+            return "warning"
+        elif self.should_auto_compact:
+            return "compaction_ready"
+        return "ok"
+
+
 @dataclass
 class Stats(AgentStats):
     """Statistics tracker using JARVIS agent data."""
@@ -78,6 +188,7 @@ class Stats(AgentStats):
     session_total_llm_tokens: int = 0
     last_turn_total_tokens: int = 0
     session_cost: float = 0.0
+    context_tokens: int = 0  # Current context window size
     _listeners: dict[str, list[Callable[[Stats], None]]] = field(default_factory=dict)
     
     def add_listener(self, metric: str, callback: Callable[[Stats], None]) -> None:
@@ -96,32 +207,40 @@ class Stats(AgentStats):
                     pass
     
     def update_from_agent(self, agent: CodingAgent) -> None:
-        """Update stats from agent memory/context."""
-        # Try to get token info from agent if available
-        if hasattr(agent, 'memory'):
-            memory = agent.memory
-            if memory:
-                # Estimate tokens (rough approximation: 1 token ≈ 4 chars)
-                total_chars = sum(len(str(m.get('content', ''))) for m in memory)
-                self.context_tokens = total_chars // 4
-        
-        # Try to get token info from LLM provider if available
-        if hasattr(agent, 'llm') and hasattr(agent.llm, 'last_token_usage'):
-            # This is a bit dynamic as last_token_usage might not exist on all providers
-            usage = getattr(agent.llm, 'last_token_usage', {})
-            if isinstance(usage, dict):
-                p_tokens = int(usage.get('prompt_tokens', 0))
-                c_tokens = int(usage.get('completion_tokens', 0))
-                self.prompt_tokens = p_tokens
-                self.completion_tokens = c_tokens
-                self.total_tokens = p_tokens + c_tokens
-                
-                # Update session totals
-                self.session_prompt_tokens += p_tokens
-                self.session_completion_tokens += c_tokens
-                self.session_total_llm_tokens += (p_tokens + c_tokens)
-                self.last_turn_total_tokens = p_tokens + c_tokens
-                self.steps += 1
+        """Update stats from agent using actual token counts from LLM provider."""
+        p_tokens = 0
+        c_tokens = 0
+
+        # Get token usage from LLM provider
+        if hasattr(agent, 'llm'):
+            # Try to get usage using get_and_clear_usage (handles both streaming and non-streaming)
+            if hasattr(agent.llm, 'get_and_clear_usage'):
+                usage = agent.llm.get_and_clear_usage()
+                if usage and isinstance(usage, dict):
+                    p_tokens = int(usage.get('prompt_tokens', usage.get('input_tokens', 0)))
+                    c_tokens = int(usage.get('completion_tokens', usage.get('output_tokens', 0)))
+            # Fallback: check last_token_usage directly (non-streaming)
+            elif hasattr(agent.llm, 'last_token_usage'):
+                usage = agent.llm.last_token_usage
+                if usage and isinstance(usage, dict):
+                    p_tokens = int(usage.get('prompt_tokens', usage.get('input_tokens', 0)))
+                    c_tokens = int(usage.get('completion_tokens', usage.get('output_tokens', 0)))
+
+        # Update stats only if we have actual token counts
+        if p_tokens > 0 or c_tokens > 0:
+            self.prompt_tokens = p_tokens
+            self.completion_tokens = c_tokens
+            self.total_tokens = p_tokens + c_tokens
+
+            # Update session totals
+            self.session_prompt_tokens += p_tokens
+            self.session_completion_tokens += c_tokens
+            self.session_total_llm_tokens += (p_tokens + c_tokens)
+            self.last_turn_total_tokens = p_tokens + c_tokens
+            self.steps += 1
+
+            # Update context tokens for compaction tracking
+            self.context_tokens = self.session_prompt_tokens
 
 
 @dataclass
@@ -174,6 +293,19 @@ class AgentLoop:
         self.session_id: str | None = None
         self.parent_session_id: str | None = None
         self.rewind_manager = RewindManagerAdapter()
+
+        # ====================================================================
+        # Compaction System
+        # ====================================================================
+        self.compaction_stats = CompactionStats()
+        self.context_window = ContextWindowState(
+            max_tokens=config.max_tokens if hasattr(config, 'max_tokens') else 200000
+        )
+        self._compaction_strategy = CompactionStrategy.BALANCED
+        self._last_compaction_check: float = 0.0
+        self._auto_compaction_enabled: bool = True
+        self._compaction_in_progress: bool = False
+        self._compaction_callback: Callable[[dict[str, Any]], None] | None = None
 
         # Integration with JARVIS's actual memory system
         self._approval_callback: Callable[[str, dict[str, Any], str, list[Any]], bool] | None = None
@@ -240,10 +372,225 @@ class AgentLoop:
         """Clear agent history."""
         self.agent.clear_memory()
 
-    async def compact(self, extra_instructions: str | None = None) -> None:
-        """Compact conversation history."""
-        # Stub for compaction
-        pass
+    async def compact(
+        self,
+        extra_instructions: str | None = None,
+        auto_triggered: bool = False,
+        strategy: CompactionStrategy | None = None
+    ) -> dict[str, Any]:
+        """
+        Compact conversation history using LLM summarization.
+
+        Args:
+            extra_instructions: Additional instructions for summarization
+            auto_triggered: Whether this was triggered automatically
+            strategy: Compaction strategy to use
+
+        Returns:
+            Dict with compaction results: {tokens_before, tokens_after, saved, summary}
+        """
+        if self._compaction_in_progress:
+            return {"error": "Compaction already in progress"}
+
+        self._compaction_in_progress = True
+        tokens_before = self.stats.context_tokens
+        messages_before = len(self.agent.memory)
+
+        try:
+            strategy = strategy or self._compaction_strategy
+            summary = await self._run_llm_summarization(extra_instructions, strategy)
+
+            # Clear old memory and store summary
+            self.agent.clear_memory()
+            self.agent.add_to_memory({"content": summary})
+
+            # Update stats
+            tokens_after = self.stats.context_tokens
+            self.compaction_stats.record_compaction(
+                auto=auto_triggered,
+                tokens_before=tokens_before,
+                tokens_after=tokens_after
+            )
+
+            # Emit event if callback set
+            if self._compaction_callback:
+                self._compaction_callback({
+                    "type": "compaction_complete",
+                    "auto_triggered": auto_triggered,
+                    "tokens_before": tokens_before,
+                    "tokens_after": tokens_after,
+                    "saved": tokens_before - tokens_after,
+                    "messages_before": messages_before,
+                    "summary_length": len(summary)
+                })
+
+            return {
+                "success": True,
+                "tokens_before": tokens_before,
+                "tokens_after": tokens_after,
+                "saved": tokens_before - tokens_after,
+                "summary": summary[:200] + "..." if len(summary) > 200 else summary
+            }
+
+        except Exception as e:
+            self.compaction_stats.record_error()
+            return {"error": str(e)}
+        finally:
+            self._compaction_in_progress = False
+
+    async def _run_llm_summarization(
+        self,
+        extra_instructions: str | None,
+        strategy: CompactionStrategy
+    ) -> str:
+        """Run LLM-based summarization of conversation history."""
+        messages = self.messages
+
+        if not messages:
+            return "No conversation history to summarize."
+
+        # Build summarization prompt based on strategy
+        system_prompt = self._get_compaction_system_prompt(strategy)
+        user_prompt = self._build_compaction_user_prompt(messages, extra_instructions)
+
+        # Use the agent's LLM provider
+        response = await self.agent.llm.create_chat_completion(
+            model=self.agent.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=4000,
+            temperature=0.3
+        )
+
+        return response.choices[0].message.content or "Summarization failed."
+
+    def _get_compaction_system_prompt(self, strategy: CompactionStrategy) -> str:
+        """Get system prompt for summarization based on strategy."""
+        base = """You are a conversation summarizer. Create a concise, comprehensive summary of the conversation history.
+
+Key requirements:
+- Preserve all important decisions, code changes, and task progress
+- Keep technical details, file paths, and specific instructions
+- Maintain user intent and agent responses
+- Focus on what was accomplished and what remains to do
+- Format as a clear, readable narrative"""
+
+        if strategy == CompactionStrategy.AGGRESSIVE:
+            base += "\n- Be very concise. Aim for 500-800 tokens total."
+        elif strategy == CompactionStrategy.CONSERVATIVE:
+            base += "\n- Be thorough. Keep more details than aggressive mode."
+        else:
+            base += "\n- Aim for 1000-1500 tokens."
+
+        return base
+
+    def _build_compaction_user_prompt(self, messages: list[LLMMessage], extra: str | None) -> str:
+        """Build the user prompt for summarization."""
+        # Take last N messages (or all if few)
+        max_messages = 20 if self._compaction_strategy != CompactionStrategy.AGGRESSIVE else 10
+        relevant_messages = messages[-max_messages:]
+
+        msg_text = "\n\n".join(
+            f"{m.role.value.upper()}: {m.content[:500]}"
+            for m in relevant_messages
+        )
+
+        prompt = f"""Summarize the following conversation history:
+
+{msg_text}
+
+Create a comprehensive summary that captures:
+1. What has been accomplished so far
+2. Current state of work
+3. Any pending tasks or decisions
+4. Key technical details that should be preserved
+
+{extra or ""}"""
+
+        return prompt
+
+    def check_auto_compaction(self) -> dict[str, Any] | None:
+        """
+        Check if auto-compaction should be triggered.
+
+        Returns:
+            Dict with warning info if action needed, None if OK
+        """
+        current_time = time.time()
+
+        # Throttle checks to once per second
+        if current_time - self._last_compaction_check < 1.0:
+            return None
+
+        self._last_compaction_check = current_time
+
+        # Update context window state
+        self.context_window.current_tokens = self.stats.context_tokens
+        self.context_window.messages_count = len(self.agent.memory)
+
+        # Check thresholds
+        if self.context_window.is_critical:
+            return {
+                "status": "critical",
+                "message": f"Context window at {self.context_window.usage_ratio:.1%} capacity. Immediate compaction recommended.",
+                "action": "compact"
+            }
+        elif self.context_window.should_warn:
+            self.compaction_stats.record_warning()
+            return {
+                "status": "warning",
+                "message": f"Context window at {self.context_window.usage_ratio:.1%} capacity. Consider compacting soon.",
+                "action": "warn"
+            }
+
+        return None
+
+    async def maybe_auto_compact(self) -> bool:
+        """
+        Check and perform auto-compaction if needed.
+
+        Returns:
+            True if compaction was performed, False otherwise
+        """
+        if not self._auto_compaction_enabled:
+            return False
+
+        if self._compaction_in_progress:
+            return False
+
+        warning = self.check_auto_compaction()
+        if warning and warning.get("status") in ("critical", "warning"):
+            # Perform auto-compaction
+            result = await self.compact(auto_triggered=True)
+            return result.get("success", False)
+
+        return False
+
+    def set_compaction_strategy(self, strategy: CompactionStrategy) -> None:
+        """Set the compaction strategy."""
+        self._compaction_strategy = strategy
+
+    def enable_auto_compaction(self, enabled: bool = True) -> None:
+        """Enable or disable auto-compaction."""
+        self._auto_compaction_enabled = enabled
+
+    def get_compaction_stats(self) -> dict[str, Any]:
+        """Get compaction statistics."""
+        return {
+            "total_compactions": self.compaction_stats.total_compactions,
+            "auto_compactions": self.compaction_stats.auto_compactions,
+            "manual_compactions": self.compaction_stats.manual_compactions,
+            "total_tokens_saved": self.compaction_stats.total_tokens_saved,
+            "last_compaction": self.compaction_stats.last_compaction_time,
+            "context_window": {
+                "current_tokens": self.context_window.current_tokens,
+                "max_tokens": self.context_window.max_tokens,
+                "usage_ratio": self.context_window.usage_ratio,
+                "status": self.context_window.status
+            }
+        }
 
     async def wait_until_ready(self) -> None:
         """Wait until agent is ready."""
@@ -481,6 +828,15 @@ class AgentLoop:
             self.stats.update_from_agent(self.agent)
             self.stats.trigger_listeners()
 
+            # Check for auto-compaction if enabled
+            if self._auto_compaction_enabled:
+                try:
+                    compaction_result = await self.maybe_auto_compact()
+                    if compaction_result:
+                        yield f"[Auto-compacted conversation: saved ~{self.compaction_stats.last_compaction_tokens_before - self.compaction_stats.last_compaction_tokens_after} tokens]"
+                except Exception:
+                    self.compaction_stats.record_error()
+
         finally:
             self._is_running = False
             self.agent.stream_callback = None
@@ -577,10 +933,20 @@ class AgentLoop:
             self.stats.update_from_agent(self.agent)
             self.stats.trigger_listeners()
 
+            # Check for auto-compaction if enabled
+            if self._auto_compaction_enabled:
+                try:
+                    compaction_result = await self.maybe_auto_compact()
+                    if compaction_result:
+                        yield AssistantEvent(content=f"[Auto-compacted conversation: saved ~{self.compaction_stats.last_compaction_tokens_before - self.compaction_stats.last_compaction_tokens_after} tokens]")
+                except Exception as e:
+                    # Log but don't fail the main task
+                    self.compaction_stats.record_error()
+
         finally:
             self._is_running = False
             self.agent.stream_callback = None
-    
+
     async def run(self) -> None:
         """Run the agent loop (not used in TUI mode)."""
         pass

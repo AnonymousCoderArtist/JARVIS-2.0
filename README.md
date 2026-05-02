@@ -266,7 +266,7 @@ JARVIS comes with 14+ built-in tools for comprehensive task handling:
 |------|-------------|
 | `save_memory` | Save information to memory |
 | `read_memory` | Read from memory |
-| `invoke_agent` | Invoke the Explore subagent for codebase analysis |
+| `agents` | Invoke subagents for specialized tasks |
 | `activate_skill` | Activate specialized skills |
 
 ---

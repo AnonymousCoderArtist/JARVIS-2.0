@@ -2,13 +2,13 @@
 
 
 from .base import BaseAgent
-from .system_prompts import JARVIS_SYSTEM_PROMPT
+from .system_prompts import JARVIS_V2_SYSTEM_PROMPT
 
 
 class CodingAgent(BaseAgent):
     """JARVIS - Single agent for all tasks"""
 
-    SYSTEM_PROMPT = JARVIS_SYSTEM_PROMPT
+    SYSTEM_PROMPT = JARVIS_V2_SYSTEM_PROMPT
 
     def __init__(self, llm_provider, tool_registry, model: str | None = None, config_getter=None, bypass_tool_permissions: bool = False, use_concurrent_tools: bool = True):
         super().__init__(llm_provider, tool_registry, self.SYSTEM_PROMPT, model, config_getter, bypass_tool_permissions, use_concurrent_tools)

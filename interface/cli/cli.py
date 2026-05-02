@@ -27,7 +27,7 @@ from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tools import ActivateSkillTool, InvokeAgentTool
+from core.tools.agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
@@ -37,7 +37,7 @@ from core.tools.memory_tool import SaveMemoryTool, ReadMemoryTool
 from core.tools.registry import ToolRegistry
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
-from core.tools.web_tools import WebFetchTool
+from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
 
 from .display import DisplayManager, StreamingResponse
 from .commands import CommandHandler
@@ -187,9 +187,11 @@ class CLIInterface:
         self.tool_registry.register(ListBackgroundProcessesTool())
         self.tool_registry.register(ReadBackgroundOutputTool())
         self.tool_registry.register(WebFetchTool())
+        self.tool_registry.register(ExaWebSearchTool())
         self.tool_registry.register(SaveMemoryTool())
         self.tool_registry.register(ReadMemoryTool())
-        self.tool_registry.register(InvokeAgentTool())
+        self.tool_registry.register(AgentsTool())
+        self.tool_registry.register(AgentStatusTool())
         self.tool_registry.register(ActivateSkillTool())
 
     def _initialize_agents(self):
