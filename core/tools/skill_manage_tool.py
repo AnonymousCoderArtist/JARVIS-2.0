@@ -51,14 +51,14 @@ def parse_skill_file(content: str) -> dict[str, Any]:
 def create_skill_markdown(name: str, description: str, when_to_use: str, 
                          when_not_to_use: str, procedure: str, 
                          pitfalls: str = "", verification: str = "",
-                         version: str = "1.0.0", platforms: list[str] = None,
-                         category: str = "general", tags: list[str] = None,
-                         requires_toolsets: list[str] = None) -> str:
+                         version: str = "1.0.0", platforms: list[str] | None = None,
+                         category: str = "general", tags: list[str] | None = None,
+                         requires_toolsets: list[str] | None = None) -> str:
     """Create SKILL.md content following agentskills.io standard"""
     
-    platforms = platforms or ["macos", "linux", "windows"]
-    tags = tags or []
-    requires_toolsets = requires_toolsets or []
+    platforms = platforms if platforms is not None else ["macos", "linux", "windows"]
+    tags = tags if tags is not None else []
+    requires_toolsets = requires_toolsets if requires_toolsets is not None else []
     
     # Build frontmatter
     frontmatter = {

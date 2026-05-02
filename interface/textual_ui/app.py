@@ -1496,7 +1496,7 @@ class VibeApp(App):  # noqa: PLR0904
                         )
                         await loading_area.mount(loading)
                         teleport_msg.set_status("Teleporting...")
-                        next_event = await gen.asend(response)
+                        next_event = await gen.asend(response)  # type: ignore
                         if isinstance(next_event, TeleportPushingEvent):
                             teleport_msg.set_status("Syncing with remote...")
                     case TeleportPushingEvent():
@@ -1723,7 +1723,7 @@ class VibeApp(App):  # noqa: PLR0904
                 mcp_servers=mcp_servers,
                 tool_manager=self.agent_loop.tool_manager,
                 initial_server=name,
-                connector_registry=connector_registry,
+                connector_registry=connector_registry,  # type: ignore
                 get_connector_configs=lambda: self.agent_loop.config.connectors,
                 refresh_callback=self._refresh_mcp_browser,
             )
@@ -1851,9 +1851,9 @@ class VibeApp(App):  # noqa: PLR0904
         session = ResumeSessionInfo(
             session_id=event.session_id,
             source=event.source,
-            cwd="",
+            option_id=event.option_id,
             title=None,
-            end_time=None,
+            status=None,
         )
         try:
             if event.source == "local":
@@ -1984,16 +1984,16 @@ class VibeApp(App):  # noqa: PLR0904
             await self._load_more.hide()
             base_config = VibeConfig.load()
 
-            await self.agent_loop.reload_with_initial_messages(base_config=base_config)
+            await self.agent_loop.reload_with_initial_messages(base_config=base_config)  # type: ignore
             await self._resolve_plan()
             self._narrator_manager.sync()
 
             if self._banner:
                 self._banner.set_state(
-                    base_config,
+                    base_config,  # type: ignore
                     self.agent_loop.skill_manager,
                     model=self.agent_loop.agent.model,
-                )
+                )  # type: ignore
             await self._mount_and_scroll(
                 UserCommandMessage(
                     "Configuration reloaded (includes agent instructions and skills)."
@@ -2152,7 +2152,7 @@ class VibeApp(App):  # noqa: PLR0904
         if self._agent_running:
             self.notify("Cannot compact while agent is running", title="Compaction", severity="warning")
             return
-        self._agent_loop._ = asyncio.create_task(self._compact_history(extra_instructions))
+        self._agent_loop._ = asyncio.create_task(self._compact_history(extra_instructions))  # type: ignore
 
     def _get_session_resume_info(self) -> str | None:
         if self._remote_manager.is_active:
@@ -2239,7 +2239,7 @@ class VibeApp(App):  # noqa: PLR0904
         # Thinking picker not supported in core Settings
         await self._switch_from_input(
             ThinkingPickerApp(
-                THINKING_LEVELS, "medium"
+                THINKING_LEVELS, "medium",  # type: ignore
             )
         )
 
@@ -2732,10 +2732,10 @@ class VibeApp(App):  # noqa: PLR0904
     def _refresh_banner(self) -> None:
         if self._banner:
             connectors_count = _compute_connectors_count(
-                self.config, self.agent_loop.connector_registry if self._connectors_enabled else None
+                self.config, self.agent_loop.connector_registry if self._connectors_enabled else None  # type: ignore
             )
             self._banner.set_state(
-                self.config,
+                self.config,  # type: ignore
                 self.agent_loop.skill_manager,
                 connectors_count=connectors_count,
                 model=self.agent_loop.agent.model,

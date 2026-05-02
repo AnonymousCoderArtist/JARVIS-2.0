@@ -333,13 +333,15 @@ def get_approval_widget(tool_name: str, args: BaseModel | dict) -> ToolApprovalW
     widget_class = APPROVAL_WIDGETS.get(tool_name, ToolApprovalWidget)
     # Convert dict to appropriate BaseModel if needed
     if isinstance(args, dict):
+        from pydantic import create_model
         args_model_cls = ARGS_MODELS.get(tool_name)
         if args_model_cls:
             args = args_model_cls(**args)
         else:
             # Fallback: wrap in generic container
-            from pydantic import create_model
-            args = create_model("GenericArgs", **{k: (type(v), v) for k, v in args.items()})(**args)
+            field_definitions = {k: (type(v), ...) for k, v in args.items()}
+            GenericArgs = create_model("GenericArgs", **field_definitions)  # type: ignore
+            args = GenericArgs(**args)
     return widget_class(args)
 
 

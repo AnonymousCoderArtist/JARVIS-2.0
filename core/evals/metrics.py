@@ -36,7 +36,7 @@ class EvalResult:
 
     def __post_init__(self):
         if isinstance(self.metrics, dict):
-            self.metrics = EvalMetrics(**self.metrics)
+            self.metrics = EvalMetrics(**self.metrics)  # type: ignore
 
 
 class MetricsCollector:

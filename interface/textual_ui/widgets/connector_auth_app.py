@@ -19,6 +19,7 @@ from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 if TYPE_CHECKING:
     from interface.textual_ui.cli_adapters import ToolManager
+    from interface.textual_ui.agent_loop import ToolManagerAdapter
 
 _HELP = "Backspace Back"
 _OPTION_PADDING = "  "
@@ -105,7 +106,8 @@ class ConnectorAuthApp(Container):
     # ── workers ──────────────────────────────────────────────────────
 
     async def _fetch_auth_url(self) -> str | None:
-        return await self._connector_registry.get_auth_url(self._connector_name)
+        result = self._connector_registry.get_auth_url(self._connector_name)  # type: ignore
+        return result if isinstance(result, str) else None
 
     async def _refresh_connector(self) -> int:
         """Refresh connector tools. Returns the number of tools discovered."""

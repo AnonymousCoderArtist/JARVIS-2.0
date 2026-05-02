@@ -208,11 +208,9 @@ class DisplayManager:
         if self._streaming_content:
             parts.append(Markdown(self._streaming_content))
         
-        if parts:
+        if parts and self._live:
             if len(parts) > 1:
                 # Combine reasoning panel and content
-                self._live.update(Columns(parts, equal=False, expand=True))
-                # Actually, Columns might not be best for vertical stack
                 from rich.console import Group
                 self._live.update(Group(*parts))
             else:
@@ -359,19 +357,22 @@ class DisplayManager:
 
     def show_learned_preferences(self, preferences):
         """Display learned preferences from the learning system."""
-        from core.learn import LearnedPreferences
-        if isinstance(preferences, LearnedPreferences):
-            table = Table(show_header=True, header_style="primary", box=None)
-            table.add_column("Setting", style="info")
-            table.add_column("Value")
+        try:
+            from core.learn import LearningManager
+            if isinstance(preferences, dict):
+                table = Table(show_header=True, header_style="primary", box=None)
+                table.add_column("Setting", style="info")
+                table.add_column("Value")
 
-            table.add_row("Output Format", preferences.output_format)
-            table.add_row("Preferred Tools", ", ".join(preferences.preferred_tools) or "none")
-            table.add_row("Query Routing", str(len(preferences.query_routing)) + " rules")
-            table.add_row("Last Updated", str(preferences.last_updated)[:19])
+                table.add_row("Output Format", preferences.get("output_format", ""))
+                table.add_row("Preferred Tools", ", ".join(preferences.get("preferred_tools", [])) or "none")
+                table.add_row("Query Routing", str(len(preferences.get("query_routing", []))) + " rules")
+                table.add_row("Last Updated", str(preferences.get("last_updated", ""))[:19])
 
-            self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
-        else:
+                self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
+            else:
+                self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
+        except ImportError:
             self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
 
     def show_learning_metrics(self, metrics):

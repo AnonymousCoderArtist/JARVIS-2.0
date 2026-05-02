@@ -30,7 +30,7 @@ class SkillTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         """Activate a skill and return its content."""
-        skill_name = input_data.skill_name
+        skill_name = getattr(input_data, "skill_name", None)
 
         if not skill_name:
             return ToolOutput(

@@ -65,12 +65,12 @@ class FakeStreamingAgent:
         self.memory.clear()
 
     async def process(self, prompt: str) -> str:
-        self.reasoning_callback("thinking")
-        self.stream_callback("hel")
+        self.reasoning_callback("thinking")  # type: ignore
+        self.stream_callback("hel")  # type: ignore
         await asyncio.sleep(0)
-        self.stream_callback("lo")
-        self.tool_call_callback("fake_tool", {"x": 1})
-        self.tool_result_callback(
+        self.stream_callback("lo")  # type: ignore
+        self.tool_call_callback("fake_tool", {"x": 1})  # type: ignore
+        self.tool_result_callback(  # type: ignore
             "fake_tool",
             {"x": 1},
             ToolOutput(success=True, result="tool ok"),
@@ -80,10 +80,10 @@ class FakeStreamingAgent:
 
 
 class FakeNoToolsProvider:
-    async def generate_with_tools(self, *args, **kwargs):
+    async def generate_with_tools(self, *args, **kwargs):  # type: ignore
         raise RuntimeError("tools are not supported by this model")
 
-    async def generate(self, *args, **kwargs):
+    async def generate(self, *args, **kwargs):  # type: ignore
         if kwargs.get("stream"):
             async def stream():
                 yield {"type": "text", "content": "plain "}
@@ -99,14 +99,14 @@ class FakeNoToolsProvider:
 @pytest.mark.asyncio
 async def test_agent_loop_streams_chunks_without_duplicate_final_response() -> None:
     agent_loop = AgentLoop(
-        agent=FakeStreamingAgent(),
-        config=Config("gpt-4o", None, "test-key", "openai"),
+        agent=FakeStreamingAgent(),  # type: ignore
+        config=Config("gpt-4o", None, "test-key", "openai"),  # type: ignore
         tool_registry=create_tool_registry(),
     )
 
-    events = [event async for event in agent_loop.act("say hi")]
+    events = [event async for event in agent_loop.act("say hi")]  # type: ignore
 
-    assert [type(event) for event in events] == [
+    assert [type(event) for event in events] == [  # type: ignore
         UserMessageEvent,
         ReasoningEvent,
         AssistantEvent,
@@ -114,18 +114,18 @@ async def test_agent_loop_streams_chunks_without_duplicate_final_response() -> N
         ToolCallEvent,
         ToolResultEvent,
     ]
-    assert [event.content for event in events if isinstance(event, AssistantEvent)] == [
+    assert [event.content for event in events if isinstance(event, AssistantEvent)] == [  # type: ignore
         "hel",
         "lo",
     ]
-    assert [event.result for event in events if isinstance(event, ToolResultEvent)] == [
+    assert [event.result for event in events if isinstance(event, ToolResultEvent)] == [  # type: ignore
         "tool ok",
     ]
 
 
 @pytest.mark.asyncio
 async def test_core_agent_falls_back_when_model_rejects_tools() -> None:
-    agent = CodingAgent(FakeNoToolsProvider(), ToolRegistry(), model="fake-no-tools", config_getter=None)
+    agent = CodingAgent(FakeNoToolsProvider(), ToolRegistry(), model="fake-no-tools", config_getter=None)  # type: ignore
     chunks: list[str] = []
     agent.stream_callback = chunks.append
 
@@ -164,7 +164,7 @@ def test_system_prompt_includes_registered_tool_descriptions() -> None:
         description = "Example tool description."
         input_schema = {"type": "object", "properties": {}}
 
-    registry.register(ExampleTool())
+    registry.register(ExampleTool())  # type: ignore
     agent = CodingAgent(FakeNoToolsProvider(), registry, model="fake-no-tools", config_getter=None)
 
     assert "### example_tool" in agent.system_prompt
@@ -240,15 +240,15 @@ def test_tui_slash_command_argument_completion_suggests_matching_args() -> None:
 
 def test_vibe_app_provides_live_profile_argument_entries() -> None:
     agent_loop = AgentLoop(
-        agent=FakeStreamingAgent(),
-        config=Config("gpt-4o", None, "test-key", "openai"),
+        agent=FakeStreamingAgent(),  # type: ignore
+        config=Config("gpt-4o", None, "test-key", "openai"),  # type: ignore
         tool_registry=create_tool_registry(),
     )
     app = VibeApp(
-        agent_loop,
-        update_notifier=None,
-        update_cache_repository=None,
-        plan_offer_gateway=None,
+        agent_loop,  # type: ignore
+        update_notifier=None,  # type: ignore
+        update_cache_repository=None,  # type: ignore
+        plan_offer_gateway=None,  # type: ignore
     )
 
     entries = app._get_slash_argument_entries("/profile", "/profile ")
@@ -260,15 +260,15 @@ def test_vibe_app_provides_live_profile_argument_entries() -> None:
 @pytest.mark.asyncio
 async def test_tui_profile_command_arg_switches_profile() -> None:
     agent_loop = AgentLoop(
-        agent=FakeStreamingAgent(),
-        config=Config("gpt-4o", None, "test-key", "openai"),
+        agent=FakeStreamingAgent(),  # type: ignore
+        config=Config("gpt-4o", None, "test-key", "openai"),  # type: ignore
         tool_registry=create_tool_registry(),
     )
     app = VibeApp(
-        agent_loop,
-        update_notifier=None,
-        update_cache_repository=None,
-        plan_offer_gateway=None,
+        agent_loop,  # type: ignore
+        update_notifier=None,  # type: ignore
+        update_cache_repository=None,  # type: ignore
+        plan_offer_gateway=None,  # type: ignore
     )
 
     mounted_messages: list[str] = []
@@ -276,8 +276,8 @@ async def test_tui_profile_command_arg_switches_profile() -> None:
     async def capture_mount(widget) -> None:
         mounted_messages.append(getattr(widget, "_content", ""))
 
-    app._mount_and_scroll = capture_mount  # type: ignore[method-assign]
-    app._refresh_profile_widgets = lambda: None  # type: ignore[method-assign]
+    app._mount_and_scroll = capture_mount  # type: ignore
+    app._refresh_profile_widgets = lambda: None  # type: ignore
 
     await app._switch_to_profile_app(cmd_args="plan")
 
@@ -288,15 +288,15 @@ async def test_tui_profile_command_arg_switches_profile() -> None:
 @pytest.mark.asyncio
 async def test_vibe_app_submit_runs_agent_turn_and_renders_response() -> None:
     agent_loop = AgentLoop(
-        agent=FakeStreamingAgent(),
-        config=Config("gpt-4o", None, "test-key", "openai"),
+        agent=FakeStreamingAgent(),  # type: ignore
+        config=Config("gpt-4o", None, "test-key", "openai"),  # type: ignore
         tool_registry=create_tool_registry(),
     )
     app = VibeApp(
-        agent_loop,
-        update_notifier=None,
-        update_cache_repository=None,
-        plan_offer_gateway=None,
+        agent_loop,  # type: ignore
+        update_notifier=None,  # type: ignore
+        update_cache_repository=None,  # type: ignore
+        plan_offer_gateway=None,  # type: ignore
     )
 
     async with app.run_test(size=(100, 40)) as pilot:
@@ -307,7 +307,7 @@ async def test_vibe_app_submit_runs_agent_turn_and_renders_response() -> None:
         assert [message.get_content() for message in app.query(UserMessage)] == ["hi"]
         assert [
             message.get_content() for message in app.query(AssistantMessage)
-        ] == ["hello"]
+        ]  # type: ignore == ["hello"]
         assert list(app.query(ErrorMessage)) == []
         assert app._agent_running is False
         assert app._agent_task is None

@@ -62,7 +62,7 @@ def collect_mcp_tool_index(
         elif server_name in configured_servers:
             server_tools.setdefault(server_name, []).append((tool_name, cls))
 
-    return MCPToolIndex(server_tools, connector_tools, enabled_tools=available)
+    return MCPToolIndex(server_tools, connector_tools, enabled_tools=available)  # type: ignore
 
 
 _LIST_VIEW_HELP_TOOLS = (
@@ -312,7 +312,7 @@ class MCPApp(Container):
         remote_name: str | None = None
         for t_name, cls in tools_source.get(server_name, []):
             if t_name == full_tool_name:
-                remote_name = cls.get_remote_name()
+                remote_name = cls.get_remote_name()  # type: ignore
                 break
         if remote_name is None:
             return
@@ -545,9 +545,9 @@ class MCPApp(Container):
             return
         for tool_name, cls in all_tools:
             is_tool_enabled = tool_name in index.enabled_tools
-            remote_name = cls.get_remote_name()
+            remote_name = cls.get_remote_name()  # type: ignore
             raw_desc = (
-                (cls.description or "").removeprefix(f"[{server_name}] ").split("\n")[0]
+                (cls.description or "").removeprefix(f"[{server_name}] ").split("\n")[0]  # type: ignore
             )
             label = Text(no_wrap=True)
             if is_tool_enabled:

@@ -392,8 +392,10 @@ class CommandHandler:
     def _register_skill_command(self):
         """Register the /skill command for advanced skill management."""
         from core.skills.commands import SkillCommands
+        from core.skills import SkillManager
         
-        skill_commands = SkillCommands(self.skill_manager, self.display_manager)
+        skill_manager = self.skill_manager or SkillManager()
+        skill_commands = SkillCommands(skill_manager, self.display_manager)
         
         async def _cmd_skill(args: List[str]):
             if not args:

@@ -135,12 +135,12 @@ class GitHubSource(SkillSource):
     def __init__(self):
         super().__init__("github")
 
-    def install(self, repo_spec: str, dest_dir: Path) -> tuple[bool, str, dict[str, Any]]:
+    def install(self, skill_id: str, dest_dir: Path) -> tuple[bool, str, dict[str, Any]]:
         """Install a skill from a GitHub repository.
         
-        repo_spec format: owner/repo or owner/repo/path/to/skill
+        skill_id format: owner/repo or owner/repo/path/to/skill
         """
-        parts = repo_spec.split("/")
+        parts = skill_id.split("/")
         if len(parts) < 2:
             return False, "Invalid GitHub spec. Use: owner/repo or owner/repo/path", {}
 
@@ -166,8 +166,8 @@ class GitHubSource(SkillSource):
             # Handle single file or directory
             if isinstance(contents, dict):
                 # Single file
-                skill_id = Path(skill_path).stem if skill_path else repo
-                dest_skill_dir = dest_dir / skill_id
+                skill_name = Path(skill_path).stem if skill_path else repo
+                dest_skill_dir = dest_dir / skill_name
                 dest_skill_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Download the file
@@ -179,11 +179,12 @@ class GitHubSource(SkillSource):
                         "source": "github",
                         "file": str(dest_skill_dir / "SKILL.md"),
                     }
+                return False, "Could not download file", {}
 
             else:
                 # Directory - find SKILL.md files
-                skill_id = skill_path or repo
-                dest_skill_dir = dest_dir / skill_id
+                skill_name = skill_path or repo
+                dest_skill_dir = dest_dir / skill_name
                 dest_skill_dir.mkdir(parents=True, exist_ok=True)
 
                 for item in contents:
@@ -206,28 +207,28 @@ class LocalSource(SkillSource):
     def __init__(self):
         super().__init__("local")
 
-    def install(self, local_path: str, dest_dir: Path) -> tuple[bool, str, dict[str, Any]]:
+    def install(self, skill_id: str, dest_dir: Path) -> tuple[bool, str, dict[str, Any]]:
         """Install a skill from a local path."""
-        src_path = Path(local_path).expanduser().resolve()
+        src_path = Path(skill_id).expanduser().resolve()
         
         if not src_path.exists():
-            return False, f"Local path not found: {local_path}", {}
+            return False, f"Local path not found: {skill_id}", {}
 
         try:
             if src_path.is_file():
                 # Single file
-                skill_id = src_path.stem
-                dest_skill_dir = dest_dir / skill_id
+                skill_name = src_path.stem
+                dest_skill_dir = dest_dir / skill_name
                 dest_skill_dir.mkdir(parents=True, exist_ok=True)
                 (dest_skill_dir / "SKILL.md").write_text(src_path.read_text())
-                return True, f"Installed skill from {local_path}", {
+                return True, f"Installed skill from {skill_id}", {
                     "source": "local",
                     "file": str(dest_skill_dir / "SKILL.md"),
                 }
             else:
                 # Directory
-                skill_id = src_path.name
-                dest_skill_dir = dest_dir / skill_id
+                skill_name = src_path.name
+                dest_skill_dir = dest_dir / skill_name
                 dest_skill_dir.mkdir(parents=True, exist_ok=True)
                 
                 import shutil
@@ -235,7 +236,7 @@ class LocalSource(SkillSource):
                     if item.is_file():
                         shutil.copy2(item, dest_skill_dir / item.name)
                 
-                return True, f"Installed skill from {local_path}", {
+                return True, f"Installed skill from {skill_id}", {
                     "source": "local",
                     "directory": str(dest_skill_dir),
                 }

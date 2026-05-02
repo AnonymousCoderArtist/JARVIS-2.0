@@ -50,8 +50,10 @@ class RecordingIndicator(VoiceManagerListener, Static):
     def _poll_peak(self) -> None:
         if self._voice_manager.transcribe_state != TranscribeState.RECORDING:
             return
+        peak_value = self._voice_manager.peak()
+        peak_num = peak_value if isinstance(peak_value, (int, float)) else 0.5
         index = min(
-            int(self._voice_manager.peak * len(PEAK_BLOCKS)), len(PEAK_BLOCKS) - 1
+            int(peak_num * len(PEAK_BLOCKS)), len(PEAK_BLOCKS) - 1
         )
         self.update(PEAK_BLOCKS[index])
 

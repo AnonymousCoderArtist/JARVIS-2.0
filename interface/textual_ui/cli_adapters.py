@@ -894,6 +894,16 @@ class TelemetryClient:
 
     def send_user_copied_text(self, text: str = "") -> None:
         pass
+    """Client for telemetry."""
+    
+    def is_active(self) -> bool:
+        return False
+    
+    def send_slash_command_used(self, cmd_name: str, cmd_type: str) -> None:
+        pass
+
+    def send_user_copied_text(self, text: str = "") -> None:
+        pass
 
 
 @dataclass
@@ -1411,23 +1421,6 @@ class SearchReplaceArgs(BaseModel):
 # QUESTION SYSTEM
 # ============================================================================
 
-class AskUserQuestionArgs(BaseModel):
-    questions: list[Question] = field(default_factory=list)
-    cancelled: bool = False
-    content_preview: str = ""
-
-
-class AskUserQuestionResult(BaseModel):
-    answers: list["Answer"] = []
-    cancelled: bool = False
-
-
-class Answer(BaseModel):
-    question: str = ""
-    answer: str = ""
-    is_other: bool = False
-
-
 @dataclass
 class Choice:
     """Choice for a question."""
@@ -1443,6 +1436,23 @@ class Question:
     options: list[Choice] = field(default_factory=list)
     hide_other: bool = False
     multi_select: bool = False
+
+
+class AskUserQuestionArgs(BaseModel):
+    questions: list[Question] = field(default_factory=list)
+    cancelled: bool = False
+    content_preview: str = ""
+
+
+class AskUserQuestionResult(BaseModel):
+    answers: list["Answer"] = []
+    cancelled: bool = False
+
+
+class Answer(BaseModel):
+    question: str = ""
+    answer: str = ""
+    is_other: bool = False
 
 
 # ============================================================================
@@ -1599,7 +1609,7 @@ def make_transcribe_client(provider: str, model: str) -> Any:
 # PROXY SYSTEM
 # ============================================================================
 
-SUPPORTED_PROXY_VARS = []
+SUPPORTED_PROXY_VARS: dict[str, str] = {}  # type: ignore
 
 
 def get_current_proxy_settings() -> dict[str, str]:

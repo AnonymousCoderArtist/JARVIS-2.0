@@ -13,6 +13,7 @@ from core.skills import (
     OpenClawSource,
     GitHubSource,
     LocalSource,
+    SkillSource,
 )
 from core.skills.trace_collector import get_trace_collector
 
