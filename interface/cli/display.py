@@ -161,7 +161,6 @@ class DisplayManager:
             ("/profile", "Switch or list agent profiles"),
             ("/tools", "List available tools"),
             ("/skills", "List and manage skills"),
-            ("/memory", "View and manage conversation memory"),
             ("/learn", "View learning system status"),
             ("/clear", "Clear the screen"),
             ("/exit", "Exit JARVIS"),

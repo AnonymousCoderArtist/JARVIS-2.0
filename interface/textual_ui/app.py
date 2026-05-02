@@ -667,16 +667,20 @@ class VibeApp(App):  # noqa: PLR0904
 
         if value.startswith("!"):
             await self._handle_bash_command(value[1:])
+            await self._switch_to_input_app()
             return
 
         if value.startswith("&") and self.commands.has_command("teleport"):
             await self._handle_teleport_command(value[1:])
+            await self._switch_to_input_app()
             return
 
         if await self._handle_command(value):
+            await self._switch_to_input_app()
             return
 
         if await self._handle_skill(value):
+            await self._switch_to_input_app()
             return
 
         await self._handle_user_message(value)
@@ -1552,9 +1556,6 @@ class VibeApp(App):  # noqa: PLR0904
         skills = self.agent_loop.skill_manager.available_skills
         skill_list = "\n".join(f"  - {name}: {info.description}" for name, info in sorted(skills.items()))
         await self._mount_and_scroll(UserCommandMessage(f"Available skills:\n{skill_list}"))
-
-    async def _show_memory(self, **kwargs: Any) -> None:
-        await self._mount_and_scroll(UserCommandMessage("Memory management is available via the memory system."))
 
     async def _switch_to_profile_app(self, **kwargs: Any) -> None:
         await self._mount_and_scroll(UserCommandMessage("Profile switching is available via Shift+Tab in TUI."))

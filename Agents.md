@@ -123,6 +123,13 @@ Five safety levels controlled via TUI (Shift+Tab to cycle):
 | Auto Approve | YOLO | Auto-approves all tools |
 | Explore | SAFE | Read-only subagent mode |
 
+## Available Agents
+
+Agents that can be invoked via the `agents` tool:
+
+- **explore**: For codebase exploration and analysis (read-only, understands structure, finds files/patterns)
+- **plan**: For task decomposition and planning (read-only, creates structured plans with phases and steps)
+
 ## Permission System
 
 Granular permissions based on file paths:

@@ -156,13 +156,6 @@ class CommandRegistry:
             handler="_show_skills",
         )
 
-        # Memory command
-        self.commands["memory"] = Command(
-            aliases=("/memory",),
-            description="View and manage conversation memory",
-            handler="_show_memory",
-        )
-
         # Themes command
         self.commands["themes"] = Command(
             aliases=("/themes",),

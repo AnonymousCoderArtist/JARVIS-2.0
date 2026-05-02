@@ -1,6 +1,7 @@
 """Commands module for JARVIS CLI - handles command parsing, routing, and execution."""
 
 import asyncio
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -284,7 +285,7 @@ class CommandHandler:
         self._register_profile_command()
         self._register_tools_command()
         self._register_skills_command()
-        self._register_memory_command()
+        self._register_skill_command()
         self._register_theme_command()
         self._register_learning_command()
 
@@ -388,33 +389,37 @@ class CommandHandler:
 
         self.command_registry.register(Command("skills", "List and manage skills", _cmd_skills))
 
-    def _register_memory_command(self):
-        """Register the /memory command."""
-        async def _cmd_memory(args: List[str]):
-            if not self.jarvis_agent:
-                self.display_manager.show_error("Agent not initialized")
-                return
-
+    def _register_skill_command(self):
+        """Register the /skill command for advanced skill management."""
+        from core.skills.commands import SkillCommands
+        
+        skill_commands = SkillCommands(self.skill_manager, self.display_manager)
+        
+        async def _cmd_skill(args: List[str]):
             if not args:
-                # Show recent memory
-                self.display_manager.show_memory("recent", 10, "")
-            elif args[0] == "show" and len(args) > 1:
-                count = int(args[1]) if args[1].isdigit() else 10
-                self.display_manager.show_memory("recent", count, "")
-            elif args[0] == "clear":
-                # Clear memory (we'll need to implement this)
-                if hasattr(self.jarvis_agent, 'clear_memory'):
-                    self.jarvis_agent.clear_memory()
-                    self.display_manager.show_success("Memory cleared")
-                else:
-                    self.display_manager.show_error("Memory clearing not supported")
-            elif args[0] == "search" and len(args) > 1:
-                query = " ".join(args[1:])
-                self.display_manager.show_memory("search", 10, query)
+                self.display_manager.show_error("Usage: /skill <install|sync|optimize|bench|list|activate> ...")
+                return
+            
+            subcmd = args[0].lower()
+            subargs = args[1:]
+            
+            handlers = {
+                "install": skill_commands.cmd_install,
+                "sync": skill_commands.cmd_sync,
+                "optimize": skill_commands.cmd_optimize,
+                "bench": skill_commands.cmd_bench,
+                "list": skill_commands.cmd_list,
+                "activate": skill_commands.cmd_activate,
+            }
+            
+            handler = handlers.get(subcmd)
+            if handler:
+                await handler(subargs)
             else:
-                self.display_manager.show_error("Usage: /memory [show <count>|clear|search <query>]")
-
-        self.command_registry.register(Command("memory", "View and manage conversation memory", _cmd_memory))
+                self.display_manager.show_error(f"Unknown skill command: {subcmd}")
+                self.display_manager.show_error("Available: install, sync, optimize, bench, list, activate")
+        
+        self.command_registry.register(Command("skill", "Install and manage skills", _cmd_skill))
 
     def _register_learning_command(self):
         """Register the /learn command."""
