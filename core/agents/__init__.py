@@ -3,6 +3,7 @@
 from .base import BaseAgent
 from .coding_agent import CodingAgent
 from .explore_agent import ExploreAgent
+from .plan_agent import PlanAgent
 
 # Agent profile system
 from .builtin_profiles import (
@@ -21,6 +22,7 @@ __all__ = [
     "BaseAgent",
     "CodingAgent",
     "ExploreAgent",
+    "PlanAgent",
     # Profile system
     "AgentProfile",
     "AgentSafety",

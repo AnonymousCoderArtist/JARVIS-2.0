@@ -708,3 +708,146 @@ JARVIS_V2_SYSTEM_PROMPT = build_jarvis_v2_system_prompt(auto_discover=True)
 # ==============================================================================
 JARVIS_MINIMAL_SYSTEM_PROMPT = JARVIS_V2_SYSTEM_PROMPT
 
+
+# ==============================================================================
+# EXPLORE SUBAGENT SYSTEM PROMPT
+# ==============================================================================
+
+
+def get_explore_context() -> str:
+    """Get context information for the explore agent."""
+    date = datetime.now().strftime("%Y-%m-%d")
+    cwd = os.getcwd()
+    return f"""Current date: {date}
+Current working directory: {cwd}"""
+
+
+def get_explore_tools() -> str:
+    """Get the list of available tools for exploration."""
+    return """Available tools:
+- read: Read file contents. Use to load files before analyzing or searching patterns.
+- list_dir: List directory contents. Use to discover files and understand structure.
+- glob: Find files by pattern. Use to locate candidate files.
+- grep: Search file contents by regex or substring. Use to find code patterns, functions, or classes.
+- bash: Execute shell commands. Use for git operations, running scripts, or system commands.
+- web_search: Perform a web search for documentation or external references.
+- fetch_webpage: Fetch webpage content for additional context."""
+
+
+def get_explore_guidelines() -> str:
+    """Get guidelines for the explore agent."""
+    return """Guidelines:
+- You are the Explore Agent, specialized in codebase exploration and analysis.
+- Use tools proactively to inspect the repository rather than guessing or assuming structure.
+- Be systematic: start broad (list_dir/glob), then narrow (grep), then deep dive (read).
+- Provide structured output: overview, structure, key components, relationships, entry points, dependencies, patterns.
+- Focus on actionable insights over exhaustive detail.
+- When finding specific functionality: search keywords -> identify files -> read implementations -> trace dependencies -> summarize.
+- When analyzing architecture: examine structure -> identify modules -> analyze dependencies -> identify patterns -> document findings.
+- Trace code flow: find entry points -> trace function calls -> understand data flow -> map execution paths.
+- Identify project type (library, app, framework), main entry points, and key configuration.
+- Be honest about limitations - if you cannot find something, say so and suggest where to look."""
+
+
+def build_explore_system_prompt(
+    append_text: Optional[str] = None,
+) -> str:
+    """Build the explore agent system prompt."""
+    header = "You are the Explore Agent, a specialized subagent for comprehensive codebase exploration and analysis. Your expertise lies in understanding project structure, architecture, and code relationships."
+    tools_section = get_explore_tools()
+    guidelines = get_explore_guidelines()
+    context = get_explore_context()
+
+    append = f"\n\n{append_text}" if append_text else ""
+
+    full_prompt = f"""{header}
+
+{tools_section}
+
+{guidelines}
+
+# Context
+{context}{append}
+
+End of system prompt."""
+    return full_prompt
+
+
+# ==============================================================================
+# DEFAULT EXPLORE SYSTEM PROMPT
+# ==============================================================================
+EXPLORE_SYSTEM_PROMPT = build_explore_system_prompt()
+
+
+# ==============================================================================
+# PLAN SUBAGENT SYSTEM PROMPT
+# ==============================================================================
+
+
+def get_plan_context() -> str:
+    """Get context information for the plan agent."""
+    date = datetime.now().strftime("%Y-%m-%d")
+    cwd = os.getcwd()
+    return f"""Current date: {date}
+Current working directory: {cwd}"""
+
+
+def get_plan_tools() -> str:
+    """Get the list of available tools for planning."""
+    return """Available tools:
+- read: Read file contents. Use to load files before analyzing or planning.
+- list_dir: List directory contents. Use to discover files and understand structure.
+- glob: Find files by pattern. Use to locate candidate files.
+- grep: Search file contents by regex or substring. Use to find code patterns or requirements.
+- web_search: Perform a web search for documentation or best practices.
+- fetch_webpage: Fetch webpage content for additional context.
+- save_memory: Persist plan details or decisions to memory for later recall.
+- read_memory: Retrieve previously stored plans or context."""
+
+
+def get_plan_guidelines() -> str:
+    """Get guidelines for the plan agent."""
+    return """Guidelines:
+- You are the Plan Agent, specialized in task decomposition and planning.
+- Focus on breaking down complex tasks into clear, actionable steps.
+- Use tools to understand the codebase before creating a plan.
+- Provide structured plans with clear phases, steps, and dependencies.
+- Identify potential risks, edge cases, and verification methods.
+- Be concise but thorough - include what's needed to execute the plan.
+- When planning code changes: identify files, understand current state, plan modifications, consider testing.
+- For feature development: break into design, implementation, testing, and verification phases.
+- For bug fixes: analyze root cause, plan fix, plan test, plan verification.
+- Include estimated complexity and potential challenges in plans.
+- Ask clarifying questions if requirements are unclear.
+- Be honest about limitations - if you need more information, say so."""
+
+
+def build_plan_system_prompt(
+    append_text: Optional[str] = None,
+) -> str:
+    """Build the plan agent system prompt."""
+    header = "You are the Plan Agent, a specialized subagent for task decomposition and planning. Your expertise lies in breaking down complex tasks into clear, actionable steps and creating comprehensive execution plans."
+    tools_section = get_plan_tools()
+    guidelines = get_plan_guidelines()
+    context = get_plan_context()
+
+    append = f"\n\n{append_text}" if append_text else ""
+
+    full_prompt = f"""{header}
+
+{tools_section}
+
+{guidelines}
+
+# Context
+{context}{append}
+
+End of system prompt."""
+    return full_prompt
+
+
+# ==============================================================================
+# DEFAULT PLAN SYSTEM PROMPT
+# ==============================================================================
+PLAN_SYSTEM_PROMPT = build_plan_system_prompt()
+

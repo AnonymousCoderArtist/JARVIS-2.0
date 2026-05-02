@@ -53,7 +53,7 @@ async def _run_agent_in_background(
     config_getter,
 ):
     """Run an agent in the background and update status when done"""
-    from core.agents import EXPLORE, ExploreAgent
+    from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
     from core.config.settings import Settings
 
     try:
@@ -85,6 +85,41 @@ async def _run_agent_in_background(
                 tool_registry=explore_registry,
                 model=model,
                 config_getter=explore_config_getter,
+            )
+            subagent.rebuild_system_prompt()
+
+            # Execute the task
+            result = await subagent.process(prompt)
+
+            # Update with result
+            async with _background_lock:
+                if task_id in _background_agents:
+                    _background_agents[task_id].status = "completed"
+                    _background_agents[task_id].result = result
+                    _background_agents[task_id].completed_at = datetime.now()
+
+        elif agent_name == "plan":
+            def plan_config_getter() -> Settings:
+                if callable(config_getter):
+                    base_settings = config_getter()
+                else:
+                    base_settings = Settings()
+                merged_config = PLAN.apply_to_config(base_settings.model_dump())
+                return Settings(initial_config=merged_config)
+
+            plan_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=("read", "list_dir", "glob", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=plan_config_getter,
+            )
+
+            subagent = PlanAgent(
+                llm_provider=llm_provider,
+                tool_registry=plan_registry,
+                model=model,
+                config_getter=plan_config_getter,
             )
             subagent.rebuild_system_prompt()
 
@@ -192,8 +227,12 @@ class AgentsTool(BaseTool):
     name = "agents"
     description = """Invoke a specialized subagent to perform a specific task or investigation. Use this to delegate work to agents with specialized capabilities.
 
+Available agents:
+- explore: For codebase exploration and analysis (read-only, understands structure, finds files/patterns)
+- plan: For task decomposition and planning (read-only, creates structured plans with phases and steps)
+
 Usage:
-- Specify the agent name to invoke (e.g., 'explore' for codebase exploration and analysis)
+- Specify the agent name to invoke (e.g., 'explore' or 'plan')
 - Provide a complete prompt describing the task for the subagent
 - run_in_background parameter is REQUIRED - you must explicitly set it
 
@@ -315,40 +354,81 @@ When to use which:
                 )
             else:
                 # Run synchronously (blocking) - for backwards compatibility
-                from core.agents import EXPLORE, ExploreAgent
+                from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
                 from core.config.settings import Settings
 
-                def explore_config_getter() -> Settings:
-                    if callable(config_getter):
-                        base_settings = config_getter()
-                    else:
-                        base_settings = Settings()
-                    merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
-                    return Settings(initial_config=merged_config)
+                if agent_name == "explore":
+                    def explore_config_getter() -> Settings:
+                        if callable(config_getter):
+                            base_settings = config_getter()
+                        else:
+                            base_settings = Settings()
+                        merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
+                        return Settings(initial_config=merged_config)
 
-                explore_registry = _FilteredToolRegistry(
-                    tool_registry,
-                    allowed_tools=("read", "list_dir", "glob", "grep"),
-                    llm_provider=llm_provider,
-                    model=model,
-                    config_getter=explore_config_getter,
-                )
+                    explore_registry = _FilteredToolRegistry(
+                        tool_registry,
+                        allowed_tools=("read", "list_dir", "glob", "grep"),
+                        llm_provider=llm_provider,
+                        model=model,
+                        config_getter=explore_config_getter,
+                    )
 
-                subagent = ExploreAgent(
-                    llm_provider=llm_provider,
-                    tool_registry=explore_registry,
-                    model=model,
-                    config_getter=explore_config_getter,
-                )
-                subagent.rebuild_system_prompt()
+                    subagent = ExploreAgent(
+                        llm_provider=llm_provider,
+                        tool_registry=explore_registry,
+                        model=model,
+                        config_getter=explore_config_getter,
+                    )
+                    subagent.rebuild_system_prompt()
 
-                result = await subagent.process(prompt)
+                    result = await subagent.process(prompt)
 
-                return ToolOutput(
-                    success=True,
-                    result=result,
-                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
-                )
+                    return ToolOutput(
+                        success=True,
+                        result=result,
+                        metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                    )
+
+                elif agent_name == "plan":
+                    def plan_config_getter() -> Settings:
+                        if callable(config_getter):
+                            base_settings = config_getter()
+                        else:
+                            base_settings = Settings()
+                        merged_config = PLAN.apply_to_config(base_settings.model_dump())
+                        return Settings(initial_config=merged_config)
+
+                    plan_registry = _FilteredToolRegistry(
+                        tool_registry,
+                        allowed_tools=("read", "list_dir", "glob", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
+                        llm_provider=llm_provider,
+                        model=model,
+                        config_getter=plan_config_getter,
+                    )
+
+                    subagent = PlanAgent(
+                        llm_provider=llm_provider,
+                        tool_registry=plan_registry,
+                        model=model,
+                        config_getter=plan_config_getter,
+                    )
+                    subagent.rebuild_system_prompt()
+
+                    result = await subagent.process(prompt)
+
+                    return ToolOutput(
+                        success=True,
+                        result=result,
+                        metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                    )
+
+                else:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error=f"Unknown agent: {agent_name}. Available agents: 'explore', 'plan'"
+                    )
 
         except ImportError as e:
             return ToolOutput(

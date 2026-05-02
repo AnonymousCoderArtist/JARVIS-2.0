@@ -45,6 +45,7 @@ PLAN = AgentProfile(
     display_name="Plan",
     description="Read-only agent for exploration and planning",
     safety=AgentSafety.SAFE,
+    agent_type=AgentType.SUBAGENT,
     overrides={
         "tools": {
             # Explore-level tools - always allowed
@@ -60,12 +61,15 @@ PLAN = AgentProfile(
             "repl": {"permission": "never"},
             "list_background_processes": {"permission": "never"},
             "read_background_output": {"permission": "never"},
-            "save_memory": {"permission": "never"},
-            "read_memory": {"permission": "never"},
-            "fetch_webpage": {"permission": "never"},
+            "save_memory": {"permission": "always"},
+            "read_memory": {"permission": "always"},
+            "fetch_webpage": {"permission": "always"},
+            "web_search": {"permission": "always"},
             "agents": {"permission": "never"},
             "activate_skill": {"permission": "never"},
-        }
+            "agent_status": {"permission": "never"},
+        },
+        "system_prompt_id": "plan",
     },
 )
 
