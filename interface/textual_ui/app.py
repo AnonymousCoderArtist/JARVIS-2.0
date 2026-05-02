@@ -507,6 +507,7 @@ class VibeApp(App):  # noqa: PLR0904
                 safety=self.agent_loop.agent_profile.safety,
                 agent_name=self.agent_loop.agent_profile.display_name.lower(),
                 skill_entries_getter=self._get_skill_entries,
+                slash_argument_entries_getter=self._get_slash_argument_entries,
                 file_watcher_for_autocomplete_getter=self._is_file_watcher_enabled,
                 voice_manager=self._voice_manager,
             )
@@ -973,6 +974,53 @@ class VibeApp(App):  # noqa: PLR0904
             for name, info in self.agent_loop.skill_manager.available_skills.items()
             if info.user_invocable
         ]
+
+    def _get_slash_argument_entries(
+        self, command_alias: str, text_before_cursor: str
+    ) -> list[tuple[str, str]]:
+        resolved = self.commands.resolve_alias(command_alias)
+        if resolved is None:
+            return []
+
+        cmd_name, _ = resolved
+        if cmd_name == "profile":
+            current = self.agent_loop.agent_manager.get_current_profile()
+            return [
+                (
+                    profile,
+                    "Current profile" if profile == current else "Switch to profile",
+                )
+                for profile in self.agent_loop.agent_manager.list_profiles()
+            ]
+
+        if cmd_name == "skills":
+            args = text_before_cursor[len(command_alias):].strip()
+            if not args or (
+                len(args.split()) == 1 and not text_before_cursor.endswith(" ")
+            ):
+                return [("activate", "Activate a skill for the current session")]
+
+            parts = args.split()
+            if parts[0] != "activate":
+                return []
+
+            return [
+                (name, info.description)
+                for name, info in sorted(
+                    self.agent_loop.skill_manager.available_skills.items()
+                )
+            ]
+
+        if cmd_name == "themes":
+            from interface.cli.config import load_config
+
+            config_manager = load_config()
+            return [
+                (theme_name, "Switch to theme")
+                for theme_name in sorted(config_manager.config.themes.keys())
+            ]
+
+        return []
 
     async def _handle_skill(self, user_input: str) -> bool:
         if not self.agent_loop:
@@ -1552,13 +1600,55 @@ class VibeApp(App):  # noqa: PLR0904
         tool_list = "\n".join(f"  - {name}" for name in sorted(tools.keys()))
         await self._mount_and_scroll(UserCommandMessage(f"Available tools:\n{tool_list}"))
 
-    async def _show_skills(self, **kwargs: Any) -> None:
+    async def _show_skills(self, cmd_args: str = "", **kwargs: Any) -> None:
+        if cmd_args:
+            parts = cmd_args.strip().split()
+            if parts and parts[0] == "activate" and len(parts) > 1:
+                skill_name = parts[1]
+                success, message, content = (
+                    self.agent_loop.skill_manager.activate_skill(skill_name)
+                )
+                if success:
+                    preview = ""
+                    if content:
+                        preview_text = (
+                            content[:400] + "..." if len(content) > 400 else content
+                        )
+                        preview = f"\n\n{preview_text}"
+                    await self._mount_and_scroll(
+                        UserCommandMessage(f"{message}{preview}")
+                    )
+                else:
+                    await self._mount_and_scroll(UserCommandMessage(message))
+                return
+
         skills = self.agent_loop.skill_manager.available_skills
         skill_list = "\n".join(f"  - {name}: {info.description}" for name, info in sorted(skills.items()))
         await self._mount_and_scroll(UserCommandMessage(f"Available skills:\n{skill_list}"))
 
-    async def _switch_to_profile_app(self, **kwargs: Any) -> None:
-        await self._mount_and_scroll(UserCommandMessage("Profile switching is available via Shift+Tab in TUI."))
+    async def _switch_to_profile_app(self, cmd_args: str = "", **kwargs: Any) -> None:
+        profile_name = cmd_args.strip()
+        if not profile_name:
+            profiles = self.agent_loop.agent_manager.list_profiles()
+            current = self.agent_loop.agent_manager.get_current_profile()
+            lines = ["Available profiles:"]
+            lines.extend(
+                f"  - {name}{' (current)' if name == current else ''}"
+                for name in profiles
+            )
+            await self._mount_and_scroll(UserCommandMessage("\n".join(lines)))
+            return
+
+        try:
+            await self.agent_loop.switch_agent(profile_name)
+            self._refresh_profile_widgets()
+            await self._mount_and_scroll(
+                UserCommandMessage(f"Switched to profile: {profile_name}")
+            )
+        except Exception as e:
+            await self._mount_and_scroll(
+                ErrorMessage(str(e), collapsed=self._tools_collapsed)
+            )
 
     def _get_last_assistant_message_text(self) -> str | None:
         messages_area = self._cached_messages_area or self.query_one("#messages")

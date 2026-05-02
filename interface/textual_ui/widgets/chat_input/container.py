@@ -59,6 +59,9 @@ class ChatInputContainer(Vertical):
         safety: AgentSafety = AgentSafety.NEUTRAL,
         agent_name: str = "",
         skill_entries_getter: Callable[[], list[tuple[str, str]]] | None = None,
+        slash_argument_entries_getter: Callable[
+            [str, str], list[tuple[str, str]]
+        ] | None = None,
         file_watcher_for_autocomplete_getter: Callable[[], bool] | None = None,
         voice_manager: VoiceManagerPort | None = None,
         **kwargs: Any,
@@ -69,6 +72,7 @@ class ChatInputContainer(Vertical):
         self._safety = safety
         self._agent_name = agent_name
         self._skill_entries_getter = skill_entries_getter
+        self._slash_argument_entries_getter = slash_argument_entries_getter
         self._file_watcher_for_autocomplete_getter = (
             file_watcher_for_autocomplete_getter
         )
@@ -77,7 +81,13 @@ class ChatInputContainer(Vertical):
         self._custom_border_class: str | None = None
 
         self._completion_manager = MultiCompletionManager([
-            SlashCommandController(CommandCompleter(self._get_slash_entries), self),
+            SlashCommandController(
+                CommandCompleter(
+                    self._get_slash_entries,
+                    self._get_slash_argument_entries,
+                ),
+                self,
+            ),
             PathCompletionController(
                 PathCompleter(
                     watcher_enabled_getter=self._file_watcher_for_autocomplete_getter
@@ -99,6 +109,13 @@ class ChatInputContainer(Vertical):
         if self._skill_entries_getter:
             entries.extend(self._skill_entries_getter())
         return sorted(entries)
+
+    def _get_slash_argument_entries(
+        self, command_alias: str, text_before_cursor: str
+    ) -> list[tuple[str, str]]:
+        if not self._slash_argument_entries_getter:
+            return []
+        return self._slash_argument_entries_getter(command_alias, text_before_cursor)
 
     def compose(self) -> ComposeResult:
         yield CompletionPopup()

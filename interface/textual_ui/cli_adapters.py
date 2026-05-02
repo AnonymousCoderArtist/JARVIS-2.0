@@ -182,6 +182,13 @@ class CommandRegistry:
             command_name in cmd.aliases for cmd in self.commands.values()
         )
 
+    def resolve_alias(self, alias: str) -> tuple[str, Command] | None:
+        """Resolve a slash-command alias to its canonical command."""
+        for cmd_name, cmd in self.commands.items():
+            if alias in cmd.aliases:
+                return cmd_name, cmd
+        return None
+
     def parse_command(self, user_input: str) -> tuple[str, Command, str] | None:
         """Parse command from user input."""
         user_input = user_input.strip()
@@ -376,22 +383,51 @@ class SlashCommandController:
 
     def on_text_changed(self, text: str, cursor_index: int) -> None:
         if not self.can_handle(text, cursor_index):
-            self._suggestions = []
-            self._popup_visible = False
+            self.reset()
             return
 
-        # Extract the command being typed
         text_before_cursor = text[:cursor_index]
-        parts = text_before_cursor.lstrip().split()
+        stripped_before_cursor = text_before_cursor.lstrip()
+        parts = stripped_before_cursor.split()
 
-        if parts and parts[0].startswith("/"):
-            cmd_prefix = parts[0]
-            # Get matching commands from completer
-            entries = self.completer.entries_getter() if hasattr(self.completer, 'entries_getter') else []
-            self._suggestions = [(label, desc) for label, desc in entries if label.lower().startswith(cmd_prefix.lower())]
-            self._popup_visible = bool(self._suggestions)
-            if self._suggestions and self.parent:
-                self.parent.render_completion_suggestions(self._suggestions, 0)
+        if not parts or not parts[0].startswith("/"):
+            self.reset()
+            return
+
+        cmd_alias = parts[0]
+        current_word = self._get_current_word(text, cursor_index)
+
+        # Completing the command token itself.
+        if len(parts) == 1 and not stripped_before_cursor.endswith(" "):
+            entries = (
+                self.completer.entries_getter()
+                if hasattr(self.completer, "entries_getter")
+                else []
+            )
+            self._suggestions = [
+                (label, desc)
+                for label, desc in entries
+                if label.lower().startswith(cmd_alias.lower())
+            ]
+        else:
+            arg_entries = (
+                self.completer.get_argument_entries(cmd_alias, stripped_before_cursor)
+                if hasattr(self.completer, "get_argument_entries")
+                else []
+            )
+            prefix = "" if text_before_cursor.endswith(" ") else current_word
+            self._suggestions = [
+                (label, desc)
+                for label, desc in arg_entries
+                if label.lower().startswith(prefix.lower())
+            ]
+
+        self._selected_index = 0
+        self._popup_visible = bool(self._suggestions)
+        if self._suggestions and self.parent:
+            self.parent.render_completion_suggestions(self._suggestions, 0)
+        elif self.parent:
+            self.parent.clear_completion_suggestions()
 
     def on_key(self, event: Any, text: str, cursor_index: int) -> CompletionResult:
         if not self._popup_visible or not self._suggestions:
@@ -399,11 +435,17 @@ class SlashCommandController:
 
         if event.key == "tab":
             if 0 <= self._selected_index < len(self._suggestions):
-                replacement = self._suggestions[self._selected_index][0]
+                replacement = self._format_replacement(
+                    text,
+                    cursor_index,
+                    self._suggestions[self._selected_index][0],
+                )
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
-                    # Replace the current word with the suggestion
-                    self.parent.replace_completion_range(cursor_index - len(self._get_current_word(text, cursor_index)),
-                                                          cursor_index, replacement)
+                    self.parent.replace_completion_range(
+                        cursor_index - len(self._get_current_word(text, cursor_index)),
+                        cursor_index,
+                        replacement,
+                    )
             return CompletionResult.HANDLED
         elif event.key == "enter":
             # Only handle enter if popup is visible and we have a selection
@@ -413,10 +455,17 @@ class SlashCommandController:
                 # If the current text exactly matches a command, let it submit instead of completing
                 if current_word in [suggestion[0] for suggestion in self._suggestions]:
                     return CompletionResult.IGNORED
-                replacement = self._suggestions[self._selected_index][0]
+                replacement = self._format_replacement(
+                    text,
+                    cursor_index,
+                    self._suggestions[self._selected_index][0],
+                )
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
-                    self.parent.replace_completion_range(cursor_index - len(self._get_current_word(text, cursor_index)),
-                                                          cursor_index, replacement)
+                    self.parent.replace_completion_range(
+                        cursor_index - len(self._get_current_word(text, cursor_index)),
+                        cursor_index,
+                        replacement,
+                    )
                 return CompletionResult.HANDLED
             return CompletionResult.IGNORED
         elif event.key == "escape":
@@ -440,6 +489,14 @@ class SlashCommandController:
         before_cursor = text[:cursor_index]
         parts = before_cursor.split()
         return parts[-1] if parts else ""
+
+    def _format_replacement(
+        self, text: str, cursor_index: int, replacement: str
+    ) -> str:
+        suffix = text[cursor_index:]
+        if replacement.startswith("/"):
+            return replacement + (" " if not suffix or not suffix[0].isspace() else "")
+        return replacement + (" " if not suffix or not suffix[0].isspace() else "")
 
     def reset(self) -> None:
         self._suggestions = []
@@ -867,9 +924,9 @@ class AgentProfile:
 class CommandCompleter:
     """Completer for commands."""
 
-    def __init__(self, entries_getter: Any):
+    def __init__(self, entries_getter: Any, argument_entries_getter: Any = None):
         self.entries_getter = entries_getter
-        self.entries_getter = entries_getter
+        self.argument_entries_getter = argument_entries_getter
 
     def get_completions(self, document, complete_event):
         # Handle both document objects and strings (for backward compatibility)
@@ -884,6 +941,13 @@ class CommandCompleter:
                 if label.lower().startswith(text.lower()):
                     if Completion:
                         yield Completion(label, start_position=-len(text))
+
+    def get_argument_entries(
+        self, command_alias: str, text_before_cursor: str
+    ) -> list[tuple[str, str]]:
+        if not self.argument_entries_getter:
+            return []
+        return self.argument_entries_getter(command_alias, text_before_cursor)
 
 
 class PathCompleter:

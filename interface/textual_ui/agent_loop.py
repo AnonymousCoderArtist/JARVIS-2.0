@@ -1020,6 +1020,10 @@ class SkillManagerAdapter:
             skill_name = command.split(" ", 1)[1].strip()
             return self._core_manager.get_skill_profile(skill_name)
         return None
+
+    def activate_skill(self, skill_name: str) -> tuple[bool, str, str | None]:
+        """Activate a skill and return the core manager result."""
+        return self._core_manager.activate_skill(skill_name)
     
     @staticmethod
     def build_skill_prompt(user_input: str, skill: Any) -> str:
