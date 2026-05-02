@@ -1020,10 +1020,12 @@ class SkillManagerAdapter:
             skill_name = command.split(" ", 1)[1].strip()
             return self._core_manager.get_skill_profile(skill_name)
         return None
-
+    
     @staticmethod
     def build_skill_prompt(user_input: str, skill: Any) -> str:
         """Build skill prompt."""
+        if skill and hasattr(skill, 'content') and skill.content:
+            return f"{user_input}\n\n--- Skill Context ---\n{skill.content}"
         return user_input
 
 

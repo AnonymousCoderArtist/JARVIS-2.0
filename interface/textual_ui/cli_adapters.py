@@ -81,6 +81,7 @@ class Command:
     """Represents a slash command."""
     aliases: tuple[str, ...]  # e.g., ("/help", "/h")
     description: str = ""
+    usage: str = ""
     handler: str = ""  # method name on the app
     exits: bool = False  # whether command exits the app
     hidden: bool = False  # whether to hide from completion
@@ -110,6 +111,7 @@ class CommandRegistry:
         self.commands["help"] = Command(
             aliases=("/help", "/h"),
             description="Show available commands",
+            usage="",
             handler="_show_help",
         )
 
@@ -117,6 +119,7 @@ class CommandRegistry:
         self.commands["status"] = Command(
             aliases=("/status", "/st"),
             description="Show system status",
+            usage="",
             handler="_show_status",
         )
 
@@ -124,6 +127,7 @@ class CommandRegistry:
         self.commands["clear"] = Command(
             aliases=("/clear",),
             description="Clear the screen",
+            usage="",
             handler="_clear_history",
         )
 
@@ -131,6 +135,7 @@ class CommandRegistry:
         self.commands["exit"] = Command(
             aliases=("/exit", "/quit"),
             description="Exit JARVIS",
+            usage="",
             handler="_exit_app",
             exits=True,
         )
@@ -139,6 +144,7 @@ class CommandRegistry:
         self.commands["profile"] = Command(
             aliases=("/profile",),
             description="Switch or list agent profiles",
+            usage="[<profile>]",
             handler="_switch_to_profile_app",
         )
 
@@ -146,6 +152,7 @@ class CommandRegistry:
         self.commands["tools"] = Command(
             aliases=("/tools",),
             description="List available tools",
+            usage="",
             handler="_show_tools",
         )
 
@@ -153,6 +160,7 @@ class CommandRegistry:
         self.commands["skills"] = Command(
             aliases=("/skills",),
             description="List and manage skills",
+            usage="[activate <name>]",
             handler="_show_skills",
         )
 
@@ -160,6 +168,7 @@ class CommandRegistry:
         self.commands["themes"] = Command(
             aliases=("/themes",),
             description="List and manage UI themes",
+            usage="",
             handler="_show_themes",
         )
 
@@ -191,7 +200,8 @@ class CommandRegistry:
         lines = ["Available commands:"]
         for cmd_name, cmd in sorted(self.commands.items()):
             aliases = "/".join(cmd.aliases)
-            lines.append(f"  {aliases} - {cmd.description}")
+            usage = f" {cmd.usage}" if cmd.usage else ""
+            lines.append(f"  {aliases}{usage} - {cmd.description}")
         return "\n".join(lines)
 
 

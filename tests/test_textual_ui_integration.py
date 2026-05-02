@@ -7,7 +7,8 @@ from core.tools.base import ToolOutput
 from core.tools.registry import ToolRegistry
 from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.app import VibeApp
-from interface.textual_ui.cli_adapters import ToolUIDataAdapter
+from interface.textual_ui.cli_adapters import CommandRegistry, ToolUIDataAdapter
+from interface.textual_ui.widgets.chat_input.container import ChatInputContainer
 from interface.textual_ui.tui_main import Config, create_tool_registry
 from interface.textual_ui.types import (
     AssistantEvent,
@@ -142,6 +143,30 @@ def test_system_prompt_includes_registered_tool_descriptions() -> None:
 
     assert "### example_tool" in agent.system_prompt
     assert "Example tool description." in agent.system_prompt
+
+
+def test_tui_help_text_shows_command_usage_hints() -> None:
+    registry = CommandRegistry()
+
+    help_text = registry.get_help_text()
+
+    assert "/skills [activate <name>] - List and manage skills" in help_text
+    assert "/profile [<profile>] - Switch or list agent profiles" in help_text
+
+
+def test_tui_completion_entries_include_command_usage_hints() -> None:
+    container = ChatInputContainer(command_registry=CommandRegistry())
+
+    entries = container._get_slash_entries()
+
+    assert (
+        "/skills",
+        "List and manage skills · [activate <name>]",
+    ) in entries
+    assert (
+        "/profile",
+        "Switch or list agent profiles · [<profile>]",
+    ) in entries
 
 
 @pytest.mark.asyncio

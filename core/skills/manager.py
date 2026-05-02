@@ -112,6 +112,11 @@ class SkillManager:
         """Check if a skill is available"""
         return self.get_skill_profile(skill_name) is not None
 
+    @property
+    def available_skills(self) -> dict[str, SkillProfile]:
+        """Get all available skills (same as get_all_available_skills)."""
+        return self.get_all_available_skills()
+
     def activate_skill(self, skill_name: str) -> tuple[bool, str, str | None]:
         """
         Activate a skill and return (success, message, content)

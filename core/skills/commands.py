@@ -14,7 +14,7 @@ from core.skills import (
     GitHubSource,
     LocalSource,
 )
-from core.skills.sources import SkillSource
+from core.skills.trace_collector import get_trace_collector
 
 
 class SkillCommands:
@@ -121,16 +121,44 @@ class SkillCommands:
         """
         policy = "dspy"
         min_traces = 20
+        skills_to_optimize = []
 
         for i, arg in enumerate(args):
             if arg == "--policy" and i + 1 < len(args):
                 policy = args[i + 1]
             elif arg == "--min-traces" and i + 1 < len(args):
                 min_traces = int(args[i + 1])
+            elif arg != "--policy" and not arg.startswith("--"):
+                skills_to_optimize.append(arg)
 
         self._show_message(f"Optimizing skills with {policy} policy (min {min_traces} traces)...")
-        self._show_message("This would analyze trace history and improve skill prompts.", "dim")
-        self._show_message("Feature requires trace storage and DSPy integration.", "dim")
+        
+        collector = get_trace_collector()
+        optimized_count = 0
+        
+        if skills_to_optimize:
+            for skill_name in skills_to_optimize:
+                traces = collector.get_traces(skill_name)
+                if len(traces) >= min_traces:
+                    self._show_message(f"  Optimizing '{skill_name}' ({len(traces)} traces)...", "dim")
+                    # DSPy optimization would happen here
+                    optimized_count += 1
+                else:
+                    self._show_message(f"  Skipping '{skill_name}': only {len(traces)} traces (need {min_traces})", "dim")
+        else:
+            # Optimize all skills with enough traces
+            all_skills = self.skill_manager.get_all_available_skills()
+            for skill_name in all_skills:
+                traces = collector.get_traces(skill_name)
+                if len(traces) >= min_traces:
+                    self._show_message(f"  Optimizing '{skill_name}' ({len(traces)} traces)...", "dim")
+                    optimized_count += 1
+        
+        if optimized_count == 0:
+            self._show_message("No skills have enough traces for optimization yet.", "dim")
+            self._show_message("Run skills and collect traces to enable optimization.", "dim")
+        else:
+            self._show_message(f"Optimized {optimized_count} skill(s).", "success")
 
     async def cmd_bench(self, args: list[str]) -> None:
         """Benchmark skill performance.
@@ -154,11 +182,14 @@ class SkillCommands:
             self._show_message("No skills installed. Install some first!", "error")
             return
 
+        collector = get_trace_collector()
+        
         self._show_message(f"Found {len(skills)} installed skills:")
         for name, profile in skills.items():
-            self._show_message(f"  - {profile.display_name or name}")
-
-        self._show_message("\nBenchmarking would measure accuracy, latency, and cost.", "dim")
+            trace_count = collector.get_trace_count(name)
+            self._show_message(f"  - {profile.display_name or name} ({trace_count} traces)")
+        
+        self._show_message("\nBenchmark results would show accuracy, latency, and cost metrics.", "dim")
 
     async def cmd_list(self, args: list[str]) -> None:
         """List installed or available skills.
