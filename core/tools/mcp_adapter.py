@@ -29,6 +29,12 @@ from .permissions import PermissionContext
 logger = logging.getLogger(__name__)
 
 
+def _is_event_loop_closed_error(error: BaseException) -> bool:
+    """Return True for common asyncio closed-loop failures."""
+    error_msg = str(error)
+    return "Event loop is closed" in error_msg or "loop is closed" in error_msg.lower()
+
+
 # ============================================================================
 # MCP CONFIGURATION
 # ============================================================================
@@ -456,18 +462,51 @@ async def open_writer(stream):
 
 class MCPClient:
     """Client for connecting to MCP servers"""
-    
+
     def __init__(self, config: MCPServerConfig):
         self.config = config
         self._transport: MCPTransport | None = None
         self._tools: list[MCPToolSpec] = []
         self._initialized = False
-    
+        self._event_loop: asyncio.AbstractEventLoop | None = None
+
+    async def _reset_client(self) -> None:
+        """Reset the client state when event loop changes"""
+        if self._transport:
+            try:
+                await self._transport.close()
+            except Exception as e:
+                logger.warning(f"Error closing MCP transport during reset: {e}")
+
+        self._transport = None
+        self._tools = []
+        self._initialized = False
+
+    async def _ensure_active_loop(self) -> None:
+        """Reset state if this client was initialized on another event loop."""
+        current_loop = asyncio.get_running_loop()
+
+        if self._event_loop is None:
+            self._event_loop = current_loop
+            return
+
+        stored_loop_closed = self._event_loop.is_closed()
+        if self._event_loop is not current_loop or stored_loop_closed:
+            logger.info(
+                "MCP client event loop changed or closed; resetting client "
+                "for server '%s'",
+                self.config.name,
+            )
+            await self._reset_client()
+            self._event_loop = current_loop
+
     async def connect(self) -> None:
         """Connect to the MCP server"""
+        await self._ensure_active_loop()
+
         if self._initialized:
             return
-        
+
         # Create transport based on config
         if self.config.transport == MCPTransportType.STDIO:
             self._transport = StdioTransport(
@@ -499,19 +538,42 @@ class MCPClient:
             await self._transport.close()
             self._transport = None
         self._initialized = False
+        self._event_loop = None
     
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call a tool on the MCP server"""
+        await self._ensure_active_loop()
+
         if not self._initialized:
             await self.connect()
         
         if self._transport is None:
             raise RuntimeError("MCP transport not initialized")
         
-        return await self._transport.call_tool(tool_name, arguments)
+        try:
+            return await self._transport.call_tool(tool_name, arguments)
+        except Exception as e:
+            if not _is_event_loop_closed_error(e):
+                raise
+
+            logger.warning(
+                "MCP tool call hit a closed event loop for server '%s'; "
+                "resetting client and retrying once",
+                self.config.name,
+            )
+            await self._reset_client()
+            self._event_loop = asyncio.get_running_loop()
+            await self.connect()
+
+            if self._transport is None:
+                raise RuntimeError("MCP transport not initialized") from e
+
+            return await self._transport.call_tool(tool_name, arguments)
     
     async def list_tools(self) -> list[MCPToolSpec]:
         """List available tools from the MCP server"""
+        await self._ensure_active_loop()
+
         if not self._initialized:
             await self.connect()
         
@@ -637,11 +699,22 @@ class MCPToolAdapter(BaseTool):
             )
             
         except Exception as e:
+            error_msg = str(e)
+            # Check if this is an event loop related error
+            if _is_event_loop_closed_error(e):
+                logger.warning(f"MCP tool execution failed due to closed event loop, client will be reset on next use: {e}")
+                error_msg = "MCP tool execution failed: Event loop was closed. The MCP client will be automatically reset on the next tool call."
+                # Reset the client state so it can reconnect on next use
+                try:
+                    await self._mcp_client._reset_client()
+                except Exception as reset_e:
+                    logger.warning(f"Failed to reset MCP client: {reset_e}")
+
             logger.error(f"MCP tool execution failed: {e}")
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"MCP tool execution failed: {str(e)}",
+                error=error_msg,
             )
     
     def get_remote_name(self) -> str:

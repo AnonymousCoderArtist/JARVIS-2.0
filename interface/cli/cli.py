@@ -173,6 +173,47 @@ class CLIInterface:
                 model=self.model
             )
 
+    async def _initialize_mcp_servers_async(self):
+        """Initialize MCP servers and register their tools asynchronously."""
+        try:
+            # Import MCP components
+            from core.tools.mcp_adapter import MCPRegistry, MCPTransportType
+            from pathlib import Path
+            import json
+
+            # Load MCP server configurations
+            mcp_configs = self._load_mcp_configs()
+
+            if not mcp_configs:
+                return
+
+            # Create MCP registry and connect servers
+            mcp_registry = MCPRegistry(tool_registry=self.tool_registry)
+
+            connected_count = 0
+            for config_dict in mcp_configs:
+                try:
+                    # Convert config dict to MCPServerConfig
+                    config = self._create_mcp_config(config_dict)
+
+                    # Add and connect to server
+                    provider = await mcp_registry.add_server(
+                        config=config,
+                        llm_provider=self._current_provider,
+                        model=self.model
+                    )
+                    if provider:
+                        connected_count += 1
+
+                except Exception as e:
+                    print(f"Warning: Failed to connect to MCP server '{config_dict.get('name', 'unknown')}': {e}")
+
+            if connected_count > 0:
+                print(f"Connected to {connected_count} MCP server(s)")
+
+        except Exception as e:
+            print(f"Warning: MCP server initialization failed: {e}")
+
     def _initialize_tools(self):
         """Register all tools with the tool registry."""
         self.tool_registry.register(FileReadTool())
@@ -257,6 +298,56 @@ class CLIInterface:
             tool_count=len(self.tool_registry.list_tools())
         )
 
+    def _load_mcp_configs(self) -> list[dict]:
+        """Load MCP server configurations from .mcp.json file."""
+        from pathlib import Path
+        import json
+
+        config_paths = [
+            Path(".mcp.json"),
+            Path.home() / ".jarvis" / "mcp_servers.json"
+        ]
+
+        for config_path in config_paths:
+            if config_path.exists():
+                try:
+                    with open(config_path) as f:
+                        data = json.load(f)
+
+                    # Handle both formats: {"mcpServers": {...}} or [...]
+                    if "mcpServers" in data:
+                        servers = []
+                        for name, config in data["mcpServers"].items():
+                            # Create a copy and ensure name is in the config dict
+                            config_copy = config.copy()
+                            config_copy["name"] = name
+                            servers.append(config_copy)
+                        return servers
+                    else:
+                        return data.get("mcpServers", []) if isinstance(data, dict) else data
+                except Exception as e:
+                    print(f"Warning: Failed to load MCP config from {config_path}: {e}")
+
+        return []
+
+    def _create_mcp_config(self, config_dict: dict):
+        """Create MCPServerConfig from dictionary."""
+        from core.tools.mcp_adapter import MCPServerConfig, MCPTransportType
+
+        # Auto-detect transport based on URL presence
+        transport = config_dict.get("transport", MCPTransportType.HTTP if "url" in config_dict else MCPTransportType.STDIO)
+
+        return MCPServerConfig(
+            name=config_dict["name"],
+            command=config_dict.get("command", ""),
+            args=config_dict.get("args", []),
+            env=config_dict.get("env", {}),
+            url=config_dict.get("url") or "",
+            transport=transport,
+            timeout=config_dict.get("timeout", 30.0),
+            disabled=config_dict.get("disabled", False),
+        )
+
     def _show_banner(self):
         """Display the welcome banner."""
         self.display_manager.show_banner(
@@ -333,6 +424,9 @@ class CLIInterface:
         self.display_manager.clear_screen()
         self._show_banner()
         self._show_help()
+
+        # Initialize MCP servers asynchronously
+        await self._initialize_mcp_servers_async()
 
         while True:
             try:
