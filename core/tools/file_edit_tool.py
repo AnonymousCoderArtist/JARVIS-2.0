@@ -2,6 +2,7 @@
 
 import difflib
 import os
+from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
 from core.tools.permissions import (
@@ -57,6 +58,14 @@ Usage:
         "required": ["replacements"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file edit operation with granular checks"""
         replacements = args.get("replacements", [])
@@ -90,7 +99,7 @@ Usage:
     async def edit(self, input_data: ToolInput) -> ToolOutput:
         """Edit files by replacing text"""
         try:
-            replacements = getattr(input_data, "replacements", None)
+            replacements = self._get_param(input_data, "replacements")
 
             if not isinstance(replacements, list) or not replacements:
                 return ToolOutput(
@@ -117,9 +126,10 @@ Usage:
 
         for i, replacement in enumerate(replacements):
             try:
-                file_path = replacement.get("file_path")
-                old_string = replacement.get("old_string")
-                new_string = replacement.get("new_string")
+                # Support both camelCase and snake_case in each replacement
+                file_path = replacement.get("file_path") or replacement.get("filePath")
+                old_string = replacement.get("old_string") or replacement.get("oldString")
+                new_string = replacement.get("new_string") or replacement.get("newString")
 
                 if not isinstance(file_path, str) or not file_path:
                     errors.append(f"Replacement {i + 1}: Missing or invalid file_path. Please provide a valid absolute file path.")

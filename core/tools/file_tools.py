@@ -1,6 +1,7 @@
 """File operation tools"""
 
 import os
+from typing import Any
 
 import aiofiles
 
@@ -119,10 +120,19 @@ class FileReadTool(BaseTool):
             sensitive_patterns=sensitive_patterns,
         )
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names (camelCase and snake_case)"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            files = getattr(input_data, "files", None)
-            encoding = getattr(input_data, "encoding", "utf-8")
+            # Support both camelCase and snake_case parameter names
+            files = self._get_param(input_data, "files", "files")
+            encoding = self._get_param(input_data, "encoding") or "utf-8"
             
             # Normalize encoding
             if not isinstance(encoding, str):
@@ -252,6 +262,8 @@ class FileWriteTool(BaseTool):
     name = "write"
     description = """Create a new file in the workspace with the specified content. The directory will be created if it does not already exist.
 
+IMPORTANT: Use the parameter name 'filePath' (camelCase) when calling this tool.
+
 - This tool will fail if the file already exists (use edit tool instead)
 - Use this tool only when creating new files from scratch"""
     input_schema = {
@@ -269,6 +281,14 @@ class FileWriteTool(BaseTool):
         },
         "required": ["filePath", "content"]
     }
+
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names (camelCase and snake_case)"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file write operation with granular checks"""
@@ -297,8 +317,9 @@ class FileWriteTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            file_path = getattr(input_data, "filePath", None)
-            content = getattr(input_data, "content", None)
+            # Support both camelCase and snake_case parameter names
+            file_path = self._get_param(input_data, "filePath", "file_path")
+            content = self._get_param(input_data, "content")
 
             if not isinstance(file_path, str) or not file_path:
                 return ToolOutput(
@@ -367,6 +388,14 @@ Usage:
         "required": ["path"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for directory listing with trust-folder and workdir checks."""
         path = args.get("path")
@@ -409,7 +438,7 @@ Usage:
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            path = getattr(input_data, "path", None)
+            path = self._get_param(input_data, "path")
 
             if not isinstance(path, str) or not path:
                 return ToolOutput(success=False, result=None, error="Invalid directory path: path parameter must be a non-empty string. Please provide a valid absolute directory path.")
@@ -456,7 +485,9 @@ Usage:
   - **/*.py to match all Python files recursively
 - Use maxResults parameter to limit the number of results if needed
 - This tool is faster than grep for finding files by name pattern
-- Use grep instead when searching for content within files"""
+- Use grep instead when searching for content within files
+
+IMPORTANT: Use parameter name 'maxResults' (camelCase) not 'max_results'."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -474,10 +505,19 @@ Usage:
         "required": ["query"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            query = getattr(input_data, "query", None)
-            max_results = getattr(input_data, "maxResults", None)
+            # Support both camelCase and snake_case
+            query = self._get_param(input_data, "query")
+            max_results = self._get_param(input_data, "maxResults", "max_results")
 
             if not isinstance(query, str) or not query:
                 return ToolOutput(

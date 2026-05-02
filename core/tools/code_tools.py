@@ -3,6 +3,7 @@
 import asyncio
 import platform
 import sys
+from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
 from core.tools.permissions import PermissionContext, PermissionScope, RequiredPermission, ToolPermission
@@ -25,7 +26,13 @@ Usage:
 - Always check command output for errors and handle them appropriately
 - Use absolute paths or ensure you're in the correct working directory
 - On Windows: Use PowerShell syntax (Get-Process, Get-Service, etc.)
-- On Unix/Linux/macOS: Use bash syntax (ls, grep, cd, etc.)"""
+- On Unix/Linux/macOS: Use bash syntax (ls, grep, cd, etc.)
+
+**PARAMETERS:**
+- `command` (string, required): Shell command to execute
+- `is_background` (boolean, optional, default: false): Whether to run in background
+- `delay_ms` (integer, optional, default: 0): Delay in ms before returning
+- `timeout` (integer, optional, default: 30): Max execution time in seconds"""
     input_schema = {
         "type": "object",
         "properties": {
@@ -54,6 +61,14 @@ Usage:
         },
         "required": ["command"]
     }
+
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for bash command with dangerous pattern detection"""
@@ -104,10 +119,11 @@ Usage:
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            command = getattr(input_data, "command", None)
-            is_background = getattr(input_data, "is_background", False)
-            delay_ms = getattr(input_data, "delay_ms", 0)
-            timeout = getattr(input_data, "timeout", 30)
+            # Support both camelCase and snake_case parameter names
+            command = self._get_param(input_data, "command")
+            is_background = self._get_param(input_data, "is_background") or False
+            delay_ms = self._get_param(input_data, "delay_ms") or 0
+            timeout = self._get_param(input_data, "timeout") or 30
 
             if not isinstance(command, str) or not command:
                 return ToolOutput(
@@ -219,7 +235,12 @@ Usage:
 - Common pytest args: -v (verbose), -k (keyword filter), -x (stop on first failure), --cov (coverage)
 - Common unittest args: -v (verbose), -k (keyword filter)
 - Analyze test failures systematically to identify and fix issues
-- Re-run tests after making fixes to verify the changes"""
+- Re-run tests after making fixes to verify the changes
+
+**PARAMETERS:**
+- `path` (string, required): Path to test file or directory
+- `framework` (string, optional, default: pytest): Test framework to use
+- `args` (string, optional): Additional command-line arguments"""
     input_schema = {
         "type": "object",
         "properties": {
@@ -242,11 +263,20 @@ Usage:
         "required": ["path"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            path = getattr(input_data, "path", None)
-            framework = getattr(input_data, "framework", "pytest")
-            args = getattr(input_data, "args", "")
+            # Support both camelCase and snake_case parameter names
+            path = self._get_param(input_data, "path")
+            framework = self._get_param(input_data, "framework") or "pytest"
+            args = self._get_param(input_data, "args") or ""
 
             if not isinstance(path, str) or not path:
                 return ToolOutput(

@@ -108,9 +108,18 @@ Usage:
         "required": ["pid"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        pid = getattr(input_data, "pid", None)
-        limit = getattr(input_data, "lines", 100)
+        # Support both camelCase and snake_case parameter names
+        pid = self._get_param(input_data, "pid")
+        limit = self._get_param(input_data, "lines", "limit") or 100
 
         if pid not in _background_processes:
             return ToolOutput(

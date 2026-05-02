@@ -35,12 +35,21 @@ Usage:
                 "description": "The query to search for in the web page's content. This should be a clear and concise description of the content you want to find."
             }
         },
-        "required": ["urls", "query"]
+        "required": ["urls"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        urls = getattr(input_data, "urls", None)
-        query = getattr(input_data, "query", None)
+        # Support both camelCase and snake_case parameter names
+        urls = self._get_param(input_data, "urls")
+        query = self._get_param(input_data, "query") or ""
 
         if not isinstance(urls, list) or not urls or not all(isinstance(url, str) for url in urls):
             return ToolOutput(
@@ -117,6 +126,13 @@ Usage:
                 "minimum": 1,
                 "maximum": 20
             },
+            "numResults": {
+                "type": "integer",
+                "description": "Number of search results to return (default: 8) - camelCase variant",
+                "default": 8,
+                "minimum": 1,
+                "maximum": 20
+            },
             "type": {
                 "type": "string",
                 "description": "Search type: 'auto', 'neural', or 'keyword' (default: 'auto')",
@@ -132,10 +148,22 @@ Usage:
             "context_max_characters": {
                 "type": "integer",
                 "description": "Maximum characters for content context (optional)"
+            },
+            "contextMaxCharacters": {
+                "type": "integer",
+                "description": "Maximum characters for content context (optional) - camelCase variant"
             }
         },
         "required": ["query"]
     }
+
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
     def __init__(self):
         super().__init__()
@@ -143,11 +171,12 @@ Usage:
         self.timeout = 25
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        query = getattr(input_data, "query", None)
-        num_results = getattr(input_data, "num_results", 8)
-        search_type = getattr(input_data, "type", "auto")
-        livecrawl = getattr(input_data, "livecrawl", "fallback")
-        context_max_characters = getattr(input_data, "context_max_characters", None)
+        # Support both camelCase and snake_case parameter names
+        query = self._get_param(input_data, "query")
+        num_results = self._get_param(input_data, "num_results", "numResults") or 8
+        search_type = self._get_param(input_data, "type") or "auto"
+        livecrawl = self._get_param(input_data, "livecrawl") or "fallback"
+        context_max_characters = self._get_param(input_data, "context_max_characters")
 
         if not isinstance(query, str) or not query.strip():
             return ToolOutput(

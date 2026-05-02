@@ -5,6 +5,7 @@ import fnmatch
 import os
 import re
 import subprocess
+from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
 
@@ -14,6 +15,8 @@ class GrepSearchTool(BaseTool):
 
     name = "grep"
     description = """Do a fast text search in the workspace. Use this tool when you want to search with an exact string or regex pattern.
+
+IMPORTANT: Use camelCase parameter names: 'isRegexp', 'includePattern', 'maxResults' (not snake_case).
 
 Usage:
 - Use regex patterns with alternation (|) or character classes to search for multiple potential words at once instead of making separate searches
@@ -34,20 +37,28 @@ Usage:
             },
             "isRegexp": {
                 "type": "boolean",
-                "description": "Whether the pattern is a regex"
+                "description": "Whether the pattern is a regex (default: false)"
             },
             "includePattern": {
                 "type": "string",
                 "description": "Search files matching this glob pattern. Will be applied to the relative path of files within the workspace. To search recursively inside a folder, use a proper glob pattern like \"src/folder/**\". Do not use | in includePattern."
             },
             "maxResults": {
-                "type": "number",
+                "type": "integer",
                 "description": "The maximum number of results to return. Do not use this unless necessary, it can slow things down. By default, only some matches are returned. If you use this and don't see what you're looking for, you can try again with a more specific query or a larger maxResults.",
                 "minimum": 1
             }
         },
-        "required": ["query", "isRegexp"]
+        "required": ["query"]
     }
+
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
     def _check_ripgrep_available(self) -> bool:
         """Check if ripgrep (rg) is available on the system"""
@@ -187,10 +198,11 @@ Usage:
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            query = getattr(input_data, "query", None)
-            is_regexp = getattr(input_data, "isRegexp", False)
-            include_pattern = getattr(input_data, "includePattern", None)
-            max_results = getattr(input_data, "maxResults", None)
+            # Support both camelCase and snake_case parameter names
+            query = self._get_param(input_data, "query")
+            is_regexp = self._get_param(input_data, "isRegexp", "is_regexp")
+            include_pattern = self._get_param(input_data, "includePattern", "include_pattern")
+            max_results = self._get_param(input_data, "maxResults", "max_results")
 
             if not isinstance(query, str) or not query:
                 return ToolOutput(

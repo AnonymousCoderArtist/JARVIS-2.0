@@ -1,6 +1,7 @@
 """REPL tool for interactive Python execution (OpenClaude style)"""
 
 import asyncio
+from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
 
@@ -33,11 +34,20 @@ Usage:
     # Class-level session storage
     _sessions: dict[str, dict] = {}
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            code = getattr(input_data, "code", None)
-            session_id = getattr(input_data, "session_id", "default")
-            timeout = getattr(input_data, "timeout", 30)
+            # Support both camelCase and snake_case parameter names
+            code = self._get_param(input_data, "code")
+            session_id = self._get_param(input_data, "session_id", "sessionId") or "default"
+            timeout = self._get_param(input_data, "timeout") or 30
 
             if not isinstance(code, str) or not code:
                 return ToolOutput(

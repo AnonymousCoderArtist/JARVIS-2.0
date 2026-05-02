@@ -232,10 +232,19 @@ When to use which:
         "required": ["agent_name", "prompt", "run_in_background"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        agent_name = getattr(input_data, "agent_name", None)
-        prompt = getattr(input_data, "prompt", None)
-        run_in_background = getattr(input_data, "run_in_background", False)
+        # Support both camelCase and snake_case parameter names
+        agent_name = self._get_param(input_data, "agent_name", "agentName")
+        prompt = self._get_param(input_data, "prompt")
+        run_in_background = self._get_param(input_data, "run_in_background", "runInBackground") or False
 
         if not isinstance(agent_name, str) or not isinstance(prompt, str):
             return ToolOutput(
@@ -371,8 +380,17 @@ class ActivateSkillTool(BaseTool):
         "required": ["name"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        skill_name = getattr(input_data, "name", None)
+        # Support both camelCase and snake_case parameter names
+        skill_name = self._get_param(input_data, "name", "skill_name")
 
         if not isinstance(skill_name, str) or not skill_name:
             return ToolOutput(
@@ -437,8 +455,17 @@ The main agent will be automatically notified when background agents complete.""
         "required": ["task_id"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        task_id = getattr(input_data, "task_id", None)
+        # Support both camelCase and snake_case parameter names
+        task_id = self._get_param(input_data, "task_id", "taskId")
 
         if not isinstance(task_id, str) or not task_id:
             return ToolOutput(
