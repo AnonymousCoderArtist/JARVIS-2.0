@@ -161,11 +161,8 @@ graph LR
 git clone https://github.com/OEvortex/JARVIS.git
 cd JARVIS
 
-# Install dependencies (using uv recommended)
+# Install dependencies
 uv pip install -e .
-
-# Or using pip
-pip install -e .
 ```
 
 ### Configuration

@@ -8,9 +8,6 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 
 ```bash
 # Install dependencies
-pip install -e .
-
-# Or with uv
 uv pip install -e .
 ```
 
