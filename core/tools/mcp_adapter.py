@@ -290,7 +290,7 @@ class HTTPTransport(MCPTransport):
     def _import_aiohttp(self):
         """Import and return aiohttp module"""
         try:
-            import aiohttp  # type: ignore
+            import aiohttp
             return aiohttp
         except ImportError:
             raise RuntimeError("aiohttp is required for HTTP transport. Install with: pip install aiohttp")
@@ -357,10 +357,26 @@ class HTTPTransport(MCPTransport):
                 
                 return result.get("result", {})
     
+    async def _ensure_session(self) -> None:
+        """Ensure the session is valid. Recreate if needed."""
+        if self._session is None:
+            await self.initialize()
+            return
+        
+        # Check if session is closed by trying to make a simple request
+        # If the session is invalid due to closed event loop, recreate it
+        try:
+            # Try to check if session is closed
+            if self._session.closed:
+                await self.initialize()
+        except Exception:
+            # If any error occurs (including event loop issues), reinitialize
+            await self.initialize()
+    
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call a tool on the MCP server"""
-        if not self._initialized:
-            await self.initialize()
+        # Ensure session is valid before calling
+        await self._ensure_session()
         
         return await self._send_request(
             "tools/call",
@@ -538,17 +554,17 @@ class MCPToolAdapter(BaseTool):
         # Build input schema from MCP tool spec
         input_schema = self._build_input_schema(tool_spec)
         
+        # Set tool properties BEFORE init (required by BaseTool)
+        self.name = f"mcp_{tool_spec.server_name}_{tool_spec.name}"
+        self.description = tool_spec.description or f"MCP tool: {tool_spec.name}"
+        self.input_schema = input_schema
+        
         # Initialize base class
         super().__init__(
             tool_registry=tool_registry,
             llm_provider=llm_provider,
             model=model,
         )
-        
-        # Set tool properties after init
-        self.name = f"mcp_{tool_spec.server_name}_{tool_spec.name}"
-        self.description = tool_spec.description or f"MCP tool: {tool_spec.name}"
-        self.input_schema = input_schema
     
     def _build_input_schema(self, tool_spec: MCPToolSpec) -> dict[str, Any]:
         """Build JARVIS input schema from MCP tool spec"""

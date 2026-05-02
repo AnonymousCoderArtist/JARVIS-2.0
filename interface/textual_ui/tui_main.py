@@ -116,6 +116,95 @@ def get_env_config() -> dict[str, str | None]:
     }
 
 
+def load_mcp_servers_from_config(config_path: Path | None = None) -> list[dict]:
+    """Load MCP server configurations from .mcp.json file."""
+    if config_path is None:
+        # Default to .mcp.json in current directory or JARVIS config dir
+        config_path = Path(".mcp.json")
+        
+        if not config_path.exists():
+            # Try in JARVIS config directory
+            jarvis_dir = Path.home() / ".jarvis"
+            config_path = jarvis_dir / "mcp_servers.json"
+    
+    if not config_path.exists():
+        return []
+    
+    try:
+        import json
+        with open(config_path) as f:
+            data = json.load(f)
+        
+        # Handle both formats:
+        # {"mcpServers": {"name": {...}}} or [{"name": ..., ...}]
+        if "mcpServers" in data:
+            servers = []
+            for name, config in data["mcpServers"].items():
+                server = {
+                    "name": name,
+                    "command": config.get("command", ""),
+                    "args": config.get("args", []),
+                    "env": config.get("env", {}),
+                    "transport": config.get("transport", ""),  # Empty string to allow auto-detection
+                    "url": config.get("url", ""),
+                }
+                servers.append(server)
+            return servers
+        elif isinstance(data, list):
+            return data
+        else:
+            return []
+    except Exception as e:
+        print(f"Warning: Failed to load MCP config from {config_path}: {e}")
+        return []
+
+
+async def connect_mcp_servers(tool_registry: AsyncToolRegistry, provider: Any, model: str) -> int:
+    """Connect to MCP servers and register their tools."""
+    from core.tools.mcp_adapter import MCPServerConfig, MCPRegistry, MCPTransportType
+    
+    # Load MCP server configurations
+    mcp_configs = load_mcp_servers_from_config()
+    
+    if not mcp_configs:
+        return 0
+    
+    # Create MCP registry
+    mcp_registry = MCPRegistry(tool_registry=tool_registry)
+    
+    # Convert and connect to each MCP server
+    connected_count = 0
+    for config_dict in mcp_configs:
+        try:
+            # Auto-detect transport based on URL presence
+            url = config_dict.get("url", "")
+            transport = config_dict.get("transport", "")
+            if url and not transport:
+                transport = MCPTransportType.HTTP
+            
+            config = MCPServerConfig(
+                name=config_dict.get("name", ""),
+                command=config_dict.get("command", ""),
+                args=config_dict.get("args", []),
+                env=config_dict.get("env", {}),
+                transport=transport or MCPTransportType.STDIO,
+                url=url,
+                timeout=config_dict.get("timeout", 30.0),
+            )
+            
+            await mcp_registry.add_server(
+                config=config,
+                llm_provider=provider,
+                model=model,
+            )
+            connected_count += 1
+            print(f"Connected to MCP server: {config.name}")
+        except Exception as e:
+            print(f"Warning: Failed to connect to MCP server '{config_dict.get('name', 'unknown')}': {e}")
+    
+    return connected_count
+
+
 def create_tool_registry() -> AsyncToolRegistry:
     """Create and configure tool registry with all JARVIS tools."""
     tool_registry = AsyncToolRegistry()
@@ -193,6 +282,12 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         llm_provider=provider,
         model=model
     )
+    
+    # Connect to MCP servers and register their tools
+    import asyncio
+    mcp_count = asyncio.run(connect_mcp_servers(tool_registry, provider, model))
+    if mcp_count > 0:
+        print(f"Connected to {mcp_count} MCP server(s)")
 
     # Initialize agent manager for profile support
     from core.agents.manager import AgentManager
