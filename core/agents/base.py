@@ -69,6 +69,7 @@ class BaseAgent(ABC):
         config_getter: ConfigGetter | None = None,
         bypass_tool_permissions: bool = False,
         use_concurrent_tools: bool = True,
+        auto_discover_context: bool = True,
     ):
         self.llm: BaseLLMProvider = llm_provider
         self.tools: ToolRegistry = tool_registry
@@ -89,7 +90,7 @@ class BaseAgent(ABC):
         self.status_callback: StatusCallback | None = None
 
         # Async configuration
-        self.use_concurrent_tools = use_concurrent_tools
+        self.use_concurrent_tools: bool = use_concurrent_tools
 
         # Background task manager (initialized lazily)
         self._background_task_manager = None
@@ -99,6 +100,23 @@ class BaseAgent(ABC):
         self._session_rules: list[ApprovedRule] = []
         self._config_getter: ConfigGetter = config_getter or (lambda: Settings())
         self.bypass_tool_permissions: bool = bypass_tool_permissions
+
+        # Auto-discovery of project context files (JARVIS v2 mode)
+        self._auto_discover_context: bool = auto_discover_context
+        if auto_discover_context:
+            # Rebuild the base system prompt at runtime with discovered context files
+            # This must happen before _build_system_prompt() is called
+            from core.agents.system_prompts import (
+                discover_context_files,
+                build_jarvis_v2_system_prompt,
+            )
+            context_files = discover_context_files()
+            self.base_system_prompt = build_jarvis_v2_system_prompt(
+                context_files=context_files,
+                auto_discover=False,  # prevent re-discovery inside builder
+            )
+        else:
+            self.base_system_prompt = system_prompt
 
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
