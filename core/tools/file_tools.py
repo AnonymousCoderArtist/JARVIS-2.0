@@ -26,8 +26,8 @@ class FileReadTool(BaseTool):
 ```json
 {
   "files": [
-    {"file_path": "/path/to/file.py", "offset": 1, "limit": 100},
-    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 50}
+    {"file_path": "/path/to/file.py", "offset": 1, "limit": 10},
+    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 10}
   ]
 }
 ```
@@ -35,8 +35,8 @@ class FileReadTool(BaseTool):
 **PARAMETERS:**
 - `files`: Array of file objects (required)
   - `file_path`: Absolute path to the file to read (required)
-  - `offset`: 1-based line number to start reading from (default: 1)
-  - `limit`: Maximum number of lines to read (default: all lines, max 2000)
+  - `offset`: 1-based line number to start reading from (required)
+  - `limit`: Maximum number of lines to read (required, default: 10, max: 1000)
 - `encoding`: Character encoding for reading files (default: utf-8)
 
 **BEHAVIOR:**
@@ -64,14 +64,14 @@ class FileReadTool(BaseTool):
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of lines to read (default: all lines, max 2000)",
+                            "description": "Maximum number of lines to read (default: 10, max: 1000)",
                             "minimum": 1
                         }
                     },
-                    "required": ["file_path"]
+                    "required": ["file_path", "offset", "limit"]
                 },
                 "minItems": 1,
-                "description": "Array of file objects with file_path, offset (optional), and limit (optional)"
+                "description": "Array of file objects with file_path, offset, and limit"
             },
             "encoding": {
                 "type": "string",
@@ -127,7 +127,7 @@ class FileReadTool(BaseTool):
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path'. Each file object can optionally include 'offset' and 'limit'."
+                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
                 )
 
             return await self._execute_files_array(files, encoding)
@@ -167,14 +167,14 @@ class FileReadTool(BaseTool):
                 start_idx = (off - 1) if off is not None and isinstance(off, int) and off > 0 else 0
                 if lim is not None:
                     if not isinstance(lim, int) or lim < 1:
-                        lim = 100
+                        lim = 10
                     end_idx = start_idx + lim
                 else:
                     end_idx = total_lines
 
-                # Truncate at 2000 lines
-                if end_idx - start_idx > 2000:
-                    end_idx = start_idx + 2000
+                # Cap at 1000 lines to prevent abuse
+                if end_idx - start_idx > 1000:
+                    end_idx = start_idx + 1000
 
                 start_idx = max(0, min(start_idx, total_lines))
                 end_idx = max(0, min(end_idx, total_lines))
