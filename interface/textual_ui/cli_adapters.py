@@ -862,7 +862,12 @@ class CommandCompleter:
         self.entries_getter = entries_getter
 
     def get_completions(self, document, complete_event):
-        text = document.get_word_before_cursor()
+        # Handle both document objects and strings (for backward compatibility)
+        if isinstance(document, str):
+            text = document
+        else:
+            text = document.get_word_before_cursor()
+
         if text.startswith('/'):
             entries = self.entries_getter() if self.entries_getter else []
             for label, _ in entries:
@@ -878,7 +883,12 @@ class PathCompleter:
         self.watcher_enabled_getter = watcher_enabled_getter
 
     def get_completions(self, document, complete_event):
-        text = document.get_word_before_cursor()
+        # Handle both document objects and strings (for backward compatibility)
+        if isinstance(document, str):
+            text = document
+        else:
+            text = document.get_word_before_cursor()
+
         if text.startswith('@') or text.startswith('/') or text.startswith('~'):
             import os
             base_path = text

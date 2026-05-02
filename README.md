@@ -1,6 +1,6 @@
 <div align="center">
 
-# JARVIS v2.0.beta-coding
+# JARVIS v2.0.beta-Agents
 
 <a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/github/v/release/OEvortex/JARVIS?label=version&style=for-the-badge&color=blue"></a>
 <a href="https://github.com/OEvortex/JARVIS/blob/main/LICENSE"><img src="https://img.shields.io/github/license/OEvortex/JARVIS?style=for-the-badge&color=green"></a>
@@ -33,7 +33,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 
 ## 🎯 Current Status
 
-This is **JARVIS v2.0.beta-coding** - the core Coding harness of JARVIS 2.0
+This is **JARVIS v2.0.beta-Agents** - the core Agentic harness of JARVIS 2.0
 
 | Component | Status |
 |-----------|--------|
