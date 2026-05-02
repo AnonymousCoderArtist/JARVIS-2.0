@@ -21,34 +21,78 @@ class FileReadTool(BaseTool):
     """Tool for reading file contents - uses files array format"""
 
     name = "read"
-    description = """Read file(s) from the local filesystem using the files array format.
+    description = """Read file(s) from the local filesystem. Supports both single file and multiple files formats.
 
-**USAGE:**
+**USAGE - Single File (backward compatible):**
 ```json
 {
-  "files": [
-    {"file_path": "/path/to/file.py", "offset": 1, "limit": 10},
-    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 10}
-  ]
+  "filePath": "/absolute/path/to/file.py",
+  "offset": 1,
+  "limit": 10,
+  "encoding": "utf-8"
 }
 ```
 
-**PARAMETERS:**
+**USAGE - Multiple Files:**
+```json
+{
+  "files": [
+    {"file_path": "/absolute/path/to/file.py", "offset": 1, "limit": 10},
+    {"file_path": "/absolute/path/to/file2.py", "offset": 10, "limit": 10}
+  ],
+  "encoding": "utf-8"
+}
+```
+
+**PARAMETERS - Single File Mode:**
+- `filePath`: Absolute path to the file to read (required)
+- `offset`: 1-based line number to start reading from (optional, default: 1, minimum: 1)
+- `limit`: Maximum number of lines to read (optional, default: 10, minimum: 1, maximum: 1000)
+- `encoding`: Character encoding for reading files (optional, default: "utf-8")
+
+**PARAMETERS - Multiple Files Mode:**
 - `files`: Array of file objects (required)
   - `file_path`: Absolute path to the file to read (required)
-  - `offset`: 1-based line number to start reading from (required)
-  - `limit`: Maximum number of lines to read (required, default: 10, max: 1000)
-- `encoding`: Character encoding for reading files (default: utf-8)
+  - `offset`: 1-based line number to start reading from (required, minimum: 1)
+  - `limit`: Maximum number of lines to read (required, minimum: 1, maximum: 1000)
+- `encoding`: Character encoding for reading files (optional, default: "utf-8")
 
 **BEHAVIOR:**
-- Returns concatenated content with `--- {file_path} ---` separators
-- Files are read in parallel for performance
+- Returns concatenated content with `--- {file_path} ---` separators between files (multiple files mode)
+- Returns content with metadata including file path (single file mode)
+- Files are read in parallel for performance (multiple files mode)
 - Each file respects individual offset/limit settings
-- Read errors for individual files are reported but don't fail the entire operation"""
+- Read errors for individual files are reported but don't fail the entire operation
+- Supports reading text files with various encodings
+- Lines longer than 2000 characters are truncated
+
+**EXAMPLES:**
+- Single file, first 10 lines: `{"filePath": "/path/to/file.py", "offset": 1, "limit": 10}`
+- Single file, lines 20-30: `{"filePath": "/path/to/file.py", "offset": 20, "limit": 11}`
+- Multiple files: `{"files": [{"file_path": "/path/file1.py", "offset": 1, "limit": 5}, {"file_path": "/path/file2.py", "offset": 1, "limit": 5}]}`"""
 
     input_schema = {
         "type": "object",
         "properties": {
+            # Single file mode parameters
+            "filePath": {
+                "type": "string",
+                "description": "Absolute path to the file to read (single file mode)"
+            },
+            "offset": {
+                "type": "integer",
+                "description": "1-based line number to start reading from (single file mode)",
+                "minimum": 1,
+                "default": 1
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of lines to read (single file mode, maximum: 1000)",
+                "minimum": 1,
+                "maximum": 1000,
+                "default": 10
+            },
+            # Multiple files mode parameters
             "files": {
                 "type": "array",
                 "items": {
@@ -60,19 +104,22 @@ class FileReadTool(BaseTool):
                         },
                         "offset": {
                             "type": "integer",
-                            "description": "1-based line number to start reading from (default: 1)",
-                            "minimum": 1
+                            "description": "1-based line number to start reading from",
+                            "minimum": 1,
+                            "default": 1
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of lines to read (default: 10, max: 1000)",
-                            "minimum": 1
+                            "description": "Maximum number of lines to read (maximum: 1000)",
+                            "minimum": 1,
+                            "maximum": 1000,
+                            "default": 10
                         }
                     },
                     "required": ["file_path", "offset", "limit"]
                 },
                 "minItems": 1,
-                "description": "Array of file objects with file_path, offset, and limit"
+                "description": "Array of file objects with file_path, offset, and limit (multiple files mode)"
             },
             "encoding": {
                 "type": "string",
@@ -81,7 +128,10 @@ class FileReadTool(BaseTool):
                 "examples": ["utf-8", "latin-1", "ascii"]
             }
         },
-        "required": ["files"]
+        "oneOf": [
+            {"required": ["filePath"]},
+            {"required": ["files"]}
+        ]
     }
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
@@ -133,34 +183,84 @@ class FileReadTool(BaseTool):
             # Support both camelCase and snake_case parameter names
             files = self._get_param(input_data, "files", "files")
             encoding = self._get_param(input_data, "encoding") or "utf-8"
-            
+
             # Normalize encoding
             if not isinstance(encoding, str):
                 encoding = "utf-8"
 
-            # Validate files is a list
-            if files is None:
+            # Check if using new files array format
+            if files is not None:
+                if not isinstance(files, list):
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Invalid files format: expected a list of file objects with file_path, offset, and limit fields"
+                    )
+
+                if len(files) == 0:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
+                    )
+
+                return await self._execute_files_array(files, encoding)
+
+            # Backward compatibility: check for single file parameters
+            file_path = self._get_param(input_data, "filePath", "file_path")
+            offset = self._get_param(input_data, "offset")
+            limit = self._get_param(input_data, "limit")
+
+            if file_path is None:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
-                )
-            
-            if not isinstance(files, list):
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Invalid files format: expected a list of file objects with file_path, offset, and limit fields, got a string instead"
-                )
-            
-            if len(files) == 0:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
+                    error="No file path provided. Use either 'filePath' for single file or 'files' array for multiple files."
                 )
 
-            return await self._execute_files_array(files, encoding)
+            # For single file mode, offset and limit are required (not optional with defaults)
+            if offset is None:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Missing required parameter 'offset' for single file mode."
+                )
+
+            if limit is None:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Missing required parameter 'limit' for single file mode."
+                )
+
+            # Convert to files array format for processing
+            files_array = [{
+                "file_path": file_path,
+                "offset": offset,
+                "limit": limit
+            }]
+
+            # Execute and convert result to single file format
+            array_result = await self._execute_files_array(files_array, encoding)
+            if not array_result.success:
+                return array_result
+
+            # Convert to single file metadata format
+            result_content = array_result.result
+            if result_content and result_content.startswith(f"--- {file_path} ---\n"):
+                result_content = result_content[len(f"--- {file_path} ---\n"):]
+
+            metadata = {
+                "filePath": file_path,
+                "offset": offset,
+                "lines": len(result_content.split('\n')) if result_content else 0
+            }
+
+            return ToolOutput(
+                success=True,
+                result=result_content,
+                metadata=metadata
+            )
 
         except Exception as e:
             return ToolOutput(
