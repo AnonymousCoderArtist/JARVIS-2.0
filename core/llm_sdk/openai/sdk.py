@@ -48,14 +48,12 @@ class OpenAISDK(BaseLLMSDK):
         """Generate response using OpenAI API via curl_cffi"""
         try:
             openai_messages = self.convert_messages_to_dict(messages)
-            token_limits = context_length_manager.get_token_limits(config.model)
-            max_tokens = config.max_tokens or (token_limits.max_output_tokens if token_limits else 4096)
 
             payload = {
                 "model": config.model,
                 "messages": openai_messages,
                 "temperature": config.temperature,
-                "max_tokens": max_tokens,
+                "max_tokens": config.max_tokens,
                 "top_p": config.top_p or 1.0,
                 "frequency_penalty": config.frequency_penalty or 0.0,
                 "presence_penalty": config.presence_penalty or 0.0,
@@ -104,6 +102,10 @@ class OpenAISDK(BaseLLMSDK):
 
                     try:
                         chunk = json.loads(data_str)
+                        # Check if this chunk has usage info (usually in final chunk)
+                        if chunk.get("usage"):
+                            yield {"type": "usage", "usage": chunk["usage"]}
+                        
                         if chunk.get("choices") and chunk["choices"][0].get("delta", {}):
                             delta = chunk["choices"][0]["delta"]
                             
@@ -136,6 +138,11 @@ class OpenAISDK(BaseLLMSDK):
 
                     try:
                         chunk = json.loads(data_str)
+                        
+                        # Check if this chunk has usage info (usually in final chunk)
+                        if chunk.get("usage"):
+                            yield {"type": "usage", "usage": chunk["usage"]}
+                        
                         if not chunk.get("choices"):
                             continue
 
@@ -193,15 +200,13 @@ class OpenAISDK(BaseLLMSDK):
         """Generate response with tool calling using curl_cffi"""
         try:
             openai_messages = self.convert_messages_to_dict(messages)
-            token_limits = context_length_manager.get_token_limits(config.model)
-            max_tokens = config.max_tokens or (token_limits.max_output_tokens if token_limits else 4096)
 
             payload = {
                 "model": config.model,
                 "messages": openai_messages,
                 "tools": tools,
                 "temperature": config.temperature,
-                "max_tokens": max_tokens,
+                "max_tokens": config.max_tokens,
                 "stream": stream
             }
 

@@ -60,13 +60,10 @@ class AnthropicSDK(BaseLLMSDK):
                         "content": msg.content
                     })
 
-            token_limits = context_length_manager.get_token_limits(config.model)
-            max_tokens = config.max_tokens or token_limits.max_output_tokens
-
             payload = {
                 "model": config.model,
                 "messages": anthropic_messages,
-                "max_tokens": max_tokens,
+                "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
                 "top_p": config.top_p or 1.0,
                 "stop_sequences": config.stop_sequences,
@@ -222,14 +219,11 @@ class AnthropicSDK(BaseLLMSDK):
                 for tool in tools
             ]
 
-            token_limits = context_length_manager.get_token_limits(config.model)
-            max_tokens = config.max_tokens or token_limits.max_output_tokens
-
             payload = {
                 "model": config.model,
                 "messages": anthropic_messages,
                 "tools": anthropic_tools,
-                "max_tokens": max_tokens,
+                "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
                 "stream": stream
             }
