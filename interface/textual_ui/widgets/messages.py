@@ -12,6 +12,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 from textual.widgets._markdown import MarkdownStream
 from textual.timer import Timer
+from textual.reactive import reactive
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
@@ -234,15 +235,24 @@ class ReasoningMessage(StreamingMessageBase):
     # Animation frames using star family characters
     SPINNER_FRAMES = ("✽", "✷", "✴", "✵")
 
+    collapsed = reactive(False)
+
     def __init__(self, content: str, collapsed: bool = False, *, enable_math: bool = True) -> None:
         super().__init__(content, enable_math=enable_math)
         self.add_class("reasoning-message")
-        self.collapsed = collapsed
         self._indicator_widget: Static | None = None
         self._branch_widget: Static | None = None
         self._is_spinning = True
         self._spinner_timer: Timer | None = None
         self._frame_index = 0
+        self.collapsed = collapsed
+
+    def watch_collapsed(self, collapsed: bool) -> None:
+        """Update visibility of thinking content when collapsed state changes."""
+        if self._markdown:
+            self._markdown.display = not collapsed
+        if self._branch_widget:
+            self._branch_widget.display = not collapsed
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="reasoning-message-wrapper"):
@@ -261,6 +271,7 @@ class ReasoningMessage(StreamingMessageBase):
                 self._branch_widget = NonSelectableStatic(
                     self.BRANCH, classes="reasoning-branch"
                 )
+                self._branch_widget.display = not self.collapsed
                 yield self._branch_widget
                 yield markdown
 

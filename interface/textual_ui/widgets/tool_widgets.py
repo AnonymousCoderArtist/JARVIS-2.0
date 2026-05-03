@@ -88,8 +88,8 @@ class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
         self.result = result
         self.success = success
         self.message = message
-        self.collapsed = collapsed
         self.warnings = warnings or []
+        self.collapsed = collapsed
         self.add_class("tool-result-widget")
 
     def watch_collapsed(self, collapsed: bool) -> None:

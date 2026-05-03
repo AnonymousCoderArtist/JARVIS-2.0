@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 # Type aliases for callbacks
 MountCallback = Callable[..., Coroutine[Any, Any, None]]
 GetToolsCollapsed = Callable[[], bool]
+GetThinkingCollapsed = Callable[[], bool]
 OnProfileChanged = Callable[[], None]
 
 
@@ -55,11 +56,13 @@ class EventHandler:
         self,
         mount_callback: MountCallback,
         get_tools_collapsed: GetToolsCollapsed,
+        get_thinking_collapsed: GetThinkingCollapsed,
         on_profile_changed: OnProfileChanged | None = None,
         is_remote: bool = False,
     ) -> None:
         self.mount_callback: MountCallback = mount_callback
         self.get_tools_collapsed: GetToolsCollapsed = get_tools_collapsed
+        self.get_thinking_collapsed: GetThinkingCollapsed = get_thinking_collapsed
         self.on_profile_changed: OnProfileChanged | None = on_profile_changed
         self.is_remote: bool = is_remote
         self.tool_calls: dict[str, ToolCallMessage] = {}
@@ -217,8 +220,8 @@ class EventHandler:
             self.current_streaming_message = None
 
         if self.current_streaming_reasoning is None:
-            tools_collapsed = self.get_tools_collapsed()
-            msg = ReasoningMessage(event.content, collapsed=False)
+            thinking_collapsed = self.get_thinking_collapsed()
+            msg = ReasoningMessage(event.content, collapsed=thinking_collapsed)
             self.current_streaming_reasoning = msg
             await self.mount_callback(msg)
         else:

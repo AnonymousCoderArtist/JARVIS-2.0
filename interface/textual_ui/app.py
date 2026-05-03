@@ -369,6 +369,7 @@ class VibeApp(App):  # noqa: PLR0904
         Binding("ctrl+z", "suspend_with_message", "Suspend", show=False, priority=True),
         Binding("escape", "interrupt", "Interrupt", show=False, priority=True),
         Binding("ctrl+o", "toggle_tool", "Toggle Tool", show=False),
+        Binding("ctrl+t", "toggle_thinking", "Toggle Thinking", show=False),
         Binding("ctrl+y", "copy_selection", "Copy", show=False, priority=True),
         Binding("ctrl+shift+c", "copy_selection", "Copy", show=False, priority=True),
         Binding("shift+tab", "cycle_mode", "Cycle Mode", show=False, priority=True),
@@ -426,6 +427,7 @@ class VibeApp(App):  # noqa: PLR0904
         self.history_file = Path(HISTORY_FILE.path)
 
         self._tools_collapsed = True
+        self._thinking_collapsed = False
         self._windowing = SessionWindowing(load_more_batch_size=LOAD_MORE_BATCH_SIZE)
         self._load_more = HistoryLoadMoreManager()
         self._tool_call_map: dict[str, str] | None = None
@@ -531,6 +533,7 @@ class VibeApp(App):  # noqa: PLR0904
         self.event_handler = EventHandler(
             mount_callback=self._mount_and_scroll,
             get_tools_collapsed=lambda: self._tools_collapsed,
+            get_thinking_collapsed=lambda: self._thinking_collapsed,
             on_profile_changed=self._on_profile_changed,
             is_remote=self._remote_manager.is_active,
         )
@@ -2741,6 +2744,11 @@ class VibeApp(App):  # noqa: PLR0904
                 error_msg.set_collapsed(self._tools_collapsed)
         except Exception:
             pass
+
+    async def action_toggle_thinking(self) -> None:
+        self._thinking_collapsed = not self._thinking_collapsed
+        for msg in self.query("ReasoningMessage"):
+            msg.collapsed = self._thinking_collapsed
 
     def action_cycle_mode(self) -> None:
         if self._current_bottom_app != BottomApp.Input:
