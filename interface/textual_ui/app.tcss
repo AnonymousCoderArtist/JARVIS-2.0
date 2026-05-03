@@ -265,6 +265,19 @@ Markdown {
     margin-top: 1;
     width: 100%;
     height: auto;
+
+    .reasoning-message-content {
+        Markdown {
+            width: 100%;
+            height: auto;
+            padding: 0;
+            margin: 0;
+
+            & > MarkdownBlock:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
 }
 
 .reasoning-message-wrapper {
