@@ -547,15 +547,15 @@ class VibeApp(App):  # noqa: PLR0904
             limits = context_length_manager.get_token_limits(model_name)
             max_tokens = limits.total_context_tokens
             
-            # Use actual prompt_tokens from the provider, or 0 if not available
-            current_tokens = stats.prompt_tokens if stats.prompt_tokens > 0 else 0
+            # Use cumulative context tokens (total in context window)
+            current_tokens = stats.context_tokens
             
             context_progress.tokens = TokenState(
                 max_tokens=max_tokens,
                 current_tokens=current_tokens,
             )
 
-        self.agent_loop.stats.add_listener("prompt_tokens", update_context_progress)
+        self.agent_loop.stats.add_listener("context_tokens", update_context_progress)
         self.agent_loop.stats.trigger_listeners()
 
         self.agent_loop.set_approval_callback(self._approval_callback)

@@ -239,7 +239,7 @@ class Stats(AgentStats):
                     completion_val = usage.get('output_tokens', 0)
                 c_tokens = int(completion_val) if completion_val is not None else 0
 
-        # Update stats only if we have actual token counts
+        # Update stats if we have actual token counts
         if p_tokens > 0 or c_tokens > 0:
             self.prompt_tokens = p_tokens
             self.completion_tokens = c_tokens
@@ -252,8 +252,8 @@ class Stats(AgentStats):
             self.last_turn_total_tokens = p_tokens + c_tokens
             self.steps += 1
 
-            # Update context tokens for compaction tracking
-            self.context_tokens = self.session_prompt_tokens
+        # Always update context tokens for compaction tracking (handles cached token case)
+        self.context_tokens = self.session_prompt_tokens
 
 
 @dataclass

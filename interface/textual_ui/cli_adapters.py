@@ -1410,9 +1410,11 @@ class BashArgs(BaseModel):
 
 
 class GrepArgs(BaseModel):
-    pattern: str
+    query: str
     path: str = "."
     max_matches: Optional[int] = None
+    is_regexp: Optional[bool] = False
+    include_pattern: Optional[str] = None
 
 
 class ReadFileArgs(BaseModel):
