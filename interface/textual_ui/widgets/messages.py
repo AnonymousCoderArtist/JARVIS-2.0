@@ -238,30 +238,6 @@ class ReasoningMessage(StreamingMessageBase):
     def on_resize(self) -> None:
         pass
 
-    async def on_click(self) -> None:
-
-    async def _toggle_collapsed(self) -> None:
-        await self.set_collapsed(not self.collapsed)
-
-    def _should_write_content(self) -> bool:
-        return not self.collapsed
-
-    async def set_collapsed(self, collapsed: bool) -> None:
-        if self.collapsed == collapsed:
-            return
-
-        self.collapsed = collapsed
-        if self._markdown:
-            self._markdown.display = not collapsed
-            if not collapsed and self._content:
-                if self._stream is not None:
-                    await self._stream.stop()
-                    self._stream = None
-                await self._markdown.update("")
-                stream = self._ensure_stream()
-                await stream.write(self._content)
-                self._to_write_buffer = ""
-
 
 class TimingMessage(Static):
     """Timing message showing duration:
