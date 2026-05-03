@@ -36,8 +36,8 @@ SINGLE FILE MODE (use filePath):
   WARNING: offset/limit are LINE numbers, NOT byte offsets!
 
 MULTIPLE FILES MODE (use files array):
-  {"files": [{"file_path": "/path/a.py", "offset": 1, "limit": 50}]}
-  - file_path or filePath: Absolute path
+  {"files": [{"filePath": "/path/a.py", "offset": 1, "limit": 50}]}
+  - filePath: Absolute path
   - offset (REQUIRED): Line number to start
   - limit (REQUIRED): Number of lines
 
@@ -70,13 +70,9 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 "items": {
                     "type": "object",
                     "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Absolute path to the file (snake_case)"
-                        },
                         "filePath": {
                             "type": "string",
-                            "description": "Absolute path to the file (camelCase)"
+                            "description": "Absolute path to the file"
                         },
                         "offset": {
                             "type": "integer",
@@ -120,9 +116,9 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
         
         if files and len(files) > 0:
             first_file = files[0]
-            # Support both snake_case and camelCase
+            # Support camelCase
             if isinstance(first_file, dict):
-                file_path = first_file.get("file_path") or first_file.get("filePath")
+                file_path = first_file.get("filePath")
             else:
                 file_path = None
         else:
@@ -215,7 +211,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
 
             # Convert to files array format for processing
             files_array = [{
-                "file_path": file_path,
+                "filePath": file_path,
                 "offset": offset,
                 "limit": limit
             }]
@@ -263,13 +259,13 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 if not isinstance(file_obj, dict):
                     return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path/filePath, offset, and limit, got {type(file_obj).__name__}", None, None)
                 
-                # Support both snake_case and camelCase
-                fp = file_obj.get("file_path") or file_obj.get("filePath")
-                off = file_obj.get("offset") or file_obj.get("offset")
-                lim = file_obj.get("limit") or file_obj.get("limit")
+                # Support camelCase
+                fp = file_obj.get("filePath")
+                off = file_obj.get("offset")
+                lim = file_obj.get("limit")
 
                 if not isinstance(fp, str) or not fp:
-                    return (None, None, f"File {index + 1}: Missing or invalid file_path/filePath", None, None)
+                    return (None, None, f"File {index + 1}: Missing or invalid filePath", None, None)
 
                 if not os.path.exists(fp):
                     return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
@@ -407,8 +403,8 @@ Returns success message with file path and size."""
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            # Support both camelCase and snake_case parameter names
-            file_path = self._get_param(input_data, "filePath", "file_path")
+            # Support camelCase parameter names
+            file_path = self._get_param(input_data, "filePath")
             content = self._get_param(input_data, "content")
 
             if not isinstance(file_path, str) or not file_path:

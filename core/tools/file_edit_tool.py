@@ -26,9 +26,9 @@ WHEN TO USE:
 
 Parameters:
 - replacements (REQUIRED): Array of replacement operations, each with:
-  - file_path or filePath: Absolute or relative path to file
-  - old_string: Exact text to replace (MUST match exactly including whitespace)
-  - new_string: Replacement text
+  - filePath: Absolute or relative path to file
+  - oldString: Exact text to replace (MUST match exactly including whitespace)
+  - newString: Replacement text
 
 CRITICAL: old_string must match exactly - use 'read' first to get current content.
 Copy text including all whitespace/indentation. Include context lines for uniqueness.
@@ -42,34 +42,21 @@ Supports multiple replacements in single call."""
                 "items": {
                     "type": "object",
                     "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Absolute or relative path to the file (snake_case)",
-                            "minLength": 1
-                        },
                         "filePath": {
                             "type": "string",
-                            "description": "Absolute or relative path to the file (camelCase)",
+                            "description": "Absolute or relative path to the file",
                             "minLength": 1
-                        },
-                        "old_string": {
-                            "type": "string",
-                            "description": "The exact literal text to replace (must match exactly including whitespace and indentation)"
                         },
                         "oldString": {
                             "type": "string",
-                            "description": "The exact literal text to replace (camelCase variant)"
-                        },
-                        "new_string": {
-                            "type": "string",
-                            "description": "The exact literal text to replace with"
+                            "description": "The exact literal text to replace (must match exactly including whitespace and indentation)"
                         },
                         "newString": {
                             "type": "string",
-                            "description": "The exact literal text to replace with (camelCase variant)"
+                            "description": "The exact literal text to replace with"
                         }
                     },
-                    "required": ["old_string", "new_string"]
+                    "required": ["oldString", "newString"]
                 },
                 "minItems": 1
             }
@@ -115,7 +102,7 @@ Supports multiple replacements in single call."""
             return None
 
         # Check the first file path for permission
-        first_file = first_replacement.get("file_path") or first_replacement.get("filePath")
+        first_file = first_replacement.get("filePath")
         if not first_file:
             return None
 
@@ -182,10 +169,10 @@ Supports multiple replacements in single call."""
                     errors.append(f"Replacement {i + 1}: Invalid replacement format. Expected an object with 'file_path', 'old_string', and 'new_string' properties.")
                     continue
 
-                # Support both camelCase and snake_case in each replacement
-                file_path = replacement.get("file_path") or replacement.get("filePath")
-                old_string = replacement.get("old_string") or replacement.get("oldString")
-                new_string = replacement.get("new_string") or replacement.get("newString")
+                # Support camelCase parameters
+                file_path = replacement.get("filePath")
+                old_string = replacement.get("oldString")
+                new_string = replacement.get("newString")
 
                 if not isinstance(file_path, str) or not file_path:
                     errors.append(f"Replacement {i + 1}: Missing or invalid file_path. Please provide a valid absolute file path.")

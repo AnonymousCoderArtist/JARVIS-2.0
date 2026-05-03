@@ -52,7 +52,7 @@ Content is extracted in LLM-friendly format."""
         return None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Support both camelCase and snake_case parameter names
+        # Support camelCase parameter names
         urls = self._get_param(input_data, "urls")
         query = self._get_param(input_data, "query") or ""
 
@@ -116,7 +116,7 @@ WHEN TO USE:
 
 Parameters:
 - query (REQUIRED): Search query string
-- num_results (OPTIONAL): Number of results (default: 8, max: 20)
+- numResults (OPTIONAL): Number of results (default: 8, max: 20)
 - type (OPTIONAL): 'auto' (default), 'neural', or 'keyword'
 - livecrawl (OPTIONAL): 'fallback' (default), 'always', or 'never'
 - contextMaxCharacters (OPTIONAL): Max characters for content
@@ -129,16 +129,9 @@ Returns: Search results with titles, URLs, and content snippets."""
                 "type": "string",
                 "description": "The search query to find information on the web"
             },
-            "num_results": {
-                "type": "integer",
-                "description": "Number of search results to return (default: 8)",
-                "default": 8,
-                "minimum": 1,
-                "maximum": 20
-            },
             "numResults": {
                 "type": "integer",
-                "description": "Number of search results to return (default: 8) - camelCase variant",
+                "description": "Number of search results to return (default: 8)",
                 "default": 8,
                 "minimum": 1,
                 "maximum": 20
@@ -155,13 +148,9 @@ Returns: Search results with titles, URLs, and content snippets."""
                 "enum": ["fallback", "always", "never"],
                 "default": "fallback"
             },
-            "context_max_characters": {
-                "type": "integer",
-                "description": "Maximum characters for content context (optional)"
-            },
             "contextMaxCharacters": {
                 "type": "integer",
-                "description": "Maximum characters for content context (optional) - camelCase variant"
+                "description": "Maximum characters for content context (optional)"
             }
         },
         "required": ["query"]
@@ -181,12 +170,12 @@ Returns: Search results with titles, URLs, and content snippets."""
         self.timeout = 25
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Support both camelCase and snake_case parameter names
+        # Support camelCase parameter names
         query = self._get_param(input_data, "query")
-        num_results = self._get_param(input_data, "num_results", "numResults") or 8
+        numResults = self._get_param(input_data, "numResults") or 8
         search_type = self._get_param(input_data, "type") or "auto"
         livecrawl = self._get_param(input_data, "livecrawl") or "fallback"
-        context_max_characters = self._get_param(input_data, "context_max_characters")
+        contextMaxCharacters = self._get_param(input_data, "contextMaxCharacters")
 
         if not isinstance(query, str) or not query.strip():
             return ToolOutput(
@@ -199,11 +188,11 @@ Returns: Search results with titles, URLs, and content snippets."""
         payload_args = {
             "query": query,
             "type": search_type,
-            "numResults": num_results,
+            "numResults": numResults,
             "livecrawl": livecrawl,
         }
-        if context_max_characters is not None:
-            payload_args["contextMaxCharacters"] = context_max_characters
+        if contextMaxCharacters is not None:
+            payload_args["contextMaxCharacters"] = contextMaxCharacters
 
         payload = {
             "jsonrpc": "2.0",
@@ -248,8 +237,8 @@ Returns: Search results with titles, URLs, and content snippets."""
                         result=content[0]["text"],
                         metadata={
                             "query": query,
-                            "num_results": num_results,
-                            "search_type": search_type
+                            "numResults": numResults,
+                            "searchType": search_type
                         }
                     )
 
@@ -264,8 +253,8 @@ Returns: Search results with titles, URLs, and content snippets."""
                         result=content[0]["text"],
                         metadata={
                             "query": query,
-                            "num_results": num_results,
-                            "search_type": search_type
+                            "numResults": numResults,
+                            "searchType": search_type
                         }
                     )
             except Exception:

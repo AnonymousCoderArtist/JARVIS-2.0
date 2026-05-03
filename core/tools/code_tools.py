@@ -24,8 +24,8 @@ WHEN TO USE:
 Parameters:
 - command (REQUIRED): Shell command to execute
 - timeout (OPTIONAL): Max execution time in seconds (default: 30)
-- is_background (OPTIONAL): Run non-blocking (default: false)
-- delay_ms (OPTIONAL): Delay before returning for background processes
+- isBackground (OPTIONAL): Run non-blocking (default: false)
+- delayMs (OPTIONAL): Delay before returning for background processes
 
 Platform: Uses bash on Unix/Linux/macOS, PowerShell on Windows.
 Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
@@ -37,12 +37,12 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                 "description": "Shell command to execute (bash syntax on Unix, PowerShell syntax on Windows)",
                 "minLength": 1
             },
-            "is_background": {
+            "isBackground": {
                 "type": "boolean",
                 "description": "Whether to run the command in the background (non-blocking)",
                 "default": False
             },
-            "delay_ms": {
+            "delayMs": {
                 "type": "integer",
                 "description": "Delay in milliseconds after starting background process before returning",
                 "default": 0,
@@ -117,8 +117,8 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
         try:
             # Support both camelCase and snake_case parameter names
             command = self._get_param(input_data, "command")
-            is_background = self._get_param(input_data, "is_background") or False
-            delay_ms = self._get_param(input_data, "delay_ms") or 0
+            isBackground = self._get_param(input_data, "isBackground") or False
+            delayMs = self._get_param(input_data, "delayMs") or 0
             timeout = self._get_param(input_data, "timeout") or 30
 
             if not isinstance(command, str) or not command:
@@ -128,13 +128,13 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                     error="Invalid command: command parameter must be a non-empty string. Please provide a valid shell command."
                 )
 
-            if not isinstance(delay_ms, int):
-                delay_ms = 0
+            if not isinstance(delayMs, int):
+                delayMs = 0
 
             if not isinstance(timeout, int):
                 timeout = 30
 
-            if is_background:
+            if isBackground:
                 if self.is_windows:
                     process = await asyncio.create_subprocess_exec(
                         "powershell",
@@ -154,8 +154,8 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                 from .background_tools import register_background_process
                 pid = register_background_process(process, command)
 
-                if delay_ms > 0:
-                    await asyncio.sleep(delay_ms / 1000.0)
+                if delayMs > 0:
+                    await asyncio.sleep(delayMs / 1000.0)
 
                 return ToolOutput(
                     success=True,

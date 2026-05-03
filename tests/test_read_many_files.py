@@ -93,8 +93,8 @@ class TestFileReadToolFilesArray:
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
             files=[
-                {"file_path": str(file1), "offset": 1, "limit": 2},
-                {"file_path": str(file2), "offset": 2, "limit": 2}
+                {"filePath": str(file1), "offset": 1, "limit": 2},
+                {"filePath": str(file2), "offset": 2, "limit": 2}
             ]
         ))
 
@@ -115,7 +115,7 @@ class TestFileReadToolFilesArray:
 
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
-            files=[{"file_path": str(file1)}]
+            files=[{"filePath": str(file1)}]
         ))
 
         assert result.success
@@ -129,7 +129,7 @@ class TestFileReadToolFilesArray:
 
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
-            files=[{"file_path": str(file1)}]
+            files=[{"filePath": str(file1)}]
         ))
 
         assert result.success
@@ -145,8 +145,8 @@ class TestFileReadToolFilesArray:
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
             files=[
-                {"file_path": str(file1), "offset": 1, "limit": 10},
-                {"file_path": str(tmp_path / "missing.py")}
+                {"filePath": str(file1), "offset": 1, "limit": 10},
+                {"filePath": str(tmp_path / "missing.py")}
             ]
         ))
 
@@ -161,7 +161,7 @@ class TestFileReadToolFilesArray:
 
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
-            files=[{"file_path": str(file1)}]
+            files=[{"filePath": str(file1)}]
         ))
 
         assert result.success

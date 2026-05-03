@@ -293,7 +293,7 @@ Memory types: user (preferences), feedback (corrections), project (initiatives),
                 "description": "Priority level for this memory",
                 "default": "medium"
             },
-            "project_name": {
+            "projectName": {
                 "type": "string",
                 "description": "Override auto-detected project name"
             }
@@ -311,7 +311,7 @@ Memory types: user (preferences), feedback (corrections), project (initiatives),
         application = getattr(input_data, "application", "")
         tags = getattr(input_data, "tags", [])
         priority = getattr(input_data, "priority", "medium")
-        project_name = getattr(input_data, "project_name", None)
+        projectName = getattr(input_data, "projectName", None)
 
         if not isinstance(fact, str) or not fact:
             return ToolOutput(
@@ -340,8 +340,8 @@ Memory types: user (preferences), feedback (corrections), project (initiatives),
                     name += "..."
 
             # Get project name
-            if not project_name and scope != "global":
-                project_name = get_project_name()
+            if not projectName and scope != "global":
+                projectName = get_project_name()
 
             # Generate filename
             filename = generate_memory_filename(name, timestamp, memory_type)
@@ -357,7 +357,7 @@ type: {memory_type}
 scope: {scope}
 priority: {priority}
 tags: [{tags_str}]
-project: {project_name or 'N/A'}
+project: {projectName or 'N/A'}
 created: {timestamp.isoformat()}
 ---
 
@@ -381,7 +381,7 @@ created: {timestamp.isoformat()}
                 content_sections.append(f"## Application\n{application}\n")
             
             # Add metadata section
-            content_sections.append(f"## Metadata\n- **Type:** {memory_type}\n- **Scope:** {scope}\n- **Priority:** {priority}\n- **Tags:** {tags_str or 'None'}\n- **Project:** {project_name or 'N/A'}\n- **Created:** {timestamp.isoformat()}\n")
+            content_sections.append(f"## Metadata\n- **Type:** {memory_type}\n- **Scope:** {scope}\n- **Priority:** {priority}\n- **Tags:** {tags_str or 'None'}\n- **Project:** {projectName or 'N/A'}\n- **Created:** {timestamp.isoformat()}\n")
             
             # Combine all content
             full_content = frontmatter + "\n".join(content_sections)
@@ -400,7 +400,7 @@ created: {timestamp.isoformat()}
                     "scope": scope,
                     "type": memory_type,
                     "file": str(memory_file),
-                    "project": project_name,
+                    "project": projectName,
                     "priority": priority,
                     "tags": tags
                 }
@@ -658,7 +658,7 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 "enum": ["add", "replace", "remove", "read"],
                 "description": "Action to perform: add, replace, remove, or read"
             },
-            "memory_type": {
+            "memoryType": {
                 "type": "string",
                 "enum": ["memory", "user"],
                 "description": "Type of memory: 'memory' for agent notes, 'user' for user profile",
@@ -672,7 +672,7 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 "type": "string",
                 "description": "Substring to match for replace/remove actions"
             },
-            "new_content": {
+            "newContent": {
                 "type": "string",
                 "description": "New content to replace matched entry with (for replace action)"
             }
@@ -682,21 +682,21 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         action = getattr(input_data, "action", "read")
-        memory_type = getattr(input_data, "memory_type", "memory")
+        memoryType = getattr(input_data, "memoryType", "memory")
         content = getattr(input_data, "content", None)
         match = getattr(input_data, "match", None)
-        new_content = getattr(input_data, "new_content", None)
+        newContent = getattr(input_data, "newContent", None)
 
         try:
             memory_dir = get_hermes_memory_dir()
-            memory_file = memory_dir / f"{memory_type.upper()}.md"
-            
+            memory_file = memory_dir / f"{memoryType.upper()}.md"
+
             # Get character limit for this memory type
-            char_limit = HERMES_MEMORY_LIMITS.get(memory_type, 2200)
-            
+            char_limit = HERMES_MEMORY_LIMITS.get(memoryType, 2200)
+
             if action == "read":
-                return await self._read_memory(memory_file, memory_type)
-            
+                return await self._read_memory(memory_file, memoryType)
+
             elif action == "add":
                 if not content:
                     return ToolOutput(
@@ -704,17 +704,17 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                         result=None,
                         error="Content is required for add action"
                     )
-                return await self._add_memory(memory_file, content, memory_type, char_limit)
-            
+                return await self._add_memory(memory_file, content, memoryType, char_limit)
+
             elif action == "replace":
-                if not match or not new_content:
+                if not match or not newContent:
                     return ToolOutput(
                         success=False,
                         result=None,
-                        error="Match and new_content are required for replace action"
+                        error="Match and newContent are required for replace action"
                     )
-                return await self._replace_memory(memory_file, match, new_content, memory_type, char_limit)
-            
+                return await self._replace_memory(memory_file, match, newContent, memoryType, char_limit)
+
             elif action == "remove":
                 if not match:
                     return ToolOutput(
@@ -722,7 +722,7 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                         result=None,
                         error="Match is required for remove action"
                     )
-                return await self._remove_memory(memory_file, match, memory_type)
+                return await self._remove_memory(memory_file, match, memoryType)
             
             else:
                 return ToolOutput(

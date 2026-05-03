@@ -196,10 +196,10 @@ DO NOT USE for: File operations, network requests, or installing packages!
 
 Parameters:
 - code (REQUIRED): Python code to execute
-- session_id (OPTIONAL): Session ID for state persistence (auto-created if not provided)
+- sessionId (OPTIONAL): Session ID for state persistence (auto-created if not provided)
 - timeout (OPTIONAL): Execution timeout in seconds (default: 30)
 - reset (OPTIONAL): Reset session state before execution (default: false)
-- max_output (OPTIONAL): Maximum characters in output (default: 10000)
+- maxOutput (OPTIONAL): Maximum characters in output (default: 10000)
 
 Security: Dangerous operations blocked, imports restricted to safe modules only.
 State persists across calls within the same session_id."""
@@ -208,10 +208,10 @@ State persists across calls within the same session_id."""
         "type": "object",
         "properties": {
             "code": {"type": "string", "description": "Python code to execute"},
-            "session_id": {"type": "string", "description": "Session ID for state persistence (optional, auto-created if not provided)"},
+            "sessionId": {"type": "string", "description": "Session ID for state persistence (optional, auto-created if not provided)"},
             "timeout": {"type": "integer", "description": "Execution timeout in seconds (default: 30)"},
             "reset": {"type": "boolean", "description": "Reset the session state before execution (default: false)"},
-            "max_output": {"type": "integer", "description": "Maximum characters in output (default: 10000)"}
+            "maxOutput": {"type": "integer", "description": "Maximum characters in output (default: 10000)"}
         },
         "required": ["code"]
     }
@@ -245,12 +245,12 @@ State persists across calls within the same session_id."""
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         """Execute Python code in a secure REPL context."""
         try:
-            # Support both camelCase and snake_case parameter names
+            # Support camelCase parameter names
             code = self._get_param(input_data, "code")
-            session_id = self._get_param(input_data, "session_id", "sessionId")
+            session_id = self._get_param(input_data, "sessionId") or "default"
             timeout = self._get_param(input_data, "timeout") or self._timeout
             reset = self._get_param(input_data, "reset") or False
-            max_output = self._get_param(input_data, "max_output") or self._max_output
+            maxOutput = self._get_param(input_data, "maxOutput") or self._max_output
 
             # Validate code parameter
             if not isinstance(code, str) or not code:
@@ -270,9 +270,9 @@ State persists across calls within the same session_id."""
             if not isinstance(timeout, int) or timeout <= 0:
                 timeout = self._timeout
 
-            # Validate max_output
-            if not isinstance(max_output, int) or max_output <= 0:
-                max_output = self._max_output
+            # Validate maxOutput
+            if not isinstance(maxOutput, int) or maxOutput <= 0:
+                maxOutput = self._max_output
 
             # SECURITY CHECK - Pattern blocklist
             blocked_pattern = self._check_blocked_patterns(code)
@@ -296,8 +296,8 @@ State persists across calls within the same session_id."""
             session.execution_count += 1
 
             # Truncate output if too large
-            if len(output) > max_output:
-                output = output[:max_output] + "\n... (output truncated)"
+            if len(output) > maxOutput:
+                output = output[:maxOutput] + "\n... (output truncated)"
 
             if not output:
                 output = "(no output)"

@@ -164,11 +164,11 @@ Follows agentskills.io standard with YAML frontmatter."""
                 "type": "string",
                 "description": "Brief description of the skill (for create)"
             },
-            "when_to_use": {
+            "whenToUse": {
                 "type": "string",
                 "description": "When this skill should be used (for create, patch)"
             },
-            "when_not_to_use": {
+            "whenNotToUse": {
                 "type": "string",
                 "description": "When this skill should NOT be used (for create, patch)"
             },
@@ -209,7 +209,7 @@ Follows agentskills.io standard with YAML frontmatter."""
                 "type": "string",
                 "description": "Specific field to patch (for patch action)"
             },
-            "new_content": {
+            "newContent": {
                 "type": "string",
                 "description": "New content for field or full replacement (for patch/edit)"
             }
@@ -237,8 +237,8 @@ Follows agentskills.io standard with YAML frontmatter."""
             
             if action == "create":
                 description = getattr(input_data, "description", "")
-                when_to_use = getattr(input_data, "when_to_use", "")
-                when_not_to_use = getattr(input_data, "when_not_to_use", "")
+                whenToUse = getattr(input_data, "whenToUse", "")
+                whenNotToUse = getattr(input_data, "whenNotToUse", "")
                 procedure = getattr(input_data, "procedure", "")
                 pitfalls = getattr(input_data, "pitfalls", "")
                 verification = getattr(input_data, "verification", "")
@@ -248,7 +248,7 @@ Follows agentskills.io standard with YAML frontmatter."""
                 tags = getattr(input_data, "tags", [])
                 
                 return await self._create_skill(
-                    name, description, when_to_use, when_not_to_use,
+                    name, description, whenToUse, whenNotToUse,
                     procedure, pitfalls, verification, version, platforms,
                     category, tags
                 )
@@ -258,24 +258,24 @@ Follows agentskills.io standard with YAML frontmatter."""
             
             elif action == "patch":
                 field = getattr(input_data, "field", None)
-                new_content = getattr(input_data, "new_content", None)
-                if not field or not new_content:
+                newContent = getattr(input_data, "newContent", None)
+                if not field or not newContent:
                     return ToolOutput(
                         success=False,
                         result=None,
-                        error="Field and new_content are required for patch action"
+                        error="Field and newContent are required for patch action"
                     )
-                return await self._patch_skill(name, field, new_content)
+                return await self._patch_skill(name, field, newContent)
             
             elif action == "edit":
-                new_content = getattr(input_data, "new_content", None)
-                if not new_content:
+                newContent = getattr(input_data, "newContent", None)
+                if not newContent:
                     return ToolOutput(
                         success=False,
                         result=None,
                         error="New content is required for edit action"
                     )
-                return await self._edit_skill(name, new_content)
+                return await self._edit_skill(name, newContent)
             
             elif action == "delete":
                 return await self._delete_skill(name)

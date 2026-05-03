@@ -184,7 +184,7 @@ async def test_agents_applies_explore_profile_to_subagent(monkeypatch) -> None:
     tool = AgentsTool(tool_registry=registry, llm_provider=MagicMock(), model="gpt-4o")
 
     result = await tool.execute(
-        ToolInput.model_validate({"agent_name": "explore", "prompt": "inspect the repo"})
+        ToolInput.model_validate({"agentName": "explore", "prompt": "inspect the repo", "runInBackground": False})
     )
 
     assert result.success is True

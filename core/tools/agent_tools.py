@@ -225,17 +225,17 @@ WHEN TO USE:
 Parameters:
 - agent_name (REQUIRED): 'explore' for codebase analysis, 'plan' for task planning
 - prompt (REQUIRED): Task description or query to send to the agent
-- run_in_background (REQUIRED): Set true for async when delegating multiple tasks, false for immediate results
+- runInBackground (REQUIRED): Set true for async when delegating multiple tasks, false for immediate results
 
 Examples:
-- Synchronous: {"agent_name": "explore", "prompt": "Find all API endpoints", "run_in_background": false}
-- Background: {"agent_name": "plan", "prompt": "Plan auth system", "run_in_background": true}
+- Synchronous: {"agentName": "explore", "prompt": "Find all API endpoints", "runInBackground": false}
+- Background: {"agentName": "plan", "prompt": "Plan auth system", "runInBackground": true}
 
 Returns: Agent response (sync) or background task ID (async)."""
     input_schema = {
         "type": "object",
         "properties": {
-            "agent_name": {
+            "agentName": {
                 "type": "string",
                 "description": "Name of the specialized subagent to invoke (e.g., 'explore')",
                 "minLength": 1
@@ -245,12 +245,12 @@ Returns: Agent response (sync) or background task ID (async)."""
                 "description": "The complete query or task to send to the subagent",
                 "minLength": 1
             },
-            "run_in_background": {
+            "runInBackground": {
                 "type": "boolean",
                 "description": "REQUIRED: Set to true ONLY when delegating multiple tasks and can do other work. Set to false for single tasks needing immediate result."
             }
         },
-        "required": ["agent_name", "prompt", "run_in_background"]
+        "required": ["agentName", "prompt", "runInBackground"]
     }
 
     def _get_param(self, input_data: ToolInput, *names) -> Any:
@@ -262,16 +262,16 @@ Returns: Agent response (sync) or background task ID (async)."""
         return None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Support both camelCase and snake_case parameter names
-        agent_name = self._get_param(input_data, "agent_name", "agentName")
+        # Support camelCase parameter names
+        agent_name = self._get_param(input_data, "agentName")
         prompt = self._get_param(input_data, "prompt")
-        run_in_background = self._get_param(input_data, "run_in_background", "runInBackground") or False
+        runInBackground = self._get_param(input_data, "runInBackground") or False
 
         if not isinstance(agent_name, str) or not isinstance(prompt, str):
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid agent invocation input: agent_name and prompt must be non-empty strings. Please provide a valid agent name and a descriptive task prompt."
+                error="Invalid agent invocation input: agentName and prompt must be non-empty strings. Please provide a valid agent name and a descriptive task prompt."
             )
 
         # Import here to avoid circular dependencies
@@ -292,7 +292,7 @@ Returns: Agent response (sync) or background task ID (async)."""
             # Create task ID for background execution
             task_id = str(uuid.uuid4())
 
-            if run_in_background:
+            if runInBackground:
                 # Run in background - non-blocking
                 # Create background task
                 bg_task = BackgroundAgentTask(
@@ -433,20 +433,20 @@ class AgentStatusTool(BaseTool):
     description = """Check status and retrieve output from background agent tasks.
 
 Parameters:
-- task_id (required): Background task ID from agents tool, or 'list' to see all tasks
+- taskId (required): Background task ID from agents tool, or 'list' to see all tasks
 
 Returns task status (pending/running/completed/failed), output, errors, and metadata.
 Do other work before checking status again on running tasks."""
     input_schema = {
         "type": "object",
         "properties": {
-            "task_id": {
+            "taskId": {
                 "type": "string",
                 "description": "Task ID of the background agent to check. Use 'list' to see all background agents.",
                 "minLength": 1
             }
         },
-        "required": ["task_id"]
+        "required": ["taskId"]
     }
 
     def _get_param(self, input_data: ToolInput, *names) -> Any:
@@ -458,18 +458,18 @@ Do other work before checking status again on running tasks."""
         return None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Support both camelCase and snake_case parameter names
-        task_id = self._get_param(input_data, "task_id", "taskId")
+        # Support camelCase parameter names
+        taskId = self._get_param(input_data, "taskId")
 
-        if not isinstance(task_id, str) or not task_id:
+        if not isinstance(taskId, str) or not taskId:
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid task_id: must be a non-empty string. Use 'list' to see all background agents."
+                error="Invalid taskId: must be a non-empty string. Use 'list' to see all background agents."
             )
 
         try:
-            if task_id.lower() == "list":
+            if taskId.lower() == "list":
                 # List all background agents
                 agents = await list_background_agents()
                 if not agents:
@@ -495,18 +495,18 @@ Do other work before checking status again on running tasks."""
                     success=True,
                     result="\n".join(lines),
                     metadata={"count": len(agents), "agents": [
-                        {"task_id": a.task_id, "agent": a.agent_name, "status": a.status}
+                        {"taskId": a.task_id, "agent": a.agent_name, "status": a.status}
                         for a in agents
                     ]}
                 )
 
             # Get specific agent status
-            agent = await get_background_agent(task_id)
+            agent = await get_background_agent(taskId)
             if not agent:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"Task ID '{task_id}' not found. Use 'list' to see available background agents."
+                    error=f"Task ID '{taskId}' not found. Use 'list' to see available background agents."
                 )
 
             # Format the response based on status
