@@ -15,6 +15,23 @@ from textual.timer import Timer
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.unicode_math import render_latex
+
+
+# Helper to process content with math rendering
+def _process_content(content: str, enable_math: bool = True) -> str:
+    """Process content, optionally rendering LaTeX math to Unicode.
+    
+    Args:
+        content: The raw content string
+        enable_math: Whether to render math (default True)
+        
+    Returns:
+        Processed content string with math rendered if enabled
+    """
+    if enable_math:
+        return render_latex(content)
+    return content
 
 
 # Color constants for target design (ANSI escape sequences)
@@ -60,11 +77,11 @@ class ExpandingBorder(NonSelectableStatic):
 
 class UserMessage(Static):
     def __init__(
-        self, content: str, pending: bool = False, message_index: int | None = None
+        self, content: str, pending: bool = False, message_index: int | None = None, *, enable_math: bool = True
     ) -> None:
         super().__init__()
         self.add_class("user-message")
-        self._content = content
+        self._content = _process_content(content, enable_math)
         self._pending = pending
         self.message_index: int | None = message_index
 
@@ -91,9 +108,10 @@ class UserMessage(Static):
 
 
 class StreamingMessageBase(Static):
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: str, *, enable_math: bool = True) -> None:
         super().__init__()
-        self._content = content
+        self._enable_math = enable_math
+        self._content = _process_content(content, enable_math)
         self._markdown: Markdown | None = None
         self._stream: MarkdownStream | None = None
         self._content_initialized = False
@@ -124,19 +142,21 @@ class StreamingMessageBase(Static):
         if not content:
             return
 
-        self._content += content
+        # Process math in streamed content
+        processed = _process_content(content, self._enable_math)
+        self._content += processed
 
         if not self._should_write_content():
             return
 
         if self._is_chat_at_bottom():
-            to_write = self._to_write_buffer + content
+            to_write = self._to_write_buffer + processed
             self._to_write_buffer = ""
             stream = self._ensure_stream()
             await stream.write(to_write)
             return
 
-        self._to_write_buffer += content
+        self._to_write_buffer += processed
 
     async def write_initial_content(self) -> None:
         if self._content_initialized:
@@ -176,8 +196,8 @@ class AssistantMessage(StreamingMessageBase):
     """
     MARKER = "●"
 
-    def __init__(self, content: str) -> None:
-        super().__init__(content)
+    def __init__(self, content: str, *, enable_math: bool = True) -> None:
+        super().__init__(content, enable_math=enable_math)
         self.add_class("assistant-message")
         self._is_spinning = True
 
@@ -203,8 +223,8 @@ class ReasoningMessage(StreamingMessageBase):
     # Animation frames using star family characters
     SPINNER_FRAMES = ("✽", "✷", "✴", "✵")
 
-    def __init__(self, content: str, collapsed: bool = False) -> None:
-        super().__init__(content)
+    def __init__(self, content: str, collapsed: bool = False, *, enable_math: bool = True) -> None:
+        super().__init__(content, enable_math=enable_math)
         self.add_class("reasoning-message")
         self.collapsed = collapsed
         self._indicator_widget: Static | None = None

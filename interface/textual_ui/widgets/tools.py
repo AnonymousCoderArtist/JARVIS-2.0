@@ -68,6 +68,8 @@ class ToolCallMessage(Static):
         self._indicator_widget: Static | None = None
         self._tool_name_widget: Static | None = None
         self._info_widget: Static | None = None
+        self._flicker_timer = None
+        self._is_flickering = False
 
         super().__init__()
         self.add_class("tool-call")
@@ -79,16 +81,34 @@ class ToolCallMessage(Static):
                     self.MARKER, classes="tool-indicator"
                 )
                 yield self._indicator_widget
+                
+                summary = self.get_content()
                 self._tool_name_widget = NoMarkupStatic(
-                    f"{self._tool_name.ljust(10)}", classes="tool-name"
+                    summary, classes="tool-name"
                 )
                 yield self._tool_name_widget
-            args = self._get_argument_lines()
-            if args:
-                self._info_text = " • ".join(args[:2])
-                with Horizontal(classes="tool-call-info"):
-                    yield NonSelectableStatic(self.BRANCH, classes="tool-info-marker")
-                    yield NoMarkupStatic(self._info_text, classes="tool-info")
+
+    def on_mount(self) -> None:
+        """Start the flickering animation when mounted."""
+        if not self._is_history:
+            self._is_flickering = True
+            self._flicker_timer = self.set_interval(0.5, self._toggle_flicker)
+            if self._indicator_widget:
+                self._indicator_widget.add_class("success")  # Green while running
+
+    def _toggle_flicker(self) -> None:
+        if not self._is_flickering or not self._indicator_widget:
+            return
+        # Get current content - handle both Static and NonSelectableStatic
+        try:
+            current = self._indicator_widget.renderable.strip()
+        except AttributeError:
+            try:
+                current = str(self._indicator_widget.renderable).strip()
+            except Exception:
+                current = ""
+        # Toggle between space and marker
+        self._indicator_widget.update(" " if current == self.MARKER else self.MARKER)
 
     @property
     def tool_call_id(self) -> str | None:
@@ -119,14 +139,21 @@ class ToolCallMessage(Static):
 
     def stop_spinning(self, success: bool = True) -> None:
         """Update indicator when tool completes."""
+        self._is_flickering = False
+        if self._flicker_timer:
+            self._flicker_timer.stop()
+            self._flicker_timer = None
+            
         if self._indicator_widget:
-            icon = "●"  # Keep marker, success/error indicated by border style
+            icon = self.MARKER
             self._indicator_widget.update(icon)
             self._indicator_widget.remove_class("spinning")
             if success:
                 self._indicator_widget.add_class("success")
+                self._indicator_widget.remove_class("error")
             else:
                 self._indicator_widget.add_class("error")
+                self._indicator_widget.remove_class("success")
 
 
 class ToolResultMessage(Static):
@@ -190,6 +217,9 @@ class ToolResultMessage(Static):
                 stats = self._get_stats()
                 self._stats_widget = NoMarkupStatic(stats, classes="tool-stats")
                 yield self._stats_widget
+            
+            self._diff_container = Vertical(classes="tool-result-content")
+            yield self._diff_container
 
     def _determine_success(self) -> bool:
         if self._event is None:

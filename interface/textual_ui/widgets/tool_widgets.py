@@ -69,7 +69,7 @@ class ToolApprovalWidget[TArgs: BaseModel](Vertical):
             )
 
 
-class ToolResultWidget[TResult: BaseModel](Static):
+class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
     """Base class for result widgets with typed result."""
 
     def __init__(
@@ -112,6 +112,27 @@ class ToolResultWidget[TResult: BaseModel](Static):
                             f"{field_name}: {value}", classes="tool-result-detail"
                         )
         yield from self._footer()
+
+    def on_click(self, event) -> None:
+        """Toggle collapsed/expanded state on click."""
+        if not self.collapsed:
+            # Only allow collapsing if we have content to show
+            if self.result and (
+                (hasattr(self.result, 'matches') and self.result.matches) or
+                (hasattr(self.result, '__dict__') and any(getattr(self.result, attr, None) not in ("", [], None) for attr in dir(self.result) if not attr.startswith('_'))) or
+                (isinstance(self.result, dict) and any(v not in ("", [], None) for v in self.result.values()))
+            ):
+                self.collapsed = True
+                self.refresh()
+        else:
+            # Expand if we have content
+            if self.result and (
+                (hasattr(self.result, 'matches') and self.result.matches) or
+                (hasattr(self.result, '__dict__') and any(getattr(self.result, attr, None) not in ("", [], None) for attr in dir(self.result) if not attr.startswith('_'))) or
+                (isinstance(self.result, dict) and any(v not in ("", [], None) for v in self.result.values()))
+            ):
+                self.collapsed = False
+                self.refresh()
 
 
 class BashApprovalWidget(ToolApprovalWidget[BashArgs]):
@@ -268,49 +289,89 @@ class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
 
 
 class GrepResultWidget(ToolResultWidget[GrepResult]):
-    """Grep result widget - matches in flat list like pi-claude-style.
+    """Grep result widget - clean modern layout.
     
-    Collapsed: "N matches • Ctrl+O to expand"
-    Expanded: shows raw match lines from ripgrep
+    Collapsed: "N matches in M files"
+    Expanded: file grouped with line numbers
     """
     
     def compose(self) -> ComposeResult:
         for warning in self.warnings:
             yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning")
         if not self.result or not self.result.matches:
-            yield NoMarkupStatic("no matches", classes="tool-result-muted")
+            yield NoMarkupStatic("no matches found", classes="tool-result-muted")
             yield from self._footer()
             return
         
-        # Get match lines from result (format: file:line:content)
+        # Parse matches: file:line:content (handle Windows paths with drive letters)
         matches_text = self.result.matches
         lines = [l for l in matches_text.split("\n") if l.strip()]
-        total = len(lines)
+        
+        files_dict: dict[str, list[tuple[int, str]]] = {}
+        for line in lines:
+            # Handle Windows paths: C:\path\file or ./path/file
+            # Split on first 2 colons only
+            parts = line.split(":", 2)
+            if len(parts) >= 3:
+                filepath = parts[0]
+                try:
+                    line_num = int(parts[1])
+                except ValueError:
+                    # Might be Windows path like C:\ - combine and retry
+                    if len(parts[0]) == 1 and parts[1] == '':  # "C" + ":" = "C:"
+                        filepath = parts[0] + ":" + parts[2].split(":", 1)[0]  # Get first part of rest
+                        rest = parts[2].split(":", 1)[1] if ":" in parts[2] else parts[2]
+                        split2 = rest.split(":", 1)
+                        if len(split2) >= 2:
+                            try:
+                                line_num = int(split2[0])
+                                content = split2[1]
+                            except ValueError:
+                                continue
+                        else:
+                            continue
+                    else:
+                        continue
+                content = parts[2]
+                
+                if filepath not in files_dict:
+                    files_dict[filepath] = []
+                # Avoid duplicates in same file
+                if (line_num, content) not in files_dict[filepath]:
+                    files_dict[filepath].append((line_num, content))
+        
+        total_matches = sum(len(m) for m in files_dict.values())
+        file_count = len(files_dict)
         
         if self.collapsed:
-            # Collapsed: just show count + hint
-            yield NoMarkupStatic(
-                f"{total} matches • Ctrl+O to expand",
-                classes="tool-result-summary"
-            )
+            # Show summary when collapsed with expand indicator
+            summary = f"{total_matches} matches in {file_count} file{'s' if file_count > 1 else ''} ▶"
+            yield NoMarkupStatic(summary, classes="tool-result-summary clickable")
         else:
-            # Expanded: show all matches
+            # Show all matches grouped by file with collapse indicator
             yield NoMarkupStatic(
-                f"{total} matches",
-                classes="tool-result-summary"
+                f"{total_matches} matches in {file_count} files ▼",
+                classes="tool-result-summary clickable"
             )
-            # Show each match line
-            for line in lines:
+            
+            # Group by file
+            for filepath, matches in files_dict.items():
+                # File header
                 yield NoMarkupStatic(
-                    line,
-                    classes="tool-result-match"
+                    f"{filepath}",
+                    classes="tool-result-file-header"
                 )
-            # Hint to collapse if lots of matches
-            if total > 10:
-                yield NoMarkupStatic(
-                    "Ctrl+O to collapse",
-                    classes="tool-result-hint"
-                )
+                # Show matches
+                for line_num, content in matches[:5]:
+                    yield NoMarkupStatic(
+                        f"  {line_num}: {content[:80]}{'...' if len(content) > 80 else ''}",
+                        classes="tool-result-match"
+                    )
+                if len(matches) > 5:
+                    yield NoMarkupStatic(
+                        f"  ... and {len(matches) - 5} more",
+                        classes="tool-result-hint"
+                    )
         
         yield from self._footer()
 

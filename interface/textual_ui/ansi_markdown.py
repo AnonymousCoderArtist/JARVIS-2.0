@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+import re
 from pygments.token import Token
 from textual.content import Content
 from textual.highlight import HighlightTheme, highlight
@@ -48,6 +51,50 @@ class AnsiMarkdownFence(MarkdownFence):
     @classmethod
     def highlight(cls, code: str, language: str, ansi: bool = False, dark: bool = False) -> Content:
         return highlight(code, language=language or None, theme=AnsiHighlightTheme)
+
+
+# Regex patterns for LaTeX/math detection
+# Block math: $$...$$ (multi-line with optional newlines)
+_BLOCK_MATH_RE = re.compile(r'\$\$([\s\S]+?)\$\$', re.MULTILINE)
+# Inline math: $...$ (single line, no newlines inside)
+_INLINE_MATH_RE = re.compile(r'\$([^$\n]+)\$')
+
+
+def detect_math_blocks(text: str) -> list[tuple[str, bool, int, int]]:
+    """Detect LaTeX/math blocks in text.
+
+    Returns list of (math_content, is_block, start_pos, end_pos) tuples.
+    Results are sorted by start position.
+
+    Example:
+        >>> detect_math_blocks("Solve $x=1$ and $$\\int x$$")
+        [("x=1", False, 6, 11), ("\\int x", True, 15, 25)]
+    """
+    results = []
+    seen_starts: set[int] = set()
+
+    # Block math ($$...$$)
+    for match in _BLOCK_MATH_RE.finditer(text):
+        if match.start() not in seen_starts:
+            results.append((match.group(1).strip(), True, match.start(), match.end()))
+            seen_starts.add(match.start())
+
+    # Inline math ($...$) - skip if it overlaps with block math positions
+    for match in _INLINE_MATH_RE.finditer(text):
+        # Check if this inline match is inside any block match
+        is_inside_block = False
+        for block_content, is_block, start, end in results:
+            if is_block and start < match.start() < end:
+                is_inside_block = True
+                break
+
+        if not is_inside_block and match.start() not in seen_starts:
+            results.append((match.group(1).strip(), False, match.start(), match.end()))
+            seen_starts.add(match.start())
+
+    # Sort by start position
+    results.sort(key=lambda x: x[2])
+    return results
 
 
 class AnsiMarkdown(Markdown):

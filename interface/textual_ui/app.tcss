@@ -612,6 +612,19 @@ StatusMessage {
     text-style: bold;
 }
 
+.tool-result-summary.clickable {
+    color: ansi_bright_blue;
+    text-style: bold;
+    background: ansi_black 10%;
+    padding: 0 1;
+    border-radius: 0;
+}
+
+.tool-result-summary.clickable:hover {
+    background: ansi_black 20%;
+    color: ansi_white;
+}
+
 .tool-result-file-header {
     color: ansi_bright_cyan;
     text-style: bold;

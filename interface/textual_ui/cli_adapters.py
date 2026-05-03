@@ -1603,7 +1603,35 @@ class ToolUIDataAdapter:
             summary: str = ""
 
         tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
-        args = getattr(event, "tool_args", None)
+        args = getattr(event, "tool_args", {}) or {}
+        
+        # Specialized summaries for better UX
+        if tool_name == "grep":
+            query = args.get("query", args.get("pattern", ""))
+            path = args.get("path", args.get("includePattern", "."))
+            return Display(summary=f"grep \"{query}\" in {path}")
+        
+        if tool_name in ("read", "read_file"):
+            paths = args.get("files", [])
+            if paths and isinstance(paths, list):
+                path = paths[0].get("file_path", "multiple files") if isinstance(paths[0], dict) else str(paths[0])
+                if len(paths) > 1:
+                    path += f" (+{len(paths)-1} more)"
+            else:
+                path = args.get("path", args.get("file_path", "unknown"))
+            return Display(summary=f"read {path}")
+
+        if tool_name in ("write", "write_file", "edit"):
+            path = args.get("path", args.get("filePath", args.get("file_path", "unknown")))
+            return Display(summary=f"{tool_name} {path}")
+
+        if tool_name == "bash":
+            command = args.get("command", "")
+            summary = command.split("\n")[0]
+            if len(summary) > 50:
+                summary = summary[:47] + "..."
+            return Display(summary=f"run \"{summary}\"")
+
         args_text = self._format_args(args)
         if args_text:
             return Display(summary=f"Calling {tool_name}({args_text})")
