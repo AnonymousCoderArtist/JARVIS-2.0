@@ -391,10 +391,8 @@ class LSResultWidget(ToolResultWidget[LSResult]):
             max_items_to_show = 15
             for item in items[:max_items_to_show]:
                 is_dir = item.endswith("/")
-                icon = "🗀" if is_dir else "🗋"
                 item_class = "tool-result-ls-dir" if is_dir else "tool-result-ls-file"
-                # Use item with suffix for display
-                yield Static(f"   {icon} [ansi_bright_black]{item}[/]", classes=f"tool-result-ls-item {item_class}")
+                yield Static(f"   {item}", classes=f"tool-result-ls-item {item_class}")
             
             if total_items > max_items_to_show:
                 remaining = total_items - max_items_to_show
