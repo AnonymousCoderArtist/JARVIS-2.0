@@ -301,7 +301,7 @@ Markdown {
 .reasoning-message-content-row {
     width: 100%;
     height: auto;
-    layout: vertical;
+    layout: horizontal;
 }
 
 .reasoning-message-content {
