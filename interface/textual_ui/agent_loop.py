@@ -33,6 +33,7 @@ from interface.textual_ui.types import (
 )
 from interface.textual_ui.tool_results import (
     BashResult,
+    GrepMatch,
     GrepResult,
     ReadFileResult,
     SearchReplaceResult,
@@ -736,7 +737,15 @@ Create a comprehensive summary that captures:
             if tool_name == "bash":
                 return BashResult(stdout=raw_result, returncode=0)
             if tool_name == "grep":
-                return GrepResult(matches=raw_result)
+                # Convert string matches to GrepMatch objects if they follow the format
+                matches = []
+                for line in raw_result.splitlines():
+                    parts = line.split(":", 2)
+                    if len(parts) == 3:
+                        matches.append(GrepMatch(file=parts[0], line=int(parts[1]) if parts[1].isdigit() else 0, content=parts[2]))
+                    else:
+                        matches.append(GrepMatch(file="unknown", line=0, content=line))
+                return GrepResult(matches=matches)
             if tool_name in ("read", "read_file"):
                 path = str(arguments.get("path") or arguments.get("filePath", ""))
                 return ReadFileResult(path=path, content=raw_result)
@@ -748,15 +757,16 @@ Create a comprehensive summary that captures:
                 path = str(arguments.get("path") or arguments.get("filePath", ""))
                 return SearchReplaceResult(path=path, content=raw_result)
 
-        # Special case for grep: list of dicts to formatted string
+        # Special case for grep: list of dicts to GrepMatch objects
         if tool_name == "grep" and isinstance(raw_result, list):
-            formatted = []
+            matches = []
             for m in cast(list[dict[str, Any]], raw_result):
-                file = str(m.get("file", "unknown"))
-                line = str(m.get("line", "?"))
-                content = str(m.get("content", ""))
-                formatted.append(f"{file}:{line}:{content}")
-            return GrepResult(matches="\n".join(formatted))
+                matches.append(GrepMatch(
+                    file=str(m.get("file", "unknown")),
+                    line=int(m.get("line", 0)) if str(m.get("line", "")).isdigit() else 0,
+                    content=str(m.get("content", ""))
+                ))
+            return GrepResult(matches=matches)
 
         return raw_result
 

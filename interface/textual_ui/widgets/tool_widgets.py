@@ -220,28 +220,37 @@ class TodoApprovalWidget(ToolApprovalWidget[TodoArgs]):
 class TodoResultWidget(ToolResultWidget[TodoResult]):
     def compose(self) -> ComposeResult:
         if not self.result or not self.result.todos:
-            yield NoMarkupStatic("No todos", classes="todo-empty")
+            yield NoMarkupStatic("└─ no todos", classes="tool-result-muted")
             yield from self._footer()
             return
 
-        by_status: dict[str, list] = {
-            "in_progress": [],
-            "pending": [],
-            "completed": [],
-            "cancelled": [],
-        }
-        for todo in self.result.todos:
-            status = (
-                todo.status.value if hasattr(todo.status, "value") else str(todo.status)
-            )
-            if status in by_status:
-                by_status[status].append(todo)
+        total_todos = len(self.result.todos)
+        summary_text = f"└─ {total_todos} items"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
 
-        for status in ["in_progress", "pending", "completed", "cancelled"]:
-            for todo in by_status[status]:
-                icon = self._get_status_icon(status)
-                yield NoMarkupStatic(f"{icon} {todo.content}", classes=f"todo-{status}")
-        yield from self._footer()
+        if not self.collapsed:
+            by_status: dict[str, list] = {
+                "in_progress": [],
+                "pending": [],
+                "completed": [],
+                "cancelled": [],
+            }
+            for todo in self.result.todos:
+                status = (
+                    todo.status.value if hasattr(todo.status, "value") else str(todo.status)
+                )
+                if status in by_status:
+                    by_status[status].append(todo)
+
+            for status in ["in_progress", "pending", "completed", "cancelled"]:
+                for todo in by_status[status]:
+                    icon = self._get_status_icon(status)
+                    yield NoMarkupStatic(f"   {icon} {todo.content}", classes=f"todo-{status}")
+            yield from self._footer()
+        else:
+            yield from self._footer()
 
     def _get_status_icon(self, status: str) -> str:
         icons = {"pending": "☐", "in_progress": "☐", "completed": "☑", "cancelled": "☒"}
@@ -331,9 +340,8 @@ class GrepResultWidget(ToolResultWidget[GrepResult]):
             yield from self._footer()
             return
         
-        matches_text = self.result.matches
-        lines = [l for l in matches_text.split("\n") if l.strip()]
-        total_matches = len(lines)
+        matches = self.result.matches
+        total_matches = len(matches)
         
         # Branch with match count
         summary_text = f"└─ {total_matches} matches"
@@ -344,18 +352,15 @@ class GrepResultWidget(ToolResultWidget[GrepResult]):
         if not self.collapsed:
             # Show matches with line numbers and file paths
             max_matches_to_show = 15
-            for line in lines[:max_matches_to_show]:
-                # Split line to format it: file:line:content
-                parts = line.split(":", 2)
-                if len(parts) == 3:
-                    file, line_num, content = parts
-                    # Truncate very long content
-                    display_content = content[:100] + "…" if len(content) > 100 else content
-                    # Use markup for colors: bright black for path, yellow for line
-                    yield Static(f"   [ansi_bright_black]{file}[/][ansi_bright_black]:[/][ansi_bright_yellow]{line_num}[/][ansi_bright_black]:[/] {display_content}", classes="tool-result-match")
-                else:
-                    display_line = line[:120] + "…" if len(line) > 120 else line
-                    yield NoMarkupStatic(f"   {display_line}", classes="tool-result-match")
+            for match in matches[:max_matches_to_show]:
+                file = match.file
+                line_num = match.line
+                content = match.content
+                
+                # Truncate very long content
+                display_content = content[:100] + "…" if len(content) > 100 else content
+                # Use markup for colors: bright black for path, yellow for line
+                yield Static(f"   [ansi_bright_black]{file}[/][ansi_bright_black]:[/][ansi_bright_yellow]{line_num}[/][ansi_bright_black]:[/] {display_content}", classes="tool-result-match")
             
             if total_matches > max_matches_to_show:
                 remaining = total_matches - max_matches_to_show
@@ -405,30 +410,45 @@ class LSResultWidget(ToolResultWidget[LSResult]):
 
 class AskUserQuestionResultWidget(ToolResultWidget[AskUserQuestionResult]):
     def compose(self) -> ComposeResult:
-        if self.collapsed or not self.result:
+        if not self.result or not self.result.answers:
+            yield NoMarkupStatic("└─ cancelled", classes="tool-result-muted")
             yield from self._footer()
             return
 
-        for answer in self.result.answers:
-            if len(self.result.answers) > 1:
-                yield NoMarkupStatic(answer.question, classes="tool-result-detail")
-            prefix = "(Other) " if answer.is_other else ""
-            yield NoMarkupStatic(f"{prefix}{answer.answer}", classes="ask-user-answer")
-        yield from self._footer()
+        summary_text = f"└─ {len(self.result.answers)} answers"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+
+        if not self.collapsed:
+            for answer in self.result.answers:
+                if len(self.result.answers) > 1:
+                    yield NoMarkupStatic(f"   Q: {answer.question}", classes="tool-result-detail")
+                prefix = "(Other) " if answer.is_other else ""
+                yield NoMarkupStatic(f"   A: {prefix}{answer.answer}", classes="ask-user-answer")
+            yield from self._footer()
+        else:
+            yield from self._footer()
 
 
 APPROVAL_WIDGETS: dict[str, type[ToolApprovalWidget]] = {
     "bash": BashApprovalWidget,
+    "read": ReadFileApprovalWidget,
     "read_file": ReadFileApprovalWidget,
+    "write": WriteFileApprovalWidget,
     "write_file": WriteFileApprovalWidget,
+    "edit": WriteFileApprovalWidget,
     "grep": GrepApprovalWidget,
     "todo": TodoApprovalWidget,
 }
 
 RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
     "bash": BashResultWidget,
+    "read": ReadFileResultWidget,
     "read_file": ReadFileResultWidget,
+    "write": WriteFileResultWidget,
     "write_file": WriteFileResultWidget,
+    "edit": WriteFileResultWidget,
     "grep": GrepResultWidget,
     "ls": LSResultWidget,
     "todo": TodoResultWidget,
@@ -437,8 +457,11 @@ RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
 
 ARGS_MODELS: dict[str, type[BaseModel]] = {
     "bash": BashArgs,
+    "read": ReadFileArgs,
     "read_file": ReadFileArgs,
+    "write": WriteFileArgs,
     "write_file": WriteFileArgs,
+    "edit": WriteFileArgs,
     "grep": GrepArgs,
     "ls": LSArgs,
     "todo": TodoArgs,
@@ -471,8 +494,19 @@ def get_result_widget(
 ) -> ToolResultWidget:
     widget_class = RESULT_WIDGETS.get(tool_name, ToolResultWidget)
     
-    # Wrap raw list result for 'ls' tool into LSResult model
+    # Wrap results into appropriate models if they come as raw data
     if tool_name == "ls" and isinstance(result, list):
         result = LSResult(items=result)
+    elif tool_name == "grep" and isinstance(result, list):
+        from interface.textual_ui.tool_results import GrepMatch
+        matches = []
+        for r in result:
+            if isinstance(r, dict):
+                matches.append(GrepMatch(
+                    file=r.get("file", "unknown"),
+                    line=r.get("line", 0),
+                    content=r.get("content", "")
+                ))
+        result = GrepResult(matches=matches)
         
     return widget_class(result, success, message, collapsed, warnings)

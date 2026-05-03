@@ -14,11 +14,16 @@ class GrepSearchTool(BaseTool):
     """Tool for searching file contents (OpenClaude style)"""
 
     name = "grep"
-    description = """Search file contents by text or regex pattern. Returns matching lines with file paths.
+    description = """Search file contents by text or regex pattern.
 
-{"query": "function|class", "includePattern": "*.py", "isRegexp": true, "maxResults": 20}
+Parameters:
+- query (required): Search pattern (text or regex with alternation like 'word1|word2')
+- isRegexp (optional): Set true if query is a regex pattern (default: false)
+- includePattern (optional): Filter files by glob (e.g., '*.py', 'src/**')
+- maxResults (optional): Maximum number of results to return
 
-Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
+Case-insensitive search. Uses ripgrep (rg) for speed, falls back to Python regex.
+Returns matching lines with file path, line number, and content."""
     input_schema = {
         "type": "object",
         "properties": {

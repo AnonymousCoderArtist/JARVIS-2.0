@@ -16,14 +16,16 @@ class EditTool(BaseTool):
     """Tool for editing files"""
 
     name = "edit"
-    description = """Edit existing files by replacing exact text strings. Use read tool first to get content.
+    description = """Edit existing files by replacing exact text strings.
 
-{"replacements": [{"file_path": "/path/file.py", "old_string": "old text", "new_string": "new text"}]}
+Parameters:
+- replacements (required): Array of replacement operations, each with:
+  - file_path or filePath: Absolute or relative path to file
+  - old_string or oldString: Exact text to replace (must match exactly including whitespace)
+  - new_string or newString: Replacement text
 
-- Preserve exact indentation and whitespace from read output
-- old_string must match exactly (include surrounding context if needed for uniqueness)
-- Supports multiple replacements in single call
-- Fails if file not read first in conversation"""
+Use read tool first to get current content. Preserve exact indentation and whitespace.
+Supports multiple replacements in single call. Fails if file not read first in conversation."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -35,19 +37,32 @@ class EditTool(BaseTool):
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "Absolute or relative path to the file to modify",
+                            "description": "Absolute or relative path to the file (snake_case)",
+                            "minLength": 1
+                        },
+                        "filePath": {
+                            "type": "string",
+                            "description": "Absolute or relative path to the file (camelCase)",
                             "minLength": 1
                         },
                         "old_string": {
                             "type": "string",
                             "description": "The exact literal text to replace (must match exactly including whitespace and indentation)"
                         },
+                        "oldString": {
+                            "type": "string",
+                            "description": "The exact literal text to replace (camelCase variant)"
+                        },
                         "new_string": {
                             "type": "string",
                             "description": "The exact literal text to replace with"
+                        },
+                        "newString": {
+                            "type": "string",
+                            "description": "The exact literal text to replace with (camelCase variant)"
                         }
                     },
-                    "required": ["file_path", "old_string", "new_string"]
+                    "required": ["old_string", "new_string"]
                 },
                 "minItems": 1
             }

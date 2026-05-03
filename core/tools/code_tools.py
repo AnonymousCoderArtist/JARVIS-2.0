@@ -13,11 +13,16 @@ class BashTool(BaseTool):
     """Tool for executing shell commands (bash on Unix, PowerShell on Windows)"""
 
     name = "bash"
-    description = """Execute shell commands. Uses bash on Unix/Linux/macOS, PowerShell on Windows.
+    description = """Execute shell commands with timeout and background support.
 
-{"command": "ls -la", "timeout": 30, "is_background": false}
+Parameters:
+- command (required): Shell command to execute
+- timeout (optional): Maximum execution time in seconds (default: 30)
+- is_background (optional): Run non-blocking in background (default: false)
+- delay_ms (optional): Delay before returning for background processes
 
-Returns command output. Supports background processes. Check output for errors."""
+Uses bash on Unix/Linux/macOS, PowerShell on Windows.
+Returns stdout/stderr output. Dangerous commands require approval."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -218,11 +223,14 @@ class RunTestsTool(BaseTool):
     """Tool for running tests"""
 
     name = "run_tests"
-    description = """Run tests using pytest or unittest.
+    description = """Run tests using pytest or unittest framework.
 
-{"path": "tests/", "framework": "pytest", "args": "-v"}
+Parameters:
+- path (required): Path to test file or directory
+- framework (optional): Test framework - 'pytest' (default) or 'unittest'
+- args (optional): Additional command-line arguments
 
-Returns test results. Use to verify code correctness and catch regressions."""
+Returns test output with pass/fail results. Use to verify code correctness."""
     input_schema = {
         "type": "object",
         "properties": {

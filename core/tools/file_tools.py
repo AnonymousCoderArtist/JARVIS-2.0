@@ -21,15 +21,27 @@ class FileReadTool(BaseTool):
     """Tool for reading file contents - uses files array format"""
 
     name = "read"
-    description = """Read file contents from local filesystem. WARNING: offset and limit are LINE-BASED (1-indexed), not byte offsets!
+    description = """Read file contents from the local filesystem.
 
-Single file: {"filePath": "/path/file.py", "offset": 1, "limit": 10}
-Multiple files: {"files": [{"filePath": "/path/file1.py", "offset": 1, "limit": 10}, {"filePath": "/path/file2.py", "offset": 1, "limit": 10}]}
+WHEN TO USE:
+- Reading source code files to understand structure
+- Checking file contents before editing
+- Examining configuration or documentation files
 
-- offset: Line number to start reading from (1 = first line, not 0!). If omitted, defaults to 1.
-- limit: Number of lines to read (default: 10, max: 1000)
-- Maximum 1000 lines per request. Use offset/limit to paginate through large files.
-Use absolute paths."""
+SINGLE FILE MODE (use filePath):
+  {"filePath": "/absolute/path/file.py", "offset": 1, "limit": 50}
+  - filePath (required): Absolute path to file
+  - offset (REQUIRED, 1-indexed): Line number to start from (1 = first line)
+  - limit (REQUIRED): Number of lines to read (max 1000)
+  WARNING: offset/limit are LINE numbers, NOT byte offsets!
+
+MULTIPLE FILES MODE (use files array):
+  {"files": [{"file_path": "/path/a.py", "offset": 1, "limit": 50}]}
+  - file_path or filePath: Absolute path
+  - offset (REQUIRED): Line number to start
+  - limit (REQUIRED): Number of lines
+
+TIPS: Use offset/limit to paginate through large files. Always read before edit."""
 
     input_schema = {
         "type": "object",
@@ -60,7 +72,11 @@ Use absolute paths."""
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "Absolute path to the file to read"
+                            "description": "Absolute path to the file (snake_case)"
+                        },
+                        "filePath": {
+                            "type": "string",
+                            "description": "Absolute path to the file (camelCase)"
                         },
                         "offset": {
                             "type": "integer",
@@ -76,7 +92,7 @@ Use absolute paths."""
                             "default": 10
                         }
                     },
-                    "required": ["file_path", "offset", "limit"]
+                    "required": ["offset", "limit"]
                 },
                 "minItems": 1,
                 "description": "Array of file objects with file_path, offset, and limit (multiple files mode)"
@@ -104,7 +120,11 @@ Use absolute paths."""
         
         if files and len(files) > 0:
             first_file = files[0]
-            file_path = first_file.get("file_path") if isinstance(first_file, dict) else None
+            # Support both snake_case and camelCase
+            if isinstance(first_file, dict):
+                file_path = first_file.get("file_path") or first_file.get("filePath")
+            else:
+                file_path = None
         else:
             file_path = None
         
@@ -154,14 +174,14 @@ Use absolute paths."""
                     return ToolOutput(
                         success=False,
                         result=None,
-                        error="Invalid files format: expected a list of file objects with file_path, offset, and limit fields"
+                        error="Invalid files format: expected a list of file objects with file_path/filePath, offset, and limit fields"
                     )
 
                 if len(files) == 0:
                     return ToolOutput(
                         success=False,
                         result=None,
-                        error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
+                        error="No files provided. Use the 'files' array with at least one file object containing 'file_path'/'filePath', 'offset', and 'limit'."
                     )
 
                 return await self._execute_files_array(files, encoding)
@@ -241,14 +261,15 @@ Use absolute paths."""
             try:
                 # Validate file_obj is a dict
                 if not isinstance(file_obj, dict):
-                    return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path, offset, and limit, got {type(file_obj).__name__}", None, None)
+                    return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path/filePath, offset, and limit, got {type(file_obj).__name__}", None, None)
                 
-                fp = file_obj.get("file_path")
-                off = file_obj.get("offset")
-                lim = file_obj.get("limit")
+                # Support both snake_case and camelCase
+                fp = file_obj.get("file_path") or file_obj.get("filePath")
+                off = file_obj.get("offset") or file_obj.get("offset")
+                lim = file_obj.get("limit") or file_obj.get("limit")
 
                 if not isinstance(fp, str) or not fp:
-                    return (None, None, f"File {index + 1}: Missing or invalid file_path", None, None)
+                    return (None, None, f"File {index + 1}: Missing or invalid file_path/filePath", None, None)
 
                 if not os.path.exists(fp):
                     return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
@@ -320,11 +341,14 @@ class FileWriteTool(BaseTool):
     """Tool for writing content to files (OpenClaude style)"""
 
     name = "write"
-    description = """Create a new file with content. Fails if file exists (use edit tool instead). Creates parent directories automatically.
+    description = """Create a new file with specified content.
 
-{"filePath": "/absolute/path/to/file.py", "content": "file content here"}
+Parameters:
+- filePath (required): Absolute path for the new file
+- content (required): Content to write to the file
 
-Use absolute paths."""
+Creates parent directories automatically. Fails if file already exists (use edit tool for existing files).
+Returns success message with file path and size."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -428,11 +452,13 @@ class LSTool(BaseTool):
     """Tool for listing directory contents (OpenClaude style)"""
 
     name = "ls"
-    description = """List directory contents. Returns array of file/directory names with '/' suffix for directories.
+    description = """List directory contents with '/' suffix for directories.
 
-{"path": "/absolute/path/to/directory"}
+Parameters:
+- path (required): Absolute or relative path to directory
 
-Use absolute paths or relative to workspace root."""
+Returns array of names. Directories end with '/', files have no suffix.
+Supports permission checks for restricted paths."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -531,11 +557,14 @@ class FindTool(BaseTool):
     """Tool for searching files by pattern (OpenClaude style)"""
 
     name = "find"
-    description = """Search for files by glob pattern. Returns array of matching file paths.
+    description = """Search for files matching a glob pattern.
 
-{"path": "src", "pattern": "**/*.py", "maxResults": 10}
+Parameters:
+- pattern (required): Glob pattern (e.g., '**/*.py', 'src/**/*.js')
+- path (optional): Directory to search (defaults to workspace root)
+- maxResults (optional): Maximum results to return
 
-Examples: path="src", pattern="**/*.py", path="", pattern="**/*.{ts,tsx}". Searches from workspace root if path is empty or not provided."""
+Returns array of matching file paths. Searches recursively from specified path or workspace root."""
     input_schema = {
         "type": "object",
         "properties": {

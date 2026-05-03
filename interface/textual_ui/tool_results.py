@@ -10,8 +10,14 @@ class BashResult(BaseModel):
     returncode: int = 0
 
 
+class GrepMatch(BaseModel):
+    file: str
+    line: int
+    content: str
+
+
 class GrepResult(BaseModel):
-    matches: str = ""
+    matches: list[GrepMatch] = []
 
 
 class ReadFileResult(BaseModel):

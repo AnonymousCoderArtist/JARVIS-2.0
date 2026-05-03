@@ -12,11 +12,14 @@ class WebFetchTool(BaseTool):
     """Tool for fetching and processing content from URLs"""
 
     name = "fetch_webpage"
-    description = """Fetch content from web pages. Returns main text content with optional query filtering.
+    description = """Fetch and extract content from web pages.
 
-{"urls": ["https://example.com"], "query": "specific information"}
+Parameters:
+- urls (required): Array of URLs to fetch content from
+- query (optional): Search query to filter/extract specific information
 
-Content truncated at 2000 chars. Not suitable for JS-rendered pages."""
+Returns content truncated at 2000 characters. Not suitable for JavaScript-rendered pages.
+Content is extracted in LLM-friendly format."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -95,12 +98,17 @@ Content truncated at 2000 chars. Not suitable for JS-rendered pages."""
 
 
 class ExaWebSearchTool(BaseTool):
-    """Tool for searching the web using Exa MCP API"""
+    """Tool for searching the web using Exa API"""
 
     name = "web_search"
-    description = """Search the web using Exa API for current information and research.
+    description = """Search the web using Exa API for current information.
 
-{"query": "latest AI news", "numResults": 5, "livecrawl": "fallback"}
+Parameters:
+- query (required): Search query string
+- num_results (optional): Number of results to return (default: 8, max: 20)
+- type (optional): Search type - 'auto', 'neural', or 'keyword' (default: 'auto')
+- livecrawl (optional): Crawl mode - 'fallback', 'always', or 'never' (default: 'fallback')
+- contextMaxCharacters (optional): Max characters for content context
 
 Returns search results with titles, URLs, and content snippets."""
     input_schema = {

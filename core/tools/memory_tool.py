@@ -225,11 +225,21 @@ class SaveMemoryTool(BaseTool):
     """Enhanced tool for saving detailed memories with project-specific and global capabilities"""
 
     name = "save_memory"
-    description = """Save memories for future sessions. Supports private, team, and global scopes.
+    description = """Save facts and context to persistent memory for future sessions.
 
-{"fact": "User prefers dark mode", "scope": "private", "memory_type": "user"}
+Parameters:
+- fact (required): The main information to remember
+- scope (optional): 'private' (default), 'team', or 'global'
+- type (optional): Memory type - 'user', 'feedback', 'project', 'project_context', 'reference', 'global' (default: 'user')
+- name (optional): Title for the memory (auto-generated if not provided)
+- context (optional): Additional background information
+- reasoning (optional): Why this should be remembered
+- application (optional): How to apply this in future work
+- tags (optional): Tags for categorization
+- priority (optional): 'low', 'medium' (default), 'high', 'critical'
+- project_name (optional): Override auto-detected project name
 
-Scopes: private, team, global. Types: user, feedback, project, reference, global."""
+Supports private, team-shared, and cross-project global memories."""
 
     input_schema = {
         "type": "object",
@@ -403,11 +413,18 @@ class ReadMemoryTool(BaseTool):
     """Enhanced tool for reading saved memories with advanced filtering"""
 
     name = "read_memory"
-    description = """Read saved memories with filtering. Retrieve past facts, preferences, and context.
+    description = """Read and search saved memories with filtering options.
 
-{"scope": "private", "type": "user", "query": "search term"}
+Parameters:
+- scope (optional): 'private', 'team', 'global', or 'all' (default)
+- type (optional): Filter by type - 'user', 'feedback', 'project', 'project_context', 'reference', 'global', 'all' (default)
+- query (optional): Search within memory content
+- tags (optional): Filter by specific tags
+- priority (optional): Filter by priority level
+- project (optional): Filter by project name
+- limit (optional): Maximum memories to return (default: 10)
 
-Scopes: private, team, global, all. Types: user, feedback, project, reference, global."""
+Returns matching memories with metadata including name, type, scope, priority, tags."""
 
     input_schema = {
         "type": "object",
@@ -606,11 +623,16 @@ class MemoryManagementTool(BaseTool):
     """
 
     name = "memory"
-    description = """Manage persistent memory in MEMORY.md and USER.md files.
+    description = """Manage persistent memory in MEMORY.md and USER.md files (Hermes-style).
 
-{"action": "add", "memory_type": "user", "content": "User prefers dark mode"}
+Parameters:
+- action (required): 'add', 'replace', 'remove', or 'read'
+- memory_type (optional): 'memory' for agent notes (2200 chars) or 'user' for user profile (1375 chars)
+- content (optional): Content to add (for 'add' action)
+- match (optional): Substring to match for 'replace' or 'remove' actions
+- new_content (optional): Replacement content (for 'replace' action)
 
-Actions: add, replace, remove, read. Types: memory (2200 chars), user (1375 chars)."""
+Actions: read existing memory, add new content, replace matched text, or remove content."""
 
     input_schema = {
         "type": "object",

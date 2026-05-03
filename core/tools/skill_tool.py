@@ -12,17 +12,13 @@ class SkillTool(BaseTool):
     """Tool for activating and using skills in the agent."""
 
     name: str = "activate_skill"
-    description: str = "Activate a skill to enhance the agent's capabilities. Skills provide specialized knowledge and capabilities for specific tasks."
-    input_schema: dict[str, Any] = {
-        "type": "object",
-        "properties": {
-            "skill_name": {
-                "type": "string",
-                "description": "Name of the skill to activate (e.g., 'code-explainer', 'debug-helper')",
-            },
-        },
-        "required": ["skill_name"],
-    }
+    description: str = """Activate a skill to enhance the agent's capabilities with specialized knowledge.
+
+Parameters:
+- skill_name (required): Name of the skill to activate (e.g., 'code-explainer', 'debug-helper')
+
+Returns skill content including display name, description, and specialized instructions.
+Use skill tool to discover available skills."""
 
     def __init__(self, skill_manager: SkillManager | None = None):
         super().__init__()

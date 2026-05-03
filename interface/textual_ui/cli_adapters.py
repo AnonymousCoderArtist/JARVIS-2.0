@@ -1669,8 +1669,23 @@ class ToolUIDataAdapter:
             return Display(summary="Read unknown")
 
         if tool_name in ("write", "write_file", "edit"):
-            path = args.get("path", args.get("filePath", args.get("file_path", "unknown")))
-            return Display(summary=f"{tool_name} {path}")
+            def get_rel_path(p_str):
+                if not p_str: return "unknown"
+                try:
+                    p = Path(p_str).resolve()
+                    cwd = Path.cwd().resolve()
+                    if p == cwd: return "."
+                    if p.is_relative_to(cwd):
+                        rel = p.relative_to(cwd)
+                        res = str(rel).replace('\\', '/')
+                        return res if res else "."
+                    return p_str
+                except Exception:
+                    return p_str
+            
+            raw_path = args.get("path", args.get("filePath", args.get("file_path", "unknown")))
+            path = get_rel_path(raw_path)
+            return Display(summary=f"{tool_name.capitalize()} {path}")
 
         if tool_name == "bash":
             command = args.get("command", "")
@@ -1709,11 +1724,34 @@ class ToolUIDataAdapter:
             message: str = ""
             warnings: list[Any] | None = None
 
-        if hasattr(event, 'error') and event.error:
-            tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
-            return Display(success=False, message=f"{tool_name}: error", warnings=[])
         tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
-        return Display(success=True, message=f"{tool_name}: completed", warnings=[])
+        
+        # Check for explicit error in event
+        if hasattr(event, 'error') and event.error:
+            return Display(success=False, message=f"{tool_name}: error", warnings=[])
+        
+        # Check for skipped or cancelled
+        if getattr(event, "skipped", False) or getattr(event, "cancelled", False):
+            return Display(success=False, message=f"{tool_name}: interrupted", warnings=[])
+
+        # Check the result object for success indicators
+        result = getattr(event, "result", None)
+        success = True
+        
+        if result is not None:
+            # Bash tool: check returncode
+            if hasattr(result, "returncode"):
+                success = result.returncode == 0
+            # Generic success flag
+            elif hasattr(result, "success"):
+                success = bool(result.success)
+            elif isinstance(result, dict) and "success" in result:
+                success = bool(result["success"])
+            # Some tools return error messages in the result
+            elif isinstance(result, dict) and "error" in result and result["error"]:
+                success = False
+
+        return Display(success=success, message=f"{tool_name}: completed", warnings=[])
 
 
 def make_transcribe_client(provider: str, model: str) -> Any:

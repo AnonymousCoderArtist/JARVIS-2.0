@@ -216,15 +216,14 @@ class AgentsTool(BaseTool):
     """Tool for invoking specialized agents"""
 
     name = "agents"
-    description = """Invoke specialized subagents for specific tasks.
+    description = """Invoke specialized subagents (explore, plan) for specific tasks.
 
-{"agent_name": "explore", "prompt": "Analyze codebase structure", "run_in_background": false}
+Parameters:
+- agent_name (required): Name of agent - 'explore' for codebase analysis, 'plan' for task planning
+- prompt (required): Task description or query to send to the agent
+- run_in_background (required): Set true for async execution when delegating multiple tasks, false for immediate results
 
-Available agents:
-- explore: codebase exploration and analysis
-- plan: task decomposition and planning
-
-Set run_in_background for async execution."""
+Returns agent response or background task ID with status check instructions."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -423,11 +422,13 @@ class AgentStatusTool(BaseTool):
     """Tool for checking status and output of background agents"""
 
     name = "agent_status"
-    description = """Check status and output of background agent tasks.
+    description = """Check status and retrieve output from background agent tasks.
 
-{"task_id": "abc123"} or {"task_id": "list"}
+Parameters:
+- task_id (required): Background task ID from agents tool, or 'list' to see all tasks
 
-Returns status, output, and errors for background agents."""
+Returns task status (pending/running/completed/failed), output, errors, and metadata.
+Do other work before checking status again on running tasks."""
     input_schema = {
         "type": "object",
         "properties": {

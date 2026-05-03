@@ -122,9 +122,23 @@ class SkillTool(BaseTool):
     name = "skill"
     description = """Manage skills: create, patch, edit, delete, list, read, activate.
 
-{"action": "create", "name": "my-skill", "description": "Skill description"}
+Parameters:
+- action (required): 'create', 'patch', 'edit', 'delete', 'list', 'read', or 'activate'
+- name (required for most actions): Skill name
+- description (optional): Brief description (for 'create')
+- when_to_use (optional): When to use this skill
+- when_not_to_use (optional): When NOT to use this skill
+- procedure (optional): Step-by-step procedure
+- pitfalls (optional): Known failure modes
+- verification (optional): How to verify success
+- version (optional): Skill version (default: '1.0.0')
+- platforms (optional): Supported platforms (default: macos, linux, windows)
+- category (optional): Skill category (default: 'general')
+- tags (optional): Tags for categorization
+- field (optional): Specific field to patch (for 'patch' action)
+- new_content (optional): New content for field or replacement
 
-Actions: create, patch, edit, delete, list, read, activate. Uses agentskills.io standard."""
+Follows agentskills.io standard with YAML frontmatter."""
 
     input_schema = {
         "type": "object",
