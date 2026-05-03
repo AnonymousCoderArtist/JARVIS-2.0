@@ -145,4 +145,4 @@ typings/
 .gemini
 PLANS/
 tmp/
-mcp.json
+.mcp.json

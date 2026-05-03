@@ -40,6 +40,7 @@ class CommandRegistry:
         self.register(Command("help", "Show available commands", self._cmd_help))
         self.register(Command("clear", "Clear the screen", self._cmd_clear))
         self.register(Command("status", "Show system status", self._cmd_status))
+        self.register(Command("rewind", "Rewind conversation to a previous message", self._cmd_rewind))
         self.register(Command("trust", "Trust a folder for this session and future runs", self._cmd_trust))
         self.register(Command("untrust", "Mark a folder as untrusted", self._cmd_untrust))
         self.register(Command("trust-status", "Show current trust-folder status", self._cmd_trust_status))
@@ -50,6 +51,7 @@ class CommandRegistry:
         self.add_alias("h", "help")
         self.add_alias("cls", "clear")
         self.add_alias("st", "status")
+        self.add_alias("rw", "rewind")
     
     def register(self, command: Command):
         """Register a new command."""
@@ -122,6 +124,10 @@ class CommandRegistry:
             base_url="Loading...", 
             tool_count=0
         )
+
+    async def _cmd_rewind(self, args: List[str]):
+        """Handle rewind command."""
+        self.display_manager.show_error("Rewind is only available in TUI mode. Launch JARVIS with --tui flag.")
 
     def _resolve_trust_path(self, args: List[str]) -> Path:
         """Resolve a trust command target path.

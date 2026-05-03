@@ -172,6 +172,14 @@ class CommandRegistry:
             handler="_show_themes",
         )
 
+        # Rewind command (similar to mistral-vibe)
+        self.commands["rewind"] = Command(
+            aliases=("/rewind", "/rw"),
+            description="Rewind conversation to a previous message (Alt+↑/↓ to navigate)",
+            usage="",
+            handler="_start_rewind_mode",
+        )
+
     def refresh(self, availability_context: CommandAvailabilityContext) -> None:
         """Refresh command availability based on context."""
         self.availability_context = availability_context
@@ -192,11 +200,23 @@ class CommandRegistry:
     def parse_command(self, user_input: str) -> tuple[str, Command, str] | None:
         """Parse command from user input."""
         user_input = user_input.strip()
-
-        # Find matching command by alias
+        
+        # Direct check for /rewind and /rw commands
+        if user_input == '/rewind' or user_input.startswith('/rewind '):
+            if 'rewind' in self.commands:
+                cmd = self.commands['rewind']
+                args = user_input[len('/rewind'):].strip()
+                return ('rewind', cmd, args)
+        if user_input == '/rw' or user_input.startswith('/rw '):
+            if 'rewind' in self.commands:
+                cmd = self.commands['rewind']
+                args = user_input[len('/rw'):].strip()
+                return ('rewind', cmd, args)
+        
+        # Normal processing for other commands
         for cmd_name, cmd in self.commands.items():
             for alias in cmd.aliases:
-                if user_input == alias or user_input.startswith(alias + " "):
+                if user_input == alias or user_input.startswith(alias + ' '):
                     args = user_input[len(alias):].strip()
                     return cmd_name, cmd, args
 
@@ -214,18 +234,18 @@ class CommandRegistry:
 
 class HistoryManager:
     """Manager for command history."""
-    
+
     def __init__(self, history_file: Path | None = None):
         self._history_file = history_file
         self._history: list[str] = []
         self._current_index: int = -1
         self._load_history()
-    
+
     def _load_history(self) -> None:
         """Load history from file if available."""
         if not self._history_file:
             return
-        
+
         try:
             if self._history_file.exists():
                 content = self._history_file.read_text(encoding="utf-8")
@@ -233,49 +253,49 @@ class HistoryManager:
         except Exception as e:
             logger.warning(f"Failed to load history from {self._history_file}: {e}")
             self._history = []
-    
+
     def _save_history(self) -> None:
         """Save history to file if available."""
         if not self._history_file:
             return
-        
+
         try:
             self._history_file.parent.mkdir(parents=True, exist_ok=True)
             self._history_file.write_text("\n".join(self._history), encoding="utf-8")
         except Exception as e:
             logger.warning(f"Failed to save history to {self._history_file}: {e}")
-    
+
     def add(self, entry: str) -> None:
         """Add an entry to history."""
         if entry and (not self._history or self._history[-1] != entry):
             self._history.append(entry)
             self._save_history()
-    
+
     def get_previous(self, current_text: str) -> str | None:
         """Get the previous history entry."""
         if not self._history:
             return None
-        
+
         if self._current_index == -1:
             self._current_index = len(self._history) - 1
         else:
             self._current_index = max(0, self._current_index - 1)
-        
+
         if 0 <= self._current_index < len(self._history):
             return self._history[self._current_index]
         return None
-    
+
     def get_next(self) -> str | None:
         """Get the next history entry."""
         if not self._history or self._current_index == -1:
             return None
-        
+
         self._current_index = min(len(self._history) - 1, self._current_index + 1)
-        
+
         if 0 <= self._current_index < len(self._history):
             return self._history[self._current_index]
         return None
-    
+
     def reset_navigation(self) -> None:
         """Reset history navigation index."""
         self._current_index = -1
@@ -573,17 +593,17 @@ class NarratorManagerListener:
 
 class NarratorManager(NarratorManagerPort):
     """Manager for text-to-speech narration."""
-    
+
     def __init__(self, config_getter: Any, audio_player: Any = None, telemetry_client: Any = None):
         self.config_getter = config_getter
         self.audio_player = audio_player
         self.telemetry_client = telemetry_client
         self._listeners: list[NarratorManagerListener] = []
         self.state = NarratorState.IDLE
-    
+
     def add_listener(self, listener: NarratorManagerListener) -> None:
         self._listeners.append(listener)
-    
+
     def remove_listener(self, listener: NarratorManagerListener) -> None:
         if listener in self._listeners:
             self._listeners.remove(listener)
@@ -601,7 +621,7 @@ class NarratorManager(NarratorManagerPort):
     @property
     def is_playing(self) -> bool:
         return self.state == NarratorState.SPEAKING
-    
+
     def cancel(self) -> None:
         self._set_state(NarratorState.IDLE)
 
@@ -709,7 +729,7 @@ class UpdateGateway:
 
 class PyPIUpdateGateway(UpdateGateway):
     """PyPI gateway for update checks."""
-    
+
     def __init__(self, project_name: str):
         self.project_name = project_name
 
@@ -825,7 +845,7 @@ class RecordingStartError(Exception):
 
 class VoiceManager(VoiceManagerPort):
     """Manager for voice input and transcription."""
-    
+
     def __init__(self, config_getter: Any, audio_recorder: Any = None, transcribe_client: Any = None, telemetry_client: Any = None):
         self.config_getter = config_getter
         self.audio_recorder = audio_recorder
@@ -834,17 +854,17 @@ class VoiceManager(VoiceManagerPort):
         self._listeners: list[VoiceManagerListener] = []
         self.transcribe_state = TranscribeState.IDLE
         self.is_enabled = False
-    
+
     def add_listener(self, listener: VoiceManagerListener) -> None:
         self._listeners.append(listener)
-    
+
     def remove_listener(self, listener: VoiceManagerListener) -> None:
         if listener in self._listeners:
             self._listeners.remove(listener)
-    
+
     def cancel_recording(self) -> None:
         pass
-    
+
     async def stop_recording(self) -> None:
         pass
 
@@ -885,20 +905,20 @@ def write_cache(section: str, key: str, value: str) -> None:
 
 class TelemetryClient:
     """Client for telemetry."""
-    
+
     def is_active(self) -> bool:
         return False
-    
+
     def send_slash_command_used(self, cmd_name: str, cmd_type: str) -> None:
         pass
 
     def send_user_copied_text(self, text: str = "") -> None:
         pass
     """Client for telemetry."""
-    
+
     def is_active(self) -> bool:
         return False
-    
+
     def send_slash_command_used(self, cmd_name: str, cmd_type: str) -> None:
         pass
 
@@ -1054,7 +1074,7 @@ class VibeConfig:
     base_url: str | None = None
     api_key: str | None = None
     sdk: str = "openai"
-    
+
     # Additional config
     active_model: str = field(init=False)
     enable_notifications: bool = False
@@ -1073,28 +1093,28 @@ class VibeConfig:
     models: list[ModelConfig] = field(default_factory=list)
     max_output_bytes: int = 100000
     disable_welcome_banner_animation: bool = False
-    
+
     def __post_init__(self):
         self.active_model = self.model
         self.models = [ModelConfig(alias=self.model)]
         self.displayed_workdir = Path.cwd()
-    
+
     def is_active_model_mistral(self) -> bool:
         return "mistral" in self.active_model.lower()
-    
+
     def get_active_model(self) -> ModelConfig:
         return self.models[0] if self.models else ModelConfig(alias=self.model)
-    
+
     def set_thinking(self, level: str) -> None:
         if self.models:
             self.models[0].thinking = level
-    
+
     def get_active_transcribe_model(self) -> str:
         return "whisper-1"
-    
+
     def get_transcribe_provider_for_model(self, model: str) -> str:
         return "openai"
-    
+
     def get_active_provider(self) -> str:
         return self.sdk
 
@@ -1293,10 +1313,10 @@ from core.skills.manager import SkillManager as CoreSkillManager
 
 class SkillManager:
     """Manager for skills using JARVIS core."""
-    
+
     def __init__(self):
         self._core_manager = CoreSkillManager()
-    
+
     @property
     def custom_skills_count(self) -> int:
         all_skills = self._core_manager.get_all_available_skills()
@@ -1314,7 +1334,7 @@ class SkillManager:
 
 class MCPRegistry:
     """Registry for MCP servers."""
-    
+
     def count_loaded(self, servers: list[Any]) -> int:
         return 0
 
@@ -1530,10 +1550,10 @@ class ToolManager:
 
 class ToolUIDataAdapter:
     """UI data adapter for tools."""
-    
+
     def __init__(self, tool_class: str = ""):
         self.tool_class = tool_class
-    
+
     def get_status_text(self) -> str:
         return f"Running {self.tool_class or 'tool'}"
 
@@ -1574,7 +1594,7 @@ class ToolUIDataAdapter:
         if remaining:
             parts.append(f"+{remaining} more")
         return ", ".join(parts)
-    
+
     def get_call_display(self, event: Any) -> Any:
         @dataclass
         class Display:
@@ -1586,14 +1606,14 @@ class ToolUIDataAdapter:
         if args_text:
             return Display(summary=f"Calling {tool_name}({args_text})")
         return Display(summary=f"Calling {tool_name}")
-    
+
     def get_result_display(self, event: Any) -> Any:
         @dataclass
         class Display:
             success: bool = True
             message: str = ""
             warnings: list[Any] | None = None
-        
+
         if hasattr(event, 'error') and event.error:
             tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
             return Display(success=False, message=f"{tool_name}: error", warnings=[])

@@ -21,12 +21,15 @@ class FileReadTool(BaseTool):
     """Tool for reading file contents - uses files array format"""
 
     name = "read"
-    description = """Read file contents from local filesystem.
+    description = """Read file contents from local filesystem. WARNING: offset and limit are LINE-BASED (1-indexed), not byte offsets!
 
 Single file: {"filePath": "/path/file.py", "offset": 1, "limit": 10}
-Multiple files: {"files": [{"file_path": "/path/file1.py", "offset": 1, "limit": 10}, {"file_path": "/path/file2.py", "offset": 1, "limit": 10}]}
+Multiple files: {"files": [{"filePath": "/path/file1.py", "offset": 1, "limit": 10}, {"filePath": "/path/file2.py", "offset": 1, "limit": 10}]}
 
-Returns file content with metadata. Files read in parallel. Use absolute paths."""
+- offset: Line number to start reading from (1 = first line, not 0!). If omitted, defaults to 1.
+- limit: Number of lines to read (default: 10, max: 1000)
+- Maximum 1000 lines per request. Use offset/limit to paginate through large files.
+Use absolute paths."""
 
     input_schema = {
         "type": "object",
@@ -38,13 +41,13 @@ Returns file content with metadata. Files read in parallel. Use absolute paths."
             },
             "offset": {
                 "type": "integer",
-                "description": "1-based line number to start reading from (single file mode)",
+                "description": "LINE number to start reading from (1 = first line, NOT byte offset! Default: 1)",
                 "minimum": 1,
                 "default": 1
             },
             "limit": {
                 "type": "integer",
-                "description": "Maximum number of lines to read (single file mode, maximum: 1000)",
+                "description": "Number of lines to read starting from offset (default: 10, max: 1000)",
                 "minimum": 1,
                 "maximum": 1000,
                 "default": 10
@@ -61,13 +64,13 @@ Returns file content with metadata. Files read in parallel. Use absolute paths."
                         },
                         "offset": {
                             "type": "integer",
-                            "description": "1-based line number to start reading from",
+                            "description": "LINE number to start reading from (1 = first line, NOT byte offset!)",
                             "minimum": 1,
                             "default": 1
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of lines to read (maximum: 1000)",
+                            "description": "Number of lines to read (default: 10, max: 1000)",
                             "minimum": 1,
                             "maximum": 1000,
                             "default": 10
@@ -421,15 +424,15 @@ Use absolute paths."""
             )
 
 
-class ListDirectoryTool(BaseTool):
+class LSTool(BaseTool):
     """Tool for listing directory contents (OpenClaude style)"""
 
-    name = "list_dir"
+    name = "ls"
     description = """List directory contents. Returns array of file/directory names with '/' suffix for directories.
 
 {"path": "/absolute/path/to/directory"}
 
-Use absolute paths."""
+Use absolute paths or relative to workspace root."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -524,21 +527,26 @@ Use absolute paths."""
             )
 
 
-class GlobTool(BaseTool):
+class FindTool(BaseTool):
     """Tool for searching files by pattern (OpenClaude style)"""
 
-    name = "glob"
+    name = "find"
     description = """Search for files by glob pattern. Returns array of matching file paths.
 
-{"query": "**/*.py", "maxResults": 10}
+{"path": "src", "pattern": "**/*.py", "maxResults": 10}
 
-Examples: "**/*.py", "src/**/*.js", "**/*.{ts,tsx}". Searches from workspace root."""
+Examples: path="src", pattern="**/*.py", path="", pattern="**/*.{ts,tsx}". Searches from workspace root if path is empty or not provided."""
     input_schema = {
         "type": "object",
         "properties": {
-            "query": {
+            "path": {
                 "type": "string",
-                "description": "Search for files with names or paths matching this glob pattern",
+                "description": "The directory path to search in. If not provided or empty, searches from workspace root.",
+                "default": ""
+            },
+            "pattern": {
+                "type": "string",
+                "description": "Glob pattern to match files (e.g., '**/*.py', 'src/**/*.js', '*secret*')',",
                 "minLength": 1
             },
             "maxResults": {
@@ -547,7 +555,7 @@ Examples: "**/*.py", "src/**/*.js", "**/*.{ts,tsx}". Searches from workspace roo
                 "minimum": 1
             }
         },
-        "required": ["query"]
+        "required": ["pattern"]
     }
 
     def _get_param(self, input_data: ToolInput, *names) -> Any:
@@ -561,23 +569,29 @@ Examples: "**/*.py", "src/**/*.js", "**/*.{ts,tsx}". Searches from workspace roo
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
             # Support both camelCase and snake_case
-            query = self._get_param(input_data, "query")
+            path = self._get_param(input_data, "path") or ""
+            pattern = self._get_param(input_data, "pattern")
             max_results = self._get_param(input_data, "maxResults", "max_results")
 
-            if not isinstance(query, str) or not query:
+            if not isinstance(pattern, str) or not pattern:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid glob query: query parameter must be a non-empty string. Please provide a valid glob pattern (e.g., '**/*.py' or 'src/**')"
+                    error="Invalid find query: pattern parameter must be a non-empty string. Please provide a valid glob pattern (e.g., '**/*.py' or 'src/**')"
                 )
 
             if max_results is not None and not isinstance(max_results, int):
                 max_results = 0
 
             import glob
+            import os
 
-            # Search from current working directory (workspace root)
-            matches = glob.glob(query, recursive=True)
+            # Determine search base path
+            base_path = path if path else "."
+            search_pattern = os.path.join(base_path, pattern) if base_path != "." else pattern
+
+            # Search from specified path or workspace root
+            matches = glob.glob(search_pattern, recursive=True)
 
             # Apply maxResults limit
             if max_results and max_results > 0:
@@ -586,7 +600,7 @@ Examples: "**/*.py", "src/**/*.js", "**/*.{ts,tsx}". Searches from workspace roo
             return ToolOutput(
                 success=True,
                 result=matches,
-                metadata={"query": query, "count": len(matches)}
+                metadata={"path": path, "pattern": pattern, "count": len(matches)}
             )
 
         except Exception as e:

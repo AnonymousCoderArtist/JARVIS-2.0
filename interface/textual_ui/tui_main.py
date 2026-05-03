@@ -16,7 +16,7 @@ from core.tools.agent_tools import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
-from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
+from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool
 from core.tools.registry import ToolRegistry
@@ -216,8 +216,8 @@ def create_tool_registry() -> AsyncToolRegistry:
     tool_registry.register(FileReadTool())
     tool_registry.register(FileWriteTool())
     tool_registry.register(EditTool())
-    tool_registry.register(ListDirectoryTool())
-    tool_registry.register(GlobTool())
+    tool_registry.register(LSTool())
+    tool_registry.register(FindTool())
     
     # Register code execution tools
     tool_registry.register(BashTool())

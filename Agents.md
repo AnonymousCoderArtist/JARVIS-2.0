@@ -190,5 +190,5 @@ python main.py --cli --model gpt-4o
 ty check .
 ```
 ## Rules for Agents
-- use rg instead of grep for file searching
+- use rg (rip grep) instead of grep for file searching
 - use ty for type checking instead of mypy

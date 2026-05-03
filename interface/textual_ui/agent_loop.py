@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import deque
 from collections.abc import AsyncGenerator, Callable
@@ -17,6 +18,7 @@ from core.agents.manager import AgentManager
 from core.agents.profiles import AgentProfile as CoreAgentProfile
 from core.config.settings import Settings
 from core.tools.registry import ToolRegistry
+from core.rewind import RewindManager, RewindError
 
 from interface.textual_ui.types import (
     AgentStats,
@@ -43,6 +45,8 @@ AgentProfile: TypeAlias = CoreAgentProfile
 
 # Type alias for event types
 Event: TypeAlias = BaseEvent | AssistantEvent | ReasoningEvent | ToolCallEvent | ToolResultEvent | UserMessageEvent
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -301,7 +305,12 @@ class AgentLoop:
         self.session_logger = SessionLoggerAdapter()
         self.session_id: str | None = None
         self.parent_session_id: str | None = None
-        self.rewind_manager = RewindManagerAdapter()
+        # Initialize rewind manager with proper callbacks
+        self.rewind_manager = RewindManager(
+            messages=self.agent.memory,
+            save_messages=self._save_messages,
+            reset_session=self._reset_session_callback,
+        )
 
         # ====================================================================
         # Compaction System
@@ -994,6 +1003,34 @@ Create a comprehensive summary that captures:
                 yield event
             except asyncio.TimeoutError:
                 continue
+
+    async def _save_messages(self) -> None:
+        """Save messages to session log."""
+        # SessionLoggerAdapter doesn't have save() method yet
+        # This is a placeholder for future implementation
+        logger.info("Save messages called during rewind")
+        pass
+
+    def _reset_session_callback(self) -> None:
+        """Reset session state after rewind."""
+        # Clear any running state
+        self._is_running = False
+        self._stream_chunks.clear()
+        self._reasoning_chunks.clear()
+        # Reset stats for the new forked session
+        self.stats = Stats()
+
+    def create_checkpoint(self) -> None:
+        """Create a checkpoint - convenience method."""
+        if hasattr(self.rewind_manager, 'create_checkpoint'):
+            self.rewind_manager.create_checkpoint()
+
+    def add_file_snapshot(self, path: str, content: bytes | None) -> None:
+        """Add a file snapshot to checkpoints - convenience method."""
+        if hasattr(self.rewind_manager, 'add_snapshot'):
+            from core.rewind import FileSnapshot
+            snapshot = FileSnapshot(path=path, content=content)
+            self.rewind_manager.add_snapshot(snapshot)
 
 
 from core.skills.manager import SkillManager as CoreSkillManager

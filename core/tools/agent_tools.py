@@ -74,7 +74,7 @@ async def _run_agent_in_background(
 
             explore_registry = _FilteredToolRegistry(
                 tool_registry,
-                allowed_tools=("read", "list_dir", "glob", "grep"),
+                allowed_tools=("read", "ls", "find", "grep"),
                 llm_provider=llm_provider,
                 model=model,
                 config_getter=explore_config_getter,
@@ -109,7 +109,7 @@ async def _run_agent_in_background(
 
             plan_registry = _FilteredToolRegistry(
                 tool_registry,
-                allowed_tools=("read", "list_dir", "glob", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
+                allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
                 llm_provider=llm_provider,
                 model=model,
                 config_getter=plan_config_getter,
@@ -343,7 +343,7 @@ Set run_in_background for async execution."""
 
                     explore_registry = _FilteredToolRegistry(
                         tool_registry,
-                        allowed_tools=("read", "list_dir", "glob", "grep"),
+                        allowed_tools=("read", "ls", "find", "grep"),
                         llm_provider=llm_provider,
                         model=model,
                         config_getter=explore_config_getter,
@@ -376,7 +376,7 @@ Set run_in_background for async execution."""
 
                     plan_registry = _FilteredToolRegistry(
                         tool_registry,
-                        allowed_tools=("read", "list_dir", "glob", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
+                        allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
                         llm_provider=llm_provider,
                         model=model,
                         config_getter=plan_config_getter,

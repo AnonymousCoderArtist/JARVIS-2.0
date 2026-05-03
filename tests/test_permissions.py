@@ -11,7 +11,7 @@ from core.agents.base import BaseAgent
 from core.config.settings import Settings
 from core.tools.agent_tools import AgentsTool
 from core.tools.base import BaseTool, ToolInput, ToolOutput
-from core.tools.file_tools import FileReadTool, GlobTool, ListDirectoryTool
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.permission_manager import PermissionManager
 from core.tools.permissions import (
@@ -60,7 +60,7 @@ def test_file_permission_denies_untrusted_folders(monkeypatch, tmp_path: Path) -
 def test_list_directory_tool_trusted_path_is_auto_allowed(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(permissions_module.trusted_folders_manager, "is_trusted", lambda _path: True)
 
-    tool = ListDirectoryTool()
+    tool = LSTool()
     ctx = tool.resolve_permission({"path": str(tmp_path / "project")})
 
     assert ctx is not None
@@ -78,7 +78,7 @@ def test_permission_manager_list_dir_outside_workdir_requires_approval(
     settings = Settings(
         initial_config={
             "tools": {
-                "list_dir": {"permission": "ask"},
+                "ls": {"permission": "ask"},
                 "allowlist": [],
                 "denylist": [],
                 "sensitive_patterns": [],
@@ -88,7 +88,7 @@ def test_permission_manager_list_dir_outside_workdir_requires_approval(
     )
     manager = PermissionManager(lambda: settings)
 
-    ctx = manager.check_permission("list_dir", {"path": str(tmp_path.parent)})
+    ctx = manager.check_permission("ls", {"path": str(tmp_path.parent)})
 
     assert ctx.permission == ToolPermission.ASK
     assert ctx.required_permissions
@@ -172,8 +172,8 @@ async def test_agents_applies_explore_profile_to_subagent(monkeypatch) -> None:
     registry.get_tools = MagicMock(
         return_value={
             "read": FileReadTool(),
-            "list_dir": ListDirectoryTool(),
-            "glob": GlobTool(),
+            "ls": LSTool(),
+            "find": FindTool(),
             "grep": GrepSearchTool(),
             "agents": MagicMock(),
             "bash": MagicMock(),
@@ -194,4 +194,4 @@ async def test_agents_applies_explore_profile_to_subagent(monkeypatch) -> None:
     assert isinstance(subagent_config, Settings)
     assert subagent_config.tools["read"]["permission"] == "always"
     assert subagent_config.tools["agents"]["permission"] == "never"
-    assert captured["tool_names"] == ["read", "list_dir", "glob", "grep"]
+    assert captured["tool_names"] == ["read", "ls", "find", "grep"]

@@ -25,7 +25,7 @@ from .code_tools import BashTool, RunTestsTool
 
 # File tools
 from .file_edit_tool import EditTool
-from .file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
+from .file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 
 # Search tools
 from .grep_tool import GrepSearchTool
@@ -50,8 +50,8 @@ __all__ = [
     "FileReadTool",  # read
     "FileWriteTool",  # write
     "EditTool",  # edit (renamed from ReplaceTool)
-    "ListDirectoryTool",  # list_dir
-    "GlobTool",  # glob
+    "LSTool",  # ls
+    "FindTool",  # find
     # Code tools
     "BashTool",
     "REPLTool",

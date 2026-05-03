@@ -65,7 +65,7 @@ bash = { permission = "never" }
 read_file = { permission = "always" }
 
 # Enable only specific tools
-enabled_tools = ["read_file", "grep", "glob"]
+enabled_tools = ["read_file", "grep", "find"]
 
 # Disable specific tools
 base_disabled = ["bash", "write_file"]
@@ -92,7 +92,7 @@ write_file = { permission = "never" }
 edit = { permission = "never" }
 bash = { permission = "never" }
 
-enabled_tools = ["read_file", "grep", "glob"]
+enabled_tools = ["read_file", "grep", "find"]
 ```
 
 ### Example: Fast Development Agent

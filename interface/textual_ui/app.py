@@ -664,6 +664,11 @@ class VibeApp(App):  # noqa: PLR0904
         input_widget.value = ""
 
         if self._agent_running:
+            # Direct check to handle /rw or /rewind even when agent is running (similar to mistral-vibe)
+            if value == "/rw" or value == "/rewind" or value.startswith("/rw ") or value.startswith("/rewind "):
+                self._start_rewind_mode()
+                await self._switch_to_input_app()
+                return
             await self._interrupt_agent_loop()
 
         if value.startswith("!"):
@@ -952,18 +957,27 @@ class VibeApp(App):  # noqa: PLR0904
                 await widget.remove()
 
     async def _handle_command(self, user_input: str) -> bool:
-        if resolved := self.commands.parse_command(user_input):
-            cmd_name, command, cmd_args = resolved
-            self.agent_loop.telemetry_client.send_slash_command_used(
-                cmd_name, "builtin"
-            )
-            await self._mount_and_scroll(UserMessage(user_input))
-            handler = getattr(self, command.handler)
-            if asyncio.iscoroutinefunction(handler):
-                await handler(cmd_args=cmd_args)
-            else:
-                handler(cmd_args=cmd_args)
-            return True
+        """Handle slash commands."""
+        try:
+            if resolved := self.commands.parse_command(user_input):
+                cmd_name, command, cmd_args = resolved
+                self.agent_loop.telemetry_client.send_slash_command_used(
+                    cmd_name, "builtin"
+                )
+                await self._mount_and_scroll(UserMessage(user_input))
+                handler = getattr(self, command.handler, None)
+                if handler is None:
+                    self.notify(f"Handler {command.handler} not found!", severity="error")
+                    return False
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(cmd_args=cmd_args)
+                else:
+                    handler(cmd_args=cmd_args)
+                return True
+        except Exception as e:
+            self.notify(f"Error in command handler: {e}", severity="error")
+            import traceback
+            traceback.print_exc()
         return False
 
     def _get_skill_entries(self) -> list[tuple[str, str]]:
@@ -2400,10 +2414,12 @@ class VibeApp(App):  # noqa: PLR0904
 
     def action_rewind_prev(self) -> None:
         if self._agent_running:
+            self.notify("Cannot rewind while agent is running", severity="warning")
             return
 
         user_widgets = self._get_user_message_widgets()
         if not user_widgets:
+            self.notify("No messages to rewind to", severity="warning")
             return
 
         if not self._rewind_mode:

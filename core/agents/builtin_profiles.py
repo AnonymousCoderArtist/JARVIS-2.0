@@ -14,8 +14,8 @@ DEFAULT = AgentProfile(
             "read": {"permission": "ask"},
             "write_file": {"permission": "ask"},
             "edit": {"permission": "ask"},
-            "list_dir": {"permission": "ask"},
-            "glob": {"permission": "ask"},
+            "ls": {"permission": "ask"},
+            "find": {"permission": "ask"},
             # Search tools
             "grep": {"permission": "ask"},
             # Code tools
@@ -50,8 +50,8 @@ PLAN = AgentProfile(
         "tools": {
             # Explore-level tools - always allowed
             "read": {"permission": "always"},
-            "list_dir": {"permission": "always"},
-            "glob": {"permission": "always"},
+            "ls": {"permission": "always"},
+            "find": {"permission": "always"},
             "grep": {"permission": "always"},
             # All other tools - disabled
             "write": {"permission": "never"},
@@ -86,9 +86,9 @@ ACCEPT_EDITS = AgentProfile(
             "write_file": {"permission": "always"},
             "read": {"permission": "always"},
             # Search operations - always allowed
-            "glob": {"permission": "always"},
+            "find": {"permission": "always"},
             "grep": {"permission": "always"},
-            "list_dir": {"permission": "always"},
+            "ls": {"permission": "always"},
             # Code tools - ask
             "bash": {"permission": "ask"},
             "run_tests": {"permission": "ask"},
@@ -132,8 +132,8 @@ EXPLORE = AgentProfile(
             "read": {"permission": "always"},
             "write_file": {"permission": "always"},
             "edit": {"permission": "never"},  # Excluded
-            "list_dir": {"permission": "always"},
-            "glob": {"permission": "always"},
+            "ls": {"permission": "always"},
+            "find": {"permission": "always"},
             # Search tools - always
             "grep": {"permission": "always"},
             # Code tools - bash excluded, others always

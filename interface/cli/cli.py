@@ -33,7 +33,7 @@ from core.tools.agent_tools import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
-from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
+from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool, ReadMemoryTool
 from core.tools.registry import ToolRegistry
@@ -223,8 +223,8 @@ class CLIInterface:
         self.tool_registry.register(FileReadTool())
         self.tool_registry.register(FileWriteTool())
         self.tool_registry.register(EditTool())
-        self.tool_registry.register(ListDirectoryTool())
-        self.tool_registry.register(GlobTool())
+        self.tool_registry.register(LSTool())
+        self.tool_registry.register(FindTool())
         self.tool_registry.register(BashTool())
         self.tool_registry.register(REPLTool())
         self.tool_registry.register(RunTestsTool())
