@@ -263,7 +263,7 @@ class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
         query = self.args.query if isinstance(self.args, BaseModel) else self.args.get("query", "")
         path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
         yield NoMarkupStatic(
-            f"Search for: \"{query}\" in {path}", classes="approval-tool-name"
+            f"● Grep \"{query}\" in {path}", classes="approval-tool-name"
         )
 
 
