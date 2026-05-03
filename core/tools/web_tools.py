@@ -14,11 +14,17 @@ class WebFetchTool(BaseTool):
     name = "fetch_webpage"
     description = """Fetch and extract content from web pages.
 
-Parameters:
-- urls (required): Array of URLs to fetch content from
-- query (optional): Search query to filter/extract specific information
+WHEN TO USE:
+- Getting documentation from URLs
+- Fetching API responses
+- Reading articles or blog posts
 
-Returns content truncated at 2000 characters. Not suitable for JavaScript-rendered pages.
+Parameters:
+- urls (REQUIRED): Array of URLs to fetch content from
+- query (OPTIONAL): Search query to filter/extract specific information
+
+Returns: Content truncated at 2000 characters.
+Limitation: Not suitable for JavaScript-rendered pages (use web_search for dynamic content).
 Content is extracted in LLM-friendly format."""
     input_schema = {
         "type": "object",
@@ -103,14 +109,19 @@ class ExaWebSearchTool(BaseTool):
     name = "web_search"
     description = """Search the web using Exa API for current information.
 
-Parameters:
-- query (required): Search query string
-- num_results (optional): Number of results to return (default: 8, max: 20)
-- type (optional): Search type - 'auto', 'neural', or 'keyword' (default: 'auto')
-- livecrawl (optional): Crawl mode - 'fallback', 'always', or 'never' (default: 'fallback')
-- contextMaxCharacters (optional): Max characters for content context
+WHEN TO USE:
+- Researching latest information
+- Finding documentation or tutorials
+- Getting up-to-date news or releases
 
-Returns search results with titles, URLs, and content snippets."""
+Parameters:
+- query (REQUIRED): Search query string
+- num_results (OPTIONAL): Number of results (default: 8, max: 20)
+- type (OPTIONAL): 'auto' (default), 'neural', or 'keyword'
+- livecrawl (OPTIONAL): 'fallback' (default), 'always', or 'never'
+- contextMaxCharacters (OPTIONAL): Max characters for content
+
+Returns: Search results with titles, URLs, and content snippets."""
     input_schema = {
         "type": "object",
         "properties": {

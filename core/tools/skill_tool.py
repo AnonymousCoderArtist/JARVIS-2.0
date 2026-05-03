@@ -14,11 +14,16 @@ class SkillTool(BaseTool):
     name: str = "activate_skill"
     description: str = """Activate a skill to enhance the agent's capabilities with specialized knowledge.
 
-Parameters:
-- skill_name (required): Name of the skill to activate (e.g., 'code-explainer', 'debug-helper')
+WHEN TO USE:
+- Need specialized knowledge for a specific task
+- User mentions a skill name
+- Task requires domain-specific expertise
 
-Returns skill content including display name, description, and specialized instructions.
-Use skill tool to discover available skills."""
+Parameters:
+- skill_name (REQUIRED): Name of the skill to activate (e.g., 'code-explainer', 'debug-helper')
+
+Returns: Skill content including display name, description, and specialized instructions.
+Use 'skill' tool with action='list' to discover available skills."""
 
     def __init__(self, skill_manager: SkillManager | None = None):
         super().__init__()

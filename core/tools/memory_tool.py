@@ -227,19 +227,24 @@ class SaveMemoryTool(BaseTool):
     name = "save_memory"
     description = """Save facts and context to persistent memory for future sessions.
 
-Parameters:
-- fact (required): The main information to remember
-- scope (optional): 'private' (default), 'team', or 'global'
-- type (optional): Memory type - 'user', 'feedback', 'project', 'project_context', 'reference', 'global' (default: 'user')
-- name (optional): Title for the memory (auto-generated if not provided)
-- context (optional): Additional background information
-- reasoning (optional): Why this should be remembered
-- application (optional): How to apply this in future work
-- tags (optional): Tags for categorization
-- priority (optional): 'low', 'medium' (default), 'high', 'critical'
-- project_name (optional): Override auto-detected project name
+WHEN TO USE:
+- Learning user preferences or working style
+- Discovering important project context
+- Finding useful references or patterns
+- After user corrects your approach (save to 'feedback' type)
 
-Supports private, team-shared, and cross-project global memories."""
+Parameters:
+- fact (REQUIRED): The main information to remember
+- scope (OPTIONAL): 'private' (default), 'team', or 'global'
+- type (OPTIONAL): 'user', 'feedback', 'project', 'project_context', 'reference', 'global' (default: 'user')
+- name (OPTIONAL): Title (auto-generated if not provided)
+- context (OPTIONAL): Additional background
+- reasoning (OPTIONAL): Why this should be remembered
+- application (OPTIONAL): How to apply this in future
+- tags (OPTIONAL): Tags for categorization
+- priority (OPTIONAL): 'low', 'medium' (default), 'high', 'critical'
+
+Memory types: user (preferences), feedback (corrections), project (initiatives), reference (pointers)."""
 
     input_schema = {
         "type": "object",
@@ -415,16 +420,21 @@ class ReadMemoryTool(BaseTool):
     name = "read_memory"
     description = """Read and search saved memories with filtering options.
 
-Parameters:
-- scope (optional): 'private', 'team', 'global', or 'all' (default)
-- type (optional): Filter by type - 'user', 'feedback', 'project', 'project_context', 'reference', 'global', 'all' (default)
-- query (optional): Search within memory content
-- tags (optional): Filter by specific tags
-- priority (optional): Filter by priority level
-- project (optional): Filter by project name
-- limit (optional): Maximum memories to return (default: 10)
+WHEN TO USE:
+- Before starting work to load context
+- When user mentions something you saved before
+- To recall project details or user preferences
 
-Returns matching memories with metadata including name, type, scope, priority, tags."""
+Parameters:
+- scope (OPTIONAL): 'private', 'team', 'global', or 'all' (default)
+- type (OPTIONAL): Filter by type - 'user', 'feedback', 'project', etc. (default: 'all')
+- query (OPTIONAL): Search within memory content
+- tags (OPTIONAL): Filter by specific tags
+- priority (OPTIONAL): Filter by priority level
+- project (OPTIONAL): Filter by project name
+- limit (OPTIONAL): Maximum memories to return (default: 10)
+
+Returns: Matching memories with metadata (name, type, scope, priority, tags)."""
 
     input_schema = {
         "type": "object",
@@ -625,14 +635,20 @@ class MemoryManagementTool(BaseTool):
     name = "memory"
     description = """Manage persistent memory in MEMORY.md and USER.md files (Hermes-style).
 
-Parameters:
-- action (required): 'add', 'replace', 'remove', or 'read'
-- memory_type (optional): 'memory' for agent notes (2200 chars) or 'user' for user profile (1375 chars)
-- content (optional): Content to add (for 'add' action)
-- match (optional): Substring to match for 'replace' or 'remove' actions
-- new_content (optional): Replacement content (for 'replace' action)
+WHEN TO USE:
+- add: Save new information about user or project
+- read: Check what's already saved
+- replace: Update incorrect or outdated information
+- remove: Delete irrelevant information
 
-Actions: read existing memory, add new content, replace matched text, or remove content."""
+Parameters:
+- action (REQUIRED): 'add', 'replace', 'remove', or 'read'
+- memory_type (OPTIONAL): 'memory' (2200 chars) or 'user' (1375 chars)
+- content (OPTIONAL): Content to add (for 'add')
+- match (OPTIONAL): Substring to match for 'replace'/'remove'
+- new_content (OPTIONAL): Replacement content (for 'replace')
+
+Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
 
     input_schema = {
         "type": "object",

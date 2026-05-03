@@ -186,15 +186,23 @@ class REPLTool(BaseTool):
     name = "repl"
     description = """Execute Python code in a secure REPL with state persistence.
 
-Parameters:
-- code (required): Python code to execute
-- session_id (optional): Session ID for state persistence (auto-created if not provided)
-- timeout (optional): Execution timeout in seconds (default: 30)
-- reset (optional): Reset session state before execution (default: false)
-- max_output (optional): Maximum characters in output (default: 10000)
+WHEN TO USE:
+- Testing small code snippets
+- Quick calculations or data transformations
+- Checking Python syntax
+- Working with math or string operations
 
-Security: Dangerous operations blocked, imports restricted to safe modules.
-State persists across calls within the same session."""
+DO NOT USE for: File operations, network requests, or installing packages!
+
+Parameters:
+- code (REQUIRED): Python code to execute
+- session_id (OPTIONAL): Session ID for state persistence (auto-created if not provided)
+- timeout (OPTIONAL): Execution timeout in seconds (default: 30)
+- reset (OPTIONAL): Reset session state before execution (default: false)
+- max_output (OPTIONAL): Maximum characters in output (default: 10000)
+
+Security: Dangerous operations blocked, imports restricted to safe modules only.
+State persists across calls within the same session_id."""
 
     input_schema = {
         "type": "object",

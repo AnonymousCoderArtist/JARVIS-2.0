@@ -122,8 +122,16 @@ class SkillTool(BaseTool):
     name = "skill"
     description = """Manage skills: create, patch, edit, delete, list, read, activate.
 
+WHEN TO USE:
+- list: See all available skills
+- create: Create a new skill with SKILL.md format
+- read: View skill content before activating
+- activate: Load skill instructions into current session
+- patch/edit: Update existing skill documentation
+- delete: Remove obsolete skills
+
 Parameters:
-- action (required): 'create', 'patch', 'edit', 'delete', 'list', 'read', or 'activate'
+- action (REQUIRED): 'create', 'patch', 'edit', 'delete', 'list', 'read', or 'activate'
 - name (required for most actions): Skill name
 - description (optional): Brief description (for 'create')
 - when_to_use (optional): When to use this skill

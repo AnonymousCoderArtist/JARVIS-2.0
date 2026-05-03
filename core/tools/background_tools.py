@@ -48,10 +48,15 @@ class ListBackgroundProcessesTool(BaseTool):
     name = "list_background_processes"
     description = """List active and completed background processes.
 
+WHEN TO USE:
+- After running bash commands with is_background=true
+- To check what background processes are running
+- To find PIDs for reading output
+
 Parameters: None
 
-Returns PID, command, and status (running/finished) for all background processes
-started with the bash tool's is_background option."""
+Returns: Array of processes with PID, command, and status (running/finished).
+Use with read_background_output to get process output."""
     input_schema = {
         "type": "object",
         "properties": {},
@@ -81,11 +86,17 @@ class ReadBackgroundOutputTool(BaseTool):
     name = "read_background_output"
     description = """Read stdout/stderr output from background processes.
 
-Parameters:
-- pid (required): Process ID (PID) of the background process
-- lines (optional): Number of lines from end of output (default: 100)
+WHEN TO USE:
+- After starting a background bash process
+- To check output of long-running commands
+- To debug background task failures
 
-Returns captured stdout and stderr. Use with list_background_processes to find PIDs."""
+Parameters:
+- pid (REQUIRED): Process ID (PID) of the background process
+- lines (OPTIONAL): Number of lines from end of output (default: 100)
+
+Returns: Captured stdout and stderr from the background process.
+Use list_background_processes to find PIDs first."""
     input_schema = {
         "type": "object",
         "properties": {

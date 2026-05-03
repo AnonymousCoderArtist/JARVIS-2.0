@@ -218,12 +218,20 @@ class AgentsTool(BaseTool):
     name = "agents"
     description = """Invoke specialized subagents (explore, plan) for specific tasks.
 
-Parameters:
-- agent_name (required): Name of agent - 'explore' for codebase analysis, 'plan' for task planning
-- prompt (required): Task description or query to send to the agent
-- run_in_background (required): Set true for async execution when delegating multiple tasks, false for immediate results
+WHEN TO USE:
+- explore: Need to understand codebase structure, find files, analyze patterns
+- plan: Need to decompose complex tasks, create implementation plans
 
-Returns agent response or background task ID with status check instructions."""
+Parameters:
+- agent_name (REQUIRED): 'explore' for codebase analysis, 'plan' for task planning
+- prompt (REQUIRED): Task description or query to send to the agent
+- run_in_background (REQUIRED): Set true for async when delegating multiple tasks, false for immediate results
+
+Examples:
+- Synchronous: {"agent_name": "explore", "prompt": "Find all API endpoints", "run_in_background": false}
+- Background: {"agent_name": "plan", "prompt": "Plan auth system", "run_in_background": true}
+
+Returns: Agent response (sync) or background task ID (async)."""
     input_schema = {
         "type": "object",
         "properties": {

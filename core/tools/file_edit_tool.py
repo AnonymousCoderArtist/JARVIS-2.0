@@ -18,14 +18,21 @@ class EditTool(BaseTool):
     name = "edit"
     description = """Edit existing files by replacing exact text strings.
 
-Parameters:
-- replacements (required): Array of replacement operations, each with:
-  - file_path or filePath: Absolute or relative path to file
-  - old_string or oldString: Exact text to replace (must match exactly including whitespace)
-  - new_string or newString: Replacement text
+WHEN TO USE:
+- Modifying existing code
+- Fixing bugs or updating logic
+- Refactoring code
+- ALWAYS read file first with 'read' tool before editing!
 
-Use read tool first to get current content. Preserve exact indentation and whitespace.
-Supports multiple replacements in single call. Fails if file not read first in conversation."""
+Parameters:
+- replacements (REQUIRED): Array of replacement operations, each with:
+  - file_path or filePath: Absolute or relative path to file
+  - old_string: Exact text to replace (MUST match exactly including whitespace)
+  - new_string: Replacement text
+
+CRITICAL: old_string must match exactly - use 'read' first to get current content.
+Copy text including all whitespace/indentation. Include context lines for uniqueness.
+Supports multiple replacements in single call."""
     input_schema = {
         "type": "object",
         "properties": {
