@@ -16,14 +16,19 @@ class GrepSearchTool(BaseTool):
     name = "grep"
     description = """Search file contents by text or regex pattern.
 
-Parameters:
-- query (required): Search pattern (text or regex with alternation like 'word1|word2')
-- isRegexp (optional): Set true if query is a regex pattern (default: false)
-- includePattern (optional): Filter files by glob (e.g., '*.py', 'src/**')
-- maxResults (optional): Maximum number of results to return
+WHEN TO USE:
+- Finding function definitions: query="def function_name"
+- Searching for patterns: query="class.*Controller" (with isRegexp=true)
+- Finding imports: query="import.*pandas"
 
-Case-insensitive search. Uses ripgrep (rg) for speed, falls back to Python regex.
-Returns matching lines with file path, line number, and content."""
+Parameters:
+- query (REQUIRED): Search pattern (text or regex with alternation like 'word1|word2')
+- isRegexp (OPTIONAL): Set true if query is a regex pattern (default: false)
+- includePattern (OPTIONAL): Filter files by glob (e.g., '*.py', 'src/**')
+- maxResults (OPTIONAL): Maximum number of results to return
+
+Behavior: Case-insensitive search. Uses ripgrep (rg) for speed, falls back to Python.
+Returns: Matching lines with file path, line number, and content."""
     input_schema = {
         "type": "object",
         "properties": {

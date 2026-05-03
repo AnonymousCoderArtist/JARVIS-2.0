@@ -15,14 +15,20 @@ class BashTool(BaseTool):
     name = "bash"
     description = """Execute shell commands with timeout and background support.
 
-Parameters:
-- command (required): Shell command to execute
-- timeout (optional): Maximum execution time in seconds (default: 30)
-- is_background (optional): Run non-blocking in background (default: false)
-- delay_ms (optional): Delay before returning for background processes
+WHEN TO USE:
+- Running build/test commands: "pytest tests/"
+- Git operations: "git status", "git diff"
+- System commands: "ls -la", "pwd"
+- Installing packages: "pip install package"
 
-Uses bash on Unix/Linux/macOS, PowerShell on Windows.
-Returns stdout/stderr output. Dangerous commands require approval."""
+Parameters:
+- command (REQUIRED): Shell command to execute
+- timeout (OPTIONAL): Max execution time in seconds (default: 30)
+- is_background (OPTIONAL): Run non-blocking (default: false)
+- delay_ms (OPTIONAL): Delay before returning for background processes
+
+Platform: Uses bash on Unix/Linux/macOS, PowerShell on Windows.
+Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -225,12 +231,18 @@ class RunTestsTool(BaseTool):
     name = "run_tests"
     description = """Run tests using pytest or unittest framework.
 
-Parameters:
-- path (required): Path to test file or directory
-- framework (optional): Test framework - 'pytest' (default) or 'unittest'
-- args (optional): Additional command-line arguments
+WHEN TO USE:
+- After making code changes to verify correctness
+- Before committing code
+- To catch regressions
 
-Returns test output with pass/fail results. Use to verify code correctness."""
+Parameters:
+- path (REQUIRED): Path to test file or directory
+- framework (OPTIONAL): 'pytest' (default) or 'unittest'
+- args (OPTIONAL): Additional CLI arguments like '-v', '-k test_name'
+
+Returns: Test output with pass/fail results.
+Example: {"path": "tests/", "framework": "pytest", "args": "-v"}"""
     input_schema = {
         "type": "object",
         "properties": {

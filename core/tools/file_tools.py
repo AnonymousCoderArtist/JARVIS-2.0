@@ -343,11 +343,18 @@ class FileWriteTool(BaseTool):
     name = "write"
     description = """Create a new file with specified content.
 
-Parameters:
-- filePath (required): Absolute path for the new file
-- content (required): Content to write to the file
+WHEN TO USE:
+- Creating new files that don't exist yet
+- Generating boilerplate code or config files
+- Creating documentation files
 
-Creates parent directories automatically. Fails if file already exists (use edit tool for existing files).
+DO NOT USE if file exists - use 'edit' tool instead!
+
+Parameters:
+- filePath (REQUIRED): Absolute path for the new file
+- content (REQUIRED): Content to write to the file
+
+Behavior: Creates parent directories automatically. Fails if file already exists.
 Returns success message with file path and size."""
     input_schema = {
         "type": "object",
@@ -454,10 +461,16 @@ class LSTool(BaseTool):
     name = "ls"
     description = """List directory contents with '/' suffix for directories.
 
-Parameters:
-- path (required): Absolute or relative path to directory
+WHEN TO USE:
+- Exploring project structure
+- Finding files in a directory
+- Checking what files exist before reading
 
-Returns array of names. Directories end with '/', files have no suffix.
+Parameters:
+- path (REQUIRED): Absolute or relative path to directory
+
+Returns: Array of names. Directories end with '/', files have no suffix.
+Example: ["main.py", "src/", "README.md"]
 Supports permission checks for restricted paths."""
     input_schema = {
         "type": "object",
@@ -559,12 +572,19 @@ class FindTool(BaseTool):
     name = "find"
     description = """Search for files matching a glob pattern.
 
-Parameters:
-- pattern (required): Glob pattern (e.g., '**/*.py', 'src/**/*.js')
-- path (optional): Directory to search (defaults to workspace root)
-- maxResults (optional): Maximum results to return
+WHEN TO USE:
+- Finding all Python files: pattern="**/*.py"
+- Locating specific files: pattern="**/main.py"
+- Finding config files: pattern="**/*.json"
 
-Returns array of matching file paths. Searches recursively from specified path or workspace root."""
+Parameters:
+- pattern (REQUIRED): Glob pattern (e.g., '**/*.py', 'src/**/*.js')
+- path (OPTIONAL): Directory to search (defaults to workspace root)
+- maxResults (OPTIONAL): Maximum results to return
+
+Returns: Array of matching file paths.
+Example: ["src/main.py", "tests/test_main.py"]
+Searches recursively from specified path or workspace root."""
     input_schema = {
         "type": "object",
         "properties": {
