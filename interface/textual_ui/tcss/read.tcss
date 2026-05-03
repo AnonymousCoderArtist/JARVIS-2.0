@@ -1,0 +1,20 @@
+/* ========================================
+   Read File Widget Modern Styles
+   ======================================== */
+
+/* Approval Widget */
+.approval-read-file-count {
+    color: ansi_green;
+    text-style: bold;
+}
+
+/* Result Widget */
+.tool-result-read-summary {
+    color: ansi_bright_black;
+    padding-left: 2;
+}
+
+.tool-result-read-warning {
+    color: ansi_bright_yellow;
+    padding-left: 5;
+}

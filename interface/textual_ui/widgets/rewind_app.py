@@ -91,7 +91,8 @@ class RewindApp(Container):
 
     async def on_mount(self) -> None:
         self._update_options()
-        self.focus()
+        # Focus is handled by parent via call_after_refresh
+        # Don't call self.focus() here - it's too early
 
     def _update_options(self) -> None:
         for idx, ((text, _action), widget) in enumerate(
@@ -126,11 +127,17 @@ class RewindApp(Container):
         self._handle_selection(self.selected_option)
 
     def action_select_1(self) -> None:
+        if not self.has_focus:
+            self.focus()
+            # Don't return - proceed to handle selection
         if self._option_count() >= 1:
             self.selected_option = 0
             self._handle_selection(0)
 
     def action_select_2(self) -> None:
+        if not self.has_focus:
+            self.focus()
+            # Don't return - proceed to handle selection
         if self._option_count() >= 2:  # noqa: PLR2004
             self.selected_option = 1
             self._handle_selection(1)
@@ -144,4 +151,6 @@ class RewindApp(Container):
                 self.post_message(self.RewindWithoutRestore())
 
     def on_blur(self, event: events.Blur) -> None:
-        self.call_after_refresh(self.focus)
+        # Don't immediately refocus - this interferes with proper mounting
+        # and navigation. Let the parent App handle refocusing when needed.
+        pass

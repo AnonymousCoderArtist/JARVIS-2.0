@@ -1,8 +1,25 @@
 """Coding Agent - Claude Code style"""
 
+import time
+from typing import TYPE_CHECKING, Any
 
 from .base import BaseAgent
-from .system_prompts import JARVIS_V2_SYSTEM_PROMPT
+from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT
+from .heartbeat_scheduler import HeartbeatScheduler
+from core.connectors import ConnectorManager
+from core.learn import LearningManager, LearningConfig
+# from core.learn.prompt_optimizer import OptimizedPrompt
+
+if TYPE_CHECKING:
+    pass
+
+
+# Mapping from system_prompt_id to system prompts
+SYSTEM_PROMPT_MAP = {
+    "jarvis": JARVIS_V2_SYSTEM_PROMPT,
+    "explore": EXPLORE_SYSTEM_PROMPT,
+    "plan": PLAN_SYSTEM_PROMPT,
+}
 
 
 class CodingAgent(BaseAgent):
@@ -10,10 +27,148 @@ class CodingAgent(BaseAgent):
 
     SYSTEM_PROMPT = JARVIS_V2_SYSTEM_PROMPT
 
-    def __init__(self, llm_provider, tool_registry, model: str | None = None, config_getter=None, bypass_tool_permissions: bool = False, use_concurrent_tools: bool = True):
-        super().__init__(llm_provider, tool_registry, self.SYSTEM_PROMPT, model, config_getter, bypass_tool_permissions, use_concurrent_tools)
+    def __init__(
+        self,
+        llm_provider,
+        tool_registry,
+        model: str | None = None,
+        config_getter=None,
+        bypass_tool_permissions: bool = False,
+        use_concurrent_tools: bool = True,
+        system_prompt: str | None = None,
+        enable_learning: bool = True,
+        connector_manager: ConnectorManager | None = None,
+    ):
+        # Use provided system_prompt or default to JARVIS_V2_SYSTEM_PROMPT
+        effective_prompt = system_prompt if system_prompt else self.SYSTEM_PROMPT
+        super().__init__(llm_provider, tool_registry, effective_prompt, model, config_getter, bypass_tool_permissions, use_concurrent_tools)
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()
+
+        # Initialize learning system
+        self.learning_enabled = enable_learning
+        self._learning_manager: LearningManager | None = None
+        self._interactions_since_learning: int = 0
+        self._last_response_text: str = ""
+        self.connector_manager = connector_manager
+        
+        # Initialize heartbeat system (disabled by default, can be enabled via config)
+        self._heartbeat_scheduler: HeartbeatScheduler | None = None
+        self._tool_call_count: int = 0
+        self._skill_creation_threshold: int = 5
+        self._self_evaluation_interval: int = 15
+
+    @property
+    def learning_manager(self) -> LearningManager | None:
+        """Lazy initialization of learning manager"""
+        if self._learning_manager is None and self.learning_enabled:
+            self._learning_manager = LearningManager(LearningConfig(enabled=True))
+        return self._learning_manager
+
+    @property
+    def heartbeat_scheduler(self) -> HeartbeatScheduler | None:
+        """Get the heartbeat scheduler instance"""
+        return self._heartbeat_scheduler
+
+    def initialize_heartbeat(self, config_getter=None) -> None:
+        """Initialize the heartbeat scheduler with configuration"""
+        settings = config_getter() if config_getter else None
+        if not settings:
+            return
+        
+        # Check if heartbeat is enabled in config
+        if not getattr(settings, 'heartbeat_enabled', False):
+            return
+        
+        # Get heartbeat config
+        heartbeat_config = {
+            "enabled": settings.heartbeat_enabled,
+            "every": settings.heartbeat_interval,
+            "target": settings.heartbeat_target,
+            "light_context": settings.heartbeat_light_context,
+            "isolated_session": settings.heartbeat_isolated_session,
+            "skip_when_busy": settings.heartbeat_skip_when_busy,
+            "prompt": settings.heartbeat_prompt,
+            "active_hours": settings.heartbeat_active_hours,
+            "show_ok": settings.heartbeat_show_ok,
+            "show_alerts": settings.heartbeat_show_alerts,
+            "use_indicator": settings.heartbeat_use_indicator,
+        }
+        
+        # Create agent executor for heartbeat
+        async def agent_executor(prompt: str) -> str:
+            return await self.process(prompt, {"heartbeat": True})
+        
+        self._heartbeat_scheduler = HeartbeatScheduler(
+            agent_executor=agent_executor,
+            config=heartbeat_config
+        )
+        
+        # Set skill creation and evaluation thresholds from learning config
+        self._skill_creation_threshold = getattr(settings, 'skill_creation_threshold', 5)
+        self._self_evaluation_interval = getattr(settings, 'self_evaluation_interval', 15)
+        
+        # Set up tool call tracking via callback
+        self.tool_call_callback = self._on_tool_call
+
+    async def start_heartbeat(self) -> None:
+        """Start the heartbeat scheduler"""
+        if self._heartbeat_scheduler:
+            await self._heartbeat_scheduler.start()
+
+    async def stop_heartbeat(self) -> None:
+        """Stop the heartbeat scheduler"""
+        if self._heartbeat_scheduler:
+            await self._heartbeat_scheduler.stop()
+
+    async def trigger_heartbeat(self) -> str:
+        """Manually trigger a heartbeat check"""
+        if self._heartbeat_scheduler:
+            return await self._heartbeat_scheduler.wake()
+        return "Heartbeat not initialized"
+
+    def set_busy(self, busy: bool) -> None:
+        """Set busy state for heartbeat skip_when_busy feature"""
+        if self._heartbeat_scheduler:
+            self._heartbeat_scheduler.set_busy(busy)
+
+    def track_tool_call(self) -> None:
+        """Track a tool call for learning loop purposes"""
+        self._tool_call_count += 1
+        
+        # Check if we should trigger skill creation
+        if self._tool_call_count >= self._skill_creation_threshold:
+            # This would trigger the skill creation logic
+            # In a full implementation, this would analyze recent tool usage patterns
+            # and potentially create a new skill
+            pass
+        
+        # Check if we should trigger self-evaluation
+        if self._tool_call_count >= self._self_evaluation_interval:
+            # This would trigger self-evaluation checkpoint
+            # In a full implementation, this would analyze recent performance
+            # and potentially improve existing skills
+            pass
+
+    def reset_tool_call_count(self) -> None:
+        """Reset tool call counter (e.g., after skill creation or evaluation)"""
+        self._tool_call_count = 0
+
+    def _on_tool_call(self, tool_name: str, tool_args: dict[str, Any]) -> None:
+        """Callback for tracking tool calls"""
+        self.track_tool_call()
+
+    def set_system_prompt(self, system_prompt: str) -> None:
+        """Set a new system prompt for the agent."""
+        self.system_prompt = system_prompt
+        self.rebuild_system_prompt()
+
+    @classmethod
+    def get_system_prompt_for_profile(cls, system_prompt_id: str | None) -> str:
+        """Get the appropriate system prompt for a profile's system_prompt_id."""
+        if system_prompt_id and system_prompt_id in SYSTEM_PROMPT_MAP:
+            return SYSTEM_PROMPT_MAP[system_prompt_id]
+        return cls.SYSTEM_PROMPT  # Default to JARVIS_V2_SYSTEM_PROMPT
 
     async def process(self, input: str, context: dict | None = None) -> str:
         """
@@ -35,6 +190,14 @@ class CodingAgent(BaseAgent):
         stream = self.stream_callback is not None
         response = await self._process_with_tools(messages, stream=stream)
 
+        # Store response for learning
+        self._last_response_text = response
+        self._interactions_since_learning += 1
+
+        # Learn from this interaction (M1 Trace Collection)
+        if self.learning_manager and self._interactions_since_learning >= 5:
+            await self._learn_from_interaction(input, response)
+
         # Add to memory
         self.add_to_memory({
             "content": f"Task: {input}",
@@ -43,6 +206,25 @@ class CodingAgent(BaseAgent):
         })
 
         return response
+
+    async def _learn_from_interaction(self, user_input: str, agent_response: str) -> None:
+        """Learn from a user-agent interaction (M1 Trace logging)"""
+        if not self.learning_manager:
+            return
+
+        try:
+            # M1 Stage: Log high-quality trace
+            await self.learning_manager.log_trace_m1({
+                "user_input": user_input,
+                "agent_response": agent_response,
+                "timestamp": time.time(),
+                "success": True  # Assume success for teacher model traces
+            })
+            self._interactions_since_learning = 0
+        except Exception as e:
+            # Log but don't fail
+            import logging
+            logging.getLogger(__name__).debug(f"M1 Trace logging failed: {e}")
 
     def _build_prompt(self, input: str, context: dict | None) -> str:
         """Build the prompt for the coding task"""

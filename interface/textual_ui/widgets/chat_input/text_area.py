@@ -191,7 +191,7 @@ class ChatTextArea(TextArea):
             event.prevent_default()
             event.stop()
             try:
-                self._voice_manager.start_recording()
+                self._voice_manager.start_recording()  # type: ignore
             except RecordingStartError as e:
                 self.notify(str(e), severity="warning")
             return True
@@ -249,7 +249,8 @@ class ChatTextArea(TextArea):
             and not self.text
             and self._input_mode == self.DEFAULT_MODE
         ):
-            self._set_mode(event.character)
+            if event.character in ("!", "/", ">", "&"):
+                self._set_mode(event.character)  # type: ignore
             event.prevent_default()
             event.stop()
             return

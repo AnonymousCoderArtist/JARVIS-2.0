@@ -1,6 +1,7 @@
 """Commands module for JARVIS CLI - handles command parsing, routing, and execution."""
 
 import asyncio
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -39,6 +40,7 @@ class CommandRegistry:
         self.register(Command("help", "Show available commands", self._cmd_help))
         self.register(Command("clear", "Clear the screen", self._cmd_clear))
         self.register(Command("status", "Show system status", self._cmd_status))
+        self.register(Command("rewind", "Rewind conversation to a previous message", self._cmd_rewind))
         self.register(Command("trust", "Trust a folder for this session and future runs", self._cmd_trust))
         self.register(Command("untrust", "Mark a folder as untrusted", self._cmd_untrust))
         self.register(Command("trust-status", "Show current trust-folder status", self._cmd_trust_status))
@@ -49,6 +51,7 @@ class CommandRegistry:
         self.add_alias("h", "help")
         self.add_alias("cls", "clear")
         self.add_alias("st", "status")
+        self.add_alias("rw", "rewind")
     
     def register(self, command: Command):
         """Register a new command."""
@@ -121,6 +124,10 @@ class CommandRegistry:
             base_url="Loading...", 
             tool_count=0
         )
+
+    async def _cmd_rewind(self, args: List[str]):
+        """Handle rewind command."""
+        self.display_manager.show_error("Rewind is only available in TUI mode. Launch JARVIS with --tui flag.")
 
     def _resolve_trust_path(self, args: List[str]) -> Path:
         """Resolve a trust command target path.
@@ -271,20 +278,22 @@ class CommandHandler:
             Command("status", "Show system status", _cmd_status)
         )
 
-    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent, config_manager=None):
+    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent, config_manager=None, learning_manager=None):
         """Set references to managers for command handlers."""
         self.agent_manager = agent_manager
         self.tool_registry = tool_registry
         self.skill_manager = skill_manager
         self.jarvis_agent = jarvis_agent
         self.config_manager = config_manager
+        self.learning_manager = learning_manager
 
         # Register new commands that depend on these managers
         self._register_profile_command()
         self._register_tools_command()
         self._register_skills_command()
-        self._register_memory_command()
+        self._register_skill_command()
         self._register_theme_command()
+        self._register_learning_command()
 
     def _register_theme_command(self):
         """Register theme management commands."""
@@ -386,33 +395,65 @@ class CommandHandler:
 
         self.command_registry.register(Command("skills", "List and manage skills", _cmd_skills))
 
-    def _register_memory_command(self):
-        """Register the /memory command."""
-        async def _cmd_memory(args: List[str]):
-            if not self.jarvis_agent:
-                self.display_manager.show_error("Agent not initialized")
+    def _register_skill_command(self):
+        """Register the /skill command for advanced skill management."""
+        from core.skills.commands import SkillCommands
+        from core.skills import SkillManager
+        
+        skill_manager = self.skill_manager or SkillManager()
+        skill_commands = SkillCommands(skill_manager, self.display_manager)
+        
+        async def _cmd_skill(args: List[str]):
+            if not args:
+                self.display_manager.show_error("Usage: /skill <install|sync|optimize|bench|list|activate> ...")
+                return
+            
+            subcmd = args[0].lower()
+            subargs = args[1:]
+            
+            handlers = {
+                "install": skill_commands.cmd_install,
+                "sync": skill_commands.cmd_sync,
+                "optimize": skill_commands.cmd_optimize,
+                "bench": skill_commands.cmd_bench,
+                "list": skill_commands.cmd_list,
+                "activate": skill_commands.cmd_activate,
+            }
+            
+            handler = handlers.get(subcmd)
+            if handler:
+                await handler(subargs)
+            else:
+                self.display_manager.show_error(f"Unknown skill command: {subcmd}")
+                self.display_manager.show_error("Available: install, sync, optimize, bench, list, activate")
+        
+        self.command_registry.register(Command("skill", "Install and manage skills", _cmd_skill))
+
+    def _register_learning_command(self):
+        """Register the /learn command."""
+        async def _cmd_learn(args: List[str]):
+            if not self.learning_manager:
+                self.display_manager.show_error("Learning manager not initialized")
                 return
 
             if not args:
-                # Show recent memory
-                self.display_manager.show_memory("recent", 10, "")
-            elif args[0] == "show" and len(args) > 1:
-                count = int(args[1]) if args[1].isdigit() else 10
-                self.display_manager.show_memory("recent", count, "")
-            elif args[0] == "clear":
-                # Clear memory (we'll need to implement this)
-                if hasattr(self.jarvis_agent, 'clear_memory'):
-                    self.jarvis_agent.clear_memory()
-                    self.display_manager.show_success("Memory cleared")
-                else:
-                    self.display_manager.show_error("Memory clearing not supported")
-            elif args[0] == "search" and len(args) > 1:
-                query = " ".join(args[1:])
-                self.display_manager.show_memory("search", 10, query)
+                # Show learned preferences
+                import asyncio
+                prefs = asyncio.run(self.learning_manager.load_preferences())
+                self.display_manager.show_learned_preferences(prefs)
+            elif args[0] == "analyze":
+                # Analyze recent sessions
+                import asyncio
+                metrics = await self.learning_manager.trace_analyzer.analyze_sessions(limit=10)
+                self.display_manager.show_learning_metrics(metrics)
+            elif args[0] == "patterns":
+                # Show detected patterns
+                patterns = self.learning_manager.pattern_detector.detected_patterns
+                self.display_manager.show_patterns(patterns)
             else:
-                self.display_manager.show_error("Usage: /memory [show <count>|clear|search <query>]")
+                self.display_manager.show_error("Usage: /learn [analyze|patterns]")
 
-        self.command_registry.register(Command("memory", "View and manage conversation memory", _cmd_memory))
+        self.command_registry.register(Command("learn", "View learning system status", _cmd_learn))
 
     
     

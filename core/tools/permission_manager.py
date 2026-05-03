@@ -102,7 +102,7 @@ class PermissionManager:
                 sensitive_patterns=sensitive_patterns,
             )
 
-        if tool_name == "list_dir" and "path" in args:
+        if tool_name == "ls" and "path" in args:
             allowlist = self._config.tools.get("allowlist", [])
             denylist = self._config.tools.get("denylist", [])
             path = args["path"]
@@ -174,8 +174,8 @@ class PermissionManager:
             if ctx and ctx.required_permissions:
                 permissions.extend(ctx.required_permissions)
 
-        # Check for list_dir operations
-        elif tool_name == "list_dir" and "path" in args:
+        # Check for ls operations
+        elif tool_name == "ls" and "path" in args:
             from pathlib import Path
 
             path = Path(args["path"])

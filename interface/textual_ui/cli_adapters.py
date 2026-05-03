@@ -81,6 +81,7 @@ class Command:
     """Represents a slash command."""
     aliases: tuple[str, ...]  # e.g., ("/help", "/h")
     description: str = ""
+    usage: str = ""
     handler: str = ""  # method name on the app
     exits: bool = False  # whether command exits the app
     hidden: bool = False  # whether to hide from completion
@@ -110,6 +111,7 @@ class CommandRegistry:
         self.commands["help"] = Command(
             aliases=("/help", "/h"),
             description="Show available commands",
+            usage="",
             handler="_show_help",
         )
 
@@ -117,6 +119,7 @@ class CommandRegistry:
         self.commands["status"] = Command(
             aliases=("/status", "/st"),
             description="Show system status",
+            usage="",
             handler="_show_status",
         )
 
@@ -124,6 +127,7 @@ class CommandRegistry:
         self.commands["clear"] = Command(
             aliases=("/clear",),
             description="Clear the screen",
+            usage="",
             handler="_clear_history",
         )
 
@@ -131,6 +135,7 @@ class CommandRegistry:
         self.commands["exit"] = Command(
             aliases=("/exit", "/quit"),
             description="Exit JARVIS",
+            usage="",
             handler="_exit_app",
             exits=True,
         )
@@ -139,6 +144,7 @@ class CommandRegistry:
         self.commands["profile"] = Command(
             aliases=("/profile",),
             description="Switch or list agent profiles",
+            usage="[<profile>]",
             handler="_switch_to_profile_app",
         )
 
@@ -146,6 +152,7 @@ class CommandRegistry:
         self.commands["tools"] = Command(
             aliases=("/tools",),
             description="List available tools",
+            usage="",
             handler="_show_tools",
         )
 
@@ -153,21 +160,24 @@ class CommandRegistry:
         self.commands["skills"] = Command(
             aliases=("/skills",),
             description="List and manage skills",
+            usage="[activate <name>]",
             handler="_show_skills",
-        )
-
-        # Memory command
-        self.commands["memory"] = Command(
-            aliases=("/memory",),
-            description="View and manage conversation memory",
-            handler="_show_memory",
         )
 
         # Themes command
         self.commands["themes"] = Command(
             aliases=("/themes",),
             description="List and manage UI themes",
+            usage="",
             handler="_show_themes",
+        )
+
+        # Rewind command (similar to mistral-vibe)
+        self.commands["rewind"] = Command(
+            aliases=("/rewind", "/rw"),
+            description="Rewind conversation to a previous message (Alt+↑/↓ to navigate)",
+            usage="",
+            handler="_start_rewind_mode",
         )
 
     def refresh(self, availability_context: CommandAvailabilityContext) -> None:
@@ -180,14 +190,33 @@ class CommandRegistry:
             command_name in cmd.aliases for cmd in self.commands.values()
         )
 
+    def resolve_alias(self, alias: str) -> tuple[str, Command] | None:
+        """Resolve a slash-command alias to its canonical command."""
+        for cmd_name, cmd in self.commands.items():
+            if alias in cmd.aliases:
+                return cmd_name, cmd
+        return None
+
     def parse_command(self, user_input: str) -> tuple[str, Command, str] | None:
         """Parse command from user input."""
         user_input = user_input.strip()
-
-        # Find matching command by alias
+        
+        # Direct check for /rewind and /rw commands
+        if user_input == '/rewind' or user_input.startswith('/rewind '):
+            if 'rewind' in self.commands:
+                cmd = self.commands['rewind']
+                args = user_input[len('/rewind'):].strip()
+                return ('rewind', cmd, args)
+        if user_input == '/rw' or user_input.startswith('/rw '):
+            if 'rewind' in self.commands:
+                cmd = self.commands['rewind']
+                args = user_input[len('/rw'):].strip()
+                return ('rewind', cmd, args)
+        
+        # Normal processing for other commands
         for cmd_name, cmd in self.commands.items():
             for alias in cmd.aliases:
-                if user_input == alias or user_input.startswith(alias + " "):
+                if user_input == alias or user_input.startswith(alias + ' '):
                     args = user_input[len(alias):].strip()
                     return cmd_name, cmd, args
 
@@ -198,24 +227,25 @@ class CommandRegistry:
         lines = ["Available commands:"]
         for cmd_name, cmd in sorted(self.commands.items()):
             aliases = "/".join(cmd.aliases)
-            lines.append(f"  {aliases} - {cmd.description}")
+            usage = f" {cmd.usage}" if cmd.usage else ""
+            lines.append(f"  {aliases}{usage} - {cmd.description}")
         return "\n".join(lines)
 
 
 class HistoryManager:
     """Manager for command history."""
-    
+
     def __init__(self, history_file: Path | None = None):
         self._history_file = history_file
         self._history: list[str] = []
         self._current_index: int = -1
         self._load_history()
-    
+
     def _load_history(self) -> None:
         """Load history from file if available."""
         if not self._history_file:
             return
-        
+
         try:
             if self._history_file.exists():
                 content = self._history_file.read_text(encoding="utf-8")
@@ -223,49 +253,49 @@ class HistoryManager:
         except Exception as e:
             logger.warning(f"Failed to load history from {self._history_file}: {e}")
             self._history = []
-    
+
     def _save_history(self) -> None:
         """Save history to file if available."""
         if not self._history_file:
             return
-        
+
         try:
             self._history_file.parent.mkdir(parents=True, exist_ok=True)
             self._history_file.write_text("\n".join(self._history), encoding="utf-8")
         except Exception as e:
             logger.warning(f"Failed to save history to {self._history_file}: {e}")
-    
+
     def add(self, entry: str) -> None:
         """Add an entry to history."""
         if entry and (not self._history or self._history[-1] != entry):
             self._history.append(entry)
             self._save_history()
-    
+
     def get_previous(self, current_text: str) -> str | None:
         """Get the previous history entry."""
         if not self._history:
             return None
-        
+
         if self._current_index == -1:
             self._current_index = len(self._history) - 1
         else:
             self._current_index = max(0, self._current_index - 1)
-        
+
         if 0 <= self._current_index < len(self._history):
             return self._history[self._current_index]
         return None
-    
+
     def get_next(self) -> str | None:
         """Get the next history entry."""
         if not self._history or self._current_index == -1:
             return None
-        
+
         self._current_index = min(len(self._history) - 1, self._current_index + 1)
-        
+
         if 0 <= self._current_index < len(self._history):
             return self._history[self._current_index]
         return None
-    
+
     def reset_navigation(self) -> None:
         """Reset history navigation index."""
         self._current_index = -1
@@ -373,22 +403,51 @@ class SlashCommandController:
 
     def on_text_changed(self, text: str, cursor_index: int) -> None:
         if not self.can_handle(text, cursor_index):
-            self._suggestions = []
-            self._popup_visible = False
+            self.reset()
             return
 
-        # Extract the command being typed
         text_before_cursor = text[:cursor_index]
-        parts = text_before_cursor.lstrip().split()
+        stripped_before_cursor = text_before_cursor.lstrip()
+        parts = stripped_before_cursor.split()
 
-        if parts and parts[0].startswith("/"):
-            cmd_prefix = parts[0]
-            # Get matching commands from completer
-            entries = self.completer.entries_getter() if hasattr(self.completer, 'entries_getter') else []
-            self._suggestions = [(label, desc) for label, desc in entries if label.lower().startswith(cmd_prefix.lower())]
-            self._popup_visible = bool(self._suggestions)
-            if self._suggestions and self.parent:
-                self.parent.render_completion_suggestions(self._suggestions, 0)
+        if not parts or not parts[0].startswith("/"):
+            self.reset()
+            return
+
+        cmd_alias = parts[0]
+        current_word = self._get_current_word(text, cursor_index)
+
+        # Completing the command token itself.
+        if len(parts) == 1 and not stripped_before_cursor.endswith(" "):
+            entries = (
+                self.completer.entries_getter()
+                if hasattr(self.completer, "entries_getter")
+                else []
+            )
+            self._suggestions = [
+                (label, desc)
+                for label, desc in entries
+                if label.lower().startswith(cmd_alias.lower())
+            ]
+        else:
+            arg_entries = (
+                self.completer.get_argument_entries(cmd_alias, stripped_before_cursor)
+                if hasattr(self.completer, "get_argument_entries")
+                else []
+            )
+            prefix = "" if text_before_cursor.endswith(" ") else current_word
+            self._suggestions = [
+                (label, desc)
+                for label, desc in arg_entries
+                if label.lower().startswith(prefix.lower())
+            ]
+
+        self._selected_index = 0
+        self._popup_visible = bool(self._suggestions)
+        if self._suggestions and self.parent:
+            self.parent.render_completion_suggestions(self._suggestions, 0)
+        elif self.parent:
+            self.parent.clear_completion_suggestions()
 
     def on_key(self, event: Any, text: str, cursor_index: int) -> CompletionResult:
         if not self._popup_visible or not self._suggestions:
@@ -396,11 +455,17 @@ class SlashCommandController:
 
         if event.key == "tab":
             if 0 <= self._selected_index < len(self._suggestions):
-                replacement = self._suggestions[self._selected_index][0]
+                replacement = self._format_replacement(
+                    text,
+                    cursor_index,
+                    self._suggestions[self._selected_index][0],
+                )
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
-                    # Replace the current word with the suggestion
-                    self.parent.replace_completion_range(cursor_index - len(self._get_current_word(text, cursor_index)),
-                                                          cursor_index, replacement)
+                    self.parent.replace_completion_range(
+                        cursor_index - len(self._get_current_word(text, cursor_index)),
+                        cursor_index,
+                        replacement,
+                    )
             return CompletionResult.HANDLED
         elif event.key == "enter":
             # Only handle enter if popup is visible and we have a selection
@@ -410,10 +475,17 @@ class SlashCommandController:
                 # If the current text exactly matches a command, let it submit instead of completing
                 if current_word in [suggestion[0] for suggestion in self._suggestions]:
                     return CompletionResult.IGNORED
-                replacement = self._suggestions[self._selected_index][0]
+                replacement = self._format_replacement(
+                    text,
+                    cursor_index,
+                    self._suggestions[self._selected_index][0],
+                )
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
-                    self.parent.replace_completion_range(cursor_index - len(self._get_current_word(text, cursor_index)),
-                                                          cursor_index, replacement)
+                    self.parent.replace_completion_range(
+                        cursor_index - len(self._get_current_word(text, cursor_index)),
+                        cursor_index,
+                        replacement,
+                    )
                 return CompletionResult.HANDLED
             return CompletionResult.IGNORED
         elif event.key == "escape":
@@ -437,6 +509,14 @@ class SlashCommandController:
         before_cursor = text[:cursor_index]
         parts = before_cursor.split()
         return parts[-1] if parts else ""
+
+    def _format_replacement(
+        self, text: str, cursor_index: int, replacement: str
+    ) -> str:
+        suffix = text[cursor_index:]
+        if replacement.startswith("/"):
+            return replacement + (" " if not suffix or not suffix[0].isspace() else "")
+        return replacement + (" " if not suffix or not suffix[0].isspace() else "")
 
     def reset(self) -> None:
         self._suggestions = []
@@ -513,17 +593,17 @@ class NarratorManagerListener:
 
 class NarratorManager(NarratorManagerPort):
     """Manager for text-to-speech narration."""
-    
+
     def __init__(self, config_getter: Any, audio_player: Any = None, telemetry_client: Any = None):
         self.config_getter = config_getter
         self.audio_player = audio_player
         self.telemetry_client = telemetry_client
         self._listeners: list[NarratorManagerListener] = []
         self.state = NarratorState.IDLE
-    
+
     def add_listener(self, listener: NarratorManagerListener) -> None:
         self._listeners.append(listener)
-    
+
     def remove_listener(self, listener: NarratorManagerListener) -> None:
         if listener in self._listeners:
             self._listeners.remove(listener)
@@ -541,7 +621,7 @@ class NarratorManager(NarratorManagerPort):
     @property
     def is_playing(self) -> bool:
         return self.state == NarratorState.SPEAKING
-    
+
     def cancel(self) -> None:
         self._set_state(NarratorState.IDLE)
 
@@ -649,7 +729,7 @@ class UpdateGateway:
 
 class PyPIUpdateGateway(UpdateGateway):
     """PyPI gateway for update checks."""
-    
+
     def __init__(self, project_name: str):
         self.project_name = project_name
 
@@ -765,7 +845,7 @@ class RecordingStartError(Exception):
 
 class VoiceManager(VoiceManagerPort):
     """Manager for voice input and transcription."""
-    
+
     def __init__(self, config_getter: Any, audio_recorder: Any = None, transcribe_client: Any = None, telemetry_client: Any = None):
         self.config_getter = config_getter
         self.audio_recorder = audio_recorder
@@ -774,17 +854,17 @@ class VoiceManager(VoiceManagerPort):
         self._listeners: list[VoiceManagerListener] = []
         self.transcribe_state = TranscribeState.IDLE
         self.is_enabled = False
-    
+
     def add_listener(self, listener: VoiceManagerListener) -> None:
         self._listeners.append(listener)
-    
+
     def remove_listener(self, listener: VoiceManagerListener) -> None:
         if listener in self._listeners:
             self._listeners.remove(listener)
-    
+
     def cancel_recording(self) -> None:
         pass
-    
+
     async def stop_recording(self) -> None:
         pass
 
@@ -825,10 +905,20 @@ def write_cache(section: str, key: str, value: str) -> None:
 
 class TelemetryClient:
     """Client for telemetry."""
-    
+
     def is_active(self) -> bool:
         return False
-    
+
+    def send_slash_command_used(self, cmd_name: str, cmd_type: str) -> None:
+        pass
+
+    def send_user_copied_text(self, text: str = "") -> None:
+        pass
+    """Client for telemetry."""
+
+    def is_active(self) -> bool:
+        return False
+
     def send_slash_command_used(self, cmd_name: str, cmd_type: str) -> None:
         pass
 
@@ -864,18 +954,30 @@ class AgentProfile:
 class CommandCompleter:
     """Completer for commands."""
 
-    def __init__(self, entries_getter: Any):
+    def __init__(self, entries_getter: Any, argument_entries_getter: Any = None):
         self.entries_getter = entries_getter
-        self.entries_getter = entries_getter
+        self.argument_entries_getter = argument_entries_getter
 
     def get_completions(self, document, complete_event):
-        text = document.get_word_before_cursor()
+        # Handle both document objects and strings (for backward compatibility)
+        if isinstance(document, str):
+            text = document
+        else:
+            text = document.get_word_before_cursor()
+
         if text.startswith('/'):
             entries = self.entries_getter() if self.entries_getter else []
             for label, _ in entries:
                 if label.lower().startswith(text.lower()):
                     if Completion:
                         yield Completion(label, start_position=-len(text))
+
+    def get_argument_entries(
+        self, command_alias: str, text_before_cursor: str
+    ) -> list[tuple[str, str]]:
+        if not self.argument_entries_getter:
+            return []
+        return self.argument_entries_getter(command_alias, text_before_cursor)
 
 
 class PathCompleter:
@@ -885,7 +987,12 @@ class PathCompleter:
         self.watcher_enabled_getter = watcher_enabled_getter
 
     def get_completions(self, document, complete_event):
-        text = document.get_word_before_cursor()
+        # Handle both document objects and strings (for backward compatibility)
+        if isinstance(document, str):
+            text = document
+        else:
+            text = document.get_word_before_cursor()
+
         if text.startswith('@') or text.startswith('/') or text.startswith('~'):
             import os
             base_path = text
@@ -967,7 +1074,7 @@ class VibeConfig:
     base_url: str | None = None
     api_key: str | None = None
     sdk: str = "openai"
-    
+
     # Additional config
     active_model: str = field(init=False)
     enable_notifications: bool = False
@@ -986,28 +1093,28 @@ class VibeConfig:
     models: list[ModelConfig] = field(default_factory=list)
     max_output_bytes: int = 100000
     disable_welcome_banner_animation: bool = False
-    
+
     def __post_init__(self):
         self.active_model = self.model
         self.models = [ModelConfig(alias=self.model)]
         self.displayed_workdir = Path.cwd()
-    
+
     def is_active_model_mistral(self) -> bool:
         return "mistral" in self.active_model.lower()
-    
+
     def get_active_model(self) -> ModelConfig:
         return self.models[0] if self.models else ModelConfig(alias=self.model)
-    
+
     def set_thinking(self, level: str) -> None:
         if self.models:
             self.models[0].thinking = level
-    
+
     def get_active_transcribe_model(self) -> str:
         return "whisper-1"
-    
+
     def get_transcribe_provider_for_model(self, model: str) -> str:
         return "openai"
-    
+
     def get_active_provider(self) -> str:
         return self.sdk
 
@@ -1206,10 +1313,10 @@ from core.skills.manager import SkillManager as CoreSkillManager
 
 class SkillManager:
     """Manager for skills using JARVIS core."""
-    
+
     def __init__(self):
         self._core_manager = CoreSkillManager()
-    
+
     @property
     def custom_skills_count(self) -> int:
         all_skills = self._core_manager.get_all_available_skills()
@@ -1227,7 +1334,7 @@ class SkillManager:
 
 class MCPRegistry:
     """Registry for MCP servers."""
-    
+
     def count_loaded(self, servers: list[Any]) -> int:
         return 0
 
@@ -1303,9 +1410,15 @@ class BashArgs(BaseModel):
 
 
 class GrepArgs(BaseModel):
-    pattern: str
+    query: str
     path: str = "."
     max_matches: Optional[int] = None
+    is_regexp: Optional[bool] = False
+    include_pattern: Optional[str] = None
+
+
+class LSArgs(BaseModel):
+    path: str = "."
 
 
 class ReadFileArgs(BaseModel):
@@ -1334,23 +1447,6 @@ class SearchReplaceArgs(BaseModel):
 # QUESTION SYSTEM
 # ============================================================================
 
-class AskUserQuestionArgs(BaseModel):
-    questions: list[Question] = field(default_factory=list)
-    cancelled: bool = False
-    content_preview: str = ""
-
-
-class AskUserQuestionResult(BaseModel):
-    answers: list["Answer"] = []
-    cancelled: bool = False
-
-
-class Answer(BaseModel):
-    question: str = ""
-    answer: str = ""
-    is_other: bool = False
-
-
 @dataclass
 class Choice:
     """Choice for a question."""
@@ -1366,6 +1462,23 @@ class Question:
     options: list[Choice] = field(default_factory=list)
     hide_other: bool = False
     multi_select: bool = False
+
+
+class AskUserQuestionArgs(BaseModel):
+    questions: list[Question] = field(default_factory=list)
+    cancelled: bool = False
+    content_preview: str = ""
+
+
+class AskUserQuestionResult(BaseModel):
+    answers: list["Answer"] = []
+    cancelled: bool = False
+
+
+class Answer(BaseModel):
+    question: str = ""
+    answer: str = ""
+    is_other: bool = False
 
 
 # ============================================================================
@@ -1443,10 +1556,10 @@ class ToolManager:
 
 class ToolUIDataAdapter:
     """UI data adapter for tools."""
-    
+
     def __init__(self, tool_class: str = ""):
         self.tool_class = tool_class
-    
+
     def get_status_text(self) -> str:
         return f"Running {self.tool_class or 'tool'}"
 
@@ -1487,31 +1600,158 @@ class ToolUIDataAdapter:
         if remaining:
             parts.append(f"+{remaining} more")
         return ", ".join(parts)
-    
+
     def get_call_display(self, event: Any) -> Any:
         @dataclass
         class Display:
             summary: str = ""
 
         tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
-        args = getattr(event, "tool_args", None)
+        args = getattr(event, "tool_args", {}) or {}
+        
+        # Specialized summaries for better UX
+        if tool_name == "grep":
+            query = args.get("query", args.get("pattern", ""))
+            path = args.get("path", args.get("includePattern", "."))
+            path_suffix = f" in {path}" if path != "." else ""
+            return Display(summary=f"Grep \"{query}\"{path_suffix}")
+        
+        if tool_name in ("read", "read_file"):
+            def get_rel_path(p_str):
+                if not p_str: return "unknown"
+                try:
+                    p = Path(p_str).resolve()
+                    cwd = Path.cwd().resolve()
+                    if p == cwd: return "."
+                    if p.is_relative_to(cwd):
+                        rel = p.relative_to(cwd)
+                        res = str(rel).replace('\\', '/')
+                        return res if res else "."
+                    return p_str
+                except Exception:
+                    return p_str
+
+            paths = args.get("files", [])
+            if paths and isinstance(paths, list) and len(paths) > 0:
+                first = paths[0]
+                if isinstance(first, dict):
+                    raw_path = first.get("file_path") or first.get("filePath") or "unknown"
+                    path = get_rel_path(raw_path)
+                    offset = first.get("offset")
+                    limit = first.get("limit")
+                    params = []
+                    if offset is not None:
+                        params.append(f"offset={offset}")
+                    if limit is not None:
+                        params.append(f"limit={limit}")
+                    
+                    param_str = f" ({', '.join(params)})" if params else ""
+                    summary = f"Read {path}{param_str}"
+                    if len(paths) > 1:
+                        summary += f" (+{len(paths)-1} more files)"
+                    return Display(summary=summary)
+            
+            # Single file mode
+            raw_path = args.get("filePath") or args.get("path") or args.get("file_path")
+            if raw_path:
+                path = get_rel_path(raw_path)
+                offset = args.get("offset")
+                limit = args.get("limit")
+                params = []
+                if offset is not None:
+                    params.append(f"offset={offset}")
+                if limit is not None:
+                    params.append(f"limit={limit}")
+                
+                param_str = f" ({', '.join(params)})" if params else ""
+                return Display(summary=f"Read {path}{param_str}")
+                
+            return Display(summary="Read unknown")
+
+        if tool_name in ("write", "write_file", "edit"):
+            def get_rel_path(p_str):
+                if not p_str: return "unknown"
+                try:
+                    p = Path(p_str).resolve()
+                    cwd = Path.cwd().resolve()
+                    if p == cwd: return "."
+                    if p.is_relative_to(cwd):
+                        rel = p.relative_to(cwd)
+                        res = str(rel).replace('\\', '/')
+                        return res if res else "."
+                    return p_str
+                except Exception:
+                    return p_str
+            
+            raw_path = args.get("path", args.get("filePath", args.get("file_path", "unknown")))
+            path = get_rel_path(raw_path)
+            return Display(summary=f"{tool_name.capitalize()} {path}")
+
+        if tool_name == "bash":
+            command = args.get("command", "")
+            summary = command.split("\n")[0]
+            if len(summary) > 50:
+                summary = summary[:47] + "..."
+            return Display(summary=f"run \"{summary}\"")
+
+        if tool_name == "ls":
+            path_str = args.get("path", ".")
+            try:
+                p = Path(path_str).resolve()
+                cwd = Path.cwd().resolve()
+                if p == cwd:
+                    display_path = "."
+                elif p.is_relative_to(cwd):
+                    rel = p.relative_to(cwd)
+                    display_path = f"{str(rel).replace('\\', '/')}"
+                    if not display_path:
+                        display_path = "."
+                else:
+                    display_path = path_str
+                return Display(summary=f"List {display_path}")
+            except Exception:
+                return Display(summary=f"List {path_str}")
+
         args_text = self._format_args(args)
         if args_text:
             return Display(summary=f"Calling {tool_name}({args_text})")
         return Display(summary=f"Calling {tool_name}")
-    
+
     def get_result_display(self, event: Any) -> Any:
         @dataclass
         class Display:
             success: bool = True
             message: str = ""
             warnings: list[Any] | None = None
-        
-        if hasattr(event, 'error') and event.error:
-            tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
-            return Display(success=False, message=f"{tool_name}: error", warnings=[])
+
         tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
-        return Display(success=True, message=f"{tool_name}: completed", warnings=[])
+        
+        # Check for explicit error in event
+        if hasattr(event, 'error') and event.error:
+            return Display(success=False, message=f"{tool_name}: error", warnings=[])
+        
+        # Check for skipped or cancelled
+        if getattr(event, "skipped", False) or getattr(event, "cancelled", False):
+            return Display(success=False, message=f"{tool_name}: interrupted", warnings=[])
+
+        # Check the result object for success indicators
+        result = getattr(event, "result", None)
+        success = True
+        
+        if result is not None:
+            # Bash tool: check returncode
+            if hasattr(result, "returncode"):
+                success = result.returncode == 0
+            # Generic success flag
+            elif hasattr(result, "success"):
+                success = bool(result.success)
+            elif isinstance(result, dict) and "success" in result:
+                success = bool(result["success"])
+            # Some tools return error messages in the result
+            elif isinstance(result, dict) and "error" in result and result["error"]:
+                success = False
+
+        return Display(success=success, message=f"{tool_name}: completed", warnings=[])
 
 
 def make_transcribe_client(provider: str, model: str) -> Any:
@@ -1522,7 +1762,7 @@ def make_transcribe_client(provider: str, model: str) -> Any:
 # PROXY SYSTEM
 # ============================================================================
 
-SUPPORTED_PROXY_VARS = []
+SUPPORTED_PROXY_VARS: dict[str, str] = {}
 
 
 def get_current_proxy_settings() -> dict[str, str]:

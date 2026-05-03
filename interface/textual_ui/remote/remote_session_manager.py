@@ -183,7 +183,7 @@ class RemoteSessionManager:
             return
         await ui.ensure_loading(DEFAULT_LOADING_STATUS)
         try:
-            async for event in events_source.attach():
+            async for event in events_source.attach():  # type: ignore
                 if isinstance(event, WaitingForInputEvent):
                     await ui.remove_loading()
                     self._pending_waiting_input = event

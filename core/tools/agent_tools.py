@@ -53,7 +53,7 @@ async def _run_agent_in_background(
     config_getter,
 ):
     """Run an agent in the background and update status when done"""
-    from core.agents import EXPLORE, ExploreAgent
+    from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
     from core.config.settings import Settings
 
     try:
@@ -74,7 +74,7 @@ async def _run_agent_in_background(
 
             explore_registry = _FilteredToolRegistry(
                 tool_registry,
-                allowed_tools=("read", "list_dir", "glob", "grep"),
+                allowed_tools=("read", "ls", "find", "grep"),
                 llm_provider=llm_provider,
                 model=model,
                 config_getter=explore_config_getter,
@@ -85,6 +85,41 @@ async def _run_agent_in_background(
                 tool_registry=explore_registry,
                 model=model,
                 config_getter=explore_config_getter,
+            )
+            subagent.rebuild_system_prompt()
+
+            # Execute the task
+            result = await subagent.process(prompt)
+
+            # Update with result
+            async with _background_lock:
+                if task_id in _background_agents:
+                    _background_agents[task_id].status = "completed"
+                    _background_agents[task_id].result = result
+                    _background_agents[task_id].completed_at = datetime.now()
+
+        elif agent_name == "plan":
+            def plan_config_getter() -> Settings:
+                if callable(config_getter):
+                    base_settings = config_getter()
+                else:
+                    base_settings = Settings()
+                merged_config = PLAN.apply_to_config(base_settings.model_dump())
+                return Settings(initial_config=merged_config)
+
+            plan_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=plan_config_getter,
+            )
+
+            subagent = PlanAgent(
+                llm_provider=llm_provider,
+                tool_registry=plan_registry,
+                model=model,
+                config_getter=plan_config_getter,
             )
             subagent.rebuild_system_prompt()
 
@@ -174,47 +209,33 @@ def get_skill_description() -> str:
         return skill_manager.get_skill_descriptions_for_prompt()
     except Exception:
         # Fallback to basic description if skill manager fails
-        return """## Available Skills
-
-Skills provide specialized domain expertise. ONLY activate skills when the task explicitly requires specialized knowledge.
-
-**Available skills:**
-- skill-creator: For creating new skills and modifying existing skill files
-- reverse-engineering: For analyzing APIs, websites, and systems
-- modern-python: For setting up Python projects and modern tooling
-
-IMPORTANT: Only activate skills when the task clearly requires specialized expertise."""
+        return "Skills not available. Please ensure the SkillManager is properly implemented and accessible."
 
 
 class AgentsTool(BaseTool):
     """Tool for invoking specialized agents"""
 
     name = "agents"
-    description = """Invoke a specialized subagent to perform a specific task or investigation. Use this to delegate work to agents with specialized capabilities.
+    description = """Invoke specialized subagents (explore, plan) for specific tasks.
 
-Usage:
-- Specify the agent name to invoke (e.g., 'explore' for codebase exploration and analysis)
-- Provide a complete prompt describing the task for the subagent
-- run_in_background parameter is REQUIRED - you must explicitly set it
+WHEN TO USE:
+- explore: Need to understand codebase structure, find files, analyze patterns
+- plan: Need to decompose complex tasks, create implementation plans
 
-Background Execution (run_in_background=true):
-- Use ONLY when you have multiple independent tasks and can do other work while subagent runs
-- The main agent continues working while subagent runs in background
-- Use agent_status tool to check progress and get results
-- Check completion only after doing other meaningful work
+Parameters:
+- agent_name (REQUIRED): 'explore' for codebase analysis, 'plan' for task planning
+- prompt (REQUIRED): Task description or query to send to the agent
+- runInBackground (REQUIRED): Set true for async when delegating multiple tasks, false for immediate results
 
-Foreground Execution (run_in_background=false):
-- Use for single tasks when you need the result immediately
-- Agent runs synchronously and returns result directly
-- No need to check status - result is returned immediately
+Examples:
+- Synchronous: {"agentName": "explore", "prompt": "Find all API endpoints", "runInBackground": false}
+- Background: {"agentName": "plan", "prompt": "Plan auth system", "runInBackground": true}
 
-When to use which:
-- Single task needing immediate result -> run_in_background=false
-- Multiple tasks, can do other work while subagent runs -> run_in_background=true"""
+Returns: Agent response (sync) or background task ID (async)."""
     input_schema = {
         "type": "object",
         "properties": {
-            "agent_name": {
+            "agentName": {
                 "type": "string",
                 "description": "Name of the specialized subagent to invoke (e.g., 'explore')",
                 "minLength": 1
@@ -224,24 +245,33 @@ When to use which:
                 "description": "The complete query or task to send to the subagent",
                 "minLength": 1
             },
-            "run_in_background": {
+            "runInBackground": {
                 "type": "boolean",
                 "description": "REQUIRED: Set to true ONLY when delegating multiple tasks and can do other work. Set to false for single tasks needing immediate result."
             }
         },
-        "required": ["agent_name", "prompt", "run_in_background"]
+        "required": ["agentName", "prompt", "runInBackground"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        agent_name = getattr(input_data, "agent_name", None)
-        prompt = getattr(input_data, "prompt", None)
-        run_in_background = getattr(input_data, "run_in_background", False)
+        # Support camelCase parameter names
+        agent_name = self._get_param(input_data, "agentName")
+        prompt = self._get_param(input_data, "prompt")
+        runInBackground = self._get_param(input_data, "runInBackground") or False
 
         if not isinstance(agent_name, str) or not isinstance(prompt, str):
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid agent invocation input: agent_name and prompt must be non-empty strings. Please provide a valid agent name and a descriptive task prompt."
+                error="Invalid agent invocation input: agentName and prompt must be non-empty strings. Please provide a valid agent name and a descriptive task prompt."
             )
 
         # Import here to avoid circular dependencies
@@ -262,7 +292,7 @@ When to use which:
             # Create task ID for background execution
             task_id = str(uuid.uuid4())
 
-            if run_in_background:
+            if runInBackground:
                 # Run in background - non-blocking
                 # Create background task
                 bg_task = BackgroundAgentTask(
@@ -306,40 +336,81 @@ When to use which:
                 )
             else:
                 # Run synchronously (blocking) - for backwards compatibility
-                from core.agents import EXPLORE, ExploreAgent
+                from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
                 from core.config.settings import Settings
 
-                def explore_config_getter() -> Settings:
-                    if callable(config_getter):
-                        base_settings = config_getter()
-                    else:
-                        base_settings = Settings()
-                    merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
-                    return Settings(initial_config=merged_config)
+                if agent_name == "explore":
+                    def explore_config_getter() -> Settings:
+                        if callable(config_getter):
+                            base_settings = config_getter()
+                        else:
+                            base_settings = Settings()
+                        merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
+                        return Settings(initial_config=merged_config)
 
-                explore_registry = _FilteredToolRegistry(
-                    tool_registry,
-                    allowed_tools=("read", "list_dir", "glob", "grep"),
-                    llm_provider=llm_provider,
-                    model=model,
-                    config_getter=explore_config_getter,
-                )
+                    explore_registry = _FilteredToolRegistry(
+                        tool_registry,
+                        allowed_tools=("read", "ls", "find", "grep"),
+                        llm_provider=llm_provider,
+                        model=model,
+                        config_getter=explore_config_getter,
+                    )
 
-                subagent = ExploreAgent(
-                    llm_provider=llm_provider,
-                    tool_registry=explore_registry,
-                    model=model,
-                    config_getter=explore_config_getter,
-                )
-                subagent.rebuild_system_prompt()
+                    subagent = ExploreAgent(
+                        llm_provider=llm_provider,
+                        tool_registry=explore_registry,
+                        model=model,
+                        config_getter=explore_config_getter,
+                    )
+                    subagent.rebuild_system_prompt()
 
-                result = await subagent.process(prompt)
+                    result = await subagent.process(prompt)
 
-                return ToolOutput(
-                    success=True,
-                    result=result,
-                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
-                )
+                    return ToolOutput(
+                        success=True,
+                        result=result,
+                        metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                    )
+
+                elif agent_name == "plan":
+                    def plan_config_getter() -> Settings:
+                        if callable(config_getter):
+                            base_settings = config_getter()
+                        else:
+                            base_settings = Settings()
+                        merged_config = PLAN.apply_to_config(base_settings.model_dump())
+                        return Settings(initial_config=merged_config)
+
+                    plan_registry = _FilteredToolRegistry(
+                        tool_registry,
+                        allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
+                        llm_provider=llm_provider,
+                        model=model,
+                        config_getter=plan_config_getter,
+                    )
+
+                    subagent = PlanAgent(
+                        llm_provider=llm_provider,
+                        tool_registry=plan_registry,
+                        model=model,
+                        config_getter=plan_config_getter,
+                    )
+                    subagent.rebuild_system_prompt()
+
+                    result = await subagent.process(prompt)
+
+                    return ToolOutput(
+                        success=True,
+                        result=result,
+                        metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                    )
+
+                else:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error=f"Unknown agent: {agent_name}. Available agents: 'explore', 'plan'"
+                    )
 
         except ImportError as e:
             return ToolOutput(
@@ -355,100 +426,50 @@ When to use which:
             )
 
 
-class ActivateSkillTool(BaseTool):
-    """Tool for activating specialized agent skills"""
-
-    name = "activate_skill"
-    description = get_skill_description()
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "name": {
-                "type": "string",
-                "description": "Name of the specialized skill to activate for expert guidance"
-            }
-        },
-        "required": ["name"]
-    }
-
-    async def execute(self, input_data: ToolInput) -> ToolOutput:
-        skill_name = getattr(input_data, "name", None)
-
-        if not isinstance(skill_name, str) or not skill_name:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error="Invalid skill name: skill name must be a non-empty string. Please provide a valid skill name."
-            )
-
-        # Use SkillManager to activate the skill
-        try:
-            from core.skills import SkillManager
-            skill_manager = SkillManager()
-            success, message, content = skill_manager.activate_skill(skill_name)
-
-            if not success:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error=message
-                )
-
-            # Store skill content in the tool registry's context for the agent to access
-            if self.tool_registry and hasattr(self.tool_registry, 'active_skills'):
-                self.tool_registry.active_skills[skill_name] = content or ""
-
-            return ToolOutput(
-                success=True,
-                result=message,
-                metadata={"skill": skill_name, "content_length": len(content) if content else 0}
-            )
-
-        except Exception as e:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error=f"Failed to activate skill: {str(e)}. Please check if the skill system is properly configured."
-            )
-
-
 class AgentStatusTool(BaseTool):
     """Tool for checking status and output of background agents"""
 
     name = "agent_status"
-    description = """Check the status and output of a background agent task.
+    description = """Check status and retrieve output from background agent tasks.
 
-Usage:
-- Provide a task_id to check the status of a specific background agent
-- Use 'list' as task_id to see all running background agents
-- Get the task_id from the response when starting a background agent
-- Returns status (pending, running, completed, failed), output, and errors
+Parameters:
+- taskId (required): Background task ID from agents tool, or 'list' to see all tasks
 
-The main agent will be automatically notified when background agents complete."""
+Returns task status (pending/running/completed/failed), output, errors, and metadata.
+Do other work before checking status again on running tasks."""
     input_schema = {
         "type": "object",
         "properties": {
-            "task_id": {
+            "taskId": {
                 "type": "string",
                 "description": "Task ID of the background agent to check. Use 'list' to see all background agents.",
                 "minLength": 1
             }
         },
-        "required": ["task_id"]
+        "required": ["taskId"]
     }
 
-    async def execute(self, input_data: ToolInput) -> ToolOutput:
-        task_id = getattr(input_data, "task_id", None)
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
-        if not isinstance(task_id, str) or not task_id:
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        # Support camelCase parameter names
+        taskId = self._get_param(input_data, "taskId")
+
+        if not isinstance(taskId, str) or not taskId:
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid task_id: must be a non-empty string. Use 'list' to see all background agents."
+                error="Invalid taskId: must be a non-empty string. Use 'list' to see all background agents."
             )
 
         try:
-            if task_id.lower() == "list":
+            if taskId.lower() == "list":
                 # List all background agents
                 agents = await list_background_agents()
                 if not agents:
@@ -474,18 +495,18 @@ The main agent will be automatically notified when background agents complete.""
                     success=True,
                     result="\n".join(lines),
                     metadata={"count": len(agents), "agents": [
-                        {"task_id": a.task_id, "agent": a.agent_name, "status": a.status}
+                        {"taskId": a.task_id, "agent": a.agent_name, "status": a.status}
                         for a in agents
                     ]}
                 )
 
             # Get specific agent status
-            agent = await get_background_agent(task_id)
+            agent = await get_background_agent(taskId)
             if not agent:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"Task ID '{task_id}' not found. Use 'list' to see available background agents."
+                    error=f"Task ID '{taskId}' not found. Use 'list' to see available background agents."
                 )
 
             # Format the response based on status

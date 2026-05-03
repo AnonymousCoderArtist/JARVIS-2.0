@@ -14,8 +14,8 @@ DEFAULT = AgentProfile(
             "read": {"permission": "ask"},
             "write_file": {"permission": "ask"},
             "edit": {"permission": "ask"},
-            "list_dir": {"permission": "ask"},
-            "glob": {"permission": "ask"},
+            "ls": {"permission": "ask"},
+            "find": {"permission": "ask"},
             # Search tools
             "grep": {"permission": "ask"},
             # Code tools
@@ -45,12 +45,13 @@ PLAN = AgentProfile(
     display_name="Plan",
     description="Read-only agent for exploration and planning",
     safety=AgentSafety.SAFE,
+    agent_type=AgentType.SUBAGENT,
     overrides={
         "tools": {
             # Explore-level tools - always allowed
             "read": {"permission": "always"},
-            "list_dir": {"permission": "always"},
-            "glob": {"permission": "always"},
+            "ls": {"permission": "always"},
+            "find": {"permission": "always"},
             "grep": {"permission": "always"},
             # All other tools - disabled
             "write": {"permission": "never"},
@@ -60,12 +61,15 @@ PLAN = AgentProfile(
             "repl": {"permission": "never"},
             "list_background_processes": {"permission": "never"},
             "read_background_output": {"permission": "never"},
-            "save_memory": {"permission": "never"},
-            "read_memory": {"permission": "never"},
-            "fetch_webpage": {"permission": "never"},
+            "save_memory": {"permission": "always"},
+            "read_memory": {"permission": "always"},
+            "fetch_webpage": {"permission": "always"},
+            "web_search": {"permission": "always"},
             "agents": {"permission": "never"},
             "activate_skill": {"permission": "never"},
-        }
+            "agent_status": {"permission": "never"},
+        },
+        "system_prompt_id": "plan",
     },
 )
 
@@ -82,9 +86,9 @@ ACCEPT_EDITS = AgentProfile(
             "write_file": {"permission": "always"},
             "read": {"permission": "always"},
             # Search operations - always allowed
-            "glob": {"permission": "always"},
+            "find": {"permission": "always"},
             "grep": {"permission": "always"},
-            "list_dir": {"permission": "always"},
+            "ls": {"permission": "always"},
             # Code tools - ask
             "bash": {"permission": "ask"},
             "run_tests": {"permission": "ask"},
@@ -128,8 +132,8 @@ EXPLORE = AgentProfile(
             "read": {"permission": "always"},
             "write_file": {"permission": "always"},
             "edit": {"permission": "never"},  # Excluded
-            "list_dir": {"permission": "always"},
-            "glob": {"permission": "always"},
+            "ls": {"permission": "always"},
+            "find": {"permission": "always"},
             # Search tools - always
             "grep": {"permission": "always"},
             # Code tools - bash excluded, others always

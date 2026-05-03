@@ -46,14 +46,17 @@ class ListBackgroundProcessesTool(BaseTool):
     """Tool for listing active background processes"""
 
     name = "list_background_processes"
-    description = """List all active and recently completed background processes. Use this to monitor long-running commands started with the bash tool's is_background parameter.
+    description = """List active and completed background processes.
 
-Usage:
-- Lists all background processes with their PID, command, and status
-- Shows running processes and recently completed ones
-- Use this to check the status of background tasks
-- Combine with read_background_output to see process output
-- Useful for monitoring servers, builds, tests, and other long-running operations"""
+WHEN TO USE:
+- After running bash commands with is_background=true
+- To check what background processes are running
+- To find PIDs for reading output
+
+Parameters: None
+
+Returns: Array of processes with PID, command, and status (running/finished).
+Use with read_background_output to get process output."""
     input_schema = {
         "type": "object",
         "properties": {},
@@ -81,15 +84,19 @@ class ReadBackgroundOutputTool(BaseTool):
     """Tool for reading output of a background process"""
 
     name = "read_background_output"
-    description = """Read the output log of a background shell process. Use this to check the progress and results of long-running commands.
+    description = """Read stdout/stderr output from background processes.
 
-Usage:
-- Provide the PID of the background process to read output from
-- Use the lines parameter to control how many lines to read from the end of the output
-- Returns both stdout and stderr output
-- Use this to monitor progress of background tasks
-- Combine with list_background_processes to find process PIDs
-- Useful for checking build logs, test results, server output, etc."""
+WHEN TO USE:
+- After starting a background bash process
+- To check output of long-running commands
+- To debug background task failures
+
+Parameters:
+- pid (REQUIRED): Process ID (PID) of the background process
+- lines (OPTIONAL): Number of lines from end of output (default: 100)
+
+Returns: Captured stdout and stderr from the background process.
+Use list_background_processes to find PIDs first."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -108,9 +115,18 @@ Usage:
         "required": ["pid"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        pid = getattr(input_data, "pid", None)
-        limit = getattr(input_data, "lines", 100)
+        # Support both camelCase and snake_case parameter names
+        pid = self._get_param(input_data, "pid")
+        limit = self._get_param(input_data, "lines", "limit") or 100
 
         if pid not in _background_processes:
             return ToolOutput(

@@ -164,3 +164,9 @@ class WaitingForInputEvent(BaseEvent):
     """Waiting for input event."""
     predefined_answers: list[str] = field(default_factory=list)
     label: str = ""
+
+
+@dataclass
+class TimingEvent(BaseEvent):
+    """Timing event showing duration."""
+    duration: float = 0.0

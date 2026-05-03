@@ -12,15 +12,20 @@ class WebFetchTool(BaseTool):
     """Tool for fetching and processing content from URLs"""
 
     name = "fetch_webpage"
-    description = """Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage. Use this tool when you think the user is looking for information from a specific webpage.
+    description = """Fetch and extract content from web pages.
 
-Usage:
-- Provide an array of URLs to fetch content from
-- Use the query parameter to describe what information you're looking for in the page content
-- Content is truncated at 2000 characters to manage response size
-- Use this for research, documentation retrieval, and information gathering
-- Note: This tool uses basic HTTP fetching and may not work well with JavaScript-rendered pages
-- For complex web scraping, consider using specialized tools or APIs"""
+WHEN TO USE:
+- Getting documentation from URLs
+- Fetching API responses
+- Reading articles or blog posts
+
+Parameters:
+- urls (REQUIRED): Array of URLs to fetch content from
+- query (OPTIONAL): Search query to filter/extract specific information
+
+Returns: Content truncated at 2000 characters.
+Limitation: Not suitable for JavaScript-rendered pages (use web_search for dynamic content).
+Content is extracted in LLM-friendly format."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -35,12 +40,21 @@ Usage:
                 "description": "The query to search for in the web page's content. This should be a clear and concise description of the content you want to find."
             }
         },
-        "required": ["urls", "query"]
+        "required": ["urls"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        urls = getattr(input_data, "urls", None)
-        query = getattr(input_data, "query", None)
+        # Support camelCase parameter names
+        urls = self._get_param(input_data, "urls")
+        query = self._get_param(input_data, "query") or ""
 
         if not isinstance(urls, list) or not urls or not all(isinstance(url, str) for url in urls):
             return ToolOutput(
@@ -90,19 +104,24 @@ Usage:
 
 
 class ExaWebSearchTool(BaseTool):
-    """Tool for searching the web using Exa MCP API"""
+    """Tool for searching the web using Exa API"""
 
     name = "web_search"
-    description = """Searches the web using Exa's MCP API for real-time information. Use this tool when you need to find current information, news, or research topics on the internet.
+    description = """Search the web using Exa API for current information.
 
-Usage:
-- Provide a search query as a string
-- Optionally specify the number of results (default: 8)
-- Optionally set search type: 'auto', 'neural', or 'keyword' (default: 'auto')
-- Optionally enable livecrawling for fresh content: 'fallback', 'always', or 'never' (default: 'fallback')
-- Returns structured search results with titles, URLs, and content snippets
-- Ideal for researching recent events, technical documentation, or current topics
-- More reliable than basic web fetching for finding specific information"""
+WHEN TO USE:
+- Researching latest information
+- Finding documentation or tutorials
+- Getting up-to-date news or releases
+
+Parameters:
+- query (REQUIRED): Search query string
+- numResults (OPTIONAL): Number of results (default: 8, max: 20)
+- type (OPTIONAL): 'auto' (default), 'neural', or 'keyword'
+- livecrawl (OPTIONAL): 'fallback' (default), 'always', or 'never'
+- contextMaxCharacters (OPTIONAL): Max characters for content
+
+Returns: Search results with titles, URLs, and content snippets."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -110,7 +129,7 @@ Usage:
                 "type": "string",
                 "description": "The search query to find information on the web"
             },
-            "num_results": {
+            "numResults": {
                 "type": "integer",
                 "description": "Number of search results to return (default: 8)",
                 "default": 8,
@@ -129,7 +148,7 @@ Usage:
                 "enum": ["fallback", "always", "never"],
                 "default": "fallback"
             },
-            "context_max_characters": {
+            "contextMaxCharacters": {
                 "type": "integer",
                 "description": "Maximum characters for content context (optional)"
             }
@@ -137,17 +156,26 @@ Usage:
         "required": ["query"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     def __init__(self):
         super().__init__()
         self.mcp_url = "https://mcp.exa.ai/mcp"
         self.timeout = 25
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        query = getattr(input_data, "query", None)
-        num_results = getattr(input_data, "num_results", 8)
-        search_type = getattr(input_data, "type", "auto")
-        livecrawl = getattr(input_data, "livecrawl", "fallback")
-        context_max_characters = getattr(input_data, "context_max_characters", None)
+        # Support camelCase parameter names
+        query = self._get_param(input_data, "query")
+        numResults = self._get_param(input_data, "numResults") or 8
+        search_type = self._get_param(input_data, "type") or "auto"
+        livecrawl = self._get_param(input_data, "livecrawl") or "fallback"
+        contextMaxCharacters = self._get_param(input_data, "contextMaxCharacters")
 
         if not isinstance(query, str) or not query.strip():
             return ToolOutput(
@@ -160,11 +188,11 @@ Usage:
         payload_args = {
             "query": query,
             "type": search_type,
-            "numResults": num_results,
+            "numResults": numResults,
             "livecrawl": livecrawl,
         }
-        if context_max_characters is not None:
-            payload_args["contextMaxCharacters"] = context_max_characters
+        if contextMaxCharacters is not None:
+            payload_args["contextMaxCharacters"] = contextMaxCharacters
 
         payload = {
             "jsonrpc": "2.0",
@@ -209,8 +237,8 @@ Usage:
                         result=content[0]["text"],
                         metadata={
                             "query": query,
-                            "num_results": num_results,
-                            "search_type": search_type
+                            "numResults": numResults,
+                            "searchType": search_type
                         }
                     )
 
@@ -225,8 +253,8 @@ Usage:
                         result=content[0]["text"],
                         metadata={
                             "query": query,
-                            "num_results": num_results,
-                            "search_type": search_type
+                            "numResults": numResults,
+                            "searchType": search_type
                         }
                     )
             except Exception:

@@ -736,7 +736,11 @@ class BaseAgent(ABC):
                 # Format tool result for LLM
                 success = getattr(result, "success", False)
                 res_val = getattr(result, "result", None)
-                err_val = getattr(result, "error", "Unknown error")
+                err_val = getattr(result, "error", None)
+                
+                # If error is None but there's a result with error info, use that
+                if not success and not err_val and res_val:
+                    err_val = str(res_val)
 
                 if success:
                     tool_result_content = f"Tool {tool_name} executed successfully. Result: {res_val}"
@@ -828,15 +832,18 @@ class BaseAgent(ABC):
                 if tool_name == "activate_skill" and hasattr(output, "success") and output.success:
                     self.rebuild_system_prompt()
 
+                # Format error message
+                err_msg = output.error if output.error else "Unknown error"
+                
                 results.append({
                     "tool": tool_name,
                     "success": output.success,
                     "result": output.result,
-                    "error": output.error,
+                    "error": err_msg,
                     "content": (
                         f"Tool {tool_name} executed successfully. Result: {output.result}"
                         if output.success
-                        else f"Tool {tool_name} failed. Error: {output.error}"
+                        else f"Tool {tool_name} failed. Error: {err_msg}"
                     )
                 })
             return skipped_results + results

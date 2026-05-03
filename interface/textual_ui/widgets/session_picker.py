@@ -50,7 +50,7 @@ def _format_relative_time(iso_time: str | None) -> str:
 
 def _build_option_text(session: ResumeSessionInfo, message: str) -> Text:
     text = Text(no_wrap=True)
-    time_str = _format_relative_time(session.end_time)
+    time_str = "unknown"  # end_time not available in ResumeSessionInfo
     session_id = short_session_id(session.session_id, source=session.source)
     source = session.source
     text.append(f"{time_str:10}", style="dim")

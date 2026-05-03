@@ -203,6 +203,84 @@ class Settings:
     def progress_updates(self) -> bool:
         return self._config.async_settings.progress_updates
 
+    # Heartbeat system properties
+    @property
+    def heartbeat_enabled(self) -> bool:
+        return self._config.heartbeat.enabled
+
+    @property
+    def heartbeat_interval(self) -> str:
+        return self._config.heartbeat.every
+
+    @property
+    def heartbeat_target(self) -> str:
+        return self._config.heartbeat.target
+
+    @property
+    def heartbeat_light_context(self) -> bool:
+        return self._config.heartbeat.light_context
+
+    @property
+    def heartbeat_isolated_session(self) -> bool:
+        return self._config.heartbeat.isolated_session
+
+    @property
+    def heartbeat_skip_when_busy(self) -> bool:
+        return self._config.heartbeat.skip_when_busy
+
+    @property
+    def heartbeat_prompt(self) -> str:
+        return self._config.heartbeat.prompt
+
+    @property
+    def heartbeat_active_hours(self) -> dict[str, str]:
+        return {
+            "start": self._config.heartbeat.active_hours.start,
+            "end": self._config.heartbeat.active_hours.end,
+            "timezone": self._config.heartbeat.active_hours.timezone,
+        }
+
+    @property
+    def heartbeat_show_ok(self) -> bool:
+        return self._config.heartbeat.show_ok
+
+    @property
+    def heartbeat_show_alerts(self) -> bool:
+        return self._config.heartbeat.show_alerts
+
+    @property
+    def heartbeat_use_indicator(self) -> bool:
+        return self._config.heartbeat.use_indicator
+
+    # Learning system properties
+    @property
+    def learning_enabled(self) -> bool:
+        return self._config.learning.enabled
+
+    @property
+    def skill_creation_threshold(self) -> int:
+        return self._config.learning.skill_creation_threshold
+
+    @property
+    def self_evaluation_interval(self) -> int:
+        return self._config.learning.self_evaluation_interval
+
+    @property
+    def memory_dir(self) -> Path:
+        return Path(self._config.learning.memory_dir).expanduser()
+
+    @property
+    def skills_dir(self) -> Path:
+        return Path(self._config.learning.skills_dir).expanduser()
+
+    @property
+    def max_memory_chars(self) -> int:
+        return self._config.learning.max_memory_chars
+
+    @property
+    def max_user_chars(self) -> int:
+        return self._config.learning.max_user_chars
+
     def model_dump(self) -> dict[str, Any]:
         """Return configuration as dictionary"""
         return self._config.model_dump()

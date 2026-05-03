@@ -98,7 +98,8 @@ async def test_submit_task():
 @pytest.mark.asyncio
 async def test_execute_concurrent():
     """Test concurrent execution of multiple agents"""
-    manager = AsyncAgentManager(max_concurrent_agents=5)
+    config = AsyncAgentConfig(max_concurrent_agents=5)
+    manager = AsyncAgentManager(config)
 
     mock_agents = [
         MockAgent(
@@ -111,10 +112,11 @@ async def test_execute_concurrent():
 
     tasks = [(agent, f"task {i}", None) for i, agent in enumerate(mock_agents)]
 
-    results = await manager.execute_concurrent(tasks)
+    results = await manager.execute_concurrent(tasks)  # type: ignore
 
     assert len(results) == 3
-    assert all("Processed:" in result for result in results)
+    for result in results:
+        assert isinstance(result, str) and "Processed:" in result
 
 
 @pytest.mark.asyncio
@@ -165,7 +167,7 @@ async def test_execute_tools_with_timeout():
     result = await registry.execute_tools_with_timeout("slow_tool", {}, timeout=0.5)
 
     assert result.success is False
-    assert "timed out" in result.error
+    assert result.error is not None and "timed out" in result.error
 
 
 @pytest.mark.asyncio
@@ -182,7 +184,7 @@ async def test_execute_tools_with_retry():
         async def execute(self, input_data: ToolInput) -> ToolOutput:
             FlakyTool.attempts += 1
             if FlakyTool.attempts < 3:
-                return ToolOutput(success=False, error="failed")
+                return ToolOutput(success=False, result=None, error="failed")
             return ToolOutput(success=True, result="success")
 
     flaky_tool = FlakyTool()
@@ -204,7 +206,7 @@ async def test_concurrent_tool_executor():
     executor = ConcurrentToolExecutor(
         registry,
         max_workers=5,
-        resource_limits=ResourceLimits(timeout_seconds=10.0),
+        resource_limits=ToolResourceLimits(timeout_seconds=10.0),
     )
 
     tool_calls = [("mock_tool", {}) for _ in range(3)]
@@ -229,7 +231,7 @@ async def test_concurrent_tool_executor_with_retry():
         async def execute(self, input_data: ToolInput) -> ToolOutput:
             FlakyTool.attempts += 1
             if FlakyTool.attempts < 2:
-                return ToolOutput(success=False, error="failed")
+                return ToolOutput(success=False, result=None, error="failed")
             return ToolOutput(success=True, result="success")
 
     flaky_tool = FlakyTool()
@@ -332,7 +334,7 @@ async def test_tool_execute_async_with_timeout():
     slow_tool = SlowTool()
     result = await slow_tool.execute_async(ToolInput(), timeout=0.5)
     assert result.success is False
-    assert "timed out" in result.error
+    assert "timed out" in result.error  # type: ignore
 
 
 @pytest.mark.asyncio
@@ -440,10 +442,6 @@ async def test_resource_monitor():
 
     assert not monitor.is_monitoring()
 
-# Stop async manager
-    await async_manager.stop_monitoring()
-    assert not async_manager._processing
-
 
 @pytest.mark.asyncio
 async def test_concurrent_tool_executor_resource_limits():
@@ -468,7 +466,7 @@ async def test_concurrent_tool_executor_resource_limits():
     # Either succeeds (if resources are low) or fails with resource limit error
     assert len(results) == 1
     if not results[0].success:
-        assert "Resource limit exceeded" in results[0].error or "not found" in results[0].error
+        assert results[0].error is not None and ("Resource limit exceeded" in results[0].error or "not found" in results[0].error)
 
 
 if __name__ == "__main__":

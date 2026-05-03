@@ -12,11 +12,11 @@ from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
-from core.tools.agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
+from core.tools.agent_tools import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
-from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
+from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool
 from core.tools.registry import ToolRegistry
@@ -63,6 +63,9 @@ class Config:
     displayed_workdir: Path | None = field(init=False)
     file_watcher_for_autocomplete: bool = False
     bypass_tool_permissions: bool = False
+    agent_paths: list[Path] = field(default_factory=list)
+    enabled_agents: list[str] = field(default_factory=list)
+    disabled_agents: list[str] = field(default_factory=list)
     mcp_servers: list = field(default_factory=list)
     session_logging: SessionLoggingConfig = field(default_factory=SessionLoggingConfig)
     api_timeout: float = 30.0
@@ -116,6 +119,95 @@ def get_env_config() -> dict[str, str | None]:
     }
 
 
+def load_mcp_servers_from_config(config_path: Path | None = None) -> list[dict]:
+    """Load MCP server configurations from .mcp.json file."""
+    if config_path is None:
+        # Default to .mcp.json in current directory or JARVIS config dir
+        config_path = Path(".mcp.json")
+        
+        if not config_path.exists():
+            # Try in JARVIS config directory
+            jarvis_dir = Path.home() / ".jarvis"
+            config_path = jarvis_dir / "mcp_servers.json"
+    
+    if not config_path.exists():
+        return []
+    
+    try:
+        import json
+        with open(config_path) as f:
+            data = json.load(f)
+        
+        # Handle both formats:
+        # {"mcpServers": {"name": {...}}} or [{"name": ..., ...}]
+        if "mcpServers" in data:
+            servers = []
+            for name, config in data["mcpServers"].items():
+                server = {
+                    "name": name,
+                    "command": config.get("command", ""),
+                    "args": config.get("args", []),
+                    "env": config.get("env", {}),
+                    "transport": config.get("transport", ""),  # Empty string to allow auto-detection
+                    "url": config.get("url", ""),
+                }
+                servers.append(server)
+            return servers
+        elif isinstance(data, list):
+            return data
+        else:
+            return []
+    except Exception as e:
+        print(f"Warning: Failed to load MCP config from {config_path}: {e}")
+        return []
+
+
+async def connect_mcp_servers(tool_registry: AsyncToolRegistry, provider: Any, model: str) -> int:
+    """Connect to MCP servers and register their tools."""
+    from core.tools.mcp_adapter import MCPServerConfig, MCPRegistry, MCPTransportType
+    
+    # Load MCP server configurations
+    mcp_configs = load_mcp_servers_from_config()
+    
+    if not mcp_configs:
+        return 0
+    
+    # Create MCP registry
+    mcp_registry = MCPRegistry(tool_registry=tool_registry)
+    
+    # Convert and connect to each MCP server
+    connected_count = 0
+    for config_dict in mcp_configs:
+        try:
+            # Auto-detect transport based on URL presence
+            url = config_dict.get("url", "")
+            transport = config_dict.get("transport", "")
+            if url and not transport:
+                transport = MCPTransportType.HTTP
+            
+            config = MCPServerConfig(
+                name=config_dict.get("name", ""),
+                command=config_dict.get("command", ""),
+                args=config_dict.get("args", []),
+                env=config_dict.get("env", {}),
+                transport=transport or MCPTransportType.STDIO,
+                url=url,
+                timeout=config_dict.get("timeout", 30.0),
+            )
+            
+            await mcp_registry.add_server(
+                config=config,
+                llm_provider=provider,
+                model=model,
+            )
+            connected_count += 1
+            print(f"Connected to MCP server: {config.name}")
+        except Exception as e:
+            print(f"Warning: Failed to connect to MCP server '{config_dict.get('name', 'unknown')}': {e}")
+    
+    return connected_count
+
+
 def create_tool_registry() -> AsyncToolRegistry:
     """Create and configure tool registry with all JARVIS tools."""
     tool_registry = AsyncToolRegistry()
@@ -124,8 +216,8 @@ def create_tool_registry() -> AsyncToolRegistry:
     tool_registry.register(FileReadTool())
     tool_registry.register(FileWriteTool())
     tool_registry.register(EditTool())
-    tool_registry.register(ListDirectoryTool())
-    tool_registry.register(GlobTool())
+    tool_registry.register(LSTool())
+    tool_registry.register(FindTool())
     
     # Register code execution tools
     tool_registry.register(BashTool())
@@ -149,7 +241,9 @@ def create_tool_registry() -> AsyncToolRegistry:
     # Register agent tools
     tool_registry.register(AgentsTool())
     tool_registry.register(AgentStatusTool())
-    tool_registry.register(ActivateSkillTool())
+    # Register skill tool
+    from core.tools.skill_manage_tool import SkillTool
+    tool_registry.register(SkillTool())
     
     return tool_registry
 
@@ -193,6 +287,12 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         llm_provider=provider,
         model=model
     )
+    
+    # Connect to MCP servers and register their tools
+    import asyncio
+    mcp_count = asyncio.run(connect_mcp_servers(tool_registry, provider, model))
+    if mcp_count > 0:
+        print(f"Connected to {mcp_count} MCP server(s)")
 
     # Initialize agent manager for profile support
     from core.agents.manager import AgentManager

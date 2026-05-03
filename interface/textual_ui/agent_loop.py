@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import deque
 from collections.abc import AsyncGenerator, Callable
@@ -17,6 +18,7 @@ from core.agents.manager import AgentManager
 from core.agents.profiles import AgentProfile as CoreAgentProfile
 from core.config.settings import Settings
 from core.tools.registry import ToolRegistry
+from core.rewind import RewindManager, RewindError
 
 from interface.textual_ui.types import (
     AgentStats,
@@ -31,6 +33,7 @@ from interface.textual_ui.types import (
 )
 from interface.textual_ui.tool_results import (
     BashResult,
+    GrepMatch,
     GrepResult,
     ReadFileResult,
     SearchReplaceResult,
@@ -43,6 +46,8 @@ AgentProfile: TypeAlias = CoreAgentProfile
 
 # Type alias for event types
 Event: TypeAlias = BaseEvent | AssistantEvent | ReasoningEvent | ToolCallEvent | ToolResultEvent | UserMessageEvent
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -213,20 +218,29 @@ class Stats(AgentStats):
 
         # Get token usage from LLM provider
         if hasattr(agent, 'llm'):
+            usage: dict[str, Any] | None = None
             # Try to get usage using get_and_clear_usage (handles both streaming and non-streaming)
             if hasattr(agent.llm, 'get_and_clear_usage'):
-                usage = agent.llm.get_and_clear_usage()
-                if usage and isinstance(usage, dict):
-                    p_tokens = int(usage.get('prompt_tokens', usage.get('input_tokens', 0)))
-                    c_tokens = int(usage.get('completion_tokens', usage.get('output_tokens', 0)))
+                get_and_clear = getattr(agent.llm, 'get_and_clear_usage', None)
+                if callable(get_and_clear):
+                    usage = get_and_clear()
             # Fallback: check last_token_usage directly (non-streaming)
             elif hasattr(agent.llm, 'last_token_usage'):
-                usage = agent.llm.last_token_usage
-                if usage and isinstance(usage, dict):
-                    p_tokens = int(usage.get('prompt_tokens', usage.get('input_tokens', 0)))
-                    c_tokens = int(usage.get('completion_tokens', usage.get('output_tokens', 0)))
+                usage = getattr(agent.llm, 'last_token_usage', None)
 
-        # Update stats only if we have actual token counts
+            if usage and isinstance(usage, dict):
+                # Use .get() with proper type handling
+                prompt_val = usage.get('prompt_tokens')
+                if prompt_val is None:
+                    prompt_val = usage.get('input_tokens', 0)
+                p_tokens = int(prompt_val) if prompt_val is not None else 0
+
+                completion_val = usage.get('completion_tokens')
+                if completion_val is None:
+                    completion_val = usage.get('output_tokens', 0)
+                c_tokens = int(completion_val) if completion_val is not None else 0
+
+        # Update stats if we have actual token counts
         if p_tokens > 0 or c_tokens > 0:
             self.prompt_tokens = p_tokens
             self.completion_tokens = c_tokens
@@ -239,8 +253,8 @@ class Stats(AgentStats):
             self.last_turn_total_tokens = p_tokens + c_tokens
             self.steps += 1
 
-            # Update context tokens for compaction tracking
-            self.context_tokens = self.session_prompt_tokens
+        # Always update context tokens for compaction tracking (handles cached token case)
+        self.context_tokens = self.session_prompt_tokens
 
 
 @dataclass
@@ -292,14 +306,29 @@ class AgentLoop:
         self.session_logger = SessionLoggerAdapter()
         self.session_id: str | None = None
         self.parent_session_id: str | None = None
-        self.rewind_manager = RewindManagerAdapter()
+        # Initialize rewind manager with proper callbacks
+        self.rewind_manager = RewindManager(
+            messages=self.agent.memory,
+            save_messages=self._save_messages,
+            reset_session=self._reset_session_callback,
+        )
 
         # ====================================================================
         # Compaction System
         # ====================================================================
         self.compaction_stats = CompactionStats()
+        max_tokens_val: int = 200000
+        if hasattr(config, 'max_tokens'):
+            mt = config.max_tokens
+            if isinstance(mt, int):
+                max_tokens_val = mt
+            elif isinstance(mt, (str, float)):
+                try:
+                    max_tokens_val = int(mt)
+                except (ValueError, TypeError):
+                    pass
         self.context_window = ContextWindowState(
-            max_tokens=config.max_tokens if hasattr(config, 'max_tokens') else 200000
+            max_tokens=max_tokens_val
         )
         self._compaction_strategy = CompactionStrategy.BALANCED
         self._last_compaction_check: float = 0.0
@@ -453,8 +482,13 @@ class AgentLoop:
         system_prompt = self._get_compaction_system_prompt(strategy)
         user_prompt = self._build_compaction_user_prompt(messages, extra_instructions)
 
-        # Use the agent's LLM provider
-        response = await self.agent.llm.create_chat_completion(
+        # Use the agent's LLM provider - use getattr to safely access the method
+        llm = self.agent.llm
+        create_completion = getattr(llm, 'create_chat_completion', None)
+        if not callable(create_completion):
+            return "LLM provider does not support create_chat_completion."
+
+        response = await create_completion(  # type: ignore[call-arg]
             model=self.agent.model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -464,7 +498,11 @@ class AgentLoop:
             temperature=0.3
         )
 
-        return response.choices[0].message.content or "Summarization failed."
+        # Handle the response - check for choices attribute
+        if hasattr(response, 'choices') and response.choices:
+            content = response.choices[0].message.content
+            return content if content else "Summarization failed."
+        return "Summarization failed: No response from LLM."
 
     def _get_compaction_system_prompt(self, strategy: CompactionStrategy) -> str:
         """Get system prompt for summarization based on strategy."""
@@ -635,6 +673,13 @@ Create a comprehensive summary that captures:
         # Update the config getter to use the new profile configuration
         self.agent.set_config_getter(lambda: self.agent_manager.config)
 
+        # Update system prompt based on profile's system_prompt_id
+        system_prompt_id = self.agent_profile.overrides.get("system_prompt_id")
+        if system_prompt_id:
+            from core.agents.coding_agent import CodingAgent
+            new_system_prompt = CodingAgent.get_system_prompt_for_profile(system_prompt_id)
+            self.agent.set_system_prompt(new_system_prompt)
+
         # Clear session rules when switching profiles
         self.agent.clear_session_rules()
 
@@ -692,7 +737,15 @@ Create a comprehensive summary that captures:
             if tool_name == "bash":
                 return BashResult(stdout=raw_result, returncode=0)
             if tool_name == "grep":
-                return GrepResult(matches=raw_result)
+                # Convert string matches to GrepMatch objects if they follow the format
+                matches = []
+                for line in raw_result.splitlines():
+                    parts = line.split(":", 2)
+                    if len(parts) == 3:
+                        matches.append(GrepMatch(file=parts[0], line=int(parts[1]) if parts[1].isdigit() else 0, content=parts[2]))
+                    else:
+                        matches.append(GrepMatch(file="unknown", line=0, content=line))
+                return GrepResult(matches=matches)
             if tool_name in ("read", "read_file"):
                 path = str(arguments.get("path") or arguments.get("filePath", ""))
                 return ReadFileResult(path=path, content=raw_result)
@@ -704,15 +757,16 @@ Create a comprehensive summary that captures:
                 path = str(arguments.get("path") or arguments.get("filePath", ""))
                 return SearchReplaceResult(path=path, content=raw_result)
 
-        # Special case for grep: list of dicts to formatted string
+        # Special case for grep: list of dicts to GrepMatch objects
         if tool_name == "grep" and isinstance(raw_result, list):
-            formatted = []
+            matches = []
             for m in cast(list[dict[str, Any]], raw_result):
-                file = str(m.get("file", "unknown"))
-                line = str(m.get("line", "?"))
-                content = str(m.get("content", ""))
-                formatted.append(f"{file}:{line}:{content}")
-            return GrepResult(matches="\n".join(formatted))
+                matches.append(GrepMatch(
+                    file=str(m.get("file", "unknown")),
+                    line=int(m.get("line", 0)) if str(m.get("line", "")).isdigit() else 0,
+                    content=str(m.get("content", ""))
+                ))
+            return GrepResult(matches=matches)
 
         return raw_result
 
@@ -736,6 +790,9 @@ Create a comprehensive summary that captures:
             if hasattr(result, 'error'):
                 error = str(getattr(result, 'error'))
 
+        # Track file changes for rewind snapshots
+        self._track_file_snapshot(tool_name, arguments, result)
+
         # Map result to structured model for UI
         mapped_result = self._map_tool_result(tool_name, arguments, result)
 
@@ -754,6 +811,22 @@ Create a comprehensive summary that captures:
         # Clean up the tool_call_id after use
         if tool_name in self._tool_call_ids:
             del self._tool_call_ids[tool_name]
+
+    def _track_file_snapshot(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
+        """Track file snapshots for rewind functionality.
+        
+        Called when file-modifying tools complete successfully.
+        """
+        # Track files modified by write and edit tools
+        if tool_name in ("write", "write_file", "edit", "str_replace_editor"):
+            path = str(arguments.get("path") or arguments.get("filePath", ""))
+            if path:
+                try:
+                    content = Path(path).read_bytes()
+                    self.add_file_snapshot(path, content)
+                except Exception:
+                    # File might not exist or be newly created
+                    pass
 
     def _on_reasoning(self, reasoning: str) -> None:
         """Handle reasoning content from agent."""
@@ -858,6 +931,9 @@ Create a comprehensive summary that captures:
         self._reasoning_chunks = []
         self._drain_event_queue()
 
+        # Create checkpoint before processing user message (for rewind functionality)
+        self.rewind_manager.create_checkpoint()
+
         # Set up streaming callback to emit assistant events
         def stream_callback(chunk: str) -> None:
             self._stream_chunks.append(chunk)
@@ -960,6 +1036,34 @@ Create a comprehensive summary that captures:
             except asyncio.TimeoutError:
                 continue
 
+    async def _save_messages(self) -> None:
+        """Save messages to session log."""
+        # SessionLoggerAdapter doesn't have save() method yet
+        # This is a placeholder for future implementation
+        logger.info("Save messages called during rewind")
+        pass
+
+    def _reset_session_callback(self) -> None:
+        """Reset session state after rewind."""
+        # Clear any running state
+        self._is_running = False
+        self._stream_chunks.clear()
+        self._reasoning_chunks.clear()
+        # Reset stats for the new forked session
+        self.stats = Stats()
+
+    def create_checkpoint(self) -> None:
+        """Create a checkpoint - convenience method."""
+        if hasattr(self.rewind_manager, 'create_checkpoint'):
+            self.rewind_manager.create_checkpoint()
+
+    def add_file_snapshot(self, path: str, content: bytes | None) -> None:
+        """Add a file snapshot to checkpoints - convenience method."""
+        if hasattr(self.rewind_manager, 'add_snapshot'):
+            from core.rewind import FileSnapshot
+            snapshot = FileSnapshot(path=path, content=content)
+            self.rewind_manager.add_snapshot(snapshot)
+
 
 from core.skills.manager import SkillManager as CoreSkillManager
 
@@ -986,9 +1090,15 @@ class SkillManagerAdapter:
             return self._core_manager.get_skill_profile(skill_name)
         return None
 
+    def activate_skill(self, skill_name: str) -> tuple[bool, str, str | None]:
+        """Activate a skill and return the core manager result."""
+        return self._core_manager.activate_skill(skill_name)
+    
     @staticmethod
     def build_skill_prompt(user_input: str, skill: Any) -> str:
         """Build skill prompt."""
+        if skill and hasattr(skill, 'content') and skill.content:
+            return f"{user_input}\n\n--- Skill Context ---\n{skill.content}"
         return user_input
 
 

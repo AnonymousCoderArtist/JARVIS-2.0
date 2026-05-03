@@ -1,6 +1,7 @@
 """Memory management tool - OpenClaude style persistent memory"""
 
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -224,23 +225,26 @@ class SaveMemoryTool(BaseTool):
     """Enhanced tool for saving detailed memories with project-specific and global capabilities"""
 
     name = "save_memory"
-    description = """Saves detailed memories with rich content structure for use across future sessions. Use this to remember important information about the user, project, or general patterns.
+    description = """Save facts and context to persistent memory for future sessions.
 
-Usage:
-- Provide detailed content with sections for context, reasoning, and application
-- Use scope parameter to control memory visibility:
-  - 'private': applies to this user (stored in .jarvis/memory/private/)
-  - 'team': shared with team members (stored in .jarvis/memory/team/)
-  - 'global': cross-project knowledge (stored in ~/.jarvis/global_memory/)
-- Use enhanced memory types for better organization:
-  - 'user': personal preferences and information
-  - 'feedback': guidance and corrections
-  - 'project': project-specific information
-  - 'project_context': detailed technical context
-  - 'reference': external resources and references
-  - 'global': universal patterns and best practices
-- Memories use rich Markdown format with structured sections
-- Can include tags, priority, and custom metadata"""
+WHEN TO USE:
+- Learning user preferences or working style
+- Discovering important project context
+- Finding useful references or patterns
+- After user corrects your approach (save to 'feedback' type)
+
+Parameters:
+- fact (REQUIRED): The main information to remember
+- scope (OPTIONAL): 'private' (default), 'team', or 'global'
+- type (OPTIONAL): 'user', 'feedback', 'project', 'project_context', 'reference', 'global' (default: 'user')
+- name (OPTIONAL): Title (auto-generated if not provided)
+- context (OPTIONAL): Additional background
+- reasoning (OPTIONAL): Why this should be remembered
+- application (OPTIONAL): How to apply this in future
+- tags (OPTIONAL): Tags for categorization
+- priority (OPTIONAL): 'low', 'medium' (default), 'high', 'critical'
+
+Memory types: user (preferences), feedback (corrections), project (initiatives), reference (pointers)."""
 
     input_schema = {
         "type": "object",
@@ -289,7 +293,7 @@ Usage:
                 "description": "Priority level for this memory",
                 "default": "medium"
             },
-            "project_name": {
+            "projectName": {
                 "type": "string",
                 "description": "Override auto-detected project name"
             }
@@ -307,7 +311,7 @@ Usage:
         application = getattr(input_data, "application", "")
         tags = getattr(input_data, "tags", [])
         priority = getattr(input_data, "priority", "medium")
-        project_name = getattr(input_data, "project_name", None)
+        projectName = getattr(input_data, "projectName", None)
 
         if not isinstance(fact, str) or not fact:
             return ToolOutput(
@@ -336,8 +340,8 @@ Usage:
                     name += "..."
 
             # Get project name
-            if not project_name and scope != "global":
-                project_name = get_project_name()
+            if not projectName and scope != "global":
+                projectName = get_project_name()
 
             # Generate filename
             filename = generate_memory_filename(name, timestamp, memory_type)
@@ -353,7 +357,7 @@ type: {memory_type}
 scope: {scope}
 priority: {priority}
 tags: [{tags_str}]
-project: {project_name or 'N/A'}
+project: {projectName or 'N/A'}
 created: {timestamp.isoformat()}
 ---
 
@@ -377,7 +381,7 @@ created: {timestamp.isoformat()}
                 content_sections.append(f"## Application\n{application}\n")
             
             # Add metadata section
-            content_sections.append(f"## Metadata\n- **Type:** {memory_type}\n- **Scope:** {scope}\n- **Priority:** {priority}\n- **Tags:** {tags_str or 'None'}\n- **Project:** {project_name or 'N/A'}\n- **Created:** {timestamp.isoformat()}\n")
+            content_sections.append(f"## Metadata\n- **Type:** {memory_type}\n- **Scope:** {scope}\n- **Priority:** {priority}\n- **Tags:** {tags_str or 'None'}\n- **Project:** {projectName or 'N/A'}\n- **Created:** {timestamp.isoformat()}\n")
             
             # Combine all content
             full_content = frontmatter + "\n".join(content_sections)
@@ -396,7 +400,7 @@ created: {timestamp.isoformat()}
                     "scope": scope,
                     "type": memory_type,
                     "file": str(memory_file),
-                    "project": project_name,
+                    "project": projectName,
                     "priority": priority,
                     "tags": tags
                 }
@@ -414,14 +418,23 @@ class ReadMemoryTool(BaseTool):
     """Enhanced tool for reading saved memories with advanced filtering"""
 
     name = "read_memory"
-    description = """Reads saved memories from the memory store with advanced filtering options. Use to retrieve previously saved facts, preferences, and context.
+    description = """Read and search saved memories with filtering options.
 
-Usage:
-- Read all memories from a scope (private, team, global, or all)
-- Filter by enhanced memory types (user, feedback, project, project_context, reference, global)
-- Search memories by keyword, tags, or project
-- Filter by priority level
-- Returns memories with rich metadata and content"""
+WHEN TO USE:
+- Before starting work to load context
+- When user mentions something you saved before
+- To recall project details or user preferences
+
+Parameters:
+- scope (OPTIONAL): 'private', 'team', 'global', or 'all' (default)
+- type (OPTIONAL): Filter by type - 'user', 'feedback', 'project', etc. (default: 'all')
+- query (OPTIONAL): Search within memory content
+- tags (OPTIONAL): Filter by specific tags
+- priority (OPTIONAL): Filter by priority level
+- project (OPTIONAL): Filter by project name
+- limit (OPTIONAL): Maximum memories to return (default: 10)
+
+Returns: Matching memories with metadata (name, type, scope, priority, tags)."""
 
     input_schema = {
         "type": "object",
@@ -567,3 +580,315 @@ Usage:
                 result=None,
                 error=f"Failed to read memories: {str(e)}"
             )
+
+
+# Hermes-style memory management (MEMORY.md and USER.md)
+
+HERMES_MEMORY_LIMITS = {
+    "memory": 2200,   # Agent notes limit
+    "user": 1375,     # User profile limit
+}
+
+SENSITIVE_PATTERNS = [
+    r"api[_-]?key",
+    r"password",
+    r"secret",
+    r"token",
+    r"private[_-]?key",
+    r"credential",
+    r"bearer\s+",
+]
+
+
+def get_hermes_memory_dir() -> Path:
+    """Get Hermes-style memory directory (~/.hermes/memory/)"""
+    home = Path.home()
+    hermes_dir = home / ".hermes" / "memory"
+    hermes_dir.mkdir(parents=True, exist_ok=True)
+    return hermes_dir
+
+
+def check_memory_security(content: str) -> tuple[bool, str]:
+    """
+    Check memory content for sensitive patterns
+    Returns (is_safe, warning_message)
+    """
+    import re
+    
+    content_lower = content.lower()
+    for pattern in SENSITIVE_PATTERNS:
+        if re.search(pattern, content_lower, re.IGNORECASE):
+            return False, f"Memory content contains sensitive pattern: {pattern}"
+    
+    return True, ""
+
+
+class MemoryManagementTool(BaseTool):
+    """
+    Hermes-style memory management tool supporting MEMORY.md and USER.md
+    
+    Provides add/replace/remove actions with character limits:
+    - MEMORY.md: 2,200 char limit (agent notes)
+    - USER.md: 1,375 char limit (user profile)
+    """
+
+    name = "memory"
+    description = """Manage persistent memory in MEMORY.md and USER.md files (Hermes-style).
+
+WHEN TO USE:
+- add: Save new information about user or project
+- read: Check what's already saved
+- replace: Update incorrect or outdated information
+- remove: Delete irrelevant information
+
+Parameters:
+- action (REQUIRED): 'add', 'replace', 'remove', or 'read'
+- memory_type (OPTIONAL): 'memory' (2200 chars) or 'user' (1375 chars)
+- content (OPTIONAL): Content to add (for 'add')
+- match (OPTIONAL): Substring to match for 'replace'/'remove'
+- new_content (OPTIONAL): Replacement content (for 'replace')
+
+Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
+
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["add", "replace", "remove", "read"],
+                "description": "Action to perform: add, replace, remove, or read"
+            },
+            "memoryType": {
+                "type": "string",
+                "enum": ["memory", "user"],
+                "description": "Type of memory: 'memory' for agent notes, 'user' for user profile",
+                "default": "memory"
+            },
+            "content": {
+                "type": "string",
+                "description": "Content to add (for add action)"
+            },
+            "match": {
+                "type": "string",
+                "description": "Substring to match for replace/remove actions"
+            },
+            "newContent": {
+                "type": "string",
+                "description": "New content to replace matched entry with (for replace action)"
+            }
+        },
+        "required": ["action"]
+    }
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        action = getattr(input_data, "action", "read")
+        memoryType = getattr(input_data, "memoryType", "memory")
+        content = getattr(input_data, "content", None)
+        match = getattr(input_data, "match", None)
+        newContent = getattr(input_data, "newContent", None)
+
+        try:
+            memory_dir = get_hermes_memory_dir()
+            memory_file = memory_dir / f"{memoryType.upper()}.md"
+
+            # Get character limit for this memory type
+            char_limit = HERMES_MEMORY_LIMITS.get(memoryType, 2200)
+
+            if action == "read":
+                return await self._read_memory(memory_file, memoryType)
+
+            elif action == "add":
+                if not content:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Content is required for add action"
+                    )
+                return await self._add_memory(memory_file, content, memoryType, char_limit)
+
+            elif action == "replace":
+                if not match or not newContent:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Match and newContent are required for replace action"
+                    )
+                return await self._replace_memory(memory_file, match, newContent, memoryType, char_limit)
+
+            elif action == "remove":
+                if not match:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Match is required for remove action"
+                    )
+                return await self._remove_memory(memory_file, match, memoryType)
+            
+            else:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=f"Unknown action: {action}"
+                )
+                
+        except Exception as e:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Memory operation failed: {str(e)}"
+            )
+
+    async def _read_memory(self, memory_file: Path, memory_type: str) -> ToolOutput:
+        """Read memory content from file"""
+        if not memory_file.exists():
+            return ToolOutput(
+                success=True,
+                result={
+                    "type": memory_type,
+                    "content": "",
+                    "exists": False,
+                    "char_limit": HERMES_MEMORY_LIMITS.get(memory_type, 2200)
+                }
+            )
+        
+        with open(memory_file, encoding="utf-8") as f:
+            memory_content = f.read()
+        
+        return ToolOutput(
+            success=True,
+            result={
+                "type": memory_type,
+                "content": memory_content,
+                "exists": True,
+                "char_limit": HERMES_MEMORY_LIMITS.get(memory_type, 2200),
+                "char_count": len(memory_content)
+            }
+        )
+
+    async def _add_memory(
+        self, memory_file: Path, content: str, memory_type: str, char_limit: int
+    ) -> ToolOutput:
+        """Add new memory content"""
+        # Check security
+        is_safe, warning = check_memory_security(content)
+        if not is_safe:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Security check failed: {warning}"
+            )
+        
+        # Check character limit
+        if len(content) > char_limit:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Content exceeds {char_limit} char limit for {memory_type}"
+            )
+        
+        # Add timestamp
+        timestamp = datetime.now().isoformat()
+        full_content = f"""<!-- Last updated: {timestamp} -->
+{content}
+"""
+        
+        with open(memory_file, "w", encoding="utf-8") as f:
+            f.write(full_content)
+        
+        return ToolOutput(
+            success=True,
+            result=f"Added {memory_type} memory ({len(content)} chars)",
+            metadata={"type": memory_type, "char_count": len(content), "char_limit": char_limit}
+        )
+
+    async def _replace_memory(
+        self, memory_file: Path, match: str, new_content: str, memory_type: str, char_limit: int
+    ) -> ToolOutput:
+        """Replace memory content using substring matching"""
+        # Check security for new content
+        is_safe, warning = check_memory_security(new_content)
+        if not is_safe:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Security check failed: {warning}"
+            )
+        
+        # Check character limit
+        if len(new_content) > char_limit:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"New content exceeds {char_limit} char limit for {memory_type}"
+            )
+        
+        # Read current content
+        if not memory_file.exists():
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"No existing {memory_type} memory found"
+            )
+        
+        with open(memory_file, encoding="utf-8") as f:
+            current_content = f.read()
+        
+        # Find and replace using substring matching
+        if match not in current_content:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Match string not found in {memory_type} memory"
+            )
+        
+        # Replace only the matched portion, keeping the timestamp comment if exists
+        timestamp = datetime.now().isoformat()
+        
+        # Remove old timestamp comment and add new one
+        current_content = re.sub(r"<!-- Last updated: .*? -->", "", current_content)
+        current_content = current_content.strip()
+        
+        new_full_content = f"<!-- Last updated: {timestamp} -->\n{new_content}"
+        
+        with open(memory_file, "w", encoding="utf-8") as f:
+            f.write(new_full_content)
+        
+        return ToolOutput(
+            success=True,
+            result=f"Replaced content in {memory_type} memory",
+            metadata={"type": memory_type, "char_count": len(new_content), "char_limit": char_limit}
+        )
+
+    async def _remove_memory(self, memory_file: Path, match: str, memory_type: str) -> ToolOutput:
+        """Remove memory content using substring matching"""
+        if not memory_file.exists():
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"No existing {memory_type} memory found"
+            )
+        
+        with open(memory_file, encoding="utf-8") as f:
+            current_content = f.read()
+        
+        # Check if match exists
+        if match not in current_content:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Match string not found in {memory_type} memory"
+            )
+        
+        # Remove the matched content
+        # Since we're removing, we need to be careful - just clear the file
+        timestamp = datetime.now().isoformat()
+        new_content = f"<!-- Last updated: {timestamp} -->\n[Content removed]"
+        
+        with open(memory_file, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        
+        return ToolOutput(
+            success=True,
+            result=f"Removed content from {memory_type} memory",
+            metadata={"type": memory_type}
+        )

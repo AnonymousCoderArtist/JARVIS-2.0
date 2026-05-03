@@ -1,6 +1,7 @@
 """File operation tools"""
 
 import os
+from typing import Any
 
 import aiofiles
 
@@ -20,58 +21,77 @@ class FileReadTool(BaseTool):
     """Tool for reading file contents - uses files array format"""
 
     name = "read"
-    description = """Read file(s) from the local filesystem using the files array format.
+    description = """Read file contents from the local filesystem.
 
-**USAGE:**
-```json
-{
-  "files": [
-    {"file_path": "/path/to/file.py", "offset": 1, "limit": 10},
-    {"file_path": "/path/to/file2.py", "offset": 10, "limit": 10}
-  ]
-}
-```
+WHEN TO USE:
+- Reading source code files to understand structure
+- Checking file contents before editing
+- Examining configuration or documentation files
 
-**PARAMETERS:**
-- `files`: Array of file objects (required)
-  - `file_path`: Absolute path to the file to read (required)
-  - `offset`: 1-based line number to start reading from (required)
-  - `limit`: Maximum number of lines to read (required, default: 10, max: 1000)
-- `encoding`: Character encoding for reading files (default: utf-8)
+SINGLE FILE MODE (use filePath):
+  {"filePath": "/absolute/path/file.py", "offset": 1, "limit": 50}
+  - filePath (required): Absolute path to file
+  - offset (REQUIRED, 1-indexed): Line number to start from (1 = first line)
+  - limit (REQUIRED): Number of lines to read (max 1000)
+  WARNING: offset/limit are LINE numbers, NOT byte offsets!
 
-**BEHAVIOR:**
-- Returns concatenated content with `--- {file_path} ---` separators
-- Files are read in parallel for performance
-- Each file respects individual offset/limit settings
-- Read errors for individual files are reported but don't fail the entire operation"""
+MULTIPLE FILES MODE (use files array):
+  {"files": [{"filePath": "/path/a.py", "offset": 1, "limit": 50}]}
+  - filePath: Absolute path
+  - offset (REQUIRED): Line number to start
+  - limit (REQUIRED): Number of lines
+
+TIPS: Use offset/limit to paginate through large files. Always read before edit."""
 
     input_schema = {
         "type": "object",
         "properties": {
+            # Single file mode parameters
+            "filePath": {
+                "type": "string",
+                "description": "Absolute path to the file to read (single file mode)"
+            },
+            "offset": {
+                "type": "integer",
+                "description": "LINE number to start reading from (1 = first line, NOT byte offset! Default: 1)",
+                "minimum": 1,
+                "default": 1
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Number of lines to read starting from offset (default: 10, max: 1000)",
+                "minimum": 1,
+                "maximum": 1000,
+                "default": 10
+            },
+            # Multiple files mode parameters
             "files": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "file_path": {
+                        "filePath": {
                             "type": "string",
-                            "description": "Absolute path to the file to read"
+                            "description": "Absolute path to the file"
                         },
                         "offset": {
                             "type": "integer",
-                            "description": "1-based line number to start reading from (default: 1)",
-                            "minimum": 1
+                            "description": "LINE number to start reading from (1 = first line, NOT byte offset!)",
+                            "minimum": 1,
+                            "default": 1
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of lines to read (default: 10, max: 1000)",
-                            "minimum": 1
+                            "description": "Number of lines to read (default: 10, max: 1000)",
+                            "minimum": 1,
+                            "maximum": 1000,
+                            "default": 10
                         }
                     },
-                    "required": ["file_path", "offset", "limit"]
+                    "required": ["offset", "limit"]
                 },
                 "minItems": 1,
-                "description": "Array of file objects with file_path, offset, and limit"
+                "description": "Array of file objects with file_path, offset, and limit (multiple files mode)"
             },
             "encoding": {
                 "type": "string",
@@ -80,7 +100,10 @@ class FileReadTool(BaseTool):
                 "examples": ["utf-8", "latin-1", "ascii"]
             }
         },
-        "required": ["files"]
+        "oneOf": [
+            {"required": ["filePath"]},
+            {"required": ["files"]}
+        ]
     }
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
@@ -93,7 +116,11 @@ class FileReadTool(BaseTool):
         
         if files and len(files) > 0:
             first_file = files[0]
-            file_path = first_file.get("file_path") if isinstance(first_file, dict) else None
+            # Support camelCase
+            if isinstance(first_file, dict):
+                file_path = first_file.get("filePath")
+            else:
+                file_path = None
         else:
             file_path = None
         
@@ -119,38 +146,97 @@ class FileReadTool(BaseTool):
             sensitive_patterns=sensitive_patterns,
         )
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names (camelCase and snake_case)"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            files = getattr(input_data, "files", None)
-            encoding = getattr(input_data, "encoding", "utf-8")
-            
+            # Support both camelCase and snake_case parameter names
+            files = self._get_param(input_data, "files", "files")
+            encoding = self._get_param(input_data, "encoding") or "utf-8"
+
             # Normalize encoding
             if not isinstance(encoding, str):
                 encoding = "utf-8"
 
-            # Validate files is a list
-            if files is None:
+            # Check if using new files array format
+            if files is not None:
+                if not isinstance(files, list):
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="Invalid files format: expected a list of file objects with file_path/filePath, offset, and limit fields"
+                    )
+
+                if len(files) == 0:
+                    return ToolOutput(
+                        success=False,
+                        result=None,
+                        error="No files provided. Use the 'files' array with at least one file object containing 'file_path'/'filePath', 'offset', and 'limit'."
+                    )
+
+                return await self._execute_files_array(files, encoding)
+
+            # Backward compatibility: check for single file parameters
+            file_path = self._get_param(input_data, "filePath", "file_path")
+            offset = self._get_param(input_data, "offset")
+            limit = self._get_param(input_data, "limit")
+
+            if file_path is None:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
-                )
-            
-            if not isinstance(files, list):
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Invalid files format: expected a list of file objects with file_path, offset, and limit fields, got a string instead"
-                )
-            
-            if len(files) == 0:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="No files provided. Use the 'files' array with at least one file object containing 'file_path', 'offset', and 'limit'."
+                    error="No file path provided. Use either 'filePath' for single file or 'files' array for multiple files."
                 )
 
-            return await self._execute_files_array(files, encoding)
+            # For single file mode, offset and limit are required (not optional with defaults)
+            if offset is None:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Missing required parameter 'offset' for single file mode."
+                )
+
+            if limit is None:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Missing required parameter 'limit' for single file mode."
+                )
+
+            # Convert to files array format for processing
+            files_array = [{
+                "filePath": file_path,
+                "offset": offset,
+                "limit": limit
+            }]
+
+            # Execute and convert result to single file format
+            array_result = await self._execute_files_array(files_array, encoding)
+            if not array_result.success:
+                return array_result
+
+            # Convert to single file metadata format
+            result_content = array_result.result
+            if result_content and result_content.startswith(f"--- {file_path} ---\n"):
+                result_content = result_content[len(f"--- {file_path} ---\n"):]
+
+            metadata = {
+                "filePath": file_path,
+                "offset": offset,
+                "lines": len(result_content.split('\n')) if result_content else 0
+            }
+
+            return ToolOutput(
+                success=True,
+                result=result_content,
+                metadata=metadata
+            )
 
         except Exception as e:
             return ToolOutput(
@@ -171,14 +257,15 @@ class FileReadTool(BaseTool):
             try:
                 # Validate file_obj is a dict
                 if not isinstance(file_obj, dict):
-                    return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path, offset, and limit, got {type(file_obj).__name__}", None, None)
+                    return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path/filePath, offset, and limit, got {type(file_obj).__name__}", None, None)
                 
-                fp = file_obj.get("file_path")
+                # Support camelCase
+                fp = file_obj.get("filePath")
                 off = file_obj.get("offset")
                 lim = file_obj.get("limit")
 
                 if not isinstance(fp, str) or not fp:
-                    return (None, None, f"File {index + 1}: Missing or invalid file_path", None, None)
+                    return (None, None, f"File {index + 1}: Missing or invalid filePath", None, None)
 
                 if not os.path.exists(fp):
                     return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
@@ -250,10 +337,21 @@ class FileWriteTool(BaseTool):
     """Tool for writing content to files (OpenClaude style)"""
 
     name = "write"
-    description = """Create a new file in the workspace with the specified content. The directory will be created if it does not already exist.
+    description = """Create a new file with specified content.
 
-- This tool will fail if the file already exists (use edit tool instead)
-- Use this tool only when creating new files from scratch"""
+WHEN TO USE:
+- Creating new files that don't exist yet
+- Generating boilerplate code or config files
+- Creating documentation files
+
+DO NOT USE if file exists - use 'edit' tool instead!
+
+Parameters:
+- filePath (REQUIRED): Absolute path for the new file
+- content (REQUIRED): Content to write to the file
+
+Behavior: Creates parent directories automatically. Fails if file already exists.
+Returns success message with file path and size."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -269,6 +367,14 @@ class FileWriteTool(BaseTool):
         },
         "required": ["filePath", "content"]
     }
+
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names (camelCase and snake_case)"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file write operation with granular checks"""
@@ -297,8 +403,9 @@ class FileWriteTool(BaseTool):
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            file_path = getattr(input_data, "filePath", None)
-            content = getattr(input_data, "content", None)
+            # Support camelCase parameter names
+            file_path = self._get_param(input_data, "filePath")
+            content = self._get_param(input_data, "content")
 
             if not isinstance(file_path, str) or not file_path:
                 return ToolOutput(
@@ -344,17 +451,23 @@ class FileWriteTool(BaseTool):
             )
 
 
-class ListDirectoryTool(BaseTool):
+class LSTool(BaseTool):
     """Tool for listing directory contents (OpenClaude style)"""
 
-    name = "list_dir"
-    description = """List the contents of a directory. Result will have the name of the child. If the name ends in /, it's a folder, otherwise a file.
+    name = "ls"
+    description = """List directory contents with '/' suffix for directories.
 
-Usage:
-- The path parameter must be an absolute path to the directory
-- Returns a list of item names with / suffix for directories
-- Use this to understand the structure of a directory
-- Useful for exploring project structure and finding files"""
+WHEN TO USE:
+- Exploring project structure
+- Finding files in a directory
+- Checking what files exist before reading
+
+Parameters:
+- path (REQUIRED): Absolute or relative path to directory
+
+Returns: Array of names. Directories end with '/', files have no suffix.
+Example: ["main.py", "src/", "README.md"]
+Supports permission checks for restricted paths."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -366,6 +479,14 @@ Usage:
         },
         "required": ["path"]
     }
+
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for directory listing with trust-folder and workdir checks."""
@@ -409,7 +530,7 @@ Usage:
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            path = getattr(input_data, "path", None)
+            path = self._get_param(input_data, "path")
 
             if not isinstance(path, str) or not path:
                 return ToolOutput(success=False, result=None, error="Invalid directory path: path parameter must be a non-empty string. Please provide a valid absolute directory path.")
@@ -441,28 +562,36 @@ Usage:
             )
 
 
-class GlobTool(BaseTool):
+class FindTool(BaseTool):
     """Tool for searching files by pattern (OpenClaude style)"""
 
-    name = "glob"
-    description = """Search for files in the workspace by glob pattern. This only returns the paths of matching files. Use this tool when you know the exact filename pattern of the files you're searching for.
+    name = "find"
+    description = """Search for files matching a glob pattern.
 
-Usage:
-- Glob patterns match from the root of the workspace folder
-- Examples:
-  - **/*.{js,ts} to match all js/ts files in the workspace
-  - src/** to match all files under the top-level src folder
-  - **/foo/**/*.js to match all js files under any foo folder in the workspace
-  - **/*.py to match all Python files recursively
-- Use maxResults parameter to limit the number of results if needed
-- This tool is faster than grep for finding files by name pattern
-- Use grep instead when searching for content within files"""
+WHEN TO USE:
+- Finding all Python files: pattern="**/*.py"
+- Locating specific files: pattern="**/main.py"
+- Finding config files: pattern="**/*.json"
+
+Parameters:
+- pattern (REQUIRED): Glob pattern (e.g., '**/*.py', 'src/**/*.js')
+- path (OPTIONAL): Directory to search (defaults to workspace root)
+- maxResults (OPTIONAL): Maximum results to return
+
+Returns: Array of matching file paths.
+Example: ["src/main.py", "tests/test_main.py"]
+Searches recursively from specified path or workspace root."""
     input_schema = {
         "type": "object",
         "properties": {
-            "query": {
+            "path": {
                 "type": "string",
-                "description": "Search for files with names or paths matching this glob pattern",
+                "description": "The directory path to search in. If not provided or empty, searches from workspace root.",
+                "default": ""
+            },
+            "pattern": {
+                "type": "string",
+                "description": "Glob pattern to match files (e.g., '**/*.py', 'src/**/*.js', '*secret*')',",
                 "minLength": 1
             },
             "maxResults": {
@@ -471,28 +600,43 @@ Usage:
                 "minimum": 1
             }
         },
-        "required": ["query"]
+        "required": ["pattern"]
     }
+
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
-            query = getattr(input_data, "query", None)
-            max_results = getattr(input_data, "maxResults", None)
+            # Support both camelCase and snake_case
+            path = self._get_param(input_data, "path") or ""
+            pattern = self._get_param(input_data, "pattern")
+            max_results = self._get_param(input_data, "maxResults", "max_results")
 
-            if not isinstance(query, str) or not query:
+            if not isinstance(pattern, str) or not pattern:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="Invalid glob query: query parameter must be a non-empty string. Please provide a valid glob pattern (e.g., '**/*.py' or 'src/**')"
+                    error="Invalid find query: pattern parameter must be a non-empty string. Please provide a valid glob pattern (e.g., '**/*.py' or 'src/**')"
                 )
 
             if max_results is not None and not isinstance(max_results, int):
                 max_results = 0
 
             import glob
+            import os
 
-            # Search from current working directory (workspace root)
-            matches = glob.glob(query, recursive=True)
+            # Determine search base path
+            base_path = path if path else "."
+            search_pattern = os.path.join(base_path, pattern) if base_path != "." else pattern
+
+            # Search from specified path or workspace root
+            matches = glob.glob(search_pattern, recursive=True)
 
             # Apply maxResults limit
             if max_results and max_results > 0:
@@ -501,7 +645,7 @@ Usage:
             return ToolOutput(
                 success=True,
                 result=matches,
-                metadata={"query": query, "count": len(matches)}
+                metadata={"path": path, "pattern": pattern, "count": len(matches)}
             )
 
         except Exception as e:

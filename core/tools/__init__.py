@@ -1,7 +1,7 @@
 """Tools Package"""
 
 # Agent and Skill tools
-from .agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
+from .agent_tools import AgentsTool, AgentStatusTool
 
 # Permission system
 from .permissions import (
@@ -25,7 +25,7 @@ from .code_tools import BashTool, RunTestsTool
 
 # File tools
 from .file_edit_tool import EditTool
-from .file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
+from .file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 
 # Search tools
 from .grep_tool import GrepSearchTool
@@ -33,6 +33,9 @@ from .grep_tool import GrepSearchTool
 # Memory tools
 from .memory_tool import SaveMemoryTool, ReadMemoryTool, get_memory_context
 from .registry import ToolRegistry
+
+# Skill tool
+from .skill_manage_tool import SkillTool
 from .repl_tool import REPLTool
 
 # Web tools
@@ -47,8 +50,8 @@ __all__ = [
     "FileReadTool",  # read
     "FileWriteTool",  # write
     "EditTool",  # edit (renamed from ReplaceTool)
-    "ListDirectoryTool",  # list_dir
-    "GlobTool",  # glob
+    "LSTool",  # ls
+    "FindTool",  # find
     # Code tools
     "BashTool",
     "REPLTool",
@@ -66,6 +69,7 @@ __all__ = [
     "ReadMemoryTool",
     # Agent tools
     "AgentsTool",
-    "ActivateSkillTool",
     "AgentStatusTool",
+    # Skill tool
+    "SkillTool",
 ]

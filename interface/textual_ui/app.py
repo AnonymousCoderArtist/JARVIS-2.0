@@ -207,14 +207,44 @@ from interface.textual_ui.utils import (
 def _compute_connectors_count(
     config: VibeConfig, connector_registry: ConnectorRegistry | None
 ) -> int:
-    total = connector_registry.connector_count if connector_registry else 0
-    if total == 0:
+    """Compute the count of active MCP servers.
+    
+    This replaces the old connector counting logic which always returned 0
+    because the ConnectorRegistry is not used. Now counts actual MCP servers.
+    """
+    from pathlib import Path
+    import json
+    
+    # Look for MCP config in same locations as tui_main.py
+    config_path = Path(".mcp.json")
+    if not config_path.exists():
+        config_path = Path.home() / ".jarvis" / "mcp_servers.json"
+    
+    if not config_path.exists():
         return 0
-    disabled_names = {c.name for c in config.connectors if c.disabled}
-    known_names = set(
-        connector_registry.get_connector_names() if connector_registry else []
-    )
-    return total - len(disabled_names & known_names)
+    
+    try:
+        with open(config_path) as f:
+            data = json.load(f)
+        
+        # Handle Claude MCP format: {"mcpServers": {"name": {...}}}
+        if "mcpServers" in data:
+            servers = list(data["mcpServers"].keys())
+        # Handle list format: [{"name": ..., ...}]
+        elif isinstance(data, list):
+            servers = [s.get("name", "") for s in data if s.get("name")]
+        else:
+            servers = []
+        
+        # Get disabled MCP servers from config
+        disabled_names = {c.name for c in config.connectors if c.disabled} if hasattr(config, 'connectors') else set()
+        
+        # Count enabled (non-disabled) MCP servers
+        enabled_count = sum(1 for s in servers if s not in disabled_names)
+        
+        return enabled_count
+    except Exception:
+        return 0
 
 
 class BottomApp(str, Enum):
@@ -330,7 +360,7 @@ class StartupOptions:
 
 class VibeApp(App):  # noqa: PLR0904
     ENABLE_COMMAND_PALETTE = False
-    CSS_PATH = "app.tcss"
+    CSS_PATH = ["tcss/app.tcss", "tcss/grep.tcss", "tcss/ls.tcss", "tcss/read.tcss"]
     PAUSE_GC_ON_SCROLL: ClassVar[bool] = True
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -339,6 +369,7 @@ class VibeApp(App):  # noqa: PLR0904
         Binding("ctrl+z", "suspend_with_message", "Suspend", show=False, priority=True),
         Binding("escape", "interrupt", "Interrupt", show=False, priority=True),
         Binding("ctrl+o", "toggle_tool", "Toggle Tool", show=False),
+        Binding("ctrl+t", "toggle_thinking", "Toggle Thinking", show=False),
         Binding("ctrl+y", "copy_selection", "Copy", show=False, priority=True),
         Binding("ctrl+shift+c", "copy_selection", "Copy", show=False, priority=True),
         Binding("shift+tab", "cycle_mode", "Cycle Mode", show=False, priority=True),
@@ -396,6 +427,7 @@ class VibeApp(App):  # noqa: PLR0904
         self.history_file = Path(HISTORY_FILE.path)
 
         self._tools_collapsed = True
+        self._thinking_collapsed = False
         self._windowing = SessionWindowing(load_more_batch_size=LOAD_MORE_BATCH_SIZE)
         self._load_more = HistoryLoadMoreManager()
         self._tool_call_map: dict[str, str] | None = None
@@ -477,6 +509,7 @@ class VibeApp(App):  # noqa: PLR0904
                 safety=self.agent_loop.agent_profile.safety,
                 agent_name=self.agent_loop.agent_profile.display_name.lower(),
                 skill_entries_getter=self._get_skill_entries,
+                slash_argument_entries_getter=self._get_slash_argument_entries,
                 file_watcher_for_autocomplete_getter=self._is_file_watcher_enabled,
                 voice_manager=self._voice_manager,
             )
@@ -500,6 +533,7 @@ class VibeApp(App):  # noqa: PLR0904
         self.event_handler = EventHandler(
             mount_callback=self._mount_and_scroll,
             get_tools_collapsed=lambda: self._tools_collapsed,
+            get_thinking_collapsed=lambda: self._thinking_collapsed,
             on_profile_changed=self._on_profile_changed,
             is_remote=self._remote_manager.is_active,
         )
@@ -516,15 +550,15 @@ class VibeApp(App):  # noqa: PLR0904
             limits = context_length_manager.get_token_limits(model_name)
             max_tokens = limits.total_context_tokens
             
-            # Use actual prompt_tokens from the provider, or 0 if not available
-            current_tokens = stats.prompt_tokens if stats.prompt_tokens > 0 else 0
+            # Use cumulative context tokens (total in context window)
+            current_tokens = stats.context_tokens
             
             context_progress.tokens = TokenState(
                 max_tokens=max_tokens,
                 current_tokens=current_tokens,
             )
 
-        self.agent_loop.stats.add_listener("prompt_tokens", update_context_progress)
+        self.agent_loop.stats.add_listener("context_tokens", update_context_progress)
         self.agent_loop.stats.trigger_listeners()
 
         self.agent_loop.set_approval_callback(self._approval_callback)
@@ -633,20 +667,34 @@ class VibeApp(App):  # noqa: PLR0904
         input_widget.value = ""
 
         if self._agent_running:
+            # Direct check to handle /rw or /rewind even when agent is running (similar to mistral-vibe)
+            if value == "/rw" or value == "/rewind" or value.startswith("/rw ") or value.startswith("/rewind "):
+                self._start_rewind_mode(skip_agent_check=True)
+                # Don't switch to input app - rewind handles its own UI state
+                return
             await self._interrupt_agent_loop()
 
         if value.startswith("!"):
             await self._handle_bash_command(value[1:])
+            await self._switch_to_input_app()
             return
 
         if value.startswith("&") and self.commands.has_command("teleport"):
             await self._handle_teleport_command(value[1:])
+            await self._switch_to_input_app()
             return
 
-        if await self._handle_command(value):
+        # Handle command - returns True for normal commands, "skip_input_switch" for rewind
+        result = await self._handle_command(value)
+        if result:
+            # For rewind, skip switching to input app to keep the rewind UI visible
+            if result == "skip_input_switch":
+                return
+            await self._switch_to_input_app()
             return
 
         if await self._handle_skill(value):
+            await self._switch_to_input_app()
             return
 
         await self._handle_user_message(value)
@@ -917,18 +965,33 @@ class VibeApp(App):  # noqa: PLR0904
                 await widget.remove()
 
     async def _handle_command(self, user_input: str) -> bool:
-        if resolved := self.commands.parse_command(user_input):
-            cmd_name, command, cmd_args = resolved
-            self.agent_loop.telemetry_client.send_slash_command_used(
-                cmd_name, "builtin"
-            )
-            await self._mount_and_scroll(UserMessage(user_input))
-            handler = getattr(self, command.handler)
-            if asyncio.iscoroutinefunction(handler):
-                await handler(cmd_args=cmd_args)
-            else:
-                handler(cmd_args=cmd_args)
-            return True
+        """Handle slash commands."""
+        try:
+            if resolved := self.commands.parse_command(user_input):
+                cmd_name, command, cmd_args = resolved
+                self.agent_loop.telemetry_client.send_slash_command_used(
+                    cmd_name, "builtin"
+                )
+                # Skip creating UserMessage for rewind - it's a UI action, not a chat message
+                if cmd_name not in ("rewind", "rw"):
+                    await self._mount_and_scroll(UserMessage(user_input))
+                handler = getattr(self, command.handler, None)
+                if handler is None:
+                    self.notify(f"Handler {command.handler} not found!", severity="error")
+                    return False
+                if asyncio.iscoroutinefunction(handler):
+                    result = await handler(cmd_args=cmd_args)
+                else:
+                    result = handler(cmd_args=cmd_args)
+                # For rewind commands, don't switch back to input app
+                if cmd_name in ("rewind", "rw"):
+                    return "skip_input_switch"
+                # Command was handled (even if handler returned None), return True
+                return True
+        except Exception as e:
+            self.notify(f"Error in command handler: {e}", severity="error")
+            import traceback
+            traceback.print_exc()
         return False
 
     def _get_skill_entries(self) -> list[tuple[str, str]]:
@@ -939,6 +1002,53 @@ class VibeApp(App):  # noqa: PLR0904
             for name, info in self.agent_loop.skill_manager.available_skills.items()
             if info.user_invocable
         ]
+
+    def _get_slash_argument_entries(
+        self, command_alias: str, text_before_cursor: str
+    ) -> list[tuple[str, str]]:
+        resolved = self.commands.resolve_alias(command_alias)
+        if resolved is None:
+            return []
+
+        cmd_name, _ = resolved
+        if cmd_name == "profile":
+            current = self.agent_loop.agent_manager.get_current_profile()
+            return [
+                (
+                    profile,
+                    "Current profile" if profile == current else "Switch to profile",
+                )
+                for profile in self.agent_loop.agent_manager.list_profiles()
+            ]
+
+        if cmd_name == "skills":
+            args = text_before_cursor[len(command_alias):].strip()
+            if not args or (
+                len(args.split()) == 1 and not text_before_cursor.endswith(" ")
+            ):
+                return [("activate", "Activate a skill for the current session")]
+
+            parts = args.split()
+            if parts[0] != "activate":
+                return []
+
+            return [
+                (name, info.description)
+                for name, info in sorted(
+                    self.agent_loop.skill_manager.available_skills.items()
+                )
+            ]
+
+        if cmd_name == "themes":
+            from interface.cli.config import load_config
+
+            config_manager = load_config()
+            return [
+                (theme_name, "Switch to theme")
+                for theme_name in sorted(config_manager.config.themes.keys())
+            ]
+
+        return []
 
     async def _handle_skill(self, user_input: str) -> bool:
         if not self.agent_loop:
@@ -1077,11 +1187,6 @@ class VibeApp(App):  # noqa: PLR0904
         return "\n\n".join(sections)
 
     async def _handle_user_message(self, message: str) -> None:
-        # DEBUG: Verify this method is being called
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[DEBUG] _handle_user_message called with: {message[:50]}")
-        
         if self._remote_manager.is_active:
             await self._handle_remote_user_message(message)
             return
@@ -1414,7 +1519,7 @@ class VibeApp(App):  # noqa: PLR0904
                         )
                         await loading_area.mount(loading)
                         teleport_msg.set_status("Teleporting...")
-                        next_event = await gen.asend(response)
+                        next_event = await gen.asend(response)  # type: ignore
                         if isinstance(next_event, TeleportPushingEvent):
                             teleport_msg.set_status("Syncing with remote...")
                     case TeleportPushingEvent():
@@ -1518,16 +1623,55 @@ class VibeApp(App):  # noqa: PLR0904
         tool_list = "\n".join(f"  - {name}" for name in sorted(tools.keys()))
         await self._mount_and_scroll(UserCommandMessage(f"Available tools:\n{tool_list}"))
 
-    async def _show_skills(self, **kwargs: Any) -> None:
+    async def _show_skills(self, cmd_args: str = "", **kwargs: Any) -> None:
+        if cmd_args:
+            parts = cmd_args.strip().split()
+            if parts and parts[0] == "activate" and len(parts) > 1:
+                skill_name = parts[1]
+                success, message, content = (
+                    self.agent_loop.skill_manager.activate_skill(skill_name)
+                )
+                if success:
+                    preview = ""
+                    if content:
+                        preview_text = (
+                            content[:400] + "..." if len(content) > 400 else content
+                        )
+                        preview = f"\n\n{preview_text}"
+                    await self._mount_and_scroll(
+                        UserCommandMessage(f"{message}{preview}")
+                    )
+                else:
+                    await self._mount_and_scroll(UserCommandMessage(message))
+                return
+
         skills = self.agent_loop.skill_manager.available_skills
         skill_list = "\n".join(f"  - {name}: {info.description}" for name, info in sorted(skills.items()))
         await self._mount_and_scroll(UserCommandMessage(f"Available skills:\n{skill_list}"))
 
-    async def _show_memory(self, **kwargs: Any) -> None:
-        await self._mount_and_scroll(UserCommandMessage("Memory management is available via the memory system."))
+    async def _switch_to_profile_app(self, cmd_args: str = "", **kwargs: Any) -> None:
+        profile_name = cmd_args.strip()
+        if not profile_name:
+            profiles = self.agent_loop.agent_manager.list_profiles()
+            current = self.agent_loop.agent_manager.get_current_profile()
+            lines = ["Available profiles:"]
+            lines.extend(
+                f"  - {name}{' (current)' if name == current else ''}"
+                for name in profiles
+            )
+            await self._mount_and_scroll(UserCommandMessage("\n".join(lines)))
+            return
 
-    async def _switch_to_profile_app(self, **kwargs: Any) -> None:
-        await self._mount_and_scroll(UserCommandMessage("Profile switching is available via Shift+Tab in TUI."))
+        try:
+            await self.agent_loop.switch_agent(profile_name)
+            self._refresh_profile_widgets()
+            await self._mount_and_scroll(
+                UserCommandMessage(f"Switched to profile: {profile_name}")
+            )
+        except Exception as e:
+            await self._mount_and_scroll(
+                ErrorMessage(str(e), collapsed=self._tools_collapsed)
+            )
 
     def _get_last_assistant_message_text(self) -> str | None:
         messages_area = self._cached_messages_area or self.query_one("#messages")
@@ -1602,7 +1746,7 @@ class VibeApp(App):  # noqa: PLR0904
                 mcp_servers=mcp_servers,
                 tool_manager=self.agent_loop.tool_manager,
                 initial_server=name,
-                connector_registry=connector_registry,
+                connector_registry=connector_registry,  # type: ignore
                 get_connector_configs=lambda: self.agent_loop.config.connectors,
                 refresh_callback=self._refresh_mcp_browser,
             )
@@ -1730,9 +1874,9 @@ class VibeApp(App):  # noqa: PLR0904
         session = ResumeSessionInfo(
             session_id=event.session_id,
             source=event.source,
-            cwd="",
+            option_id=event.option_id,
             title=None,
-            end_time=None,
+            status=None,
         )
         try:
             if event.source == "local":
@@ -1863,13 +2007,13 @@ class VibeApp(App):  # noqa: PLR0904
             await self._load_more.hide()
             base_config = VibeConfig.load()
 
-            await self.agent_loop.reload_with_initial_messages(base_config=base_config)
+            await self.agent_loop.reload_with_initial_messages(base_config=base_config)  # type: ignore
             await self._resolve_plan()
             self._narrator_manager.sync()
 
             if self._banner:
                 self._banner.set_state(
-                    base_config,
+                    base_config,  # type: ignore
                     self.agent_loop.skill_manager,
                     model=self.agent_loop.agent.model,
                 )
@@ -2031,7 +2175,7 @@ class VibeApp(App):  # noqa: PLR0904
         if self._agent_running:
             self.notify("Cannot compact while agent is running", title="Compaction", severity="warning")
             return
-        self._agent_loop._ = asyncio.create_task(self._compact_history(extra_instructions))
+        self._agent_loop._ = asyncio.create_task(self._compact_history(extra_instructions))  # type: ignore
 
     def _get_session_resume_info(self) -> str | None:
         if self._remote_manager.is_active:
@@ -2118,7 +2262,7 @@ class VibeApp(App):  # noqa: PLR0904
         # Thinking picker not supported in core Settings
         await self._switch_from_input(
             ThinkingPickerApp(
-                THINKING_LEVELS, "medium"
+                THINKING_LEVELS, "medium",  # type: ignore
             )
         )
 
@@ -2274,15 +2418,19 @@ class VibeApp(App):  # noqa: PLR0904
             if isinstance(child, UserMessage) and child.message_index is not None
         ]
 
-    def _start_rewind_mode(self, **kwargs: Any) -> None:
-        self.action_rewind_prev()
+    def _start_rewind_mode(self, *, skip_agent_check: bool = False, **kwargs: Any) -> bool:
+        """Enter rewind mode to select a previous message for rewriting."""
+        self.action_rewind_prev(skip_agent_check=skip_agent_check)
+        return True  # Indicates rewind mode was entered
 
-    def action_rewind_prev(self) -> None:
-        if self._agent_running:
+    def action_rewind_prev(self, *, skip_agent_check: bool = False) -> None:
+        if self._agent_running and not skip_agent_check:
+            self.notify("Cannot rewind while agent is running", severity="warning")
             return
 
         user_widgets = self._get_user_message_widgets()
         if not user_widgets:
+            self.notify("No messages to rewind to", severity="warning")
             return
 
         if not self._rewind_mode:
@@ -2342,52 +2490,55 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def _select_rewind_widget(self, widget: UserMessage) -> None:
         """Highlight the given user message widget and show the rewind panel."""
-        if self._rewind_highlighted_widget is not None:
-            self._rewind_highlighted_widget.remove_class("rewind-selected")
+        try:
+            if self._rewind_highlighted_widget is not None:
+                self._rewind_highlighted_widget.remove_class("rewind-selected")
 
-        widget.add_class("rewind-selected")
-        self._rewind_highlighted_widget = widget
+            widget.add_class("rewind-selected")
+            self._rewind_highlighted_widget = widget
 
-        msg_index = widget.message_index
-        has_file_changes = (
-            msg_index is not None
-            and self.agent_loop.rewind_manager.has_file_changes_at(msg_index)
-        )
+            msg_index = widget.message_index
+            has_file_changes = (
+                msg_index is not None
+                and self.agent_loop.rewind_manager.has_file_changes_at(msg_index)
+            )
 
-        await self._switch_to_rewind_app(
-            widget.get_content(), has_file_changes=has_file_changes
-        )
+            await self._switch_to_rewind_app(
+                widget.get_content(), has_file_changes=has_file_changes
+            )
 
-        chat = self._cached_chat or self.query_one("#chat", ChatScroll)
-        self.call_after_refresh(chat.scroll_to_widget, widget, animate=False, top=True)
+            chat = self._cached_chat or self.query_one("#chat", ChatScroll)
+            self.call_after_refresh(chat.scroll_to_widget, widget, animate=False, top=True)
+        except Exception as e:
+            self.notify(f"Rewind error: {e}", severity="error")
 
     async def _switch_to_rewind_app(
         self, message_preview: str, *, has_file_changes: bool
     ) -> None:
         """Show the rewind action panel at the bottom."""
-        if self._current_bottom_app == BottomApp.Rewind:
-            # Reuse existing widget if the option set hasn't changed
-            try:
-                existing = self.query_one(RewindApp)
-                if existing.has_file_changes == has_file_changes:
-                    existing.update_preview(message_preview)
-                    return
-                await existing.remove()
-            except Exception:
-                pass
+        # Clean up existing rewind app if needed
+        try:
+            existing = self.query_one(RewindApp)
+            if existing.has_file_changes == has_file_changes:
+                existing.update_preview(message_preview)
+                return
+            await existing.remove()
+        except Exception:
+            pass
 
-            rewind_app = RewindApp(
-                message_preview=message_preview, has_file_changes=has_file_changes
-            )
-            bottom_container = self.query_one("#bottom-app-container")
-            self._current_bottom_app = BottomApp.Rewind
-            await bottom_container.mount(rewind_app)
-            self.call_after_refresh(rewind_app.focus)
-        else:
-            rewind_app = RewindApp(
-                message_preview=message_preview, has_file_changes=has_file_changes
-            )
-            await self._switch_from_input(rewind_app)
+        # Hide the input container and show rewind app
+        if self._chat_input_container:
+            self._chat_input_container.display = False
+            self._chat_input_container.disabled = True
+        self._feedback_bar.hide()
+
+        rewind_app = RewindApp(
+            message_preview=message_preview, has_file_changes=has_file_changes
+        )
+        bottom_container = self.query_one("#bottom-app-container")
+        self._current_bottom_app = BottomApp.Rewind
+        await bottom_container.mount(rewind_app)
+        self.call_after_refresh(rewind_app.focus)
 
     def _clear_rewind_state(self) -> None:
         if self._rewind_highlighted_widget is not None:
@@ -2594,6 +2745,11 @@ class VibeApp(App):  # noqa: PLR0904
         except Exception:
             pass
 
+    async def action_toggle_thinking(self) -> None:
+        self._thinking_collapsed = not self._thinking_collapsed
+        for msg in self.query("ReasoningMessage"):
+            msg.collapsed = self._thinking_collapsed
+
     def action_cycle_mode(self) -> None:
         if self._current_bottom_app != BottomApp.Input:
             return
@@ -2611,10 +2767,10 @@ class VibeApp(App):  # noqa: PLR0904
     def _refresh_banner(self) -> None:
         if self._banner:
             connectors_count = _compute_connectors_count(
-                self.config, self.agent_loop.connector_registry if self._connectors_enabled else None
+                self.config, self.agent_loop.connector_registry if self._connectors_enabled else None  # type: ignore
             )
             self._banner.set_state(
-                self.config,
+                self.config,  # type: ignore
                 self.agent_loop.skill_manager,
                 connectors_count=connectors_count,
                 model=self.agent_loop.agent.model,

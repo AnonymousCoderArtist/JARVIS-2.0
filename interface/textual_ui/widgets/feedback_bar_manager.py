@@ -25,7 +25,9 @@ class FeedbackBarManager:
         if not agent_loop.telemetry_client.is_active():
             return False
 
-        if not agent_loop.config.is_active_model_mistral():
+        # Check if the model is a mistral model by checking the model name
+        model_name = getattr(agent_loop.config, 'model', '') if agent_loop.config else ''
+        if 'mistral' not in model_name.lower():
             return False
 
         if (
@@ -35,10 +37,13 @@ class FeedbackBarManager:
         ):
             return False
 
-        last_ts = (
-            read_cache(CACHE_FILE.path).get(_CACHE_SECTION, {}).get(_LAST_SHOWN_KEY, 0)
-        )
-        if not isinstance(last_ts, int):
+        cache_value = read_cache(_CACHE_SECTION, _LAST_SHOWN_KEY)
+        if cache_value is None:
+            return False
+        
+        try:
+            last_ts = int(cache_value)
+        except (ValueError, TypeError):
             return False
 
         return (
@@ -47,6 +52,4 @@ class FeedbackBarManager:
         )
 
     def record_feedback_asked(self) -> None:
-        write_cache(
-            CACHE_FILE.path, _CACHE_SECTION, {_LAST_SHOWN_KEY: int(time.time())}
-        )
+        write_cache(_CACHE_SECTION, _LAST_SHOWN_KEY, str(int(time.time())))

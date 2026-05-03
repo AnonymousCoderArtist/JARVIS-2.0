@@ -21,7 +21,7 @@ VERSION_FILES = {
     "jarvis/__init__.py": r'__version__ = "([^"]+)"',
 }
 
-CURRENT_VERSION = "2.0.1"
+CURRENT_VERSION = "2.0.0"
 
 
 def read_file(path: Path) -> str:

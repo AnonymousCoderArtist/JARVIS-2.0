@@ -68,7 +68,7 @@ class ThinkingPickerApp(Container):
         option_list = self.query_one(OptionList)
         for i, level in enumerate(self._thinking_levels):
             if level == self._current_thinking:
-                option_list.highlighted = i  # type: ignore
+                option_list.highlighted = i
                 break
         option_list.focus()
 

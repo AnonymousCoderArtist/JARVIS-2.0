@@ -16,9 +16,10 @@ class SkillManager:
         self._loaded_skills: dict[str, SkillProfile] = {}
         self._skill_content: dict[str, str] = {}
         self._skill_paths = [
-            Path(os.path.expanduser("~/.claude/skills")),
-            Path(os.path.expanduser("~/.agents/skills")),
-            Path(".devin/skills"),
+            Path(os.path.expanduser("~/.claude/skills")),     # 1️⃣ Claude's skills
+            Path(os.path.expanduser("~/.agents/skills")),    # 2️⃣ Generic agents skills
+            Path(os.path.expanduser("~/.jarvis/skills")),    # 3️⃣ Global JARVIS skills
+            Path(".jarvis/skills"),                           # 4️⃣ Local .jarvis/skills/ folder
         ]
 
     def get_builtin_skills(self) -> dict[str, SkillProfile]:
@@ -110,6 +111,11 @@ class SkillManager:
     def is_skill_available(self, skill_name: str) -> bool:
         """Check if a skill is available"""
         return self.get_skill_profile(skill_name) is not None
+
+    @property
+    def available_skills(self) -> dict[str, SkillProfile]:
+        """Get all available skills (same as get_all_available_skills)."""
+        return self.get_all_available_skills()
 
     def activate_skill(self, skill_name: str) -> tuple[bool, str, str | None]:
         """

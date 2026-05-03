@@ -20,6 +20,7 @@ from interface.textual_ui.types import (
     CompactEndEvent,
     CompactStartEvent,
     ReasoningEvent,
+    TimingEvent,
     ToolCallEvent,
     ToolResultEvent,
     ToolStreamEvent,
@@ -34,6 +35,7 @@ from interface.textual_ui.widgets.messages import (
     HookRunContainer,
     HookSystemMessageLine,
     ReasoningMessage,
+    TimingMessage,
     UserMessage,
 )
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
@@ -45,6 +47,7 @@ if TYPE_CHECKING:
 # Type aliases for callbacks
 MountCallback = Callable[..., Coroutine[Any, Any, None]]
 GetToolsCollapsed = Callable[[], bool]
+GetThinkingCollapsed = Callable[[], bool]
 OnProfileChanged = Callable[[], None]
 
 
@@ -53,11 +56,13 @@ class EventHandler:
         self,
         mount_callback: MountCallback,
         get_tools_collapsed: GetToolsCollapsed,
+        get_thinking_collapsed: GetThinkingCollapsed,
         on_profile_changed: OnProfileChanged | None = None,
         is_remote: bool = False,
     ) -> None:
         self.mount_callback: MountCallback = mount_callback
         self.get_tools_collapsed: GetToolsCollapsed = get_tools_collapsed
+        self.get_thinking_collapsed: GetThinkingCollapsed = get_thinking_collapsed
         self.on_profile_changed: OnProfileChanged | None = on_profile_changed
         self.is_remote: bool = is_remote
         self.tool_calls: dict[str, ToolCallMessage] = {}
@@ -125,10 +130,17 @@ class EventHandler:
             await self._handle_hook_event(event, loading_widget)
         elif isinstance(event, WaitingForInputEvent):
             await self.finalize_streaming()
+        elif isinstance(event, TimingEvent):
+            await self._handle_timing_event(event)
         else:
             await self.finalize_streaming()
             await self._handle_unknown_event(event)
         return None
+
+    async def _handle_timing_event(self, event: TimingEvent) -> None:
+        """Handle timing event with target design."""
+        timing_msg = TimingMessage(event.duration)
+        await self.mount_callback(timing_msg)
 
     def _sanitize_event(self, event: ToolResultEvent) -> ToolResultEvent:
         return ToolResultEvent(
@@ -208,8 +220,8 @@ class EventHandler:
             self.current_streaming_message = None
 
         if self.current_streaming_reasoning is None:
-            tools_collapsed = self.get_tools_collapsed()
-            msg = ReasoningMessage(event.content, collapsed=tools_collapsed)
+            thinking_collapsed = self.get_thinking_collapsed()
+            msg = ReasoningMessage(event.content, collapsed=thinking_collapsed)
             self.current_streaming_reasoning = msg
             await self.mount_callback(msg)
         else:

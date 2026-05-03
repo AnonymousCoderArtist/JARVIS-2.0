@@ -2,6 +2,7 @@
 
 import difflib
 import os
+from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
 from core.tools.permissions import (
@@ -15,17 +16,23 @@ class EditTool(BaseTool):
     """Tool for editing files"""
 
     name = "edit"
-    description = """Edit files by replacing text. Use for precise edits to existing files.
+    description = """Edit existing files by replacing exact text strings.
 
-IMPORTANT: You must use the read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
+WHEN TO USE:
+- Modifying existing code
+- Fixing bugs or updating logic
+- Refactoring code
+- ALWAYS read file first with 'read' tool before editing!
 
-Usage:
-- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + arrow. Everything after that is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
-- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
-- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
-- The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.
-- Use the smallest old_string that's clearly unique — usually 2-4 adjacent lines is sufficient. Avoid including 10+ lines of context when less uniquely identifies the target.
-- Use the replacements array for single or multiple edits in a single call"""
+Parameters:
+- replacements (REQUIRED): Array of replacement operations, each with:
+  - filePath: Absolute or relative path to file
+  - oldString: Exact text to replace (MUST match exactly including whitespace)
+  - newString: Replacement text
+
+CRITICAL: old_string must match exactly - use 'read' first to get current content.
+Copy text including all whitespace/indentation. Include context lines for uniqueness.
+Supports multiple replacements in single call."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -35,21 +42,21 @@ Usage:
                 "items": {
                     "type": "object",
                     "properties": {
-                        "file_path": {
+                        "filePath": {
                             "type": "string",
-                            "description": "Absolute or relative path to the file to modify",
+                            "description": "Absolute or relative path to the file",
                             "minLength": 1
                         },
-                        "old_string": {
+                        "oldString": {
                             "type": "string",
                             "description": "The exact literal text to replace (must match exactly including whitespace and indentation)"
                         },
-                        "new_string": {
+                        "newString": {
                             "type": "string",
                             "description": "The exact literal text to replace with"
                         }
                     },
-                    "required": ["file_path", "old_string", "new_string"]
+                    "required": ["oldString", "newString"]
                 },
                 "minItems": 1
             }
@@ -57,14 +64,45 @@ Usage:
         "required": ["replacements"]
     }
 
+    def _get_param(self, input_data: ToolInput, *names) -> Any:
+        """Get parameter using multiple possible names"""
+        for name in names:
+            value = getattr(input_data, name, None)
+            if value is not None:
+                return value
+        return None
+
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file edit operation with granular checks"""
+        import json
+        
         replacements = args.get("replacements", [])
         if not replacements:
             return None
 
+        # Handle case where replacements is a JSON string
+        if isinstance(replacements, str):
+            try:
+                replacements = json.loads(replacements)
+            except json.JSONDecodeError:
+                return None
+
+        if not isinstance(replacements, list) or not replacements:
+            return None
+
+        # Get the first replacement and handle if it's a JSON string
+        first_replacement = replacements[0]
+        if isinstance(first_replacement, str):
+            try:
+                first_replacement = json.loads(first_replacement)
+            except json.JSONDecodeError:
+                return None
+
+        if not isinstance(first_replacement, dict):
+            return None
+
         # Check the first file path for permission
-        first_file = replacements[0].get("file_path") if replacements else None
+        first_file = first_replacement.get("filePath")
         if not first_file:
             return None
 
@@ -90,7 +128,7 @@ Usage:
     async def edit(self, input_data: ToolInput) -> ToolOutput:
         """Edit files by replacing text"""
         try:
-            replacements = getattr(input_data, "replacements", None)
+            replacements = self._get_param(input_data, "replacements")
 
             if not isinstance(replacements, list) or not replacements:
                 return ToolOutput(
@@ -112,14 +150,29 @@ Usage:
 
     async def _execute_multiple_replacements(self, replacements: list[dict[str, str]]) -> ToolOutput:
         """Execute multiple replacement operations in a single call"""
+        import json
+        
         results = []
         errors = []
 
         for i, replacement in enumerate(replacements):
             try:
-                file_path = replacement.get("file_path")
-                old_string = replacement.get("old_string")
-                new_string = replacement.get("new_string")
+                # Handle case where replacement is a JSON string
+                if isinstance(replacement, str):
+                    try:
+                        replacement = json.loads(replacement)
+                    except json.JSONDecodeError:
+                        errors.append(f"Replacement {i + 1}: Invalid JSON string provided. Please provide a valid replacement object.")
+                        continue
+
+                if not isinstance(replacement, dict):
+                    errors.append(f"Replacement {i + 1}: Invalid replacement format. Expected an object with 'file_path', 'old_string', and 'new_string' properties.")
+                    continue
+
+                # Support camelCase parameters
+                file_path = replacement.get("filePath")
+                old_string = replacement.get("oldString")
+                new_string = replacement.get("newString")
 
                 if not isinstance(file_path, str) or not file_path:
                     errors.append(f"Replacement {i + 1}: Missing or invalid file_path. Please provide a valid absolute file path.")

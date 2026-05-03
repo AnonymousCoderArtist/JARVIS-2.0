@@ -1,0 +1,50 @@
+/* ========================================
+   Grep Widget Modern Styles
+   ======================================== */
+
+/* Grep Approval Widget - Enhanced */
+.approval-grep-query {
+    height: auto;
+    color: ansi_green;
+    text-style: bold;
+    margin-left: 2;
+}
+
+.approval-grep-param {
+    height: auto;
+    color: ansi_bright_black;
+    margin-left: 2;
+}
+
+/* Grep Result Widget - Modern card-style display */
+.tool-result-summary-collapsed {
+    color: ansi_cyan;
+    text-style: bold;
+    background: ansi_black 5%;
+    padding: 0 1;
+}
+
+.tool-result-file-header {
+    color: ansi_bright_cyan;
+    text-style: bold;
+    margin-top: 1;
+    padding-left: 1;
+    background: ansi_black 3%;
+}
+
+.tool-result-match {
+    color: ansi_default;
+    padding-left: 5;
+    margin-left: 0;
+}
+
+.tool-result-summary {
+    color: ansi_bright_black;
+    padding-left: 2;
+}
+
+.tool-result-hint {
+    color: ansi_bright_black;
+    padding-left: 5;
+    margin-left: 0;
+}

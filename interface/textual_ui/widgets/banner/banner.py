@@ -116,7 +116,7 @@ class Banner(Static):
 
     def _format_meta_counts(self) -> str:
         parts = [_pluralize(self.state.skills_count, "skill")]
-        parts.append(_pluralize(self.state.connectors_count, "connector"))
+        parts.append(_pluralize(self.state.connectors_count, "MCP"))
         if self.state.plan_description:
             parts.append(self.state.plan_description)
         return " · ".join(parts)

@@ -161,7 +161,7 @@ class DisplayManager:
             ("/profile", "Switch or list agent profiles"),
             ("/tools", "List available tools"),
             ("/skills", "List and manage skills"),
-            ("/memory", "View and manage conversation memory"),
+            ("/learn", "View learning system status"),
             ("/clear", "Clear the screen"),
             ("/exit", "Exit JARVIS"),
             ("! <cmd>", "Run shell command"),
@@ -208,11 +208,9 @@ class DisplayManager:
         if self._streaming_content:
             parts.append(Markdown(self._streaming_content))
         
-        if parts:
+        if parts and self._live:
             if len(parts) > 1:
                 # Combine reasoning panel and content
-                self._live.update(Columns(parts, equal=False, expand=True))
-                # Actually, Columns might not be best for vertical stack
                 from rich.console import Group
                 self._live.update(Group(*parts))
             else:
@@ -356,6 +354,56 @@ class DisplayManager:
             table.add_row(name, status)
 
         self.console.print(Panel(table, title="Available Themes", border_style="secondary"))
+
+    def show_learned_preferences(self, preferences):
+        """Display learned preferences from the learning system."""
+        try:
+            from core.learn import LearningManager
+            if isinstance(preferences, dict):
+                table = Table(show_header=True, header_style="primary", box=None)
+                table.add_column("Setting", style="info")
+                table.add_column("Value")
+
+                table.add_row("Output Format", preferences.get("output_format", ""))
+                table.add_row("Preferred Tools", ", ".join(preferences.get("preferred_tools", [])) or "none")
+                table.add_row("Query Routing", str(len(preferences.get("query_routing", []))) + " rules")
+                table.add_row("Last Updated", str(preferences.get("last_updated", ""))[:19])
+
+                self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
+            else:
+                self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
+        except ImportError:
+            self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
+
+    def show_learning_metrics(self, metrics):
+        """Display learning metrics from trace analysis."""
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Metric", style="info")
+        table.add_column("Value")
+
+        table.add_row("Total Interactions", str(metrics.total_interactions))
+        table.add_row("Tool Uses", str(metrics.tool_use_count))
+        table.add_row("Errors", str(metrics.error_count))
+        table.add_row("Avg Turns/Session", f"{metrics.avg_turns_per_session:.1f}")
+        table.add_row("Success Rate", f"{metrics.successful_resolution_rate:.1%}")
+
+        self.console.print(Panel(table, title="Learning Metrics", border_style="info"))
+
+    def show_patterns(self, patterns):
+        """Display detected patterns."""
+        if not patterns:
+            self.console.print(Panel("No patterns detected yet.", title="Patterns", border_style="secondary"))
+            return
+
+        table = Table(show_header=True, header_style="primary", box=None)
+        table.add_column("Pattern", style="info")
+        table.add_column("Type")
+        table.add_column("Confidence")
+
+        for p in patterns[:10]:  # Show top 10
+            table.add_row(p.name, p.category, f"{p.confidence:.0%}")
+
+        self.console.print(Panel(table, title="Detected Patterns", border_style="secondary"))
 
 
 class StreamingResponse:

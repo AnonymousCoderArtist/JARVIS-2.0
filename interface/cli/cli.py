@@ -23,15 +23,17 @@ from core.agents.coding_agent import CodingAgent
 from core.agents.manager import AgentManager
 from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.config.settings import Settings
+from core.connectors import ConnectorManager, ConnectorConfig, FilesystemConnector
+from core.learn import LearningManager, LearningConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tools import ActivateSkillTool, AgentsTool, AgentStatusTool
+from core.tools.agent_tools import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
-from core.tools.file_tools import FileReadTool, FileWriteTool, GlobTool, ListDirectoryTool
+from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import SaveMemoryTool, ReadMemoryTool
 from core.tools.registry import ToolRegistry
@@ -124,6 +126,8 @@ class CLIInterface:
         self.tool_registry = AsyncToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
         self._current_provider = None
+        self.learning_manager: LearningManager | None = None
+        self.connector_manager: ConnectorManager | None = None
 
         # Initialize modular components
         self.config_manager = load_config()
@@ -173,13 +177,54 @@ class CLIInterface:
                 model=self.model
             )
 
+    async def _initialize_mcp_servers_async(self):
+        """Initialize MCP servers and register their tools asynchronously."""
+        try:
+            # Import MCP components
+            from core.tools.mcp_adapter import MCPRegistry, MCPTransportType
+            from pathlib import Path
+            import json
+
+            # Load MCP server configurations
+            mcp_configs = self._load_mcp_configs()
+
+            if not mcp_configs:
+                return
+
+            # Create MCP registry and connect servers
+            mcp_registry = MCPRegistry(tool_registry=self.tool_registry)
+
+            connected_count = 0
+            for config_dict in mcp_configs:
+                try:
+                    # Convert config dict to MCPServerConfig
+                    config = self._create_mcp_config(config_dict)
+
+                    # Add and connect to server
+                    provider = await mcp_registry.add_server(
+                        config=config,
+                        llm_provider=self._current_provider,
+                        model=self.model
+                    )
+                    if provider:
+                        connected_count += 1
+
+                except Exception as e:
+                    print(f"Warning: Failed to connect to MCP server '{config_dict.get('name', 'unknown')}': {e}")
+
+            if connected_count > 0:
+                print(f"Connected to {connected_count} MCP server(s)")
+
+        except Exception as e:
+            print(f"Warning: MCP server initialization failed: {e}")
+
     def _initialize_tools(self):
         """Register all tools with the tool registry."""
         self.tool_registry.register(FileReadTool())
         self.tool_registry.register(FileWriteTool())
         self.tool_registry.register(EditTool())
-        self.tool_registry.register(ListDirectoryTool())
-        self.tool_registry.register(GlobTool())
+        self.tool_registry.register(LSTool())
+        self.tool_registry.register(FindTool())
         self.tool_registry.register(BashTool())
         self.tool_registry.register(REPLTool())
         self.tool_registry.register(RunTestsTool())
@@ -192,7 +237,8 @@ class CLIInterface:
         self.tool_registry.register(ReadMemoryTool())
         self.tool_registry.register(AgentsTool())
         self.tool_registry.register(AgentStatusTool())
-        self.tool_registry.register(ActivateSkillTool())
+        from core.tools import SkillTool
+        self.tool_registry.register(SkillTool())
 
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
@@ -240,13 +286,31 @@ class CLIInterface:
         if self.bypass:
             self.jarvis_agent.bypass_tool_permissions = True
 
+        # Initialize heartbeat system if enabled in config
+        self.jarvis_agent.initialize_heartbeat(lambda: self.agent_manager.config)
+        if self.jarvis_agent.heartbeat_scheduler:
+            asyncio.create_task(self.jarvis_agent.start_heartbeat())
+
+        # Initialize learning manager
+        self.learning_manager = LearningManager(LearningConfig(enabled=True))
+
+        # Initialize connector manager with filesystem connector
+        self.connector_manager = ConnectorManager()
+        fs_config = ConnectorConfig(
+            name="filesystem",
+            connector_type="filesystem",
+            config={"root_dir": ".", "include_hidden": False}
+        )
+        self.connector_manager.register(FilesystemConnector(fs_config))
+
         # Update command handler with managers for new commands
         self.command_handler.set_managers(
             agent_manager=self.agent_manager,
             tool_registry=self.tool_registry,
             skill_manager=self.skill_manager,
             jarvis_agent=self.jarvis_agent,
-            config_manager=self.config_manager
+            config_manager=self.config_manager,
+            learning_manager=self.learning_manager
         )
 
         # Update command handler with current status info
@@ -255,6 +319,56 @@ class CLIInterface:
             sdk=self.sdk,
             base_url=self.base_url or "",
             tool_count=len(self.tool_registry.list_tools())
+        )
+
+    def _load_mcp_configs(self) -> list[dict]:
+        """Load MCP server configurations from .mcp.json file."""
+        from pathlib import Path
+        import json
+
+        config_paths = [
+            Path(".mcp.json"),
+            Path.home() / ".jarvis" / "mcp_servers.json"
+        ]
+
+        for config_path in config_paths:
+            if config_path.exists():
+                try:
+                    with open(config_path) as f:
+                        data = json.load(f)
+
+                    # Handle both formats: {"mcpServers": {...}} or [...]
+                    if "mcpServers" in data:
+                        servers = []
+                        for name, config in data["mcpServers"].items():
+                            # Create a copy and ensure name is in the config dict
+                            config_copy = config.copy()
+                            config_copy["name"] = name
+                            servers.append(config_copy)
+                        return servers
+                    else:
+                        return data.get("mcpServers", []) if isinstance(data, dict) else data
+                except Exception as e:
+                    print(f"Warning: Failed to load MCP config from {config_path}: {e}")
+
+        return []
+
+    def _create_mcp_config(self, config_dict: dict):
+        """Create MCPServerConfig from dictionary."""
+        from core.tools.mcp_adapter import MCPServerConfig, MCPTransportType
+
+        # Auto-detect transport based on URL presence
+        transport = config_dict.get("transport", MCPTransportType.HTTP if "url" in config_dict else MCPTransportType.STDIO)
+
+        return MCPServerConfig(
+            name=config_dict["name"],
+            command=config_dict.get("command", ""),
+            args=config_dict.get("args", []),
+            env=config_dict.get("env", {}),
+            url=config_dict.get("url") or "",
+            transport=transport,
+            timeout=config_dict.get("timeout", 30.0),
+            disabled=config_dict.get("disabled", False),
         )
 
     def _show_banner(self):
@@ -333,6 +447,9 @@ class CLIInterface:
         self.display_manager.clear_screen()
         self._show_banner()
         self._show_help()
+
+        # Initialize MCP servers asynchronously
+        await self._initialize_mcp_servers_async()
 
         while True:
             try:

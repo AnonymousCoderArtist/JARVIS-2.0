@@ -11,10 +11,47 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 from textual.widgets._markdown import MarkdownStream
+from textual.timer import Timer
+from textual.reactive import reactive
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.widgets.spinner import SpinnerMixin, SpinnerType
+from interface.textual_ui.widgets.unicode_math import render_latex, render_latex_stream
+
+
+# Helper to process content with math rendering
+def _process_content(content: str, enable_math: bool = True) -> str:
+    """Process content, optionally rendering LaTeX math to Unicode.
+    
+    Args:
+        content: The raw content string
+        enable_math: Whether to render math (default True)
+        
+    Returns:
+        Processed content string with math rendered if enabled
+    """
+    if enable_math:
+        return render_latex(content)
+    return content
+
+
+# Color constants for target design (ANSI escape sequences)
+DIM_GRAY = "\x1b[38;2;140;140;140m"
+DIM = "\x1b[2m"
+ITALIC = "\x1b[3m"
+RESET = "\x1b[0m"
+FG_MUTED = DIM_GRAY + DIM
+FG_MUTED_ITALIC = DIM_GRAY + ITALIC + DIM
+
+
+def _dim_text(text: str) -> str:
+    """Apply dim gray styling to text."""
+    return f"{FG_MUTED}{text}{RESET}"
+
+
+def _dim_italic_text(text: str) -> str:
+    """Apply dim gray italic styling to text."""
+    return f"{FG_MUTED_ITALIC}{text}{RESET}"
 
 
 class NonSelectableStatic(NoMarkupStatic):
@@ -41,11 +78,11 @@ class ExpandingBorder(NonSelectableStatic):
 
 class UserMessage(Static):
     def __init__(
-        self, content: str, pending: bool = False, message_index: int | None = None
+        self, content: str, pending: bool = False, message_index: int | None = None, *, enable_math: bool = True
     ) -> None:
         super().__init__()
         self.add_class("user-message")
-        self._content = content
+        self._content = _process_content(content, enable_math)
         self._pending = pending
         self.message_index: int | None = message_index
 
@@ -72,13 +109,16 @@ class UserMessage(Static):
 
 
 class StreamingMessageBase(Static):
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: str, *, enable_math: bool = True) -> None:
         super().__init__()
-        self._content = content
+        self._enable_math = enable_math
+        self._content = _process_content(content, enable_math)
         self._markdown: Markdown | None = None
         self._stream: MarkdownStream | None = None
         self._content_initialized = False
         self._to_write_buffer = ""
+        self._indicator_widget: Static | None = None  # For compatibility
+        self._is_spinning: bool = True
 
     def _get_markdown(self) -> Markdown:
         if self._markdown is None:
@@ -103,19 +143,32 @@ class StreamingMessageBase(Static):
         if not content:
             return
 
-        self._content += content
-
-        if not self._should_write_content():
-            return
-
-        if self._is_chat_at_bottom():
-            to_write = self._to_write_buffer + content
-            self._to_write_buffer = ""
-            stream = self._ensure_stream()
-            await stream.write(to_write)
-            return
-
-        self._to_write_buffer += content
+        if self._enable_math:
+            # Streaming LaTeX rendering - yields chunks as they are processed
+            async for chunk in render_latex_stream(content):
+                self._content += chunk
+                if not self._should_write_content():
+                    continue
+                if self._is_chat_at_bottom():
+                    to_write = self._to_write_buffer + chunk
+                    self._to_write_buffer = ""
+                    stream = self._ensure_stream()
+                    await stream.write(to_write)
+                else:
+                    self._to_write_buffer += chunk
+        else:
+            # Non-math path (original behavior)
+            processed = content
+            self._content += processed
+            if not self._should_write_content():
+                return
+            if self._is_chat_at_bottom():
+                to_write = self._to_write_buffer + processed
+                self._to_write_buffer = ""
+                stream = self._ensure_stream()
+                await stream.write(to_write)
+            else:
+                self._to_write_buffer += processed
 
     async def write_initial_content(self) -> None:
         if self._content_initialized:
@@ -149,81 +202,135 @@ class StreamingMessageBase(Static):
 
 
 class AssistantMessage(StreamingMessageBase):
-    def __init__(self, content: str) -> None:
-        super().__init__(content)
+    """Assistant message with target design:
+    ● Assistant response text here...
+      continuation of text...
+    """
+    MARKER = "●"
+
+    def __init__(self, content: str, *, enable_math: bool = True) -> None:
+        super().__init__(content, enable_math=enable_math)
         self.add_class("assistant-message")
+        self._is_spinning = True
 
     def compose(self) -> ComposeResult:
         markdown = Markdown("")
         self._markdown = markdown
         yield markdown
 
+    def stop_spinning(self, success: bool = True) -> None:
+        """Stop the spinning state, optionally update indicator."""
+        self._is_spinning = False
+        if self._indicator_widget:
+            self._indicator_widget.update("●" if success else "●")
 
-class ReasoningMessage(SpinnerMixin, StreamingMessageBase):
-    SPINNER_TYPE = SpinnerType.BRAILLE
-    SPINNING_TEXT = "Thinking"
-    COMPLETED_TEXT = "Thought"
 
-    def __init__(self, content: str, collapsed: bool = True) -> None:
-        super().__init__(content)
+class ReasoningMessage(StreamingMessageBase):
+    """Reasoning message with target design:
+    ✽ Thinking
+    └─ all thinking in it
+    """
+    MARKER = "✽"
+    BRANCH = "└─"
+    # Animation frames using star family characters
+    SPINNER_FRAMES = ("✽", "✷", "✴", "✵")
+
+    collapsed = reactive(False)
+
+    def __init__(self, content: str, collapsed: bool = False, *, enable_math: bool = True) -> None:
+        super().__init__(content, enable_math=enable_math)
         self.add_class("reasoning-message")
-        self.collapsed = collapsed
         self._indicator_widget: Static | None = None
-        self._triangle_widget: Static | None = None
-        self.init_spinner()
+        self._branch_widget: Static | None = None
+        self._is_spinning = True
+        self._spinner_timer: Timer | None = None
+        self._frame_index = 0
+        self.collapsed = collapsed
+
+    def watch_collapsed(self, collapsed: bool) -> None:
+        """Update visibility of thinking content when collapsed state changes."""
+        if self._markdown:
+            self._markdown.display = not collapsed
+        if self._branch_widget:
+            self._branch_widget.display = not collapsed
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="reasoning-message-wrapper"):
+            # Header line: ✽ Thinking with spinner
             with Horizontal(classes="reasoning-message-header"):
                 self._indicator_widget = NonSelectableStatic(
-                    self._spinner.current_frame(), classes="reasoning-indicator"
+                    self.MARKER, classes="reasoning-indicator"
                 )
                 yield self._indicator_widget
-                self._status_text_widget = NoMarkupStatic(
-                    self.SPINNING_TEXT, classes="reasoning-collapsed-text"
-                )
-                yield self._status_text_widget
-                self._triangle_widget = NonSelectableStatic(
-                    "▶" if self.collapsed else "▼", classes="reasoning-triangle"
-                )
-                yield self._triangle_widget
+                yield NoMarkupStatic("Thinking", classes="reasoning-label")
+            # Content line: └─ thinking content (on same line)
             markdown = Markdown("", classes="reasoning-message-content")
             markdown.display = not self.collapsed
             self._markdown = markdown
-            yield markdown
+            with Horizontal(classes="reasoning-message-content-row"):
+                self._branch_widget = NonSelectableStatic(
+                    self.BRANCH, classes="reasoning-branch"
+                )
+                self._branch_widget.display = not self.collapsed
+                yield self._branch_widget
+                yield markdown
 
     def on_mount(self) -> None:
-        self.start_spinner_timer()
+        """Start the star animation when mounted."""
+        self._spinner_timer = self.set_interval(0.15, self._update_star_frame)
 
-    def on_resize(self) -> None:
-        self.refresh_spinner()
+    def on_unmount(self) -> None:
+        """Stop the spinner timer when unmounted."""
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
 
-    async def on_click(self) -> None:
-        await self._toggle_collapsed()
-
-    async def _toggle_collapsed(self) -> None:
-        await self.set_collapsed(not self.collapsed)
-
-    def _should_write_content(self) -> bool:
-        return not self.collapsed
-
-    async def set_collapsed(self, collapsed: bool) -> None:
-        if self.collapsed == collapsed:
+    def _update_star_frame(self) -> None:
+        """Update with rotating star frames."""
+        if not self._is_spinning or not self._indicator_widget:
             return
+        frame = self.SPINNER_FRAMES[self._frame_index % len(self.SPINNER_FRAMES)]
+        self._indicator_widget.update(frame)
+        self._frame_index += 1
 
-        self.collapsed = collapsed
-        if self._triangle_widget:
-            self._triangle_widget.update("▶" if collapsed else "▼")
-        if self._markdown:
-            self._markdown.display = not collapsed
-            if not collapsed and self._content:
-                if self._stream is not None:
-                    await self._stream.stop()
-                    self._stream = None
-                await self._markdown.update("")
-                stream = self._ensure_stream()
-                await stream.write(self._content)
-                self._to_write_buffer = ""
+    def stop_spinning(self, success: bool = True) -> None:
+        """Stop the spinning state."""
+        self._is_spinning = False
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+        # Keep the MARKER (✽) as static indicator when done
+        if self._indicator_widget:
+            self._indicator_widget.update(self.MARKER)
+
+
+class TimingMessage(Static):
+    """Timing message showing duration:
+    ✻ Worked for 4s
+    """
+    MARKER = "✻"
+    LABEL = "Worked for"
+
+    def __init__(self, duration: float) -> None:
+        super().__init__()
+        self.add_class("timing-message")
+        self._duration = duration
+
+    def compose(self) -> ComposeResult:
+        duration_str = self._format_duration()
+        with Horizontal(classes="timing-container"):
+            yield NonSelectableStatic(self.MARKER, classes="timing-indicator")
+            yield NoMarkupStatic(f"{self.LABEL} {duration_str}", classes="timing-text")
+
+    def _format_duration(self) -> str:
+        if self._duration < 1:
+            return f"{int(self._duration * 1000)}ms"
+        elif self._duration < 60:
+            return f"{int(self._duration)}s"
+        else:
+            minutes = int(self._duration // 60)
+            seconds = int(self._duration % 60)
+            return f"{minutes}m {seconds}s"
 
 
 class UserCommandMessage(Static):
@@ -274,7 +381,6 @@ class BashOutputMessage(Static):
 
     def compose(self) -> ComposeResult:
         status_class = "bash-success" if self._exit_code == 0 else "bash-error"
-        self.add_class(status_class)
         with Horizontal(classes="bash-command-line"):
             yield NonSelectableStatic("$ ", classes=f"bash-prompt {status_class}")
             yield NoMarkupStatic(self._command, classes="bash-command")

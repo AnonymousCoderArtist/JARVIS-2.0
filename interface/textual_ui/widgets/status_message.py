@@ -54,11 +54,11 @@ class StatusMessage(SpinnerMixin, NoMarkupStatic):
             self._indicator_widget.remove_class("success")
             self._indicator_widget.remove_class("error")
         elif self.success:
-            self._indicator_widget.update("✔")
+            self._indicator_widget.update("●")
             self._indicator_widget.add_class("success")
             self._indicator_widget.remove_class("error")
         else:
-            self._indicator_widget.update("✘")
+            self._indicator_widget.update("●")
             self._indicator_widget.add_class("error")
             self._indicator_widget.remove_class("success")
 

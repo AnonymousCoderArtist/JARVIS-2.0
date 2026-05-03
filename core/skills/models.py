@@ -21,7 +21,10 @@ class SkillProfile:
 
     @classmethod
     def from_file(cls, path: Path) -> SkillProfile:
-        """Load skill profile from a skill directory"""
+        """Load skill profile from a skill directory following agentskills.io standard"""
+        import yaml
+        import re
+
         # Try to read SKILL.md file
         skill_file = path / "SKILL.md"
         if not skill_file.exists():
@@ -30,18 +33,30 @@ class SkillProfile:
         with open(skill_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Extract metadata from content (you can enhance this with proper parsing)
-        display_name = path.stem.replace("-", " ").title()
-        description = content[:200] + "..." if len(content) > 200 else content
+        # Parse YAML frontmatter
+        frontmatter = {}
+        # Regex to find content between --- marks
+        match = re.search(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
+        if match:
+            try:
+                frontmatter = yaml.safe_load(match.group(1))
+            except yaml.YAMLError:
+                pass
+
+        name = frontmatter.get("name", path.stem)
+        display_name = frontmatter.get("display_name", name.replace("-", " ").title())
+        description = frontmatter.get("description", "No description provided.")
+        when_to_use = frontmatter.get("when_to_use", "As specified in skill documentation.")
+        when_not_to_use = frontmatter.get("when_not_to_use", "For general tasks not requiring this expertise.")
 
         return cls(
-            name=path.stem,
+            name=name,
             display_name=display_name,
             description=description,
-            when_to_use="As specified in skill documentation",
-            when_not_to_use="For general tasks not requiring this expertise",
+            when_to_use=when_to_use,
+            when_not_to_use=when_not_to_use,
             file_path=str(skill_file),
-            metadata={"content_length": len(content)}
+            metadata=frontmatter
         )
 
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-# JARVIS v2.0.beta-coding
+# JARVIS v2.0.beta-Agents
 
 <a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/github/v/release/OEvortex/JARVIS?label=version&style=for-the-badge&color=blue"></a>
 <a href="https://github.com/OEvortex/JARVIS/blob/main/LICENSE"><img src="https://img.shields.io/github/license/OEvortex/JARVIS?style=for-the-badge&color=green"></a>
@@ -23,6 +23,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 |---------|-------------|
 | **🤖 Fully Agentic** | JARVIS agent handles coding, research, documentation, and complex tasks autonomously |
 | **🔍 Explore Subagent** | Specialized agent for codebase exploration and architecture analysis |
+| ** Plan Subagent** | Specialized agent for planning and strategy with read-only access |
 | **🔧 14+ Tools** | Comprehensive tools for file ops, code execution, web fetching, and more |
 | **🔒 Safety First** | Granular permission system with 5 agent profiles (SAFE to YOLO) |
 | **💻 Dual Interfaces** | Rich CLI and modern TUI (Textual-based) with streaming support |
@@ -32,7 +33,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 
 ## 🎯 Current Status
 
-This is **JARVIS v2.0.beta-coding** - the core Coding harness of JARVIS 2.0
+This is **JARVIS v2.0.beta-Agents** - the core Agentic harness of JARVIS 2.0
 
 | Component | Status |
 |-----------|--------|
@@ -43,12 +44,11 @@ This is **JARVIS v2.0.beta-coding** - the core Coding harness of JARVIS 2.0
 | ✅ CLI Interface | Complete |
 | ✅ TUI Interface | Complete |
 | ✅ Permission System | Complete |
-| 🔄 More Specialized Agents | Coming Soon |
+| ✅ Plan Subagent | Ready |
+| ✅ Auto Compact | Complete |
 | 🔄 Additional Tools | Coming Soon |
 | 🔄 Better Skill System | Coming Soon |
 | 🔄 Updated Conversation Management | Coming Soon |
-| 🔄 Auto Compact | Coming Soon |
-| 🔄 More Sub-Agents | Coming Soon |
 ---
 
 ## 🏗️ Architecture
@@ -161,11 +161,8 @@ graph LR
 git clone https://github.com/OEvortex/JARVIS.git
 cd JARVIS
 
-# Install dependencies (using uv recommended)
+# Install dependencies
 uv pip install -e .
-
-# Or using pip
-pip install -e .
 ```
 
 ### Configuration
