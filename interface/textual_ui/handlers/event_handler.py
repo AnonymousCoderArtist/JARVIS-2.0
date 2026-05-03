@@ -20,6 +20,7 @@ from interface.textual_ui.types import (
     CompactEndEvent,
     CompactStartEvent,
     ReasoningEvent,
+    TimingEvent,
     ToolCallEvent,
     ToolResultEvent,
     ToolStreamEvent,
@@ -34,6 +35,7 @@ from interface.textual_ui.widgets.messages import (
     HookRunContainer,
     HookSystemMessageLine,
     ReasoningMessage,
+    TimingMessage,
     UserMessage,
 )
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
@@ -125,10 +127,17 @@ class EventHandler:
             await self._handle_hook_event(event, loading_widget)
         elif isinstance(event, WaitingForInputEvent):
             await self.finalize_streaming()
+        elif isinstance(event, TimingEvent):
+            await self._handle_timing_event(event)
         else:
             await self.finalize_streaming()
             await self._handle_unknown_event(event)
         return None
+
+    async def _handle_timing_event(self, event: TimingEvent) -> None:
+        """Handle timing event with target design."""
+        timing_msg = TimingMessage(event.duration)
+        await self.mount_callback(timing_msg)
 
     def _sanitize_event(self, event: ToolResultEvent) -> ToolResultEvent:
         return ToolResultEvent(

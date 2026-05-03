@@ -151,4 +151,6 @@ class RewindApp(Container):
                 self.post_message(self.RewindWithoutRestore())
 
     def on_blur(self, event: events.Blur) -> None:
-        self.call_after_refresh(self.focus)
+        # Don't immediately refocus - this interferes with proper mounting
+        # and navigation. Let the parent App handle refocusing when needed.
+        pass

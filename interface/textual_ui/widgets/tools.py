@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 from textual.app import ComposeResult
@@ -11,7 +12,6 @@ from interface.textual_ui.cli_adapters import ToolUIDataAdapter
 from interface.textual_ui.types import ToolCallEvent, ToolResultEvent
 from interface.textual_ui.widgets.messages import ExpandingBorder, NonSelectableStatic
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.widgets.status_message import StatusMessage
 from interface.textual_ui.widgets.tool_widgets import get_result_widget
 
 
@@ -47,7 +47,14 @@ def _format_tool_args(args: dict[str, Any] | None) -> list[str]:
     return [f"{key}: {_format_tool_value(args[key])}" for key in ordered[:4]]
 
 
-class ToolCallMessage(StatusMessage):
+class ToolCallMessage(Static):
+    """Tool call message with target design:
+    ● Read  src/main.py
+    └─ 120 lines loaded • Ctrl+O to expand
+    """
+    MARKER = "●"
+    BRANCH = "└─"
+
     def __init__(
         self, event: ToolCallEvent | None = None, *, tool_name: str | None = None
     ) -> None:
@@ -57,39 +64,31 @@ class ToolCallMessage(StatusMessage):
         self._event = event
         self._tool_name = tool_name or (event.tool_name if event else None) or "unknown"
         self._is_history = event is None
-        self._stream_widget: NoMarkupStatic | None = None
+        self._info_text: str = ""
+        self._indicator_widget: Static | None = None
+        self._tool_name_widget: Static | None = None
+        self._info_widget: Static | None = None
 
         super().__init__()
         self.add_class("tool-call")
-
-        if self._is_history:
-            self._is_spinning = False
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="tool-call-container"):
             with Horizontal(classes="tool-call-header"):
                 self._indicator_widget = NonSelectableStatic(
-                    self._spinner.current_frame(), classes="status-indicator-icon"
+                    self.MARKER, classes="tool-indicator"
                 )
                 yield self._indicator_widget
-                self._text_widget = NoMarkupStatic("", classes="status-indicator-text")
-                yield self._text_widget
+                self._tool_name_widget = NoMarkupStatic(
+                    f"{self._tool_name.ljust(10)}", classes="tool-name"
+                )
+                yield self._tool_name_widget
             args = self._get_argument_lines()
             if args:
-                for line in args[:2]:
-                    yield NoMarkupStatic(line, classes="tool-call-detail")
-            self._stream_widget = NoMarkupStatic("", classes="tool-stream-message")
-            self._stream_widget.display = False
-            yield self._stream_widget
-
-    def on_mount(self) -> None:
-        super().on_mount()
-        siblings = list(self.parent.children) if self.parent else []
-        idx = siblings.index(self) if self in siblings else -1
-        if idx > 0 and isinstance(
-            siblings[idx - 1], (ToolCallMessage, ToolResultMessage)
-        ):
-            self.add_class("no-gap")
+                self._info_text = " • ".join(args[:2])
+                with Horizontal(classes="tool-call-info"):
+                    yield NonSelectableStatic(self.BRANCH, classes="tool-info-marker")
+                    yield NoMarkupStatic(self._info_text, classes="tool-info")
 
     @property
     def tool_call_id(self) -> str | None:
@@ -110,25 +109,39 @@ class ToolCallMessage(StatusMessage):
     def update_event(self, event: ToolCallEvent) -> None:
         self._event = event
         self._tool_name = event.tool_name
-        if self._text_widget:
-            self._text_widget.update(self.get_content())
+        if self._tool_name_widget:
+            self._tool_name_widget.update(event.tool_name.ljust(10))
 
     def set_stream_message(self, message: str) -> None:
-        """Update the stream message displayed below the tool call indicator."""
-        if self._stream_widget:
-            self._stream_widget.update(f"→ {message}")
-            self._stream_widget.display = True
+        """Set additional info below the tool call."""
+        if self._info_widget:
+            self._info_widget.update(f"{self.BRANCH} {message}")
 
     def stop_spinning(self, success: bool = True) -> None:
-        """Stop the spinner while keeping stream row stable to avoid layout jumps."""
-        super().stop_spinning(success)
-
-    def set_result_text(self, text: str) -> None:
-        if self._text_widget:
-            self._text_widget.update(text)
+        """Update indicator when tool completes."""
+        if self._indicator_widget:
+            icon = "●"  # Keep marker, success/error indicated by border style
+            self._indicator_widget.update(icon)
+            self._indicator_widget.remove_class("spinning")
+            if success:
+                self._indicator_widget.add_class("success")
+            else:
+                self._indicator_widget.add_class("error")
 
 
 class ToolResultMessage(Static):
+    """Tool result message with target design:
+    ● Edit  src/main.py
+    └─ +3 -1 [━━━━━] at line 42
+       ─────────────────────────────────
+       │ 41  │  def foo():
+       │ 42- │      return None
+       │ 42+ │      return 42
+       ─────────────────────────────────
+    """
+    MARKER = "●"
+    BRANCH = "└─"
+
     def __init__(
         self,
         event: ToolResultEvent | None = None,
@@ -137,7 +150,7 @@ class ToolResultMessage(Static):
         *,
         tool_name: str | None = None,
         content: str | None = None,
-    ) -> None:
+    ):
         if event is None and tool_name is None:
             raise ValueError("Either event or tool_name must be provided")
 
@@ -146,7 +159,11 @@ class ToolResultMessage(Static):
         self._tool_name = tool_name or (event.tool_name if event else "unknown")
         self._content = content
         self.collapsed = collapsed
-        self._content_container: Vertical | None = None
+        self._indicator_widget: Static | None = None
+        self._tool_name_widget: Static | None = None
+        self._stats_widget: Static | None = None
+        self._diff_container: Vertical | None = None
+        self._success = True
 
         super().__init__()
         self.add_class("tool-result")
@@ -156,18 +173,23 @@ class ToolResultMessage(Static):
         return self._tool_name
 
     def compose(self) -> ComposeResult:
-        with Horizontal(classes="tool-result-container"):
-            yield ExpandingBorder(classes="tool-result-border")
-            self._content_container = Vertical(classes="tool-result-content")
-            yield self._content_container
-
-    async def on_mount(self) -> None:
-        if self._call_widget:
-            success = self._determine_success()
-            self._call_widget.stop_spinning(success=success)
-            result_text = self._get_result_text()
-            self._call_widget.set_result_text(result_text)
-        await self._render_result()
+        with Vertical(classes="tool-result-container"):
+            with Horizontal(classes="tool-result-header"):
+                # Determine success from event
+                self._success = self._determine_success()
+                self._indicator_widget = NonSelectableStatic(
+                    self.MARKER if self._success else "●",
+                    classes="tool-result-indicator"
+                )
+                yield self._indicator_widget
+                self._tool_name_widget = NoMarkupStatic(
+                    f"{self._tool_name.ljust(10)}", classes="tool-result-name"
+                )
+                yield self._tool_name_widget
+                # Get stats from event or compute from content
+                stats = self._get_stats()
+                self._stats_widget = NoMarkupStatic(stats, classes="tool-stats")
+                yield self._stats_widget
 
     def _determine_success(self) -> bool:
         if self._event is None:
@@ -180,65 +202,61 @@ class ToolResultMessage(Static):
             return display.success
         return True
 
-    def _get_result_text(self) -> str:
+    def _get_stats(self) -> str:
+        """Compute stats string from event or content."""
         if self._event is None:
-            return f"{self._tool_name} completed"
-
+            return ""
+        
         if self._event.error:
-            return f"{self._tool_name}: error"
-
+            return "error"
+        
         if self._event.skipped:
-            return f"{self._tool_name}: skipped"
+            return "skipped"
+        
+        # Try to get stats from result if it's a dict with stats info
+        result = self._event.result
+        if isinstance(result, dict):
+            added = result.get("added_lines", 0) or result.get("added", 0) or 0
+            removed = result.get("removed_lines", 0) or result.get("removed", 0) or 0
+            if added or removed:
+                parts = []
+                if added:
+                    parts.append(f"+{added}")
+                if removed:
+                    parts.append(f"-{removed}")
+                return " ".join(parts)
+        
+        return ""
 
-        if self._event.tool_class:
-            adapter = ToolUIDataAdapter(self._event.tool_class)
-            display = adapter.get_result_display(self._event)
-            # If the tool has a custom result message, use it, otherwise keep the call summary
-            return display.message or self._call_widget.get_content() if self._call_widget else display.message
+    async def on_mount(self) -> None:
+        if self._call_widget:
+            self._call_widget.stop_spinning(success=self._success)
+        await self._render_result()
 
-        return f"{self._tool_name} completed"
+    def set_stream_message(self, message: str) -> None:
+        """Set additional info below the tool result."""
+        if self._stats_widget:
+            self._stats_widget.update(f"{self.BRANCH} {message}")
 
     async def _render_result(self) -> None:
-        if self._content_container is None:
-            return
-
-        await self._content_container.remove_children()
-
         if self._event is None:
-            if self._content:
-                await self._content_container.mount(
-                    NoMarkupStatic(self._content, classes="tool-result-detail")
-                )
-                self.display = not self.collapsed
-            else:
-                self.display = False
             return
-
+        
         if self._event.error:
             self.add_class("error-text")
-            await self._content_container.mount(
-                NoMarkupStatic(f"Error: {self._event.error}")
-            )
-            self.display = True
             return
-
+        
         if self._event.skipped:
             self.add_class("warning-text")
-            reason = self._event.skip_reason or "User skipped"
-            await self._content_container.mount(NoMarkupStatic(f"Skipped: {reason}"))
-            self.display = True
             return
-
-        self.remove_class("error-text")
-        self.remove_class("warning-text")
-
+        
+        # Try to render diff if available
         if self._event.tool_class is None:
-            self.display = False
             return
-
+        
         adapter = ToolUIDataAdapter(self._event.tool_class)
         display = adapter.get_result_display(self._event)
-
+        
         widget = get_result_widget(
             self._event.tool_name,
             self._event.result,
@@ -247,8 +265,10 @@ class ToolResultMessage(Static):
             collapsed=self.collapsed,
             warnings=display.warnings,
         )
-        await self._content_container.mount(widget)
-        self.display = bool(widget.children)
+        
+        # Mount result widget to container if exists
+        if self._diff_container and widget:
+            await self._diff_container.mount(widget)
 
     async def set_collapsed(self, collapsed: bool) -> None:
         if self.collapsed == collapsed:
@@ -259,3 +279,100 @@ class ToolResultMessage(Static):
     async def toggle_collapsed(self) -> None:
         self.collapsed = not self.collapsed
         await self._render_result()
+
+
+@dataclass
+class DiffLine:
+    """Represents a line in a diff."""
+    line_number: int | None
+    content: str
+    prefix: str  # " ", "+", "-"
+
+
+class DiffBlock(Static):
+    """Diff block with target design:
+       ─────────────────────────────────
+       │ 41  │  def foo():
+       │ 42- │      return None
+       │ 42+ │      return 42
+       ─────────────────────────────────
+
+    Markers: ▌ for left border, │ for divider
+    """
+
+    def __init__(self, lines: list[DiffLine], context_lines: int = 0) -> None:
+        super().__init__()
+        self.add_class("diff-block")
+        self._lines = lines
+        self._context_lines = context_lines
+        self._border_widget: Static | None = None
+
+    def compose(self) -> ComposeResult:
+        # Top border with marker at start
+        yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
+        
+        # Diff lines
+        for line in self._lines:
+            with Horizontal(classes="diff-line"):
+                # Line number column
+                line_num = f"{line.line_number:>4}" if line.line_number else "    "
+                # Prefix marker (+/-/ )
+                prefix = line.prefix if line.prefix else " "
+                yield NoMarkupStatic(
+                    f"▌ {line_num} │ {prefix} ",
+                    classes="diff-gutter"
+                )
+                yield NoMarkupStatic(
+                    line.content,
+                    classes=self._get_line_class(prefix)
+                )
+        
+        # Bottom border
+        yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
+
+    def _get_line_class(self, prefix: str) -> str:
+        """Get CSS class based on line prefix."""
+        if prefix == "+":
+            return "diff-line-content diff-added"
+        elif prefix == "-":
+            return "diff-line-content diff-removed"
+        else:
+            return "diff-line-content diff-context"
+
+
+class ToolStatsWidget(Static):
+    """Widget showing tool statistics: +3 -1 at line 42"""
+
+    def __init__(self, added: int = 0, removed: int = 0, line_number: int | None = None) -> None:
+        super().__init__()
+        self.add_class("tool-stats-widget")
+        self._added = added
+        self._removed = removed
+        self._line_number = line_number
+
+    def compose(self) -> ComposeResult:
+        # Build stats string
+        parts = []
+        if self._added > 0:
+            parts.append(f"+{self._added}")
+        if self._removed > 0:
+            parts.append(f"-{self._removed}")
+        
+        stats_str = " ".join(parts) if parts else ""
+        
+        # Progress bar (8 chars max)
+        total = self._added + self._removed
+        if total > 0:
+            bar_length = min(total, 8)
+            filled = min(self._added, bar_length)
+            bar = "█" * filled + "─" * (bar_length - filled)
+        else:
+            bar = ""
+        
+        with Horizontal(classes="tool-stats-container"):
+            if stats_str:
+                yield NoMarkupStatic(stats_str, classes="tool-stats-numbers")
+            if bar:
+                yield NoMarkupStatic(f"[{bar}]", classes="tool-stats-bar")
+            if self._line_number:
+                yield NoMarkupStatic(f"at line {self._line_number}", classes="tool-stats-location")

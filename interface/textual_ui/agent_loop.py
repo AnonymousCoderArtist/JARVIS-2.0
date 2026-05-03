@@ -780,6 +780,9 @@ Create a comprehensive summary that captures:
             if hasattr(result, 'error'):
                 error = str(getattr(result, 'error'))
 
+        # Track file changes for rewind snapshots
+        self._track_file_snapshot(tool_name, arguments, result)
+
         # Map result to structured model for UI
         mapped_result = self._map_tool_result(tool_name, arguments, result)
 
@@ -798,6 +801,22 @@ Create a comprehensive summary that captures:
         # Clean up the tool_call_id after use
         if tool_name in self._tool_call_ids:
             del self._tool_call_ids[tool_name]
+
+    def _track_file_snapshot(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
+        """Track file snapshots for rewind functionality.
+        
+        Called when file-modifying tools complete successfully.
+        """
+        # Track files modified by write and edit tools
+        if tool_name in ("write", "write_file", "edit", "str_replace_editor"):
+            path = str(arguments.get("path") or arguments.get("filePath", ""))
+            if path:
+                try:
+                    content = Path(path).read_bytes()
+                    self.add_file_snapshot(path, content)
+                except Exception:
+                    # File might not exist or be newly created
+                    pass
 
     def _on_reasoning(self, reasoning: str) -> None:
         """Handle reasoning content from agent."""
@@ -901,6 +920,9 @@ Create a comprehensive summary that captures:
         self._stream_chunks = []
         self._reasoning_chunks = []
         self._drain_event_queue()
+
+        # Create checkpoint before processing user message (for rewind functionality)
+        self.rewind_manager.create_checkpoint()
 
         # Set up streaming callback to emit assistant events
         def stream_callback(chunk: str) -> None:

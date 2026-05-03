@@ -667,7 +667,7 @@ class VibeApp(App):  # noqa: PLR0904
             # Direct check to handle /rw or /rewind even when agent is running (similar to mistral-vibe)
             if value == "/rw" or value == "/rewind" or value.startswith("/rw ") or value.startswith("/rewind "):
                 self._start_rewind_mode()
-                await self._switch_to_input_app()
+                # Don't switch to input app - rewind handles its own UI state
                 return
             await self._interrupt_agent_loop()
 
@@ -681,7 +681,12 @@ class VibeApp(App):  # noqa: PLR0904
             await self._switch_to_input_app()
             return
 
-        if await self._handle_command(value):
+        # Handle command - returns True for normal commands, "skip_input_switch" for rewind
+        result = await self._handle_command(value)
+        if result:
+            # For rewind, skip switching to input app to keep the rewind UI visible
+            if result == "skip_input_switch":
+                return
             await self._switch_to_input_app()
             return
 
@@ -964,16 +969,21 @@ class VibeApp(App):  # noqa: PLR0904
                 self.agent_loop.telemetry_client.send_slash_command_used(
                     cmd_name, "builtin"
                 )
-                await self._mount_and_scroll(UserMessage(user_input))
+                # Skip creating UserMessage for rewind - it's a UI action, not a chat message
+                if cmd_name not in ("rewind", "rw"):
+                    await self._mount_and_scroll(UserMessage(user_input))
                 handler = getattr(self, command.handler, None)
                 if handler is None:
                     self.notify(f"Handler {command.handler} not found!", severity="error")
                     return False
                 if asyncio.iscoroutinefunction(handler):
-                    await handler(cmd_args=cmd_args)
+                    result = await handler(cmd_args=cmd_args)
                 else:
-                    handler(cmd_args=cmd_args)
-                return True
+                    result = handler(cmd_args=cmd_args)
+                # For rewind commands, don't switch back to input app
+                if cmd_name in ("rewind", "rw"):
+                    return "skip_input_switch"
+                return True is result
         except Exception as e:
             self.notify(f"Error in command handler: {e}", severity="error")
             import traceback
@@ -1173,11 +1183,6 @@ class VibeApp(App):  # noqa: PLR0904
         return "\n\n".join(sections)
 
     async def _handle_user_message(self, message: str) -> None:
-        # DEBUG: Verify this method is being called
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"[DEBUG] _handle_user_message called with: {message[:50]}")
-        
         if self._remote_manager.is_active:
             await self._handle_remote_user_message(message)
             return
@@ -2409,11 +2414,16 @@ class VibeApp(App):  # noqa: PLR0904
             if isinstance(child, UserMessage) and child.message_index is not None
         ]
 
-    def _start_rewind_mode(self, **kwargs: Any) -> None:
+    def _start_rewind_mode(self, **kwargs: Any) -> bool:
+        """Enter rewind mode to select a previous message for rewriting."""
+        # When called from command handler, agent_running is False (we've already
+        # handled the agent_running case in on_chat_input_container_submitted)
+        # So we can safely call action_rewind_prev without skipping the check
         self.action_rewind_prev()
+        return True  # Indicates rewind mode was entered
 
-    def action_rewind_prev(self) -> None:
-        if self._agent_running:
+    def action_rewind_prev(self, *, skip_agent_check: bool = False) -> None:
+        if self._agent_running and not skip_agent_check:
             self.notify("Cannot rewind while agent is running", severity="warning")
             return
 
@@ -2479,52 +2489,55 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def _select_rewind_widget(self, widget: UserMessage) -> None:
         """Highlight the given user message widget and show the rewind panel."""
-        if self._rewind_highlighted_widget is not None:
-            self._rewind_highlighted_widget.remove_class("rewind-selected")
+        try:
+            if self._rewind_highlighted_widget is not None:
+                self._rewind_highlighted_widget.remove_class("rewind-selected")
 
-        widget.add_class("rewind-selected")
-        self._rewind_highlighted_widget = widget
+            widget.add_class("rewind-selected")
+            self._rewind_highlighted_widget = widget
 
-        msg_index = widget.message_index
-        has_file_changes = (
-            msg_index is not None
-            and self.agent_loop.rewind_manager.has_file_changes_at(msg_index)
-        )
+            msg_index = widget.message_index
+            has_file_changes = (
+                msg_index is not None
+                and self.agent_loop.rewind_manager.has_file_changes_at(msg_index)
+            )
 
-        await self._switch_to_rewind_app(
-            widget.get_content(), has_file_changes=has_file_changes
-        )
+            await self._switch_to_rewind_app(
+                widget.get_content(), has_file_changes=has_file_changes
+            )
 
-        chat = self._cached_chat or self.query_one("#chat", ChatScroll)
-        self.call_after_refresh(chat.scroll_to_widget, widget, animate=False, top=True)
+            chat = self._cached_chat or self.query_one("#chat", ChatScroll)
+            self.call_after_refresh(chat.scroll_to_widget, widget, animate=False, top=True)
+        except Exception as e:
+            self.notify(f"Rewind error: {e}", severity="error")
 
     async def _switch_to_rewind_app(
         self, message_preview: str, *, has_file_changes: bool
     ) -> None:
         """Show the rewind action panel at the bottom."""
-        if self._current_bottom_app == BottomApp.Rewind:
-            # Reuse existing widget if the option set hasn't changed
-            try:
-                existing = self.query_one(RewindApp)
-                if existing.has_file_changes == has_file_changes:
-                    existing.update_preview(message_preview)
-                    return
-                await existing.remove()
-            except Exception:
-                pass
+        # Clean up existing rewind app if needed
+        try:
+            existing = self.query_one(RewindApp)
+            if existing.has_file_changes == has_file_changes:
+                existing.update_preview(message_preview)
+                return
+            await existing.remove()
+        except Exception:
+            pass
 
-            rewind_app = RewindApp(
-                message_preview=message_preview, has_file_changes=has_file_changes
-            )
-            bottom_container = self.query_one("#bottom-app-container")
-            self._current_bottom_app = BottomApp.Rewind
-            await bottom_container.mount(rewind_app)
-            self.call_after_refresh(rewind_app.focus)
-        else:
-            rewind_app = RewindApp(
-                message_preview=message_preview, has_file_changes=has_file_changes
-            )
-            await self._switch_from_input(rewind_app)
+        # Hide the input container and show rewind app
+        if self._chat_input_container:
+            self._chat_input_container.display = False
+            self._chat_input_container.disabled = True
+        self._feedback_bar.hide()
+
+        rewind_app = RewindApp(
+            message_preview=message_preview, has_file_changes=has_file_changes
+        )
+        bottom_container = self.query_one("#bottom-app-container")
+        self._current_bottom_app = BottomApp.Rewind
+        await bottom_container.mount(rewind_app)
+        self.call_after_refresh(rewind_app.focus)
 
     def _clear_rewind_state(self) -> None:
         if self._rewind_highlighted_widget is not None:

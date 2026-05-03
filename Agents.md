@@ -48,7 +48,7 @@ ty check .
 
 ```bash
 # Version is managed via jarvis/_version.py
-# Current version: 2.0.1
+# Current version: 2.0.0
 ```
 
 ## Architecture Overview

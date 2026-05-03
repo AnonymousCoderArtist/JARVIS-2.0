@@ -1113,7 +1113,104 @@ NarratorStatus {
     margin-top: 1;
 }
 
-/* Debug Console */
+/* Timing Message */
+.timing-message {
+    margin-top: 0;
+    width: 100%;
+    height: auto;
+}
+
+.timing-container {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.timing-indicator {
+    width: auto;
+    height: auto;
+    margin-right: 1;
+}
+
+.timing-text {
+    width: 1fr;
+    height: auto;
+    color: ansi_bright_black;
+}
+
+/* Diff Block */
+.diff-block {
+    width: 100%;
+    height: auto;
+}
+
+.diff-border {
+    width: 100%;
+    height: auto;
+    color: ansi_bright_black;
+}
+
+.diff-line {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.diff-line-number {
+    width: auto;
+    height: auto;
+    color: ansi_bright_black;
+}
+
+.diff-line-content {
+    width: 1fr;
+    height: auto;
+}
+
+.diff-line-content.diff-added {
+    color: ansi_green;
+}
+
+.diff-line-content.diff-removed {
+    color: ansi_red;
+}
+
+.diff-line-content.diff-context {
+    color: ansi_default;
+}
+
+/* Tool Stats Widget */
+.tool-stats-widget {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.tool-stats-container {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.tool-stats-numbers {
+    width: auto;
+    height: auto;
+    color: ansi_green;
+    margin-right: 1;
+}
+
+.tool-stats-bar {
+    width: auto;
+    height: auto;
+    color: ansi_green;
+    margin-right: 1;
+}
+
+.tool-stats-location {
+    width: auto;
+    height: auto;
+    color: ansi_bright_black;
+}
 
 #debug-console {
     dock: right;
@@ -1325,4 +1422,88 @@ FeedbackBar {
 
 .hook-severity-error .hook-system-icon {
     color: ansi_red;
+}
+
+/* Tool Call Message (target design) */
+.tool-call {
+    margin-top: 1;
+    width: 100%;
+    height: auto;
+}
+
+.tool-call-container {
+    width: 100%;
+    height: auto;
+}
+
+.tool-call-header {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.tool-indicator {
+    width: auto;
+    height: auto;
+    color: ansi_default;
+    margin-right: 1;
+}
+
+.tool-call-info {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.tool-info-marker {
+    width: auto;
+    height: auto;
+    color: ansi_bright_black;
+    margin-right: 1;
+}
+
+.tool-info {
+    width: 1fr;
+    height: auto;
+    color: ansi_bright_black;
+}
+
+.tool-name {
+    width: auto;
+    height: auto;
+}
+
+/* Tool Result Message (target design) */
+.tool-result {
+    margin-top: 0;
+    width: 100%;
+    height: auto;
+}
+
+.tool-result-container {
+    width: 100%;
+    height: auto;
+}
+
+.tool-result-header {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.tool-result-indicator {
+    width: auto;
+    height: auto;
+    margin-right: 1;
+}
+
+.tool-result-name {
+    width: auto;
+    height: auto;
+}
+
+.tool-stats {
+    width: auto;
+    height: auto;
+    color: ansi_bright_black;
 }

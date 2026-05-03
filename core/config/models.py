@@ -38,7 +38,7 @@ class LearningSettings(BaseModel):
 
 class AppSettings(BaseModel):
     name: str = "JARVIS"
-    version: str = "2.0.1"
+    version: str = "2.0.0"
     debug: bool = False
     installed_agents: list[str] = Field(default_factory=list)
 
