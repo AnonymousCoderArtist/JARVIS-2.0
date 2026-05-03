@@ -316,6 +316,7 @@ class ToolResultMessage(Static):
         
         # Mount result widget to container if exists
         if self._diff_container and widget:
+            await self._diff_container.remove_children()
             await self._diff_container.mount(widget)
 
     async def set_collapsed(self, collapsed: bool) -> None:

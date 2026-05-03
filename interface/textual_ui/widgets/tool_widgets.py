@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
+from textual.reactive import reactive
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
@@ -69,8 +70,11 @@ class ToolApprovalWidget[TArgs: BaseModel](Vertical):
             )
 
 
+
 class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
     """Base class for result widgets with typed result."""
+    
+    collapsed = reactive(True)
 
     def __init__(
         self,
@@ -87,6 +91,10 @@ class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
         self.collapsed = collapsed
         self.warnings = warnings or []
         self.add_class("tool-result-widget")
+
+    def watch_collapsed(self, collapsed: bool) -> None:
+        """Update the widget when collapsed state changes."""
+        self.recompose()
 
     def _footer(self, extra: str | None = None) -> ComposeResult:
         """Yield the footer with optional extra info."""
@@ -115,24 +123,13 @@ class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
 
     def on_click(self, event) -> None:
         """Toggle collapsed/expanded state on click."""
-        if not self.collapsed:
-            # Only allow collapsing if we have content to show
-            if self.result and (
-                (hasattr(self.result, 'matches') and self.result.matches) or
-                (hasattr(self.result, '__dict__') and any(getattr(self.result, attr, None) not in ("", [], None) for attr in dir(self.result) if not attr.startswith('_'))) or
-                (isinstance(self.result, dict) and any(v not in ("", [], None) for v in self.result.values()))
-            ):
-                self.collapsed = True
-                self.refresh()
-        else:
-            # Expand if we have content
-            if self.result and (
-                (hasattr(self.result, 'matches') and self.result.matches) or
-                (hasattr(self.result, '__dict__') and any(getattr(self.result, attr, None) not in ("", [], None) for attr in dir(self.result) if not attr.startswith('_'))) or
-                (isinstance(self.result, dict) and any(v not in ("", [], None) for v in self.result.values()))
-            ):
-                self.collapsed = False
-                self.refresh()
+        # Toggle if we have content
+        if self.result and (
+            (hasattr(self.result, 'matches') and self.result.matches) or
+            (hasattr(self.result, '__dict__') and any(getattr(self.result, attr, None) not in ("", [], None) for attr in dir(self.result) if not attr.startswith('_'))) or
+            (isinstance(self.result, dict) and any(v not in ("", [], None) for v in self.result.values()))
+        ):
+            self.collapsed = not self.collapsed
 
 
 class BashApprovalWidget(ToolApprovalWidget[BashArgs]):
