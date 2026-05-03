@@ -239,7 +239,6 @@ class ReasoningMessage(StreamingMessageBase):
         pass
 
     async def on_click(self) -> None:
-        await self._toggle_collapsed()
 
     async def _toggle_collapsed(self) -> None:
         await self.set_collapsed(not self.collapsed)
