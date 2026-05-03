@@ -262,25 +262,9 @@ class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
     def compose(self) -> ComposeResult:
         query = self.args.query if isinstance(self.args, BaseModel) else self.args.get("query", "")
         path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
-        max_matches = self.args.max_matches if isinstance(self.args, BaseModel) else self.args.get("max_matches")
-        is_regexp = self.args.is_regexp if isinstance(self.args, BaseModel) else self.args.get("is_regexp", False)
-        include_pattern = self.args.include_pattern if isinstance(self.args, BaseModel) else self.args.get("include_pattern")
         yield NoMarkupStatic(
-            f"query: {query}", classes="approval-description"
+            f"Search for: \"{query}\" in {path}", classes="approval-tool-name"
         )
-        yield NoMarkupStatic(f"path: {path}", classes="approval-description")
-        if is_regexp:
-            yield NoMarkupStatic(
-                f"is_regexp: {is_regexp}", classes="approval-description"
-            )
-        if include_pattern:
-            yield NoMarkupStatic(
-                f"include_pattern: {include_pattern}", classes="approval-description"
-            )
-        if max_matches is not None:
-            yield NoMarkupStatic(
-                f"max_matches: {max_matches}", classes="approval-description"
-            )
 
 
 class GrepResultWidget(ToolResultWidget[GrepResult]):
