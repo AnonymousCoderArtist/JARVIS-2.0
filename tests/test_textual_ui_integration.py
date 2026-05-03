@@ -80,10 +80,10 @@ class FakeStreamingAgent:
 
 
 class FakeNoToolsProvider:
-    async def generate_with_tools(self, *args, **kwargs):  # type: ignore
+    async def generate_with_tools(self, *args, **kwargs):
         raise RuntimeError("tools are not supported by this model")
 
-    async def generate(self, *args, **kwargs):  # type: ignore
+    async def generate(self, *args, **kwargs):
         if kwargs.get("stream"):
             async def stream():
                 yield {"type": "text", "content": "plain "}
@@ -104,9 +104,9 @@ async def test_agent_loop_streams_chunks_without_duplicate_final_response() -> N
         tool_registry=create_tool_registry(),
     )
 
-    events = [event async for event in agent_loop.act("say hi")]  # type: ignore
+    events = [event async for event in agent_loop.act("say hi")]
 
-    assert [type(event) for event in events] == [  # type: ignore
+    assert [type(event) for event in events] == [
         UserMessageEvent,
         ReasoningEvent,
         AssistantEvent,
@@ -114,18 +114,18 @@ async def test_agent_loop_streams_chunks_without_duplicate_final_response() -> N
         ToolCallEvent,
         ToolResultEvent,
     ]
-    assert [event.content for event in events if isinstance(event, AssistantEvent)] == [  # type: ignore
+    assert [event.content for event in events if isinstance(event, AssistantEvent)] == [
         "hel",
         "lo",
     ]
-    assert [event.result for event in events if isinstance(event, ToolResultEvent)] == [  # type: ignore
+    assert [event.result for event in events if isinstance(event, ToolResultEvent)] == [
         "tool ok",
     ]
 
 
 @pytest.mark.asyncio
 async def test_core_agent_falls_back_when_model_rejects_tools() -> None:
-    agent = CodingAgent(FakeNoToolsProvider(), ToolRegistry(), model="fake-no-tools", config_getter=None)  # type: ignore
+    agent = CodingAgent(FakeNoToolsProvider(), ToolRegistry(), model="fake-no-tools", config_getter=None)
     chunks: list[str] = []
     agent.stream_callback = chunks.append
 
@@ -245,10 +245,10 @@ def test_vibe_app_provides_live_profile_argument_entries() -> None:
         tool_registry=create_tool_registry(),
     )
     app = VibeApp(
-        agent_loop,  # type: ignore
-        update_notifier=None,  # type: ignore
-        update_cache_repository=None,  # type: ignore
-        plan_offer_gateway=None,  # type: ignore
+        agent_loop,
+        update_notifier=None,
+        update_cache_repository=None,
+        plan_offer_gateway=None,
     )
 
     entries = app._get_slash_argument_entries("/profile", "/profile ")
@@ -265,10 +265,10 @@ async def test_tui_profile_command_arg_switches_profile() -> None:
         tool_registry=create_tool_registry(),
     )
     app = VibeApp(
-        agent_loop,  # type: ignore
-        update_notifier=None,  # type: ignore
-        update_cache_repository=None,  # type: ignore
-        plan_offer_gateway=None,  # type: ignore
+        agent_loop,
+        update_notifier=None,
+        update_cache_repository=None,
+        plan_offer_gateway=None,
     )
 
     mounted_messages: list[str] = []
@@ -293,10 +293,10 @@ async def test_vibe_app_submit_runs_agent_turn_and_renders_response() -> None:
         tool_registry=create_tool_registry(),
     )
     app = VibeApp(
-        agent_loop,  # type: ignore
-        update_notifier=None,  # type: ignore
-        update_cache_repository=None,  # type: ignore
-        plan_offer_gateway=None,  # type: ignore
+        agent_loop,
+        update_notifier=None,
+        update_cache_repository=None,
+        plan_offer_gateway=None,
     )
 
     async with app.run_test(size=(100, 40)) as pilot:
@@ -307,7 +307,7 @@ async def test_vibe_app_submit_runs_agent_turn_and_renders_response() -> None:
         assert [message.get_content() for message in app.query(UserMessage)] == ["hi"]
         assert [
             message.get_content() for message in app.query(AssistantMessage)
-        ]  # type: ignore == ["hello"]
+        ] == ["hello"]
         assert list(app.query(ErrorMessage)) == []
         assert app._agent_running is False
         assert app._agent_task is None

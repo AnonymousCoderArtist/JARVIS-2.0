@@ -184,7 +184,7 @@ async def test_execute_tools_with_retry():
         async def execute(self, input_data: ToolInput) -> ToolOutput:
             FlakyTool.attempts += 1
             if FlakyTool.attempts < 3:
-                return ToolOutput(success=False, result=None, error="failed")  # type: ignore
+                return ToolOutput(success=False, result=None, error="failed")
             return ToolOutput(success=True, result="success")
 
     flaky_tool = FlakyTool()
@@ -231,7 +231,7 @@ async def test_concurrent_tool_executor_with_retry():
         async def execute(self, input_data: ToolInput) -> ToolOutput:
             FlakyTool.attempts += 1
             if FlakyTool.attempts < 2:
-                return ToolOutput(success=False, result=None, error="failed")  # type: ignore
+                return ToolOutput(success=False, result=None, error="failed")
             return ToolOutput(success=True, result="success")
 
     flaky_tool = FlakyTool()

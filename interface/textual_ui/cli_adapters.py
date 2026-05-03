@@ -1609,7 +1609,7 @@ def make_transcribe_client(provider: str, model: str) -> Any:
 # PROXY SYSTEM
 # ============================================================================
 
-SUPPORTED_PROXY_VARS: dict[str, str] = {}  # type: ignore
+SUPPORTED_PROXY_VARS: dict[str, str] = {}
 
 
 def get_current_proxy_settings() -> dict[str, str]:

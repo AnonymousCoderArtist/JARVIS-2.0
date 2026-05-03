@@ -106,7 +106,7 @@ class ConnectorAuthApp(Container):
     # ── workers ──────────────────────────────────────────────────────
 
     async def _fetch_auth_url(self) -> str | None:
-        result = self._connector_registry.get_auth_url(self._connector_name)  # type: ignore
+        result = self._connector_registry.get_auth_url(self._connector_name)
         return result if isinstance(result, str) else None
 
     async def _refresh_connector(self) -> int:

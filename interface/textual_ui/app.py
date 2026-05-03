@@ -1993,7 +1993,7 @@ class VibeApp(App):  # noqa: PLR0904
                     base_config,  # type: ignore
                     self.agent_loop.skill_manager,
                     model=self.agent_loop.agent.model,
-                )  # type: ignore
+                )
             await self._mount_and_scroll(
                 UserCommandMessage(
                     "Configuration reloaded (includes agent instructions and skills)."
