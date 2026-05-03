@@ -15,7 +15,7 @@ from textual.timer import Timer
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.widgets.unicode_math import render_latex
+from interface.textual_ui.widgets.unicode_math import render_latex, render_latex_stream
 
 
 # Helper to process content with math rendering
@@ -142,21 +142,32 @@ class StreamingMessageBase(Static):
         if not content:
             return
 
-        # Process math in streamed content
-        processed = _process_content(content, self._enable_math)
-        self._content += processed
-
-        if not self._should_write_content():
-            return
-
-        if self._is_chat_at_bottom():
-            to_write = self._to_write_buffer + processed
-            self._to_write_buffer = ""
-            stream = self._ensure_stream()
-            await stream.write(to_write)
-            return
-
-        self._to_write_buffer += processed
+        if self._enable_math:
+            # Streaming LaTeX rendering - yields chunks as they are processed
+            async for chunk in render_latex_stream(content):
+                self._content += chunk
+                if not self._should_write_content():
+                    continue
+                if self._is_chat_at_bottom():
+                    to_write = self._to_write_buffer + chunk
+                    self._to_write_buffer = ""
+                    stream = self._ensure_stream()
+                    await stream.write(to_write)
+                else:
+                    self._to_write_buffer += chunk
+        else:
+            # Non-math path (original behavior)
+            processed = content
+            self._content += processed
+            if not self._should_write_content():
+                return
+            if self._is_chat_at_bottom():
+                to_write = self._to_write_buffer + processed
+                self._to_write_buffer = ""
+                stream = self._ensure_stream()
+                await stream.write(to_write)
+            else:
+                self._to_write_buffer += processed
 
     async def write_initial_content(self) -> None:
         if self._content_initialized:

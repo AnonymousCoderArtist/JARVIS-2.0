@@ -6,6 +6,7 @@ expressions. It's completely offline, uses minimal RAM, and won't break anything
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 # Superscripts
@@ -125,7 +126,7 @@ def render_latex(text):
     blocks = detect_math_blocks(text)
     if not blocks:
         return text
-    result, last = [], 0
+    result, last = [],0
     for content, is_block, start, end in blocks:
         result.append(text[last:start])
         math = render_math_block(content) if is_block else render_math_inline(content)
@@ -141,3 +142,62 @@ def render_inline(text):
 
 def render_block(text):
     return render_math_block(text)
+
+
+# ---------------------------------------------------------------------------
+# Streaming (real-time) renderers
+# ---------------------------------------------------------------------------
+
+async def render_math_inline_stream(text):
+    """Async generator that yields rendered inline math as a single chunk.
+    
+    For true character-by-character streaming, replace the yield with a loop
+    over `rendered` characters.
+    """
+    rendered = await asyncio.get_event_loop().run_in_executor(
+        None, render_math_inline, text
+    )
+    yield rendered
+
+
+async def render_math_block_stream(text):
+    """Async generator that yields each line of rendered block math.
+    
+    Lines are rendered one by one, allowing the TUI to display them
+    as they become available.
+    """
+    lines = text.strip().split("\n")
+    for line in lines:
+        rendered_line = await asyncio.get_event_loop().run_in_executor(
+            None, render_math_inline, line
+        )
+        yield rendered_line
+
+
+async def render_latex_stream(text):
+    """Async generator that yields rendered LaTeX content incrementally.
+    
+    Non-math text is yielded as-is; math blocks/inline expressions are
+    rendered and yielded as soon as they are processed.
+    """
+    from interface.textual_ui.ansi_markdown import detect_math_blocks
+    blocks = detect_math_blocks(text)
+    if not blocks:
+        yield text
+        return
+    last = 0
+    for content, is_block, start, end in blocks:
+        # Yield any non-math text before this block
+        if start > last:
+            yield text[last:start]
+        # Render and yield the math content
+        if is_block:
+            async for line in render_math_block_stream(content):
+                yield f"⟦{line}⟧"
+        else:
+            async for chunk in render_math_inline_stream(content):
+                yield f"⟦{chunk}⟧"
+        last = end
+    # Yield any remaining non-math text
+    if last < len(text):
+        yield text[last:]

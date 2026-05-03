@@ -617,7 +617,6 @@ StatusMessage {
     text-style: bold;
     background: ansi_black 10%;
     padding: 0 1;
-    border-radius: 0;
 }
 
 .tool-result-summary.clickable:hover {
@@ -1504,6 +1503,14 @@ FeedbackBar {
     margin-right: 1;
 }
 
+.tool-indicator.success {
+    color: ansi_bright_green;
+}
+
+.tool-indicator.error {
+    color: ansi_bright_red;
+}
+
 .tool-call-info {
     width: 100%;
     height: auto;
@@ -1552,9 +1559,18 @@ FeedbackBar {
     margin-right: 1;
 }
 
+.tool-result-indicator.success {
+    color: ansi_bright_green;
+}
+
+.tool-result-indicator.error {
+    color: ansi_bright_red;
+}
+
 .tool-result-name {
     width: auto;
     height: auto;
+    text-style: bold;
 }
 
 .tool-stats {
@@ -1562,3 +1578,5 @@ FeedbackBar {
     height: auto;
     color: ansi_bright_black;
 }
+
+

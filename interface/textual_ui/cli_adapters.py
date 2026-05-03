@@ -1609,7 +1609,8 @@ class ToolUIDataAdapter:
         if tool_name == "grep":
             query = args.get("query", args.get("pattern", ""))
             path = args.get("path", args.get("includePattern", "."))
-            return Display(summary=f"grep \"{query}\" in {path}")
+            path_suffix = f" in {path}" if path != "." else ""
+            return Display(summary=f"Grep \"{query}\"{path_suffix}")
         
         if tool_name in ("read", "read_file"):
             paths = args.get("files", [])

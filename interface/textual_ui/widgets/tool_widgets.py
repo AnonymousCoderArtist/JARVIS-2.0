@@ -280,100 +280,85 @@ class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
 
 
 class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
-    def compose(self) -> ComposeResult:
-        query = self.args.query if isinstance(self.args, BaseModel) else self.args.get("query", "")
-        path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
-        yield NoMarkupStatic(
-            f"● Grep \"{query}\" in {path}", classes="approval-tool-name"
-        )
-
-
-class GrepResultWidget(ToolResultWidget[GrepResult]):
-    """Grep result widget - clean modern layout.
+    """Modern grep approval widget with clean visual hierarchy.
     
-    Collapsed: "N matches in M files"
-    Expanded: file grouped with line numbers
+    Features:
+    - Clear tool identification with icon
+    - Query type indicator (regexp vs literal)
+    - Optional parameters (path, max_matches, include_pattern)
+    - Clean spacing and iconography
     """
     
     def compose(self) -> ComposeResult:
-        for warning in self.warnings:
-            yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning")
+        query = self.args.query if isinstance(self.args, BaseModel) else self.args.get("query", "")
+        path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
+        is_regexp = self.args.is_regexp if isinstance(self.args, BaseModel) else self.args.get("is_regexp", False)
+        max_matches = self.args.max_matches if isinstance(self.args, BaseModel) else self.args.get("max_matches", None)
+        include_pattern = self.args.include_pattern if isinstance(self.args, BaseModel) else self.args.get("include_pattern", None)
+        
+        # Tool header with icon and type indicator
+        query_type = "regexp" if is_regexp else "literal"
+        yield NoMarkupStatic(f"🔍 grep [{query_type}]", classes="approval-tool-name")
+        yield Static("")  # Spacer
+        
+        # Main pattern highlighted
+        yield NoMarkupStatic(f'"{query}"', classes="approval-grep-query")
+        
+        # Optional parameters with subtle styling
+        if path != ".":
+            yield NoMarkupStatic(f"  ↳ path: {path}", classes="approval-grep-param")
+        if max_matches:
+            yield NoMarkupStatic(f"  ↳ max: {max_matches}", classes="approval-grep-param")
+        if include_pattern:
+            yield NoMarkupStatic(f"  ↳ filter: {include_pattern}", classes="approval-grep-param")
+
+
+class GrepResultWidget(ToolResultWidget[GrepResult]):
+    """Modern grep result widget matching design.
+    
+    Layout:
+    └─ 24 matches
+       src/file.py:10: content
+    """
+    
+    def compose(self) -> ComposeResult:
         if not self.result or not self.result.matches:
-            yield NoMarkupStatic("no matches found", classes="tool-result-muted")
+            yield NoMarkupStatic("└─ no matches", classes="tool-result-muted")
             yield from self._footer()
             return
         
-        # Parse matches: file:line:content (handle Windows paths with drive letters)
         matches_text = self.result.matches
         lines = [l for l in matches_text.split("\n") if l.strip()]
+        total_matches = len(lines)
         
-        files_dict: dict[str, list[tuple[int, str]]] = {}
-        for line in lines:
-            # Handle Windows paths: C:\path\file or ./path/file
-            # Split on first 2 colons only
-            parts = line.split(":", 2)
-            if len(parts) >= 3:
-                filepath = parts[0]
-                try:
-                    line_num = int(parts[1])
-                except ValueError:
-                    # Might be Windows path like C:\ - combine and retry
-                    if len(parts[0]) == 1 and parts[1] == '':  # "C" + ":" = "C:"
-                        filepath = parts[0] + ":" + parts[2].split(":", 1)[0]  # Get first part of rest
-                        rest = parts[2].split(":", 1)[1] if ":" in parts[2] else parts[2]
-                        split2 = rest.split(":", 1)
-                        if len(split2) >= 2:
-                            try:
-                                line_num = int(split2[0])
-                                content = split2[1]
-                            except ValueError:
-                                continue
-                        else:
-                            continue
-                    else:
-                        continue
-                content = parts[2]
-                
-                if filepath not in files_dict:
-                    files_dict[filepath] = []
-                # Avoid duplicates in same file
-                if (line_num, content) not in files_dict[filepath]:
-                    files_dict[filepath].append((line_num, content))
-        
-        total_matches = sum(len(m) for m in files_dict.values())
-        file_count = len(files_dict)
-        
+        # Branch with match count
+        summary_text = f"└─ {total_matches} matches"
         if self.collapsed:
-            # Show summary when collapsed with expand indicator
-            summary = f"{total_matches} matches in {file_count} file{'s' if file_count > 1 else ''} ▶"
-            yield NoMarkupStatic(summary, classes="tool-result-summary clickable")
-        else:
-            # Show all matches grouped by file with collapse indicator
-            yield NoMarkupStatic(
-                f"{total_matches} matches in {file_count} files ▼",
-                classes="tool-result-summary clickable"
-            )
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        
+        if not self.collapsed:
+            # Show matches with line numbers and file paths
+            max_matches_to_show = 15
+            for line in lines[:max_matches_to_show]:
+                # Split line to format it: file:line:content
+                parts = line.split(":", 2)
+                if len(parts) == 3:
+                    file, line_num, content = parts
+                    # Truncate very long content
+                    display_content = content[:100] + "…" if len(content) > 100 else content
+                    # Use markup for colors: bright black for path, yellow for line
+                    yield Static(f"   [ansi_bright_black]{file}[/][ansi_bright_black]:[/][ansi_bright_yellow]{line_num}[/][ansi_bright_black]:[/] {display_content}", classes="tool-result-match")
+                else:
+                    display_line = line[:120] + "…" if len(line) > 120 else line
+                    yield NoMarkupStatic(f"   {display_line}", classes="tool-result-match")
             
-            # Group by file
-            for filepath, matches in files_dict.items():
-                # File header
-                yield NoMarkupStatic(
-                    f"{filepath}",
-                    classes="tool-result-file-header"
-                )
-                # Show matches
-                for line_num, content in matches[:5]:
-                    yield NoMarkupStatic(
-                        f"  {line_num}: {content[:80]}{'...' if len(content) > 80 else ''}",
-                        classes="tool-result-match"
-                    )
-                if len(matches) > 5:
-                    yield NoMarkupStatic(
-                        f"  ... and {len(matches) - 5} more",
-                        classes="tool-result-hint"
-                    )
+            if total_matches > max_matches_to_show:
+                remaining = total_matches - max_matches_to_show
+                yield NoMarkupStatic(f"   ... ({remaining} more lines • Ctrl+O to expand)", classes="tool-result-hint")
         
         yield from self._footer()
+
 
 
 class AskUserQuestionResultWidget(ToolResultWidget[AskUserQuestionResult]):

@@ -201,25 +201,43 @@ class ToolResultMessage(Static):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="tool-result-container"):
-            with Horizontal(classes="tool-result-header"):
-                # Determine success from event
-                self._success = self._determine_success()
-                self._indicator_widget = NonSelectableStatic(
-                    self.MARKER if self._success else "●",
-                    classes="tool-result-indicator"
-                )
-                yield self._indicator_widget
-                self._tool_name_widget = NoMarkupStatic(
-                    f"{self._tool_name.ljust(10)}", classes="tool-result-name"
-                )
-                yield self._tool_name_widget
-                # Get stats from event or compute from content
-                stats = self._get_stats()
-                self._stats_widget = NoMarkupStatic(stats, classes="tool-stats")
-                yield self._stats_widget
+            # Only show header if there's no call widget above us
+            if not self._call_widget:
+                with Horizontal(classes="tool-result-header"):
+                    # Determine success from event
+                    self._success = self._determine_success()
+                    self._indicator_widget = NonSelectableStatic(
+                        self.MARKER if self._success else "●",
+                        classes="tool-result-indicator"
+                    )
+                    if self._success:
+                        self._indicator_widget.add_class("success")
+                    else:
+                        self._indicator_widget.add_class("error")
+                    yield self._indicator_widget
+                    
+                    # Use summary instead of just tool name
+                    summary = self._get_summary()
+                    self._tool_name_widget = NoMarkupStatic(
+                        summary, classes="tool-result-name"
+                    )
+                    yield self._tool_name_widget
+                    # Get stats from event or compute from content
+                    stats = self._get_stats()
+                    if stats:
+                        self._stats_widget = NoMarkupStatic(stats, classes="tool-stats")
+                        yield self._stats_widget
             
             self._diff_container = Vertical(classes="tool-result-content")
             yield self._diff_container
+
+    def _get_summary(self) -> str:
+        """Get summary text for the tool call."""
+        if self._event and self._event.tool_class:
+            adapter = ToolUIDataAdapter(self._event.tool_class)
+            display = adapter.get_call_display(self._event)
+            return display.summary
+        return self._tool_name.capitalize()
 
     def _determine_success(self) -> bool:
         if self._event is None:
