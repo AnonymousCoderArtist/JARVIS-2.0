@@ -308,7 +308,7 @@ Markdown {
     layout: stream;
     width: 100%;
     height: auto;
-    padding: 0 0 0 2;
+    padding: 0 0 0 0;
     margin: 0;
     color: ansi_bright_black;
     text-style: italic;
