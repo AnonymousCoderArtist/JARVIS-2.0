@@ -290,13 +290,56 @@ class GrepResultWidget(ToolResultWidget[GrepResult]):
         if not self.result or not self.result.matches:
             yield from self._footer()
             return
-        max_lines = 10 if self.collapsed else None
-        if max_lines:
-            content, truncation_info = _truncate_lines(self.result.matches, max_lines)
+        
+        # Parse matches - format is "file:line:content"
+        matches_text = self.result.matches
+        lines = matches_text.split("\n")
+        
+        # Group matches by file
+        files_dict: dict[str, list[tuple[str, str]]] = {}
+        for line in lines:
+            if not line.strip():
+                continue
+            parts = line.split(":", 2)
+            if len(parts) >= 3:
+                file_path = parts[0]
+                line_num = parts[1]
+                content = parts[2]
+                if file_path not in files_dict:
+                    files_dict[file_path] = []
+                files_dict[file_path].append((line_num, content))
+        
+        if not files_dict:
+            # Fallback: just show raw matches
+            yield NoMarkupStatic(matches_text, classes="tool-result-detail")
+            yield from self._footer()
+            return
+        
+        # Calculate total matches
+        total_matches = sum(len(matches) for matches in files_dict.values())
+        
+        if self.collapsed:
+            # Show summary only
+            yield NoMarkupStatic(
+                f"{total_matches} matches in {len(files_dict)} file{'s' if len(files_dict) > 1 else ''}",
+                classes="tool-result-summary"
+            )
         else:
-            content, truncation_info = self.result.matches, None
-        yield NoMarkupStatic(content, classes="tool-result-detail")
-        yield from self._footer(truncation_info)
+            # Show all matches grouped by file
+            for file_path, matches in files_dict.items():
+                # File header
+                yield NoMarkupStatic(
+                    f"{file_path} ({len(matches)} matches)",
+                    classes="tool-result-file-header"
+                )
+                # Each match with line number
+                for line_num, content in matches:
+                    yield NoMarkupStatic(
+                        f"  {line_num}: {content}",
+                        classes="tool-result-match"
+                    )
+        
+        yield from self._footer()
 
 
 class AskUserQuestionResultWidget(ToolResultWidget[AskUserQuestionResult]):

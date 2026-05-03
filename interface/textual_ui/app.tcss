@@ -607,6 +607,22 @@ StatusMessage {
     color: ansi_yellow;
 }
 
+.tool-result-summary {
+    color: ansi_default;
+    text-style: bold;
+}
+
+.tool-result-file-header {
+    color: ansi_bright_cyan;
+    text-style: bold;
+    margin-top: 1;
+}
+
+.tool-result-match {
+    color: ansi_bright_black;
+    padding-left: 2;
+}
+
 .diff-header {
     height: auto;
     color: ansi_bright_black;
