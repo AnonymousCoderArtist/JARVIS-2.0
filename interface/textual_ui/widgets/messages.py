@@ -200,7 +200,7 @@ class ReasoningMessage(StreamingMessageBase):
     MARKER = "✽"
     BRANCH = "└─"
 
-    def __init__(self, content: str, collapsed: bool = True) -> None:
+    def __init__(self, content: str, collapsed: bool = False) -> None:
         super().__init__(content)
         self.add_class("reasoning-message")
         self.collapsed = collapsed
