@@ -73,6 +73,19 @@ class SpinnerType(Enum):
     BRAILLE = auto()
     PULSE = auto()
     SNAKE = auto()
+    STAR = auto()
+
+
+
+class StarSpinner(Spinner):
+    """Rotating star animation for thinking indicators."""
+    FRAMES: ClassVar[tuple[str, ...]] = (
+        "*",  # asterisk (rotating)
+        "x",
+        "+",
+        "x",
+    )
+
 
 
 class SnakeSpinner(Spinner):
@@ -132,6 +145,7 @@ _SPINNER_CLASSES: dict[SpinnerType, type[Spinner]] = {
     SpinnerType.BRAILLE: BrailleSpinner,
     SpinnerType.PULSE: PulseSpinner,
     SpinnerType.SNAKE: SnakeSpinner,
+    SpinnerType.STAR: StarSpinner,
 }
 
 

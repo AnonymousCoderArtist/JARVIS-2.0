@@ -11,6 +11,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 from textual.widgets._markdown import MarkdownStream
+from textual.timer import Timer
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
@@ -199,6 +200,8 @@ class ReasoningMessage(StreamingMessageBase):
     """
     MARKER = "✽"
     BRANCH = "└─"
+    # Animation frames using star family characters
+    SPINNER_FRAMES = ("✽", "✷", "✴", "✵")
 
     def __init__(self, content: str, collapsed: bool = False) -> None:
         super().__init__(content)
@@ -207,10 +210,12 @@ class ReasoningMessage(StreamingMessageBase):
         self._indicator_widget: Static | None = None
         self._branch_widget: Static | None = None
         self._is_spinning = True
+        self._spinner_timer: Timer | None = None
+        self._frame_index = 0
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="reasoning-message-wrapper"):
-            # Header line: ✽ Thinking
+            # Header line: ✽ Thinking with spinner
             with Horizontal(classes="reasoning-message-header"):
                 self._indicator_widget = NonSelectableStatic(
                     self.MARKER, classes="reasoning-indicator"
@@ -228,15 +233,33 @@ class ReasoningMessage(StreamingMessageBase):
                 yield self._branch_widget
                 yield markdown
 
+    def on_mount(self) -> None:
+        """Start the star animation when mounted."""
+        self._spinner_timer = self.set_interval(0.15, self._update_star_frame)
+
+    def on_unmount(self) -> None:
+        """Stop the spinner timer when unmounted."""
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+
+    def _update_star_frame(self) -> None:
+        """Update with rotating star frames."""
+        if not self._is_spinning or not self._indicator_widget:
+            return
+        frame = self.SPINNER_FRAMES[self._frame_index % len(self.SPINNER_FRAMES)]
+        self._indicator_widget.update(frame)
+        self._frame_index += 1
+
     def stop_spinning(self, success: bool = True) -> None:
         """Stop the spinning state."""
         self._is_spinning = False
-
-    def on_mount(self) -> None:
-        pass
-
-    def on_resize(self) -> None:
-        pass
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+        # Keep the MARKER (✽) as static indicator when done
+        if self._indicator_widget:
+            self._indicator_widget.update(self.MARKER)
 
 
 class TimingMessage(Static):

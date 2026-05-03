@@ -268,60 +268,49 @@ class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
 
 
 class GrepResultWidget(ToolResultWidget[GrepResult]):
+    """Grep result widget - matches in flat list like pi-claude-style.
+    
+    Collapsed: "N matches • Ctrl+O to expand"
+    Expanded: shows raw match lines from ripgrep
+    """
+    
     def compose(self) -> ComposeResult:
         for warning in self.warnings:
             yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning")
         if not self.result or not self.result.matches:
+            yield NoMarkupStatic("no matches", classes="tool-result-muted")
             yield from self._footer()
             return
         
-        # Parse matches - format is "file:line:content"
+        # Get match lines from result (format: file:line:content)
         matches_text = self.result.matches
-        lines = matches_text.split("\n")
-        
-        # Group matches by file
-        files_dict: dict[str, list[tuple[str, str]]] = {}
-        for line in lines:
-            if not line.strip():
-                continue
-            parts = line.split(":", 2)
-            if len(parts) >= 3:
-                file_path = parts[0]
-                line_num = parts[1]
-                content = parts[2]
-                if file_path not in files_dict:
-                    files_dict[file_path] = []
-                files_dict[file_path].append((line_num, content))
-        
-        if not files_dict:
-            # Fallback: just show raw matches
-            yield NoMarkupStatic(matches_text, classes="tool-result-detail")
-            yield from self._footer()
-            return
-        
-        # Calculate total matches
-        total_matches = sum(len(matches) for matches in files_dict.values())
+        lines = [l for l in matches_text.split("\n") if l.strip()]
+        total = len(lines)
         
         if self.collapsed:
-            # Show summary only
+            # Collapsed: just show count + hint
             yield NoMarkupStatic(
-                f"{total_matches} matches in {len(files_dict)} file{'s' if len(files_dict) > 1 else ''}",
+                f"{total} matches • Ctrl+O to expand",
                 classes="tool-result-summary"
             )
         else:
-            # Show all matches grouped by file
-            for file_path, matches in files_dict.items():
-                # File header
+            # Expanded: show all matches
+            yield NoMarkupStatic(
+                f"{total} matches",
+                classes="tool-result-summary"
+            )
+            # Show each match line
+            for line in lines:
                 yield NoMarkupStatic(
-                    f"{file_path} ({len(matches)} matches)",
-                    classes="tool-result-file-header"
+                    line,
+                    classes="tool-result-match"
                 )
-                # Each match with line number
-                for line_num, content in matches:
-                    yield NoMarkupStatic(
-                        f"  {line_num}: {content}",
-                        classes="tool-result-match"
-                    )
+            # Hint to collapse if lots of matches
+            if total > 10:
+                yield NoMarkupStatic(
+                    "Ctrl+O to collapse",
+                    classes="tool-result-hint"
+                )
         
         yield from self._footer()
 

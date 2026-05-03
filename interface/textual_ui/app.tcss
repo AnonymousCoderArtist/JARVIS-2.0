@@ -623,6 +623,15 @@ StatusMessage {
     padding-left: 2;
 }
 
+.tool-result-hint {
+    color: ansi_bright_black;
+    text-style: italic;
+}
+
+.tool-result-muted {
+    color: ansi_bright_black;
+}
+
 .diff-header {
     height: auto;
     color: ansi_bright_black;

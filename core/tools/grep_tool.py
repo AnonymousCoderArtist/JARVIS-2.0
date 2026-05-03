@@ -24,12 +24,16 @@ Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
         "properties": {
             "query": {
                 "type": "string",
-                "description": "The pattern to search for in files in the workspace. Use regex with alternation (e.g., 'word1|word2|word3') or character classes to find multiple potential words in a single search. Be sure to set the isRegexp property properly to declare whether it's a regex or plain text pattern. Is case-insensitive.",
+                "description": "The pattern to search for in files in the workspace. Use regex with alternation (e.g., 'word1|word2|word3') or character classes to find multiple potential words in a single search. Be sure to set the isRegexp property properly to declare whether it's a regex or plain text pattern. Is case-sensitive by default.",
                 "minLength": 1
             },
             "isRegexp": {
                 "type": "boolean",
-                "description": "Whether the pattern is a regex (default: false)"
+                "description": "Whether the pattern is a regex (default: false). For case-insensitive regex, use (?i) at the start of your pattern."
+            },
+            "ignoreCase": {
+                "type": "boolean",
+                "description": "Make the search case-insensitive. Alternative to using (?i) in regex."
             },
             "includePattern": {
                 "type": "string",
@@ -60,19 +64,27 @@ Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
-    async def _search_with_ripgrep(self, query: str, is_regexp: bool, include_pattern: str, max_results: int) -> tuple:
+    async def _search_with_ripgrep(self, query: str, is_regexp: bool, ignore_case: bool, include_pattern: str, max_results: int) -> tuple:
         """Search using ripgrep (rg) for faster results"""
         try:
             # Build ripgrep command
             cmd = ["rg"]
 
-            # Case insensitive search (Copilot Chat default)
-            cmd.append("-i")
+            # Case sensitive by default - respect the case user types
+            # Use -i flag only when ignore_case is True
+            if ignore_case:
+                cmd.append("-i")
+            elif is_regexp:
+                # Check if the regex has case-insensitive flag
+                if "(?i)" in query:
+                    cmd.append("-i")
+                    query = query.replace("(?i)", "")
+            # else: case sensitive - no flag needed
 
-            # Add pattern
-            if is_regexp:
+            if is_regexp or ignore_case:
                 cmd.append(query)
             else:
+                # Plain text - escape but respect case
                 cmd.append(re.escape(query))
 
             # Include pattern
@@ -131,11 +143,11 @@ Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
         except Exception as e:
             return [], 0, str(e)
 
-    async def _search_with_python(self, query: str, is_regexp: bool, include_pattern: str, max_results: int) -> tuple:
+    async def _search_with_python(self, query: str, is_regexp: bool, ignore_case: bool, include_pattern: str, max_results: int) -> tuple:
         """Search using Python regex as fallback"""
         try:
-            # Prepare regex (case-insensitive by default like Copilot Chat)
-            flags = re.IGNORECASE
+            # Case sensitive by default
+            flags = re.IGNORECASE if ignore_case else 0
             if is_regexp:
                 try:
                     search_re = re.compile(query, flags)
@@ -193,6 +205,7 @@ Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
             # Support both camelCase and snake_case parameter names
             query = self._get_param(input_data, "query")
             is_regexp = self._get_param(input_data, "isRegexp", "is_regexp")
+            ignore_case = self._get_param(input_data, "ignoreCase", "ignore_case")
             include_pattern = self._get_param(input_data, "includePattern", "include_pattern")
             max_results = self._get_param(input_data, "maxResults", "max_results")
 
@@ -206,6 +219,9 @@ Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
             if not isinstance(is_regexp, bool):
                 is_regexp = False
 
+            if not isinstance(ignore_case, bool):
+                ignore_case = False
+
             if not isinstance(include_pattern, str):
                 include_pattern = ""
 
@@ -214,12 +230,12 @@ Case-insensitive. Use regex for complex patterns. Supports ripgrep for speed."""
 
             # Try ripgrep first for faster results
             if self._check_ripgrep_available():
-                results, total_matches, error = await self._search_with_ripgrep(query, is_regexp, include_pattern, max_results)
+                results, total_matches, error = await self._search_with_ripgrep(query, is_regexp, ignore_case, include_pattern, max_results)
                 if error:
                     return ToolOutput(success=False, result=None, error=f"Ripgrep search failed: {error}")
             else:
                 # Fall back to Python regex
-                results, total_matches, error = await self._search_with_python(query, is_regexp, include_pattern, max_results)
+                results, total_matches, error = await self._search_with_python(query, is_regexp, ignore_case, include_pattern, max_results)
                 if error:
                     return ToolOutput(success=False, result=None, error=f"Python search failed: {error}")
 
