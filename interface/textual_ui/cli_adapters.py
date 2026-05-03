@@ -1638,8 +1638,20 @@ class ToolUIDataAdapter:
             return Display(summary=f"run \"{summary}\"")
 
         if tool_name == "ls":
-            path = args.get("path", ".")
-            return Display(summary=f"List {path}")
+            path_str = args.get("path", ".")
+            try:
+                p = Path(path_str).resolve()
+                cwd = Path.cwd().resolve()
+                if p == cwd:
+                    display_path = "."
+                elif p.is_relative_to(cwd):
+                    rel = p.relative_to(cwd)
+                    display_path = f"./{str(rel).replace('\\', '/')}"
+                else:
+                    display_path = path_str
+                return Display(summary=f"List {display_path}")
+            except Exception:
+                return Display(summary=f"List {path_str}")
 
         args_text = self._format_args(args)
         if args_text:
