@@ -194,34 +194,39 @@ class AssistantMessage(StreamingMessageBase):
 
 class ReasoningMessage(StreamingMessageBase):
     """Reasoning message with target design:
-    ✽ Thinking: some reasoning in dim italic...
+    ✽ Thinking
+    └─ all thinking in it
     """
     MARKER = "✽"
-    LABEL = "Thinking:"
+    BRANCH = "└─"
 
     def __init__(self, content: str, collapsed: bool = True) -> None:
         super().__init__(content)
         self.add_class("reasoning-message")
         self.collapsed = collapsed
         self._indicator_widget: Static | None = None
-        self._label_widget: Static | None = None
+        self._branch_widget: Static | None = None
         self._is_spinning = True
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="reasoning-message-wrapper"):
+            # Header line: ✽ Thinking
             with Horizontal(classes="reasoning-message-header"):
                 self._indicator_widget = NonSelectableStatic(
                     self.MARKER, classes="reasoning-indicator"
                 )
                 yield self._indicator_widget
-                self._label_widget = NonSelectableStatic(
-                    f"{self.LABEL}", classes="reasoning-label"
-                )
-                yield self._label_widget
+                yield NoMarkupStatic("Thinking", classes="reasoning-label")
+            # Content line: └─ thinking content (on same line)
             markdown = Markdown("", classes="reasoning-message-content")
             markdown.display = not self.collapsed
             self._markdown = markdown
-            yield markdown
+            with Horizontal(classes="reasoning-message-content-row"):
+                self._branch_widget = NonSelectableStatic(
+                    self.BRANCH, classes="reasoning-branch"
+                )
+                yield self._branch_widget
+                yield markdown
 
     def stop_spinning(self, success: bool = True) -> None:
         """Stop the spinning state."""

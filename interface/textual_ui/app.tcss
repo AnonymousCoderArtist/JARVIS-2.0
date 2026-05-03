@@ -267,37 +267,41 @@ Markdown {
     height: auto;
 }
 
-.reasoning-message-wrapper,
+.reasoning-message-wrapper {
+    width: 100%;
+    height: auto;
+}
+
 .reasoning-message-header {
     width: 100%;
     height: auto;
+    layout: horizontal;
 }
 
 .reasoning-indicator {
     width: auto;
     height: auto;
-    color: ansi_bright_black;
+    color: ansi_default;
     margin-right: 1;
-
-    &.success {
-        color: ansi_green;
-    }
-
-    &.error {
-        color: ansi_red;
-    }
 }
 
-.reasoning-collapsed-text,
-.reasoning-triangle {
+.reasoning-label {
+    width: auto;
+    height: auto;
+    color: ansi_default;
+}
+
+.reasoning-branch {
     width: auto;
     height: auto;
     color: ansi_bright_black;
-    text-style: italic;
+    margin-right: 1;
 }
 
-.reasoning-triangle {
-    margin-left: 1;
+.reasoning-message-content-row {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
 }
 
 .reasoning-message-content {

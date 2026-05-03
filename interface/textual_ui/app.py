@@ -666,7 +666,7 @@ class VibeApp(App):  # noqa: PLR0904
         if self._agent_running:
             # Direct check to handle /rw or /rewind even when agent is running (similar to mistral-vibe)
             if value == "/rw" or value == "/rewind" or value.startswith("/rw ") or value.startswith("/rewind "):
-                self._start_rewind_mode()
+                self._start_rewind_mode(skip_agent_check=True)
                 # Don't switch to input app - rewind handles its own UI state
                 return
             await self._interrupt_agent_loop()
@@ -983,7 +983,8 @@ class VibeApp(App):  # noqa: PLR0904
                 # For rewind commands, don't switch back to input app
                 if cmd_name in ("rewind", "rw"):
                     return "skip_input_switch"
-                return True is result
+                # Command was handled (even if handler returned None), return True
+                return True
         except Exception as e:
             self.notify(f"Error in command handler: {e}", severity="error")
             import traceback
@@ -2414,12 +2415,9 @@ class VibeApp(App):  # noqa: PLR0904
             if isinstance(child, UserMessage) and child.message_index is not None
         ]
 
-    def _start_rewind_mode(self, **kwargs: Any) -> bool:
+    def _start_rewind_mode(self, *, skip_agent_check: bool = False, **kwargs: Any) -> bool:
         """Enter rewind mode to select a previous message for rewriting."""
-        # When called from command handler, agent_running is False (we've already
-        # handled the agent_running case in on_chat_input_container_submitted)
-        # So we can safely call action_rewind_prev without skipping the check
-        self.action_rewind_prev()
+        self.action_rewind_prev(skip_agent_check=skip_agent_check)
         return True  # Indicates rewind mode was entered
 
     def action_rewind_prev(self, *, skip_agent_check: bool = False) -> None:
