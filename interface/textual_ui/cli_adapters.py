@@ -1417,6 +1417,10 @@ class GrepArgs(BaseModel):
     include_pattern: Optional[str] = None
 
 
+class LSArgs(BaseModel):
+    path: str = "."
+
+
 class ReadFileArgs(BaseModel):
     # Matches the read_file tool schema which uses 'files' array with 'file_path'
     # The files array contains dicts with file_path, offset, and limit
@@ -1632,6 +1636,10 @@ class ToolUIDataAdapter:
             if len(summary) > 50:
                 summary = summary[:47] + "..."
             return Display(summary=f"run \"{summary}\"")
+
+        if tool_name == "ls":
+            path = args.get("path", ".")
+            return Display(summary=f"List {path}")
 
         args_text = self._format_args(args)
         if args_text:

@@ -35,3 +35,7 @@ class SearchReplaceResult(BaseModel):
     new_str: str = ""
     replacements: int = 0
     content: str = ""
+
+
+class LSResult(BaseModel):
+    items: list[str] = []

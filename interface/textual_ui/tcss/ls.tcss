@@ -1,0 +1,24 @@
+/* ========================================
+   LS Widget Modern Styles
+   ======================================== */
+
+.tool-result-ls-item {
+    color: ansi_default;
+    padding-left: 5;
+    margin-left: 0;
+}
+
+.tool-result-ls-dir {
+    color: ansi_bright_blue;
+    text-style: bold;
+}
+
+.tool-result-ls-file {
+    color: ansi_default;
+}
+
+.tool-result-ls-hint {
+    color: ansi_bright_black;
+    padding-left: 5;
+    margin-left: 0;
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 from textual.app import ComposeResult
@@ -11,10 +12,12 @@ from textual.reactive import reactive
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.messages import NonSelectableStatic
 from interface.textual_ui.cli_adapters import (
     AskUserQuestionResult,
     BashArgs,
     GrepArgs,
+    LSArgs,
     ReadFileArgs,
     TodoArgs,
     WriteFileArgs,
@@ -22,6 +25,7 @@ from interface.textual_ui.cli_adapters import (
 from interface.textual_ui.tool_results import (
     BashResult,
     GrepResult,
+    LSResult,
     ReadFileResult,
     TodoResult,
     WriteFileResult,
@@ -126,6 +130,7 @@ class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
         # Toggle if we have content
         if self.result and (
             (hasattr(self.result, 'matches') and self.result.matches) or
+            (hasattr(self.result, 'items') and self.result.items) or
             (hasattr(self.result, '__dict__') and any(getattr(self.result, attr, None) not in ("", [], None) for attr in dir(self.result) if not attr.startswith('_'))) or
             (isinstance(self.result, dict) and any(v not in ("", [], None) for v in self.result.values()))
         ):
@@ -358,6 +363,46 @@ class GrepResultWidget(ToolResultWidget[GrepResult]):
 
 
 
+class LSResultWidget(ToolResultWidget[LSResult]):
+    """Modern LS result widget matching design.
+    
+    Layout:
+    └─ 24 entries
+       🗋 .env
+       🗀 src/
+    """
+    
+    def compose(self) -> ComposeResult:
+        if not self.result or not self.result.items:
+            yield NoMarkupStatic("└─ empty directory", classes="tool-result-muted")
+            yield from self._footer()
+            return
+        
+        items = self.result.items
+        total_items = len(items)
+        
+        # Branch with count
+        summary_text = f"└─ {total_items} entries"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        
+        if not self.collapsed:
+            max_items_to_show = 15
+            for item in items[:max_items_to_show]:
+                is_dir = item.endswith("/")
+                icon = "🗀" if is_dir else "🗋"
+                item_class = "tool-result-ls-dir" if is_dir else "tool-result-ls-file"
+                # Use item with suffix for display
+                yield Static(f"   {icon} [ansi_bright_black]{item}[/]", classes=f"tool-result-ls-item {item_class}")
+            
+            if total_items > max_items_to_show:
+                remaining = total_items - max_items_to_show
+                yield NoMarkupStatic(f"   ... {remaining} more entries", classes="tool-result-ls-hint")
+        
+        yield from self._footer()
+
+
 class AskUserQuestionResultWidget(ToolResultWidget[AskUserQuestionResult]):
     def compose(self) -> ComposeResult:
         if self.collapsed or not self.result:
@@ -385,6 +430,7 @@ RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
     "read_file": ReadFileResultWidget,
     "write_file": WriteFileResultWidget,
     "grep": GrepResultWidget,
+    "ls": LSResultWidget,
     "todo": TodoResultWidget,
     "ask_user_question": AskUserQuestionResultWidget,
 }
@@ -394,6 +440,7 @@ ARGS_MODELS: dict[str, type[BaseModel]] = {
     "read_file": ReadFileArgs,
     "write_file": WriteFileArgs,
     "grep": GrepArgs,
+    "ls": LSArgs,
     "todo": TodoArgs,
 }
 
@@ -416,11 +463,16 @@ def get_approval_widget(tool_name: str, args: BaseModel | dict) -> ToolApprovalW
 
 def get_result_widget(
     tool_name: str,
-    result: BaseModel | None,
+    result: Any | None,
     success: bool,
     message: str,
     collapsed: bool = True,
     warnings: list[str] | None = None,
 ) -> ToolResultWidget:
     widget_class = RESULT_WIDGETS.get(tool_name, ToolResultWidget)
+    
+    # Wrap raw list result for 'ls' tool into LSResult model
+    if tool_name == "ls" and isinstance(result, list):
+        result = LSResult(items=result)
+        
     return widget_class(result, success, message, collapsed, warnings)
