@@ -1617,14 +1617,56 @@ class ToolUIDataAdapter:
             return Display(summary=f"Grep \"{query}\"{path_suffix}")
         
         if tool_name in ("read", "read_file"):
+            def get_rel_path(p_str):
+                if not p_str: return "unknown"
+                try:
+                    p = Path(p_str).resolve()
+                    cwd = Path.cwd().resolve()
+                    if p == cwd: return "."
+                    if p.is_relative_to(cwd):
+                        rel = p.relative_to(cwd)
+                        res = str(rel).replace('\\', '/')
+                        return res if res else "."
+                    return p_str
+                except Exception:
+                    return p_str
+
             paths = args.get("files", [])
-            if paths and isinstance(paths, list):
-                path = paths[0].get("file_path", "multiple files") if isinstance(paths[0], dict) else str(paths[0])
-                if len(paths) > 1:
-                    path += f" (+{len(paths)-1} more)"
-            else:
-                path = args.get("path", args.get("file_path", "unknown"))
-            return Display(summary=f"read {path}")
+            if paths and isinstance(paths, list) and len(paths) > 0:
+                first = paths[0]
+                if isinstance(first, dict):
+                    raw_path = first.get("file_path") or first.get("filePath") or "unknown"
+                    path = get_rel_path(raw_path)
+                    offset = first.get("offset")
+                    limit = first.get("limit")
+                    params = []
+                    if offset is not None:
+                        params.append(f"offset={offset}")
+                    if limit is not None:
+                        params.append(f"limit={limit}")
+                    
+                    param_str = f" ({', '.join(params)})" if params else ""
+                    summary = f"Read {path}{param_str}"
+                    if len(paths) > 1:
+                        summary += f" (+{len(paths)-1} more files)"
+                    return Display(summary=summary)
+            
+            # Single file mode
+            raw_path = args.get("filePath") or args.get("path") or args.get("file_path")
+            if raw_path:
+                path = get_rel_path(raw_path)
+                offset = args.get("offset")
+                limit = args.get("limit")
+                params = []
+                if offset is not None:
+                    params.append(f"offset={offset}")
+                if limit is not None:
+                    params.append(f"limit={limit}")
+                
+                param_str = f" ({', '.join(params)})" if params else ""
+                return Display(summary=f"Read {path}{param_str}")
+                
+            return Display(summary="Read unknown")
 
         if tool_name in ("write", "write_file", "edit"):
             path = args.get("path", args.get("filePath", args.get("file_path", "unknown")))
@@ -1646,7 +1688,9 @@ class ToolUIDataAdapter:
                     display_path = "."
                 elif p.is_relative_to(cwd):
                     rel = p.relative_to(cwd)
-                    display_path = f"./{str(rel).replace('\\', '/')}"
+                    display_path = f"{str(rel).replace('\\', '/')}"
+                    if not display_path:
+                        display_path = "."
                 else:
                     display_path = path_str
                 return Display(summary=f"List {display_path}")

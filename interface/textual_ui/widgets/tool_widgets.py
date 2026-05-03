@@ -148,29 +148,26 @@ class BashResultWidget(ToolResultWidget[BashResult]):
         if not self.result:
             yield from self._footer()
             return
+            
+        # Result summary
+        summary_text = f"└─ exit code {self.result.returncode}"
         if self.collapsed:
-            truncation_info = None
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        
+        if not self.collapsed:
             if self.result.stdout:
-                content, truncation_info = _truncate_lines(self.result.stdout, 10)
-                yield NoMarkupStatic(content, classes="tool-result-detail")
-            else:
-                yield NoMarkupStatic("(no content)", classes="tool-result-detail")
-            yield from self._footer(truncation_info)
-            return
-        yield NoMarkupStatic(
-            f"returncode: {self.result.returncode}", classes="tool-result-detail"
-        )
-        if self.result.stdout:
-            sep = "\n" if "\n" in self.result.stdout else " "
-            yield NoMarkupStatic(
-                f"stdout:{sep}{self.result.stdout}", classes="tool-result-detail"
-            )
-        if self.result.stderr:
-            sep = "\n" if "\n" in self.result.stderr else " "
-            yield NoMarkupStatic(
-                f"stderr:{sep}{self.result.stderr}", classes="tool-result-detail"
-            )
-        yield from self._footer()
+                content, truncation_info = _truncate_lines(self.result.stdout, 15)
+                yield Markdown(f"```text\n{content}\n```")
+                if truncation_info:
+                    yield NoMarkupStatic(truncation_info, classes="tool-result-hint")
+            
+            if self.result.stderr:
+                yield NoMarkupStatic(self.result.stderr, classes="tool-result-error")
+            
+            yield from self._footer()
+        else:
+            yield from self._footer()
 
 
 class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
@@ -190,23 +187,21 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
         if not self.result:
             yield from self._footer()
             return
-        ext = Path(self.result.path).suffix.lstrip(".") or "text"
+            
+        # Result summary
+        summary_text = f"└─ {self.result.bytes_written} bytes written"
         if self.collapsed:
-            truncation_info = None
-            if self.result.content:
-                content, truncation_info = _truncate_lines(self.result.content, 10)
-                yield Markdown(f"```{ext}\n{content}\n```")
-            yield from self._footer(truncation_info)
-            return
-        yield NoMarkupStatic(f"Path: {self.result.path}", classes="tool-result-detail")
-        yield NoMarkupStatic(
-            f"Bytes: {self.result.bytes_written}", classes="tool-result-detail"
-        )
-        if self.result.content:
-            yield NoMarkupStatic("")
-            content, _ = _truncate_lines(self.result.content, 10)
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        
+        if not self.collapsed:
+            # Show content
+            ext = Path(self.result.path).suffix.lstrip(".") or "text"
+            content, truncation_info = _truncate_lines(self.result.content, 15)
             yield Markdown(f"```{ext}\n{content}\n```")
-        yield from self._footer()
+            yield from self._footer(truncation_info)
+        else:
+            yield from self._footer()
 
 
 class TodoApprovalWidget(ToolApprovalWidget[TodoArgs]):
@@ -257,28 +252,35 @@ class ReadFileApprovalWidget(ToolApprovalWidget[ReadFileArgs]):
     def compose(self) -> ComposeResult:
         files = self.args.files if isinstance(self.args, BaseModel) else self.args.get("files", [])
         encoding = self.args.encoding if isinstance(self.args, BaseModel) else self.args.get("encoding", "utf-8")
-        yield NoMarkupStatic(f"files: {len(files)} file(s)", classes="approval-description")
+        yield NoMarkupStatic(f"files: {len(files)} file(s)", classes="approval-description approval-read-file-count")
         yield NoMarkupStatic(f"encoding: {encoding}", classes="approval-description")
 
 
 class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
     def compose(self) -> ComposeResult:
-        if self.collapsed:
+        if not self.result:
             yield from self._footer()
             return
-        if self.result:
-            yield NoMarkupStatic(
-                f"Path: {self.result.path}", classes="tool-result-detail"
-            )
-        for warning in self.warnings:
-            yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning")
-        truncation_info = None
-        if self.result and self.result.content:
-            yield NoMarkupStatic("")
+            
+        # Result summary
+        lines = self.result.content.split("\n")
+        line_count = len(lines)
+        summary_text = f"└─ {line_count} lines loaded"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary tool-result-read-summary")
+        
+        if not self.collapsed:
+            for warning in self.warnings:
+                yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning tool-result-read-warning")
+            
+            # Show content
             ext = Path(self.result.path).suffix.lstrip(".") or "text"
-            content, truncation_info = _truncate_lines(self.result.content, 10)
+            content, truncation_info = _truncate_lines(self.result.content, 15)
             yield Markdown(f"```{ext}\n{content}\n```")
-        yield from self._footer(truncation_info)
+            yield from self._footer(truncation_info)
+        else:
+            yield from self._footer()
 
 
 class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
