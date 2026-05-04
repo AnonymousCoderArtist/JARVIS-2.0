@@ -102,7 +102,7 @@
 }
 
 .bash-success {
-    color: ansi_bright_yellow;
+    color: ansi_white;
 }
 
 .bash-error {

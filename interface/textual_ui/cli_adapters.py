@@ -1745,7 +1745,7 @@ class ToolUIDataAdapter:
             summary = command.split("\n")[0]
             if len(summary) > 50:
                 summary = summary[:47] + "..."
-            return Display(summary=f"run \"{summary}\"")
+            return Display(summary=f"Bash \"{summary}\"")
 
         if tool_name == "ls":
             path_str = args.get("path", ".")

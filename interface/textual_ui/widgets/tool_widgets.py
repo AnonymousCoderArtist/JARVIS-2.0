@@ -189,7 +189,7 @@ class BashApprovalWidget(ToolApprovalWidget[BashArgs]):
         command = self.args.command if isinstance(self.args, BaseModel) else self.args.get("command", "")
         is_background = self.args.is_background if isinstance(self.args, BaseModel) else self.args.get("is_background", False)
         
-        yield NoMarkupStatic("bash", classes="approval-tool-name")
+        yield NoMarkupStatic("Bash", classes="approval-tool-name")
         yield Static("")  # Spacer
         yield Static(f"```bash\n{command}\n```", classes="approval-bash-command")
         
