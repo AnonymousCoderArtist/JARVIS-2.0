@@ -51,3 +51,16 @@
     padding-left: 5;
     margin-left: 0;
 }
+
+.bash-success {
+    color: ansi_bright_yellow;
+}
+
+.bash-error {
+    color: ansi_bright_red;
+}
+
+.bash-output-line {
+    color: #8c8c8c;
+    padding-left: 3;
+}

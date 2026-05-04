@@ -334,7 +334,7 @@ class ToolResultMessage(Static):
 
         # For failures: only show error message when expanded (not collapsed)
         if not self._success and self._error_message and not self.collapsed:
-            error_widget = NoMarkupStatic(f"⚠ {self._error_message}", classes="tool-result-error")
+            error_widget = NoMarkupStatic(f"Error: {self._error_message}", classes="tool-result-error")
             if self._diff_container:
                 await self._diff_container.mount(error_widget)
 

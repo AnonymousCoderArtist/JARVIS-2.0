@@ -1458,6 +1458,12 @@ class LSArgs(BaseModel):
     path: str = "."
 
 
+class FindArgs(BaseModel):
+    pattern: str
+    path: str = ""
+    maxResults: Optional[int] = None
+
+
 class ReadFileArgs(BaseModel):
     # Matches the read_file tool schema which uses 'files' array with 'file_path'
     # The files array contains dicts with file_path, offset, and limit
@@ -1748,6 +1754,25 @@ class ToolUIDataAdapter:
                 return Display(summary=f"List {display_path}")
             except Exception:
                 return Display(summary=f"List {path_str}")
+
+        if tool_name == "find":
+            pattern = args.get("pattern", "")
+            path_str = args.get("path", "")
+            if not path_str:
+                path_str = "."
+            try:
+                p = Path(path_str).resolve()
+                cwd = Path.cwd().resolve()
+                if p == cwd:
+                    display_path = str(cwd).replace('\\', '/')
+                elif p.is_relative_to(cwd):
+                    rel = p.relative_to(cwd)
+                    display_path = f"{str(cwd).replace('\\', '/')}/{str(rel).replace('\\', '/')}".rstrip('/')
+                else:
+                    display_path = path_str.replace('\\', '/')
+                return Display(summary=f"Find \"{pattern}\" in {display_path}")
+            except Exception:
+                return Display(summary=f"Find \"{pattern}\" in {path_str}")
 
         args_text = self._format_args(args)
         if args_text:
