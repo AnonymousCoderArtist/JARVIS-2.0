@@ -67,6 +67,10 @@ dependencies = [
     "pywin32>=306; sys_platform == 'win32'",
     "comtypes>=1.2.0",
     "posthog>=3.3.1",
+    # Web UI dependencies
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.6",
 ]
 [project.optional-dependencies]
 dev = [
