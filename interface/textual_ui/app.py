@@ -360,7 +360,7 @@ class StartupOptions:
 
 class VibeApp(App):  # noqa: PLR0904
     ENABLE_COMMAND_PALETTE = False
-    CSS_PATH = ["tcss/app.tcss", "tcss/grep.tcss", "tcss/ls.tcss", "tcss/read.tcss"]
+    CSS_PATH = ["tcss/app.tcss", "tcss/grep.tcss", "tcss/ls.tcss", "tcss/read.tcss", "tcss/bash.tcss"]
     PAUSE_GC_ON_SCROLL: ClassVar[bool] = True
 
     BINDINGS: ClassVar[list[BindingType]] = [

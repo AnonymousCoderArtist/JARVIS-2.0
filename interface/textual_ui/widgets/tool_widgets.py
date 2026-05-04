@@ -138,32 +138,63 @@ class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
 
 
 class BashApprovalWidget(ToolApprovalWidget[BashArgs]):
+    """Modern bash approval widget with clean visual hierarchy.
+    
+    Features:
+    - Clear tool identification with icon
+    - Command display with syntax highlighting
+    - Background execution indicator
+    - Clean spacing and iconography
+    """
+    
     def compose(self) -> ComposeResult:
         command = self.args.command if isinstance(self.args, BaseModel) else self.args.get("command", "")
-        yield Markdown(f"```bash\n{command}\n```")
+        is_background = self.args.is_background if isinstance(self.args, BaseModel) else self.args.get("is_background", False)
+        
+        # Tool header with icon
+        yield NoMarkupStatic("⚙️ bash", classes="approval-tool-name")
+        yield Static("")  # Spacer
+        
+        # Main command highlighted
+        yield Markdown(f"```bash\n{command}\n```", classes="approval-bash-command")
+        
+        # Background execution indicator
+        if is_background:
+            yield NoMarkupStatic("  ↳ background: yes", classes="approval-bash-param")
 
 
 class BashResultWidget(ToolResultWidget[BashResult]):
+    """Modern bash result widget matching Grep/LS design.
+    
+    Layout:
+    └─ exit code 0
+       Output line 1
+       Output line 2
+    """
+    
     def compose(self) -> ComposeResult:
         if not self.result:
             yield from self._footer()
             return
             
-        # Result summary
-        summary_text = f"└─ exit code {self.result.returncode}"
+        # Result summary with exit code
+        exit_code = self.result.returncode
+        summary_text = f"└─ exit code {exit_code}"
         if self.collapsed:
             summary_text += " • Ctrl+O to expand"
-        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary bash-exit-code")
         
         if not self.collapsed:
+            # Show stdout if present
             if self.result.stdout:
                 content, truncation_info = _truncate_lines(self.result.stdout, 15)
-                yield Markdown(f"```text\n{content}\n```")
+                yield Markdown(f"```text\n{content}\n```", classes="bash-stdout")
                 if truncation_info:
                     yield NoMarkupStatic(truncation_info, classes="tool-result-hint")
             
+            # Show stderr with error styling
             if self.result.stderr:
-                yield NoMarkupStatic(self.result.stderr, classes="tool-result-error")
+                yield NoMarkupStatic(self.result.stderr, classes="tool-result-error bash-stderr")
             
             yield from self._footer()
         else:

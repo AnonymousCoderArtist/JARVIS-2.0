@@ -26,7 +26,7 @@ class CompletionPopup(VerticalScroll):
         self.can_focus = False
 
     def update_suggestions(
-        self, suggestions: list[tuple[str, str]], selected: int
+        self, suggestions: list[tuple[str, str, str]], selected: int
     ) -> None:
         if not suggestions:
             self.hide()
@@ -35,7 +35,7 @@ class CompletionPopup(VerticalScroll):
         self.remove_children()
 
         items: list[_CompletionItem] = []
-        for idx, (label, description) in enumerate(suggestions):
+        for idx, (label, description, _) in enumerate(suggestions):
             text = Text()
             label_style = "bold reverse" if idx == selected else "bold"
             description_style = "italic" if idx == selected else "dim"

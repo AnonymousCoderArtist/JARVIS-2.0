@@ -41,6 +41,19 @@ from .repl_tool import REPLTool
 # Web tools
 from .web_tools import WebFetchTool, ExaWebSearchTool
 
+# Windows tools
+from .windows_tools import (
+    WindowsSnapshotTool,
+    WindowsClickTool,
+    WindowsTypeTool,
+    WindowsScrollTool,
+    WindowsShortcutTool,
+    WindowsAppTool,
+    WindowsClipboardTool,
+    WindowsNotificationTool,
+    WindowsProcessTool,
+)
+
 __all__ = [
     "BaseTool",
     "ToolInput",
@@ -72,4 +85,14 @@ __all__ = [
     "AgentStatusTool",
     # Skill tool
     "SkillTool",
+    # Windows tools
+    "WindowsSnapshotTool",
+    "WindowsClickTool",
+    "WindowsTypeTool",
+    "WindowsScrollTool",
+    "WindowsShortcutTool",
+    "WindowsAppTool",
+    "WindowsClipboardTool",
+    "WindowsNotificationTool",
+    "WindowsProcessTool",
 ]

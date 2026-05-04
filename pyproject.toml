@@ -57,6 +57,15 @@ dependencies = [
     "textual>=0.50.0",
     # Resource monitoring
     "psutil>=5.9.0",
+    # Windows automation dependencies
+    "Pillow>=10.2.0",
+    "markdownify>=0.11.6",
+    "fuzzywuzzy>=0.18.0",
+    "python-Levenshtein>=0.23.0",
+    "requests>=2.31.0",
+    "pywin32>=306; sys_platform == 'win32'",
+    "comtypes>=1.2.0",
+    "posthog>=3.3.1",
 ]
 [project.optional-dependencies]
 dev = [
