@@ -22,6 +22,8 @@ from typing import Any
 import mcp
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamable_http_client
+from mcp.client.streamable_http import streamable_http_client
 
 from .base import BaseTool, ToolInput, ToolOutput
 from .registry import ToolRegistry
@@ -94,6 +96,7 @@ class MCPClient:
         self._initialized = False
         self._lock = asyncio.Lock()
         self._stdio_context = None  # Store the stdio context manager for cleanup
+        self._http_context = None  # Store the HTTP context manager for cleanup
         self._event_loop: asyncio.AbstractEventLoop | None = None
 
     async def _reset_client(self) -> None:
@@ -105,6 +108,9 @@ class MCPClient:
             if self._stdio_context:
                 await self._stdio_context.__aexit__(None, None, None)
                 self._stdio_context = None
+            if self._http_context:
+                await self._http_context.__aexit__(None, None, None)
+                self._http_context = None
         except Exception as e:
             logger.warning(f"Error closing MCP client during reset: {e}")
         
@@ -131,7 +137,7 @@ class MCPClient:
             self._event_loop = current_loop
 
     async def connect(self) -> None:
-        """Connect to the MCP server using stdio transport only"""
+        """Connect to the MCP server"""
         await self._ensure_active_loop()
 
         if self._initialized:
@@ -140,14 +146,14 @@ class MCPClient:
         try:
             if self.config.transport == MCPTransportType.STDIO:
                 await self._connect_stdio()
+            elif self.config.transport in (MCPTransportType.HTTP, MCPTransportType.SSE):
+                await self._connect_http()
             else:
-                # Skip HTTP/SSE transports for now (they cause async generator issues)
                 logger.warning(
                     f"Skipping MCP server '{self.config.name}': "
-                    f"Only stdio transport is currently supported. "
-                    f"Configured transport: {self.config.transport}"
+                    f"Unknown transport: {self.config.transport}"
                 )
-                raise ValueError(f"Unsupported transport: {self.config.transport}")
+                raise ValueError(f"Unknown transport: {self.config.transport}")
 
             # List available tools
             await self._list_tools()
@@ -189,6 +195,27 @@ class MCPClient:
         await self._session.initialize()
 
         logger.info(f"MCP stdio transport initialized for {self.config.name}")
+    async def _connect_http(self) -> None:
+        """Connect using HTTP transport"""
+        if not self.config.url:
+            raise ValueError(f"No URL configured for HTTP MCP server '{self.config.name}'")
+        
+        logger.info(f"Connecting to MCP server via HTTP: {self.config.url}")
+        
+        # Use streamable HTTP client - returns (read_stream, write_stream, session_id)
+        # The context manager must be used with 'async with' to properly manage the task group
+        self._http_context = streamable_http_client(self.config.url)
+        read_stream, write_stream, _ = await self._http_context.__aenter__()
+        
+        # Create session
+        self._session = ClientSession(read_stream, write_stream)
+        await self._session.__aenter__()
+        
+        # Initialize the session
+        await self._session.initialize()
+        
+        logger.info(f"MCP HTTP transport initialized for {self.config.name}")
+
 
     async def _list_tools(self) -> None:
         """List available tools from the MCP server"""
@@ -628,9 +655,17 @@ def load_mcp_config_from_file(config_path: str) -> list[MCPServerConfig]:
     else:
         raise ValueError(f"Unsupported config file format: {path.suffix}")
 
-    # Handle both single server and list of servers
+    # Handle different config formats
     if isinstance(data, dict):
-        servers = data.get("mcp_servers", [data])
+        # Check for "mcpServers" key (Claude Code style)
+        if "mcpServers" in data:
+            servers = list(data["mcpServers"].values())
+        # Check for "mcp_servers" key
+        elif "mcp_servers" in data:
+            servers = data["mcp_servers"]
+        # Single server config
+        else:
+            servers = [data]
     else:
         servers = data
 

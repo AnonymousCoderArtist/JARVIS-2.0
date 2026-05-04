@@ -1035,8 +1035,7 @@ class PathCompleter:
                     if item.lower().startswith(prefix.lower()):
                         full_path = os.path.join(expanded_base, item)
                         is_dir = os.path.isdir(full_path)
-                        icon = "📁" if is_dir else "📄"
-                        label = f"{icon} {item}" + ("/" if is_dir else "")
+                        label = item + ("/" if is_dir else "")
                         desc = base_path
                         # For local paths, replacement is just the label without icon
                         replacement = item + ("/" if is_dir else "")

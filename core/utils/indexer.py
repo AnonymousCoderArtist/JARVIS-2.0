@@ -55,14 +55,29 @@ class ProjectIndexer:
             except Exception as walk_err:
                 logger.error(f"Fallback indexing failed: {walk_err}")
 
-    def search(self, query: str, limit: int = 20) -> list[tuple[str, str]]:
+    def search(self, query: str, limit: int = 20) -> list[tuple[str, str, str]]:
         """Search files using simple fuzzy matching and ranking"""
         files = self.get_files()
-        if not query:
-            # Return top-level files if no query
-            return [(f, "") for f in files[:limit]]
         
-        query = query.lower().replace("@", "")
+        if query.startswith("@"):
+            query_name = query[1:].lower()
+            results = []
+            for f in files:
+                name = os.path.basename(f).lower()
+                if name.startswith(query_name):
+                    results.append(f)
+            results = sorted(results, key=lambda x: (len(x), x))
+            
+            final_results = []
+            for f in results:
+                name = os.path.basename(f)
+                path = os.path.dirname(f)
+                is_dir = os.path.isdir(os.path.join(self.root_dir, f))
+                label = name + ("/" if is_dir else "")
+                final_results.append((label, path, f))
+            return final_results
+        
+        query = query.lower()
         results = []
         
         for f in files:
@@ -90,8 +105,8 @@ class ProjectIndexer:
             name = os.path.basename(f)
             path = os.path.dirname(f)
             is_dir = os.path.isdir(os.path.join(self.root_dir, f))
-            icon = "📁" if is_dir else "📄"
-            # Label with icon, description is the path
-            final_results.append((f"{icon} {name}", path))
+            # Label without icon, description is path, replacement is full relative path
+            label = name + ("/" if is_dir else "")
+            final_results.append((label, path, f))
             
         return final_results

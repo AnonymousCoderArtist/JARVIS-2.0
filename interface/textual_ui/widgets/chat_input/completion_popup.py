@@ -22,7 +22,9 @@ class CompletionPopup(VerticalScroll):
         self.styles.display = "none"
         self.styles.max_height = COMPLETION_POPUP_MAX_HEIGHT
         self.styles.max_width = COMPLETION_POPUP_MAX_WIDTH
-        self.styles.padding = (0, COMPLETION_POPUP_PADDING_X)
+        self.styles.padding = (0, 1)
+        self.styles.border = ("solid", "gray")
+        self.styles.background = "#1a1a1a"
         self.can_focus = False
 
     def update_suggestions(
@@ -36,16 +38,29 @@ class CompletionPopup(VerticalScroll):
 
         items: list[_CompletionItem] = []
         for idx, (label, description, _) in enumerate(suggestions):
+            is_selected = idx == selected
+            
+            # Use Rich Text for better control
             text = Text()
-            label_style = "bold reverse" if idx == selected else "bold"
-            description_style = "italic" if idx == selected else "dim"
-
-            text.append(self._display_label(label), style=label_style)
+            display_label = self._display_label(label)
+            
+            if is_selected:
+                text.append(display_label, style="bold black on white")
+            else:
+                text.append(display_label, style="bold white")
+                
             if description:
                 text.append("  ")
-                text.append(description, style=description_style)
+                text.append(description, style="italic dim" if not is_selected else "italic black on white")
 
             item = _CompletionItem(text)
+            if is_selected:
+                item.styles.background = "white"
+                item.styles.color = "black"
+            else:
+                item.styles.background = None
+                item.styles.color = None
+                
             items.append(item)
 
         self.mount_all(items)
