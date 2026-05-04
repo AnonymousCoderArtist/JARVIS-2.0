@@ -6,6 +6,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.timer import Timer
 from textual.widgets import Static
 
 from interface.textual_ui.cli_adapters import ToolUIDataAdapter
@@ -54,6 +55,8 @@ class ToolCallMessage(Static):
     """
     MARKER = "●"
     BRANCH = "└─"
+    # Spinner frames using dot/circle characters for tool calls
+    SPINNER_FRAMES = ("◉", "○", "◌", "◎")
 
     def __init__(
         self, event: ToolCallEvent | None = None, *, tool_name: str | None = None
@@ -68,8 +71,9 @@ class ToolCallMessage(Static):
         self._indicator_widget: Static | None = None
         self._tool_name_widget: Static | None = None
         self._info_widget: Static | None = None
-        self._flicker_timer = None
-        self._is_flickering = False
+        self._spinner_timer: Timer | None = None
+        self._is_spinning = False
+        self._frame_index = 0
 
         super().__init__()
         self.add_class("tool-call")
@@ -89,26 +93,29 @@ class ToolCallMessage(Static):
                 yield self._tool_name_widget
 
     def on_mount(self) -> None:
-        """Start the flickering animation when mounted."""
+        """Start the spinning animation when mounted."""
         if not self._is_history:
-            self._is_flickering = True
-            self._flicker_timer = self.set_interval(0.5, self._toggle_flicker)
+            self._is_spinning = True
+            self._frame_index = 0
+            self._spinner_timer = self.set_interval(0.3, self._update_spinner_frame)
             if self._indicator_widget:
-                self._indicator_widget.add_class("success")  # Green while running
+                # White (no color class) while running - will be colored on completion
+                self._indicator_widget.remove_class("success")
+                self._indicator_widget.remove_class("error")
 
-    def _toggle_flicker(self) -> None:
-        if not self._is_flickering or not self._indicator_widget:
+    def on_unmount(self) -> None:
+        """Stop the spinner timer when unmounted."""
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+
+    def _update_spinner_frame(self) -> None:
+        """Update with rotating frames."""
+        if not self._is_spinning or not self._indicator_widget:
             return
-        # Get current content - handle both Static and NonSelectableStatic
-        try:
-            current = self._indicator_widget.renderable.strip()
-        except AttributeError:
-            try:
-                current = str(self._indicator_widget.renderable).strip()
-            except Exception:
-                current = ""
-        # Toggle between space and marker
-        self._indicator_widget.update(" " if current == self.MARKER else self.MARKER)
+        frame = self.SPINNER_FRAMES[self._frame_index % len(self.SPINNER_FRAMES)]
+        self._indicator_widget.update(frame)
+        self._frame_index += 1
 
     @property
     def tool_call_id(self) -> str | None:
@@ -139,20 +146,19 @@ class ToolCallMessage(Static):
 
     def stop_spinning(self, success: bool = True) -> None:
         """Update indicator when tool completes."""
-        self._is_flickering = False
-        if self._flicker_timer:
-            self._flicker_timer.stop()
-            self._flicker_timer = None
-            
+        self._is_spinning = False
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+
         if self._indicator_widget:
             icon = self.MARKER
             self._indicator_widget.update(icon)
-            self._indicator_widget.remove_class("spinning")
             if success:
-                self._indicator_widget.add_class("success")
+                self._indicator_widget.add_class("success")  # Green for success
                 self._indicator_widget.remove_class("error")
             else:
-                self._indicator_widget.add_class("error")
+                self._indicator_widget.add_class("error")  # Red for failure
                 self._indicator_widget.remove_class("success")
 
 
@@ -191,6 +197,7 @@ class ToolResultMessage(Static):
         self._stats_widget: Static | None = None
         self._diff_container: Vertical | None = None
         self._success = True
+        self._error_message: str | None = None
 
         super().__init__()
         self.add_class("tool-result")
@@ -206,8 +213,12 @@ class ToolResultMessage(Static):
                 with Horizontal(classes="tool-result-header"):
                     # Determine success from event
                     self._success = self._determine_success()
+                    self._error_message = self._get_error_message()
+
+                    # Show green for success, red for failure
+                    # White (no color class) will be set by stop_spinning() for running state
                     self._indicator_widget = NonSelectableStatic(
-                        self.MARKER if self._success else "●",
+                        self.MARKER,
                         classes="tool-result-indicator"
                     )
                     if self._success:
@@ -215,7 +226,7 @@ class ToolResultMessage(Static):
                     else:
                         self._indicator_widget.add_class("error")
                     yield self._indicator_widget
-                    
+
                     # Use summary instead of just tool name
                     summary = self._get_summary()
                     self._tool_name_widget = NoMarkupStatic(
@@ -227,7 +238,7 @@ class ToolResultMessage(Static):
                     if stats:
                         self._stats_widget = NoMarkupStatic(stats, classes="tool-stats")
                         yield self._stats_widget
-            
+
             self._diff_container = Vertical(classes="tool-result-content")
             yield self._diff_container
 
@@ -242,7 +253,12 @@ class ToolResultMessage(Static):
     def _determine_success(self) -> bool:
         if self._event is None:
             return True
-        if self._event.error or self._event.skipped:
+        if self._event.skipped:
+            return False
+        # Check success field from ToolOutput result
+        if isinstance(self._event.result, dict):
+            return self._event.result.get("success", True)
+        if self._event.error:
             return False
         if self._event.tool_class:
             adapter = ToolUIDataAdapter(self._event.tool_class)
@@ -254,13 +270,10 @@ class ToolResultMessage(Static):
         """Compute stats string from event or content."""
         if self._event is None:
             return ""
-        
-        if self._event.error:
-            return "error"
-        
+
         if self._event.skipped:
             return "skipped"
-        
+
         # Try to get stats from result if it's a dict with stats info
         result = self._event.result
         if isinstance(result, dict):
@@ -273,8 +286,22 @@ class ToolResultMessage(Static):
                 if removed:
                     parts.append(f"-{removed}")
                 return " ".join(parts)
-        
+
         return ""
+
+    def _get_error_message(self) -> str | None:
+        """Get error message from event."""
+        if self._event is None:
+            return None
+
+        if self._event.error:
+            return self._event.error
+
+        # Also check result for error
+        if isinstance(self._event.result, dict):
+            return self._event.result.get("error")
+
+        return None
 
     async def on_mount(self) -> None:
         if self._call_widget:
@@ -289,22 +316,28 @@ class ToolResultMessage(Static):
     async def _render_result(self) -> None:
         if self._event is None:
             return
-        
+
         if self._event.error:
             self.add_class("error-text")
             return
-        
+
         if self._event.skipped:
             self.add_class("warning-text")
             return
-        
+
         # Try to render diff if available
         if self._event.tool_class is None:
             return
-        
+
         adapter = ToolUIDataAdapter(self._event.tool_class)
         display = adapter.get_result_display(self._event)
-        
+
+        # For failures: only show error message when expanded (not collapsed)
+        if not self._success and self._error_message and not self.collapsed:
+            error_widget = NoMarkupStatic(f"⚠ {self._error_message}", classes="tool-result-error")
+            if self._diff_container:
+                await self._diff_container.mount(error_widget)
+
         widget = get_result_widget(
             self._event.tool_name,
             self._event.result,
@@ -313,10 +346,9 @@ class ToolResultMessage(Static):
             collapsed=self.collapsed,
             warnings=display.warnings,
         )
-        
+
         # Mount result widget to container if exists
         if self._diff_container and widget:
-            await self._diff_container.remove_children()
             await self._diff_container.mount(widget)
 
     async def set_collapsed(self, collapsed: bool) -> None:
