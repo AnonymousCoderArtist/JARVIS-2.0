@@ -95,28 +95,33 @@ class MCPClient:
         self._tools: list[MCPToolSpec] = []
         self._initialized = False
         self._lock = asyncio.Lock()
-        self._stdio_context = None  # Store the stdio context manager for cleanup
-        self._http_context = None  # Store the HTTP context manager for cleanup
         self._event_loop: asyncio.AbstractEventLoop | None = None
+        self._run_task: asyncio.Task | None = None
+        self._stop_event: asyncio.Event | None = None
+        self._ready_event: asyncio.Event | None = None
+        self._connect_error: Exception | None = None
 
     async def _reset_client(self) -> None:
         """Reset the client state when event loop changes"""
-        try:
-            if self._session:
-                await self._session.__aexit__(None, None, None)
-                self._session = None
-            if self._stdio_context:
-                await self._stdio_context.__aexit__(None, None, None)
-                self._stdio_context = None
-            if self._http_context:
-                await self._http_context.__aexit__(None, None, None)
-                self._http_context = None
-        except Exception as e:
-            logger.warning(f"Error closing MCP client during reset: {e}")
+        if self._stop_event:
+            self._stop_event.set()
+            
+        if self._run_task and not self._run_task.done():
+            try:
+                # Wait for the task to finish cleanup
+                await asyncio.wait_for(asyncio.shield(self._run_task), timeout=5.0)
+            except Exception as e:
+                logger.warning(f"Error waiting for MCP client task shutdown: {e}")
+                self._run_task.cancel()
         
+        self._run_task = None
+        self._stop_event = None
+        self._ready_event = None
+        self._session = None
         self._tools = []
         self._initialized = False
         self._event_loop = None
+        self._connect_error = None
 
     async def _ensure_active_loop(self) -> None:
         """Reset state if this client was initialized on another event loop."""
@@ -144,16 +149,18 @@ class MCPClient:
             return
 
         try:
-            if self.config.transport == MCPTransportType.STDIO:
-                await self._connect_stdio()
-            elif self.config.transport in (MCPTransportType.HTTP, MCPTransportType.SSE):
-                await self._connect_http()
-            else:
-                logger.warning(
-                    f"Skipping MCP server '{self.config.name}': "
-                    f"Unknown transport: {self.config.transport}"
-                )
-                raise ValueError(f"Unknown transport: {self.config.transport}")
+            self._stop_event = asyncio.Event()
+            self._ready_event = asyncio.Event()
+            self._connect_error = None
+            
+            # Start background task to manage the context managers
+            self._run_task = asyncio.create_task(self._run_client_task())
+            
+            # Wait for it to be ready or fail
+            await self._ready_event.wait()
+            
+            if self._connect_error:
+                raise self._connect_error
 
             # List available tools
             await self._list_tools()
@@ -166,55 +173,66 @@ class MCPClient:
             await self._reset_client()
             raise
 
-    async def _connect_stdio(self) -> None:
-        """Connect using stdio transport (for npx/uv/command-based servers)"""
-        # Build environment
-        import os
-        full_env = os.environ.copy()
-        full_env.update(self.config.env)
+    async def _run_client_task(self) -> None:
+        """Background task that keeps the MCP context managers open in a single task scope"""
+        try:
+            from contextlib import AsyncExitStack
+            async with AsyncExitStack() as stack:
+                if self.config.transport == MCPTransportType.STDIO:
+                    # Build environment
+                    import os
+                    full_env = os.environ.copy()
+                    full_env.update(self.config.env)
 
-        # Create server parameters
-        server_params = StdioServerParameters(
-            command=self.config.command,
-            args=self.config.args,
-            env=full_env,
-        )
+                    # Create server parameters
+                    server_params = StdioServerParameters(
+                        command=self.config.command,
+                        args=self.config.args,
+                        env=full_env,
+                    )
 
-        logger.info(f"Connecting to MCP server via stdio: {self.config.command} {self.config.args}")
+                    logger.info(f"Connecting to MCP server via stdio: {self.config.command} {self.config.args}")
+                    ctx = stdio_client(server_params)
+                    streams = await stack.enter_async_context(ctx)
+                    read_stream, write_stream = streams
 
-        # Use stdio_client context manager properly
-        # Store the context manager for cleanup
-        self._stdio_context = stdio_client(server_params)
-        read_stream, write_stream = await self._stdio_context.__aenter__()
+                elif self.config.transport in (MCPTransportType.HTTP, MCPTransportType.SSE):
+                    if not self.config.url:
+                        raise ValueError(f"No URL configured for HTTP MCP server '{self.config.name}'")
+                    
+                    logger.info(f"Connecting to MCP server via HTTP: {self.config.url}")
+                    ctx = streamable_http_client(self.config.url)
+                    streams = await stack.enter_async_context(ctx)
+                    # HTTP stream client returns (read, write, session_id) or similar depending on MCP sdk version
+                    if len(streams) == 3:
+                        read_stream, write_stream, _ = streams
+                    else:
+                        read_stream, write_stream = streams
+                else:
+                    raise ValueError(f"Unknown transport: {self.config.transport}")
 
-        # Create session
-        self._session = ClientSession(read_stream, write_stream)
-        await self._session.__aenter__()
-
-        # Initialize the session
-        await self._session.initialize()
-
-        logger.info(f"MCP stdio transport initialized for {self.config.name}")
-    async def _connect_http(self) -> None:
-        """Connect using HTTP transport"""
-        if not self.config.url:
-            raise ValueError(f"No URL configured for HTTP MCP server '{self.config.name}'")
-        
-        logger.info(f"Connecting to MCP server via HTTP: {self.config.url}")
-        
-        # Use streamable HTTP client - returns (read_stream, write_stream, session_id)
-        # The context manager must be used with 'async with' to properly manage the task group
-        self._http_context = streamable_http_client(self.config.url)
-        read_stream, write_stream, _ = await self._http_context.__aenter__()
-        
-        # Create session
-        self._session = ClientSession(read_stream, write_stream)
-        await self._session.__aenter__()
-        
-        # Initialize the session
-        await self._session.initialize()
-        
-        logger.info(f"MCP HTTP transport initialized for {self.config.name}")
+                # Create session
+                session_ctx = ClientSession(read_stream, write_stream)
+                self._session = await stack.enter_async_context(session_ctx)
+                
+                # Initialize the session
+                await self._session.initialize()
+                
+                logger.info(f"MCP transport initialized for {self.config.name}")
+                
+                # Signal ready
+                if self._ready_event:
+                    self._ready_event.set()
+                
+                # Wait until stopped
+                if self._stop_event:
+                    await self._stop_event.wait()
+                    
+        except Exception as e:
+            self._connect_error = e
+            if self._ready_event and not self._ready_event.is_set():
+                self._ready_event.set()
+            logger.debug(f"MCP client task for {self.config.name} ended with exception: {e}")
 
 
     async def _list_tools(self) -> None:

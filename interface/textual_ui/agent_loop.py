@@ -911,6 +911,8 @@ Create a comprehensive summary that captures:
                     self.compaction_stats.record_error()
 
         finally:
+            if 'task' in locals() and task and not task.done():
+                task.cancel()
             self._is_running = False
             self.agent.stream_callback = None
 
@@ -1020,6 +1022,10 @@ Create a comprehensive summary that captures:
                     self.compaction_stats.record_error()
 
         finally:
+            if 'task' in locals() and task and not task.done():
+                task.cancel()
+            if 'timeout_task' in locals() and timeout_task and not timeout_task.done():
+                timeout_task.cancel()
             self._is_running = False
             self.agent.stream_callback = None
 

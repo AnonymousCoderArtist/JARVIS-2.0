@@ -1704,7 +1704,8 @@ class VibeApp(App):  # noqa: PLR0904
         return "Refreshed."
 
     async def _show_mcp(self, cmd_args: str = "", **kwargs: Any) -> None:
-        mcp_servers = []  # Not supported in core Settings
+        # Load MCP servers from config file
+        mcp_servers = self._get_mcp_servers()
         connector_registry = (
             self.agent_loop.connector_registry if self._connectors_enabled else None
         )
@@ -1720,12 +1721,18 @@ class VibeApp(App):  # noqa: PLR0904
             await self._mount_and_scroll(UserCommandMessage(msg))
             return
 
-        if self._current_bottom_app == BottomApp.MCP:
-            return
+        # Always show MCP app when requested, even if already current
+        # This ensures the app is properly visible and refreshed
+        
+        # Debug logging
+        print(f"[DEBUG] MCP: Found {len(mcp_servers)} servers, connectors: {has_connectors}")
+        print(f"[DEBUG] MCP: Current bottom app: {self._current_bottom_app}")
+        
         name = cmd_args.strip()
         connector_names = (
             connector_registry.get_connector_names() if connector_registry else []
         )
+        print(f"[DEBUG] MCP: Connector names: {connector_names}")
         if (
             name
             and not any(s.name == name for s in mcp_servers)
@@ -1741,16 +1748,21 @@ class VibeApp(App):  # noqa: PLR0904
             )
             return
         await self._mount_and_scroll(UserCommandMessage("MCP servers opened..."))
-        await self._switch_from_input(
-            MCPApp(
-                mcp_servers=mcp_servers,
-                tool_manager=self.agent_loop.tool_manager,
-                initial_server=name,
-                connector_registry=connector_registry,  # type: ignore
-                get_connector_configs=lambda: self.agent_loop.config.connectors,
-                refresh_callback=self._refresh_mcp_browser,
-            )
+        
+        # Debug logging before app creation
+        print(f"[DEBUG] MCP: Creating MCPApp with {len(mcp_servers)} servers")
+        mcp_app = MCPApp(
+            mcp_servers=mcp_servers,
+            tool_manager=self.agent_loop.tool_manager,
+            initial_server=name,
+            connector_registry=connector_registry,  # type: ignore
+            get_connector_configs=lambda: self.agent_loop.config.connectors,
+            refresh_callback=self._refresh_mcp_browser,
         )
+        print(f"[DEBUG] MCP: Created MCPApp, mounting now...")
+        
+        await self._switch_from_input(mcp_app)
+        print(f"[DEBUG] MCP: MCPApp mounting complete")
 
     async def _show_status(self, **kwargs: Any) -> None:
         stats = self.agent_loop.stats
@@ -1799,6 +1811,46 @@ class VibeApp(App):  # noqa: PLR0904
         if self._current_bottom_app == BottomApp.Config:
             return
         await self._switch_to_config_app()
+
+    def _get_mcp_servers(self) -> list[Any]:
+        """Get list of configured MCP servers."""
+        from pathlib import Path
+        import json
+        from interface.textual_ui.cli_adapters import MCPServer
+
+        # Look for MCP config in same locations as tui_main.py
+        config_path = Path(".mcp.json")
+        if not config_path.exists():
+            config_path = Path.home() / ".jarvis" / "mcp_servers.json"
+
+        if not config_path.exists():
+            return []
+
+        try:
+            with open(config_path) as f:
+                data = json.load(f)
+
+            servers = []
+
+            # Handle Claude MCP format: {"mcpServers": {"name": {...}}}
+            if "mcpServers" in data:
+                for name, server_config in data["mcpServers"].items():
+                    # Create MCPServer from dict
+                    server_dict = server_config.copy() if isinstance(server_config, dict) else {}
+                    server_dict.setdefault("name", name)
+                    # Convert known fields
+                    if "directTools" in server_dict:
+                        server_dict["disabled_tools"] = server_dict.pop("directTools", [])
+                    servers.append(MCPServer(**server_dict))
+            # Handle list format: [{"name": ..., ...}]
+            elif isinstance(data, list):
+                for server_config in data:
+                    if isinstance(server_config, dict):
+                        servers.append(MCPServer(**server_config))
+
+            return servers
+        except Exception:
+            return []
 
     async def _show_model(self, **kwargs: Any) -> None:
         """Switch to the model picker in the bottom panel."""
@@ -2213,6 +2265,7 @@ class VibeApp(App):  # noqa: PLR0904
         await self._mount_and_scroll(UserCommandMessage("Voice settings not available."))
 
     async def _switch_from_input(self, widget: Widget, scroll: bool = False) -> None:
+        print(f"[DEBUG] _switch_from_input: Called with widget {type(widget).__name__}")
         bottom_container = self.query_one("#bottom-app-container")
         chat = self._cached_chat or self.query_one("#chat", ChatScroll)
         should_scroll = scroll and chat.is_at_bottom
@@ -2225,8 +2278,13 @@ class VibeApp(App):  # noqa: PLR0904
 
         await self._cleanup_bottom_apps()
 
-        self._current_bottom_app = BottomApp[type(widget).__name__.removesuffix("App")]
+        app_type = BottomApp[type(widget).__name__.removesuffix("App")]
+        print(f"[DEBUG] _switch_from_input: Setting bottom app to {app_type}")
+        self._current_bottom_app = app_type
+        
+        print(f"[DEBUG] _switch_from_input: Mounting widget to container...")
         await bottom_container.mount(widget)
+        print(f"[DEBUG] _switch_from_input: Widget mounted successfully")
 
         self.call_after_refresh(widget.focus)
         if should_scroll:
@@ -2368,6 +2426,8 @@ class VibeApp(App):  # noqa: PLR0904
         except Exception:
             pass
         self.agent_loop.telemetry_client.send_user_cancelled_action("reject_approval")
+        if self._agent_running:
+            self._handle_agent_running_escape()
         self._last_escape_time = None
 
     def _handle_question_app_escape(self) -> None:
@@ -2377,6 +2437,8 @@ class VibeApp(App):  # noqa: PLR0904
         except Exception:
             pass
         self.agent_loop.telemetry_client.send_user_cancelled_action("cancel_question")
+        if self._agent_running:
+            self._handle_agent_running_escape()
         self._last_escape_time = None
 
     def _handle_model_picker_app_escape(self) -> None:
@@ -2689,6 +2751,9 @@ class VibeApp(App):  # noqa: PLR0904
         if self._agent_running:
             self._handle_agent_running_escape()
             interrupted = True
+            # Clear the input field when interrupting to prevent stale input being re-submitted
+            if self._chat_input_container:
+                self._chat_input_container.value = ""
 
         self._last_escape_time = time.monotonic()
         chat = self._cached_chat or self.query_one("#chat", ChatScroll)

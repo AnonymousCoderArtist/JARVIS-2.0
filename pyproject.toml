@@ -53,6 +53,7 @@ dependencies = [
     # CLI dependencies
     "prompt-toolkit>=3.0.0",
     "pygments>=2.16.0",
+    "questionary>=2.0.0",
     # TUI dependencies
     "textual>=0.50.0",
     # Resource monitoring

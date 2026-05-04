@@ -180,6 +180,22 @@ class CommandRegistry:
             handler="_start_rewind_mode",
         )
 
+        # Config command (like Vibe)
+        self.commands["config"] = Command(
+            aliases=("/config", "/settings"),
+            description="Edit config settings",
+            usage="",
+            handler="_show_config",
+        )
+
+        # MCP command (like Vibe)
+        self.commands["mcp"] = Command(
+            aliases=("/mcp", "/connectors"),
+            description="Display available MCP servers and connectors",
+            usage="[server_name]",
+            handler="_show_mcp",
+        )
+
     def refresh(self, availability_context: CommandAvailabilityContext) -> None:
         """Refresh command availability based on context."""
         self.availability_context = availability_context
@@ -1094,6 +1110,7 @@ class MCPServer:
     command: str = ""
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
+    url: str = ""  # For HTTP/SSE transport
     disabled: bool = False
     disabled_tools: list[str] = field(default_factory=list)
 
