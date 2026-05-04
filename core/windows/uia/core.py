@@ -1217,16 +1217,11 @@ def SendInput(*inputs) -> int:
     Return int, the number of events that it successfully inserted into the keyboard or mouse input stream.
                 If the function returns zero, the input was already blocked by another thread.
     """
+    nInputs = len(inputs)
+    LPINPUT = INPUT * nInputs
+    pInputs = LPINPUT(*inputs)
     cbSize = ctypes.c_int(ctypes.sizeof(INPUT))
-    for ip in inputs:
-        ret = ctypes.windll.user32.SendInput(1, ctypes.byref(ip), cbSize)
-    return ret
-    # or one call
-    # nInputs = len(inputs)
-    # LPINPUT = INPUT * nInputs
-    # pInputs = LPINPUT(*inputs)
-    # cbSize = ctypes.c_int(ctypes.sizeof(INPUT))
-    # return ctypes.windll.user32.SendInput(nInputs, ctypes.byref(pInputs), cbSize)
+    return ctypes.windll.user32.SendInput(nInputs, pInputs, cbSize)
 
 
 def SendUnicodeChar(char: str, charMode: bool = True) -> int:

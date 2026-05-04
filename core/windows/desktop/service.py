@@ -674,7 +674,7 @@ class Desktop:
             uia.SendKeys("{Ctrl}a", waitTime=0.05)
             uia.SendKeys("{Back}", waitTime=0.05)
         escaped_text = _escape_text_for_sendkeys(text)
-        uia.SendKeys(escaped_text, interval=0.02, waitTime=0.05)
+        uia.SendKeys(escaped_text, interval=0.05, waitTime=0.05)
         if press_enter is True or (isinstance(press_enter, str) and press_enter.lower() == "true"):
             uia.SendKeys("{Enter}", waitTime=0.05)
 
@@ -737,7 +737,7 @@ class Desktop:
             else:
                 name = _KEY_ALIASES.get(key.lower(), key)
                 sendkeys_str += "{" + name + "}"
-        uia.SendKeys(sendkeys_str, interval=0.01)
+        uia.SendKeys(sendkeys_str, interval=0.05)
 
     def multi_select(self, press_ctrl: bool | str = False, locs: list[tuple[int, int]] = []):
         press_ctrl = press_ctrl is True or (
