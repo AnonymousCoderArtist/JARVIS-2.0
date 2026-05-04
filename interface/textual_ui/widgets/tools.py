@@ -308,6 +308,10 @@ class ToolResultMessage(Static):
             self._call_widget.stop_spinning(success=self._success)
         await self._render_result()
 
+    def on_tool_result_widget_toggle_request(self, message: ToolResultWidget.ToggleRequest) -> None:
+        """Keep our state in sync with the child widget."""
+        self.collapsed = message.collapsed
+
     def set_stream_message(self, message: str) -> None:
         """Set additional info below the tool result."""
         if self._stats_widget:
@@ -349,6 +353,7 @@ class ToolResultMessage(Static):
 
         # Mount result widget to container if exists
         if self._diff_container and widget:
+            await self._diff_container.remove_children()
             await self._diff_container.mount(widget)
 
     async def set_collapsed(self, collapsed: bool) -> None:

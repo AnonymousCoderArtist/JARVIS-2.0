@@ -1,0 +1,232 @@
+/* ========================================
+   Tool Widgets Modern Styles
+   ======================================== */
+
+/* Generic Tool Result Widget */
+.tool-result-widget {
+    width: 100%;
+    height: auto;
+    color: ansi_default;
+}
+
+.tool-result-widget:focus {
+    background: ansi_bright_black 10%;
+}
+
+/* Branch indicator for collapsed summaries */
+.tool-result-summary {
+    color: ansi_default;
+    text-style: bold;
+    padding-left: 2;
+}
+
+.tool-result-summary.collapsed {
+    color: ansi_cyan;
+    background: ansi_black 5%;
+    padding: 0 1;
+}
+
+.tool-result-summary.clickable {
+    color: ansi_bright_blue;
+    text-style: bold;
+    background: ansi_black 10%;
+    padding: 0 1;
+}
+
+.tool-result-summary.clickable:hover {
+    background: ansi_black 20%;
+    color: ansi_white;
+}
+
+/* Muted text for empty states */
+.tool-result-muted {
+    color: ansi_bright_black;
+    padding-left: 2;
+}
+
+/* Hint text */
+.tool-result-hint {
+    color: ansi_bright_black;
+    text-style: italic;
+    padding-left: 5;
+}
+
+/* Detail text */
+.tool-result-detail {
+    color: ansi_bright_black;
+    padding-left: 2;
+}
+
+/* Warning/Error text */
+.tool-result-warning {
+    color: ansi_yellow;
+    padding-left: 2;
+}
+
+.tool-result-error {
+    color: ansi_red;
+    padding-left: 2;
+}
+
+/* Error text styling */
+.error-text {
+    color: ansi_red;
+}
+
+.warning-text {
+    color: ansi_yellow;
+}
+
+/* ========================================
+   Bash Tool Styles
+   ======================================== */
+
+.approval-tool-name {
+    height: auto;
+    color: ansi_bright_cyan;
+    text-style: bold;
+    margin-left: 0;
+}
+
+.approval-bash-command {
+    height: auto;
+    margin-left: 2;
+    margin-top: 1;
+    color: ansi_green;
+}
+
+.approval-bash-param {
+    height: auto;
+    color: ansi_bright_black;
+    margin-left: 2;
+}
+
+.bash-success {
+    color: ansi_bright_yellow;
+}
+
+.bash-error {
+    color: ansi_bright_red;
+}
+
+.bash-output-line {
+    color: #8c8c8c;
+    padding-left: 3;
+}
+
+/* ========================================
+   Grep Tool Styles
+   ======================================== */
+
+.approval-grep-query {
+    height: auto;
+    color: ansi_bright_green;
+    text-style: bold;
+    margin-left: 2;
+}
+
+.approval-grep-param {
+    height: auto;
+    color: ansi_bright_black;
+    margin-left: 2;
+}
+
+.tool-result-match {
+    color: ansi_default;
+    padding-left: 5;
+}
+
+/* ========================================
+   LS Tool Styles
+   ======================================== */
+
+.tool-result-ls-item {
+    padding-left: 5;
+    margin-left: 0;
+}
+
+.tool-result-ls-dir {
+    color: ansi_bright_cyan;
+    text-style: bold;
+}
+
+.tool-result-ls-file {
+    color: ansi_white;
+}
+
+.tool-result-ls-hint {
+    color: ansi_bright_black;
+    padding-left: 5;
+    margin-left: 0;
+    text-style: italic;
+}
+
+/* ========================================
+   Find Tool Styles
+   ======================================== */
+
+/* Find uses same styles as LS */
+
+/* ========================================
+   Read File Tool Styles
+   ======================================== */
+
+.approval-read-file-count {
+    color: ansi_bright_green;
+    text-style: bold;
+}
+
+.tool-result-read-summary {
+    color: ansi_bright_black;
+    padding-left: 2;
+}
+
+.tool-result-read-warning {
+    color: ansi_bright_yellow;
+    padding-left: 5;
+}
+
+/* ========================================
+   Write File Tool Styles
+   ======================================== */
+
+/* Write uses same styles as Read */
+
+/* ========================================
+   Todo Tool Styles
+   ======================================== */
+
+.todo-in_progress {
+    color: ansi_yellow;
+}
+
+.todo-pending {
+    color: ansi_default;
+}
+
+.todo-completed {
+    color: ansi_green;
+}
+
+.todo-cancelled,
+.todo-empty {
+    color: ansi_bright_black;
+}
+
+/* ========================================
+   Ask User Question Styles
+   ======================================== */
+
+.ask-user-answer {
+    color: ansi_default;
+    padding-left: 3;
+}
+
+.question-option {
+    color: ansi_default;
+}
+
+.question-option-selected {
+    color: ansi_blue;
+    text-style: bold;
+}

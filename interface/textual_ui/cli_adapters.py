@@ -6,7 +6,7 @@ from enum import Enum
 import json
 from logging import getLogger
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices, model_validator
 import re
 from typing import Any, Optional
 
@@ -1447,21 +1447,21 @@ class BashArgs(BaseModel):
 
 
 class GrepArgs(BaseModel):
-    query: str
+    query: str = Field(validation_alias=AliasChoices("query", "pattern"))
     path: str = "."
-    max_matches: Optional[int] = None
-    is_regexp: Optional[bool] = False
-    include_pattern: Optional[str] = None
+    max_matches: Optional[int] = Field(None, validation_alias=AliasChoices("max_matches", "maxMatches"))
+    is_regexp: Optional[bool] = Field(False, validation_alias=AliasChoices("is_regexp", "isRegexp"))
+    include_pattern: Optional[str] = Field(None, validation_alias=AliasChoices("include_pattern", "includePattern"))
 
 
 class LSArgs(BaseModel):
-    path: str = "."
+    path: str = Field(".", validation_alias=AliasChoices("path", "directory"))
 
 
 class FindArgs(BaseModel):
     pattern: str
     path: str = ""
-    maxResults: Optional[int] = None
+    max_results: Optional[int] = Field(None, validation_alias=AliasChoices("max_results", "maxResults"))
 
 
 class ReadFileArgs(BaseModel):
@@ -1470,6 +1470,16 @@ class ReadFileArgs(BaseModel):
     files: list = []
     encoding: str = "utf-8"
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_files(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # If called with single path instead of files list
+            path = data.get("path") or data.get("filePath") or data.get("file_path")
+            if path and not data.get("files"):
+                data["files"] = [{"file_path": path}]
+        return data
+
 
 class TodoArgs(BaseModel):
     action: str
@@ -1477,7 +1487,7 @@ class TodoArgs(BaseModel):
 
 
 class WriteFileArgs(BaseModel):
-    filePath: str
+    file_path: str = Field(validation_alias=AliasChoices("file_path", "filePath", "path"))
     content: str
 
 
