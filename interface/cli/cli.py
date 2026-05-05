@@ -240,6 +240,28 @@ class CLIInterface:
         from core.tools import SkillTool
         self.tool_registry.register(SkillTool())
 
+        if sys.platform == "win32":
+            from core.tools import (
+                WindowsSnapshotTool,
+                WindowsClickTool,
+                WindowsTypeTool,
+                WindowsScrollTool,
+                WindowsShortcutTool,
+                WindowsAppTool,
+                WindowsClipboardTool,
+                WindowsNotificationTool,
+                WindowsProcessTool,
+            )
+            self.tool_registry.register(WindowsSnapshotTool())
+            self.tool_registry.register(WindowsClickTool())
+            self.tool_registry.register(WindowsTypeTool())
+            self.tool_registry.register(WindowsScrollTool())
+            self.tool_registry.register(WindowsShortcutTool())
+            self.tool_registry.register(WindowsAppTool())
+            self.tool_registry.register(WindowsClipboardTool())
+            self.tool_registry.register(WindowsNotificationTool())
+            self.tool_registry.register(WindowsProcessTool())
+
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
         if self.sdk == "anthropic":
