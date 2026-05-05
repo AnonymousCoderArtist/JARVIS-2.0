@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AskUserPrompt } from "@/components/thread/AskUserPrompt";
+import { ToolApprovalPrompt } from "@/components/thread/ToolApprovalPrompt";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
 import { ThreadHeader } from "@/components/thread/ThreadHeader";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
@@ -58,6 +59,8 @@ export function ThreadShell({
     setMessages,
     streamError,
     dismissStreamError,
+    pendingApproval,
+    sendApprovalResponse,
   } = useJarvisStream(chatId, initial, hasPendingToolCalls);
   const showHeroComposer = messages.length === 0 && !loading;
   const pendingAsk = useMemo(() => {
@@ -176,6 +179,14 @@ export function ThreadShell({
               <StreamErrorNotice
                 error={streamError}
                 onDismiss={dismissStreamError}
+              />
+            ) : null}
+            {pendingApproval ? (
+              <ToolApprovalPrompt
+                toolName={pendingApproval.toolName}
+                toolArgs={pendingApproval.toolArgs}
+                requiredPermissions={pendingApproval.requiredPermissions}
+                onResponse={sendApprovalResponse}
               />
             ) : null}
             {pendingAsk ? (

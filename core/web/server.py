@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from core.history import ConversationHistory
+from core.history import ConversationHistory, create_user_message, create_assistant_message
 
 app = FastAPI()
 
@@ -277,7 +277,7 @@ async def health():
 async def ws_endpoint(websocket: WebSocket):
     """WebSocket endpoint for chat streaming"""
     import sys
-    global _approval_request_queue
+    global _approval_request_queue, _pending_approvals
 
     try:
         await websocket.accept()
@@ -289,9 +289,9 @@ async def ws_endpoint(websocket: WebSocket):
     try:
         # Initialize the approval request queue for this connection
         _approval_request_queue = asyncio.Queue()
-        _pending_approvals: dict = {}
+        _pending_approvals = {}
 
-        # Store connection info for this session
+        # Store connection info for this session globally
         global _connection_info
         _connection_info = {
             "authenticated": False,
@@ -333,6 +333,269 @@ async def ws_endpoint(websocket: WebSocket):
                     break
 
         approval_task = asyncio.create_task(process_approval_requests())
+
+        # Tracking agent tasks to avoid overlapping and allow concurrent message receiving
+        agent_lock = asyncio.Lock()
+
+        async def handle_agent_message(content: str, chat_id: str):
+            # Get or create the agent
+            agent = _get_agent()
+            
+            async with agent_lock:
+                # Run agent processing with streaming
+                # Initialize original_callbacks before try block for type checking
+                original_callbacks: dict = {}
+                try:
+                    # Set up a stream callback to send delta events
+                    # We use a list to capture the asyncio tasks so we can await them
+                    delta_tasks = []
+
+                    def stream_callback(text: str):
+                        # Create the task and store it so we can await it
+                        task = asyncio.create_task(websocket.send_json({
+                            "event": "delta",
+                            "chat_id": chat_id,
+                            "text": text,
+                        }))
+                        delta_tasks.append(task)
+
+                    # Check if agent has reasoning_callback
+                    has_reasoning = hasattr(agent, 'reasoning_callback') and agent.reasoning_callback is not None
+                    print(f"[DEBUG] Agent has reasoning_callback: {has_reasoning}")
+                    
+                    # Set up reasoning callback to send reasoning events
+                    reasoning_tasks = []
+
+                    def reasoning_callback(text: str):
+                        task = asyncio.create_task(websocket.send_json({
+                            "event": "reasoning",
+                            "chat_id": chat_id,
+                            "text": text,
+                        }))
+                        reasoning_tasks.append(task)
+
+                    def reasoning_done_callback():
+                        task = asyncio.create_task(websocket.send_json({
+                            "event": "reasoning_end",
+                            "chat_id": chat_id,
+                        }))
+                        reasoning_tasks.append(task)
+
+                    # Set up tool call callback to send tool_call events
+                    tool_call_tasks = []
+
+                    def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
+                        task = asyncio.create_task(websocket.send_json({
+                            "event": "tool_call",
+                            "chat_id": chat_id,
+                            "tool_name": tool_name,
+                            "tool_args": tool_args,
+                        }))
+                        tool_call_tasks.append(task)
+
+                    # Set up tool result callback to send tool_result events
+                    tool_result_tasks = []
+
+                    def tool_result_callback(tool_name: str, result: str, success: bool):
+                        task = asyncio.create_task(websocket.send_json({
+                            "event": "tool_result",
+                            "chat_id": chat_id,
+                            "tool_name": tool_name,
+                            "result": result,
+                            "success": success,
+                        }))
+                        tool_result_tasks.append(task)
+
+                    # Set up user input callback for ask_user questions
+                    async def user_input_callback(args: Any) -> Any:
+                        await websocket.send_json({
+                            "event": "user_input",
+                            "chat_id": chat_id,
+                            "question": args.get("question", "") if hasattr(args, 'get') else str(args),
+                            "options": args.get("options") if hasattr(args, 'get') else None,
+                        })
+                        return {"answer": ""}
+
+                    # Set up approval callback for tool execution approval
+                    async def approval_callback(tool_name: str, tool_args: dict, tool_call_id: str, required_permissions: str) -> tuple:
+                        # Send approval request to frontend and wait for response
+                        await websocket.send_json({
+                            "event": "approval_request",
+                            "chat_id": chat_id,
+                            "tool_name": tool_name,
+                            "tool_args": tool_args,
+                            "required_permissions": required_permissions,
+                            "tool_call_id": tool_call_id,
+                        })
+                        
+                        future = asyncio.Future()
+                        _pending_approvals[tool_call_id] = {"future": future}
+                        result = await future
+                        return result
+
+                    # Save original callbacks
+                    original_callbacks = {
+                        "stream_callback": agent.stream_callback,
+                        "reasoning_callback": agent.reasoning_callback if hasattr(agent, 'reasoning_callback') else None,
+                        "reasoning_done_callback": agent.reasoning_done_callback if hasattr(agent, 'reasoning_done_callback') else None,
+                        "tool_call_callback": agent.tool_call_callback if hasattr(agent, 'tool_call_callback') else None,
+                        "tool_result_callback": agent.tool_result_callback if hasattr(agent, 'tool_result_callback') else None,
+                        "user_input_callback": agent.user_input_callback if hasattr(agent, 'user_input_callback') else None,
+                        "approval_callback": agent.approval_callback if hasattr(agent, 'approval_callback') else None,
+                    }
+                    
+                    # Set up the callbacks
+                    agent.stream_callback = stream_callback
+                    if hasattr(agent, 'reasoning_callback'):
+                        agent.reasoning_callback = reasoning_callback
+                    if hasattr(agent, 'reasoning_done_callback'):
+                        agent.reasoning_done_callback = reasoning_done_callback
+                    if hasattr(agent, 'tool_call_callback'):
+                        agent.tool_call_callback = tool_call_callback
+                    if hasattr(agent, 'tool_result_callback'):
+                        agent.tool_result_callback = tool_result_callback
+                    if hasattr(agent, 'user_input_callback'):
+                        agent.user_input_callback = user_input_callback
+                    if hasattr(agent, 'approval_callback'):
+                        agent.approval_callback = approval_callback
+
+                    # Process the message
+                    if _connection_info.get("session_id"):
+                        history = ConversationHistory(session_id=_connection_info["session_id"])
+                        history.append_message(create_user_message(content))
+
+                    response = await agent.process(content)
+
+                    # Save assistant response to history
+                    if _connection_info.get("session_id") and response:
+                        history = ConversationHistory(session_id=_connection_info["session_id"])
+                        history.append_message(create_assistant_message(response))
+
+                    # Restore original callbacks
+                    agent.stream_callback = original_callbacks["stream_callback"]
+                    if hasattr(agent, 'reasoning_callback'):
+                        agent.reasoning_callback = original_callbacks["reasoning_callback"]
+                    if hasattr(agent, 'reasoning_done_callback'):
+                        agent.reasoning_done_callback = original_callbacks["reasoning_done_callback"]
+                    if hasattr(agent, 'tool_call_callback'):
+                        agent.tool_call_callback = original_callbacks["tool_call_callback"]
+                    if hasattr(agent, 'tool_result_callback'):
+                        agent.tool_result_callback = original_callbacks["tool_result_callback"]
+                    if hasattr(agent, 'user_input_callback'):
+                        agent.user_input_callback = original_callbacks["user_input_callback"]
+                    if hasattr(agent, 'approval_callback'):
+                        agent.approval_callback = original_callbacks["approval_callback"]
+
+                    # Wait for all events to be sent
+                    await asyncio.gather(*delta_tasks, *reasoning_tasks, *tool_call_tasks, *tool_result_tasks)
+
+                    # Send stream end event
+                    await websocket.send_json({
+                        "event": "stream_end",
+                        "chat_id": chat_id,
+                    })
+
+                    # Send final message
+                    await websocket.send_json({
+                        "event": "message",
+                        "chat_id": chat_id,
+                        "text": response,
+                    })
+
+                    # Send turn end event
+                    await websocket.send_json({
+                        "event": "turn_end",
+                        "chat_id": chat_id,
+                    })
+
+                except Exception as e:
+                    print(f"DEBUG: Error processing message: {e}", file=sys.stderr)
+                    # Restore original callbacks in case of error
+                    if original_callbacks:
+                        agent.stream_callback = original_callbacks.get("stream_callback")
+                        if hasattr(agent, 'reasoning_callback'):
+                            agent.reasoning_callback = original_callbacks.get("reasoning_callback")
+                        if hasattr(agent, 'reasoning_done_callback'):
+                            agent.reasoning_done_callback = original_callbacks.get("reasoning_done_callback")
+                        if hasattr(agent, 'tool_call_callback'):
+                            agent.tool_call_callback = original_callbacks.get("tool_call_callback")
+                        if hasattr(agent, 'tool_result_callback'):
+                            agent.tool_result_callback = original_callbacks.get("tool_result_callback")
+                        if hasattr(agent, 'user_input_callback'):
+                            agent.user_input_callback = original_callbacks.get("user_input_callback")
+                        if hasattr(agent, 'approval_callback'):
+                            agent.approval_callback = original_callbacks.get("approval_callback")
+                    
+                    try:
+                        await websocket.send_json({
+                            "event": "error",
+                            "chat_id": chat_id,
+                            "detail": str(e),
+                        })
+                    except:
+                        pass
+                    agent.stream_callback = original_callbacks["stream_callback"]
+                    if hasattr(agent, 'reasoning_callback'):
+                        agent.reasoning_callback = original_callbacks["reasoning_callback"]
+                    if hasattr(agent, 'reasoning_done_callback'):
+                        agent.reasoning_done_callback = original_callbacks["reasoning_done_callback"]
+                    if hasattr(agent, 'tool_call_callback'):
+                        agent.tool_call_callback = original_callbacks["tool_call_callback"]
+                    if hasattr(agent, 'tool_result_callback'):
+                        agent.tool_result_callback = original_callbacks["tool_result_callback"]
+                    if hasattr(agent, 'user_input_callback'):
+                        agent.user_input_callback = original_callbacks["user_input_callback"]
+                    if hasattr(agent, 'approval_callback'):
+                        agent.approval_callback = original_callbacks["approval_callback"]
+
+                    # Wait for all events to be sent
+                    await asyncio.gather(*delta_tasks, *reasoning_tasks, *tool_call_tasks, *tool_result_tasks)
+
+                    # Send stream end event
+                    await websocket.send_json({
+                        "event": "stream_end",
+                        "chat_id": chat_id,
+                    })
+
+                    # Send final message
+                    await websocket.send_json({
+                        "event": "message",
+                        "chat_id": chat_id,
+                        "text": response,
+                    })
+
+                    # Send turn end event
+                    await websocket.send_json({
+                        "event": "turn_end",
+                        "chat_id": chat_id,
+                    })
+
+                except Exception as e:
+                    print(f"DEBUG: Error processing message: {e}", file=sys.stderr)
+                    # Restore original callbacks in case of error
+                    if original_callbacks:
+                        agent.stream_callback = original_callbacks.get("stream_callback")
+                        if hasattr(agent, 'reasoning_callback'):
+                            agent.reasoning_callback = original_callbacks.get("reasoning_callback")
+                        if hasattr(agent, 'reasoning_done_callback'):
+                            agent.reasoning_done_callback = original_callbacks.get("reasoning_done_callback")
+                        if hasattr(agent, 'tool_call_callback'):
+                            agent.tool_call_callback = original_callbacks.get("tool_call_callback")
+                        if hasattr(agent, 'tool_result_callback'):
+                            agent.tool_result_callback = original_callbacks.get("tool_result_callback")
+                        if hasattr(agent, 'user_input_callback'):
+                            agent.user_input_callback = original_callbacks.get("user_input_callback")
+                        if hasattr(agent, 'approval_callback'):
+                            agent.approval_callback = original_callbacks.get("approval_callback")
+                    
+                    try:
+                        await websocket.send_json({
+                            "event": "error",
+                            "chat_id": chat_id,
+                            "detail": str(e),
+                        })
+                    except:
+                        pass
 
         # Handle incoming messages
         try:
@@ -451,221 +714,8 @@ async def ws_endpoint(websocket: WebSocket):
                         print(f"DEBUG: No chat_id available for message", file=sys.stderr)
                         continue
 
-                    # Get or create the agent
-                    agent = _get_agent()
-
-                    # Run agent processing with streaming
-                    # Initialize original_callbacks before try block for type checking
-                    original_callbacks: dict = {}
-                    try:
-                        # Set up a stream callback to send delta events
-                        # We use a list to capture the asyncio tasks so we can await them
-                        delta_tasks = []
-
-                        def stream_callback(text: str):
-                            # Create the task and store it so we can await it
-                            task = asyncio.create_task(websocket.send_json({
-                                "event": "delta",
-                                "chat_id": chat_id,
-                                "text": text,
-                            }))
-                            delta_tasks.append(task)
-
-                        # Check if agent has reasoning_callback
-                        has_reasoning = hasattr(agent, 'reasoning_callback') and agent.reasoning_callback is not None
-                        print(f"[DEBUG] Agent has reasoning_callback: {has_reasoning}")
-                        if has_reasoning:
-                            print(f"[DEBUG] Agent reasoning_callback type: {type(agent.reasoning_callback)}")
-
-                        # Set up reasoning callback to send reasoning events
-                        reasoning_tasks = []
-
-                        def reasoning_callback(text: str):
-                            print(f"[DEBUG] Reasoning callback invoked with: {text[:100]}")
-                            task = asyncio.create_task(websocket.send_json({
-                                "event": "reasoning",
-                                "chat_id": chat_id,
-                                "text": text,
-                            }))
-                            reasoning_tasks.append(task)
-
-                        def reasoning_done_callback():
-                            print("[DEBUG] Sending reasoning_end event")
-                            task = asyncio.create_task(websocket.send_json({
-                                "event": "reasoning_end",
-                                "chat_id": chat_id,
-                            }))
-                            reasoning_tasks.append(task)
-
-                        # Set up tool call callback to send tool_call events
-                        tool_call_tasks = []
-
-                        def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
-                            task = asyncio.create_task(websocket.send_json({
-                                "event": "tool_call",
-                                "chat_id": chat_id,
-                                "tool_name": tool_name,
-                                "tool_args": tool_args,
-                            }))
-                            tool_call_tasks.append(task)
-
-                        # Set up tool result callback to send tool_result events
-                        tool_result_tasks = []
-
-                        def tool_result_callback(tool_name: str, result: str, success: bool):
-                            task = asyncio.create_task(websocket.send_json({
-                                "event": "tool_result",
-                                "chat_id": chat_id,
-                                "tool_name": tool_name,
-                                "result": result,
-                                "success": success,
-                            }))
-                            tool_result_tasks.append(task)
-
-                        # Set up user input callback for ask_user questions
-                        async def user_input_callback(args: Any) -> Any:
-                            # Send user_input event to frontend
-                            await websocket.send_json({
-                                "event": "user_input",
-                                "chat_id": chat_id,
-                                "question": args.get("question", "") if hasattr(args, 'get') else str(args),
-                                "options": args.get("options") if hasattr(args, 'get') else None,
-                            })
-                            # For now, return a default response (webui doesn't have interactive input)
-                            # In a full implementation, this would wait for user input from the frontend
-                            return {"answer": ""}
-
-                        # Set up approval callback for tool execution approval
-                        async def approval_callback(tool_name: str, tool_args: dict, tool_call_id: str, required_permissions: str) -> tuple:
-                            # Send approval request to frontend and wait for response
-                            _approval_request_queue.put_nowait({
-                                "chat_id": chat_id,
-                                "tool_name": tool_name,
-                                "tool_args": tool_args,
-                                "required_permissions": required_permissions,
-                                "tool_call_id": tool_call_id,
-                            })
-                            # The response will be handled by the approval_response message handler
-                            # which sets the result on the future stored in _pending_approvals
-                            # We need to wait for the response
-                            future = asyncio.Future()
-                            _pending_approvals[tool_call_id] = {"future": future}
-                            result = await future
-                            return result
-
-                        # Save original callbacks
-                        original_callbacks = {
-                            "stream_callback": agent.stream_callback,
-                            "reasoning_callback": agent.reasoning_callback if hasattr(agent, 'reasoning_callback') else None,
-                            "reasoning_done_callback": agent.reasoning_done_callback if hasattr(agent, 'reasoning_done_callback') else None,
-                            "tool_call_callback": agent.tool_call_callback if hasattr(agent, 'tool_call_callback') else None,
-                            "tool_result_callback": agent.tool_result_callback if hasattr(agent, 'tool_result_callback') else None,
-                            "user_input_callback": agent.user_input_callback if hasattr(agent, 'user_input_callback') else None,
-                            "approval_callback": agent.approval_callback if hasattr(agent, 'approval_callback') else None,
-                        }
-                        # Set up the callbacks
-                        agent.stream_callback = stream_callback
-                        if hasattr(agent, 'reasoning_callback'):
-                            agent.reasoning_callback = reasoning_callback
-                        if hasattr(agent, 'reasoning_done_callback'):
-                            agent.reasoning_done_callback = reasoning_done_callback
-                        if hasattr(agent, 'tool_call_callback'):
-                            agent.tool_call_callback = tool_call_callback
-                        if hasattr(agent, 'tool_result_callback'):
-                            agent.tool_result_callback = tool_result_callback
-                        if hasattr(agent, 'user_input_callback'):
-                            agent.user_input_callback = user_input_callback
-                        if hasattr(agent, 'approval_callback'):
-                            agent.approval_callback = approval_callback
-
-                        # Process the message
-                        # Save user message to history
-                        if _connection_info.get("session_id"):
-                            history = ConversationHistory(session_id=_connection_info["session_id"])
-                            from core.history import create_user_message, create_assistant_message
-                            history.append_message(create_user_message(content))
-
-                        response = await agent.process(content)
-
-                        # Save assistant response to history
-                        if _connection_info.get("session_id") and response:
-                            history = ConversationHistory(session_id=_connection_info["session_id"])
-                            from core.history import create_assistant_message
-                            history.append_message(create_assistant_message(response))
-
-                        # Restore original callbacks
-                        agent.stream_callback = original_callbacks["stream_callback"]
-                        if hasattr(agent, 'reasoning_callback'):
-                            agent.reasoning_callback = original_callbacks["reasoning_callback"]
-                        if hasattr(agent, 'reasoning_done_callback'):
-                            agent.reasoning_done_callback = original_callbacks["reasoning_done_callback"]
-                        if hasattr(agent, 'tool_call_callback'):
-                            agent.tool_call_callback = original_callbacks["tool_call_callback"]
-                        if hasattr(agent, 'tool_result_callback'):
-                            agent.tool_result_callback = original_callbacks["tool_result_callback"]
-                        if hasattr(agent, 'user_input_callback'):
-                            agent.user_input_callback = original_callbacks["user_input_callback"]
-                        if hasattr(agent, 'approval_callback'):
-                            agent.approval_callback = original_callbacks["approval_callback"]
-
-                        # Wait for all delta events to be sent before proceeding
-                        # This ensures streaming works correctly and deltas arrive before final message
-                        for task in delta_tasks:
-                            await task
-
-                        # Wait for reasoning events
-                        for task in reasoning_tasks:
-                            await task
-
-                        # Wait for tool call events
-                        for task in tool_call_tasks:
-                            await task
-
-                        # Wait for tool result events
-                        for task in tool_result_tasks:
-                            await task
-
-                        # Send stream end event
-                        await websocket.send_json({
-                            "event": "stream_end",
-                            "chat_id": chat_id,
-                        })
-
-                        # Send final message
-                        print(f"DEBUG: Sending final message for chat_id: {chat_id}", file=sys.stderr)
-                        await websocket.send_json({
-                            "event": "message",
-                            "chat_id": chat_id,
-                            "text": response,
-                        })
-
-                        # Send turn end event
-                        print(f"DEBUG: Sending turn_end for chat_id: {chat_id}", file=sys.stderr)
-                        await websocket.send_json({
-                            "event": "turn_end",
-                            "chat_id": chat_id,
-                        })
-
-                    except Exception as e:
-                        print(f"DEBUG: Error processing message: {e}", file=sys.stderr)
-                        # Restore original callbacks in case of error
-                        if hasattr(agent, 'stream_callback'):
-                            agent.stream_callback = original_callbacks["stream_callback"]
-                        if hasattr(agent, 'reasoning_callback'):
-                            agent.reasoning_callback = original_callbacks["reasoning_callback"]
-                        if hasattr(agent, 'reasoning_done_callback'):
-                            agent.reasoning_done_callback = original_callbacks["reasoning_done_callback"]
-                        if hasattr(agent, 'tool_call_callback'):
-                            agent.tool_call_callback = original_callbacks["tool_call_callback"]
-                        if hasattr(agent, 'tool_result_callback'):
-                            agent.tool_result_callback = original_callbacks["tool_result_callback"]
-                        if hasattr(agent, 'user_input_callback'):
-                            agent.user_input_callback = original_callbacks["user_input_callback"]
-                        await websocket.send_json({
-                            "event": "error",
-                            "chat_id": chat_id,
-                            "detail": str(e),
-                        })
+                    # Start processing in a separate task
+                    asyncio.create_task(handle_agent_message(content, chat_id))
 
                 else:
                     print(f"DEBUG: Ignoring message with unknown type: {msg_type}", file=sys.stderr)
