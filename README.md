@@ -41,7 +41,7 @@ This is **JARVIS v2.0.beta-Agents** - the core Agentic harness of JARVIS 2.0
 | ✅ Tool System | Complete (14 tools) |
 | ✅ JARVIS Agent (PI) | Complete |
 | ✅ Explore Subagent | Ready |
-| ✅ CLI Interface | Complete |
+| ⚠️ CLI Interface | Under Development (Try at your own risk) |
 | ✅ TUI Interface | Complete |
 | ✅ Permission System | Complete |
 | ✅ Plan Subagent | Ready |
@@ -161,6 +161,15 @@ graph LR
 git clone https://github.com/OEvortex/JARVIS.git
 cd JARVIS
 
+# Create virtual environment
+uv venv
+
+# Activate virtual environment
+# On Linux/macOS:
+source .venv/bin/activate
+# On Windows:
+.venv\Scripts\activate
+
 # Install dependencies
 uv pip install -e .
 ```
@@ -186,11 +195,13 @@ JARVIS_SDK=openai
 
 ### CLI Mode
 
+> **Note:** The CLI version is still in development. Use it at your own risk.
+
 ```bash
 # Using CLI flags
 jarvis --cli --model gpt-4o --apikey YOUR_KEY --sdk openai
 
-# Using .env configuration
+# Using .env configuration (reads from current working directory)
 jarvis --cli
 
 # Using short flags
@@ -200,7 +211,10 @@ jarvis --cli -m gpt-4o --apikey YOUR_KEY
 ### TUI Mode
 
 ```bash
-# Launch TUI interface
+# Launch TUI interface (uses .env file from current working directory)
+jarvis --tui
+
+# With explicit configuration
 jarvis --tui --model gpt-4o --apikey YOUR_KEY
 
 # With custom base URL (for local LLMs)

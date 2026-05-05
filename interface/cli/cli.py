@@ -40,17 +40,6 @@ from core.tools.registry import ToolRegistry
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
-from core.tools.windows_tools import (
-    WindowsSnapshotTool,
-    WindowsClickTool,
-    WindowsTypeTool,
-    WindowsScrollTool,
-    WindowsShortcutTool,
-    WindowsAppTool,
-    WindowsClipboardTool,
-    WindowsNotificationTool,
-    WindowsProcessTool,
-)
 
 from .display import DisplayManager, StreamingResponse
 from .commands import CommandHandler
@@ -248,28 +237,30 @@ class CLIInterface:
         self.tool_registry.register(ReadMemoryTool())
         self.tool_registry.register(AgentsTool())
         self.tool_registry.register(AgentStatusTool())
-        from core.tools import (
-            SkillTool,
-            WindowsSnapshotTool,
-            WindowsClickTool,
-            WindowsTypeTool,
-            WindowsScrollTool,
-            WindowsShortcutTool,
-            WindowsAppTool,
-            WindowsClipboardTool,
-            WindowsNotificationTool,
-            WindowsProcessTool,
-        )
+        from core.tools import SkillTool
         self.tool_registry.register(SkillTool())
-        self.tool_registry.register(WindowsSnapshotTool())
-        self.tool_registry.register(WindowsClickTool())
-        self.tool_registry.register(WindowsTypeTool())
-        self.tool_registry.register(WindowsScrollTool())
-        self.tool_registry.register(WindowsShortcutTool())
-        self.tool_registry.register(WindowsAppTool())
-        self.tool_registry.register(WindowsClipboardTool())
-        self.tool_registry.register(WindowsNotificationTool())
-        self.tool_registry.register(WindowsProcessTool())
+
+        if sys.platform == "win32":
+            from core.tools import (
+                WindowsSnapshotTool,
+                WindowsClickTool,
+                WindowsTypeTool,
+                WindowsScrollTool,
+                WindowsShortcutTool,
+                WindowsAppTool,
+                WindowsClipboardTool,
+                WindowsNotificationTool,
+                WindowsProcessTool,
+            )
+            self.tool_registry.register(WindowsSnapshotTool())
+            self.tool_registry.register(WindowsClickTool())
+            self.tool_registry.register(WindowsTypeTool())
+            self.tool_registry.register(WindowsScrollTool())
+            self.tool_registry.register(WindowsShortcutTool())
+            self.tool_registry.register(WindowsAppTool())
+            self.tool_registry.register(WindowsClipboardTool())
+            self.tool_registry.register(WindowsNotificationTool())
+            self.tool_registry.register(WindowsProcessTool())
 
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters

@@ -1738,7 +1738,7 @@ class ToolUIDataAdapter:
                 
             return Display(summary="Read unknown")
 
-        if tool_name in ("write", "write_file", "edit"):
+        if tool_name in ("write", "write_file"):
             def get_rel_path(p_str):
                 if not p_str: return "unknown"
                 try:
@@ -1757,6 +1757,35 @@ class ToolUIDataAdapter:
             path = get_rel_path(raw_path)
             return Display(summary=f"{tool_name.capitalize()} {path}")
 
+        if tool_name == "edit":
+            def get_rel_path(p_str):
+                if not p_str: return "unknown"
+                try:
+                    p = Path(p_str).resolve()
+                    cwd = Path.cwd().resolve()
+                    if p == cwd: return "."
+                    if p.is_relative_to(cwd):
+                        rel = p.relative_to(cwd)
+                        res = str(rel).replace('\\', '/')
+                        return res if res else "."
+                    return p_str
+                except Exception:
+                    return p_str
+
+            replacements = args.get("replacements", [])
+            if replacements and isinstance(replacements, list):
+                first = replacements[0]
+                if isinstance(first, dict):
+                    raw_path = first.get("filePath") or first.get("file_path") or "unknown"
+                else:
+                    raw_path = "unknown"
+            else:
+                raw_path = "unknown"
+            path = get_rel_path(raw_path)
+            count = len(replacements) if isinstance(replacements, list) else 0
+            suffix = f" ({count} edits)" if count > 1 else ""
+            return Display(summary=f"Edit {path}{suffix}")
+
         if tool_name == "bash":
             command = args.get("command", "")
             summary = command.split("\n")[0]
@@ -1773,7 +1802,7 @@ class ToolUIDataAdapter:
                     display_path = "."
                 elif p.is_relative_to(cwd):
                     rel = p.relative_to(cwd)
-                    display_path = f"{str(rel).replace('\\', '/')}"
+                    display_path = str(rel).replace("\\", "/")
                     if not display_path:
                         display_path = "."
                 else:
@@ -1794,7 +1823,7 @@ class ToolUIDataAdapter:
                     display_path = str(cwd).replace('\\', '/')
                 elif p.is_relative_to(cwd):
                     rel = p.relative_to(cwd)
-                    display_path = f"{str(cwd).replace('\\', '/')}/{str(rel).replace('\\', '/')}".rstrip('/')
+                    display_path = (str(cwd).replace("\\", "/") + "/" + str(rel).replace("\\", "/")).rstrip("/")
                 else:
                     display_path = path_str.replace('\\', '/')
                 return Display(summary=f"Find \"{pattern}\" in {display_path}")

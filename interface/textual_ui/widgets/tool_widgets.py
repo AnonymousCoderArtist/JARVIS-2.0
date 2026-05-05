@@ -1,30 +1,16 @@
-"""Modern tool widgets with expand/collapse functionality.
-
-This module provides consistent UI widgets for various tools (bash, grep, ls, find, etc.)
-with unified styling, expand/collapse logic, and color coding.
-
-Design Pattern:
-- Each tool has an ApprovalWidget and ResultWidget
-- Result widgets support expand/collapse via Ctrl+O or click
-- Collapsed state shows a summary line with branch indicator (└─)
-- Expanded state shows detailed output
-- Colors are consistent across all tools using ANSI color names
-"""
-
 from __future__ import annotations
 
-import os
+import difflib
 from pathlib import Path
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Static
 from textual.reactive import reactive
-from textual.message import Message
 
+from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.messages import NonSelectableStatic
 from interface.textual_ui.cli_adapters import (
@@ -32,7 +18,6 @@ from interface.textual_ui.cli_adapters import (
     BashArgs,
     GrepArgs,
     LSArgs,
-    FindArgs,
     ReadFileArgs,
     TodoArgs,
     WriteFileArgs,
@@ -41,42 +26,26 @@ from interface.textual_ui.tool_results import (
     BashResult,
     GrepResult,
     LSResult,
-    FindResult,
     ReadFileResult,
     TodoResult,
     WriteFileResult,
 )
 
 
-def _truncate_lines(content: str, max_lines: int) -> tuple[str, int]:
-    """Truncate content to max_lines, returning (content, remaining_count)."""
+def _truncate_lines(content: str, max_lines: int) -> tuple[str, str | None]:
+    """Truncate content to max_lines, returning (content, truncation_info)."""
     lines = content.strip("\n").split("\n")
     if len(lines) <= max_lines:
-        return "\n".join(lines), 0
+        return "\n".join(lines), None
     remaining = len(lines) - max_lines
-    return "\n".join(lines[:max_lines]), remaining
+    return "\n".join(lines[:max_lines]), f"… ({remaining} more lines)"
 
 
-def _get_relative_path(path_str: str, base: str = ".") -> str:
-    """Get relative path from base directory for cleaner display."""
-    try:
-        p = Path(path_str).resolve()
-        cwd = Path(base).resolve()
-        if p == cwd:
-            return "."
-        if p.is_relative_to(cwd):
-            rel = p.relative_to(cwd)
-            return str(rel).replace("\\", "/") or "."
-    except Exception:
-        pass
-    return path_str
+TArgs = TypeVar("TArgs", bound=BaseModel)
+TResult = TypeVar("TResult", bound=BaseModel)
 
 
-# =============================================================================
-# BASE CLASSES
-# =============================================================================
-
-class ToolApprovalWidget[TArgs: BaseModel](Vertical):
+class ToolApprovalWidget(Generic[TArgs], Vertical):
     """Base class for approval widgets with typed args."""
 
     def __init__(self, args: TArgs) -> None:
@@ -88,35 +57,32 @@ class ToolApprovalWidget[TArgs: BaseModel](Vertical):
         MAX_MSG_SIZE = 150
         model_cls = type(self.args)
         
-        field_names = model_cls.model_fields or {}
+        # Handle both BaseModel and plain dict args
+        if isinstance(self.args, BaseModel):
+            field_names = model_cls.model_fields or {}
+        elif isinstance(self.args, dict):
+            field_names = self.args.keys()
+        else:
+            field_names = {}
         
         for field_name in field_names:
-            value = getattr(self.args, field_name, None)
+            value = getattr(self.args, field_name, None) if not isinstance(self.args, dict) else self.args.get(field_name)
             if value is None or value in ("", []):
                 continue
             value_str = str(value)
             if len(value_str) > MAX_MSG_SIZE:
                 hidden = len(value_str) - MAX_MSG_SIZE
-                value_str = value_str[:MAX_MSG_SIZE] + f"... ({hidden} more chars)"
+                value_str = value_str[:MAX_MSG_SIZE] + f"… ({hidden} more characters)"
             yield NoMarkupStatic(
                 f"{field_name}: {value_str}", classes="approval-description"
             )
 
 
-class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
-    """Base class for result widgets with typed result and expand/collapse."""
+
+class ToolResultWidget(Generic[TResult], Static, can_focus=True):
+    """Base class for result widgets with typed result."""
     
     collapsed = reactive(True)
-
-    class ToggleRequest(Message):
-        """Request to toggle the parent's collapsed state."""
-        def __init__(self, collapsed: bool) -> None:
-            self.collapsed = collapsed
-            super().__init__()
-
-    BINDINGS = [
-        Binding("ctrl+o", "toggle_expand", "Expand/Collapse", show=False),
-    ]
 
     def __init__(
         self,
@@ -136,12 +102,17 @@ class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
 
     def watch_collapsed(self, collapsed: bool) -> None:
         """Update the widget when collapsed state changes."""
-        # Textual's reactive watchers handle async methods specially
-        _ = self.recompose()
+        self.recompose()
+
+    def _footer(self, extra: str | None = None) -> ComposeResult:
+        """Yield the footer with optional extra info."""
+        if extra:
+            yield NoMarkupStatic(extra, classes="tool-result-hint")
 
     def compose(self) -> ComposeResult:
         """Default: show result fields."""
         if not self.collapsed and self.result:
+            # Handle both BaseModel and plain dict results
             if isinstance(self.result, BaseModel):
                 field_names = type(self.result).model_fields or {}
                 for field_name in field_names:
@@ -150,251 +121,145 @@ class ToolResultWidget[TResult: BaseModel](Static, can_focus=True):
                         yield NoMarkupStatic(
                             f"{field_name}: {value}", classes="tool-result-detail"
                         )
+            elif isinstance(self.result, dict):
+                for field_name, value in self.result.items():
+                    if value is not None and value not in ("", []):
+                        yield NoMarkupStatic(
+                            f"{field_name}: {value}", classes="tool-result-detail"
+                        )
         yield from self._footer()
-
-    def _footer(self, extra: str | None = None) -> ComposeResult:
-        """Yield the footer with optional extra info."""
-        if extra:
-            yield NoMarkupStatic(extra, classes="tool-result-hint")
-
-    def action_toggle_expand(self) -> None:
-        """Toggle collapsed/expanded state via keyboard."""
-        self._toggle_collapsed()
 
     def on_click(self, event) -> None:
         """Toggle collapsed/expanded state on click."""
-        self._toggle_collapsed()
-
-    def _toggle_collapsed(self) -> None:
-        """Internal helper to toggle collapsed state."""
-        has_content = self.result and (
+        # Toggle if we have content
+        if self.result and (
             (hasattr(self.result, 'matches') and self.result.matches) or
             (hasattr(self.result, 'items') and self.result.items) or
-            (hasattr(self.result, 'todos') and self.result.todos) or
+            (hasattr(self.result, '__dict__') and any(getattr(self.result, attr, None) not in ("", [], None) for attr in dir(self.result) if not attr.startswith('_'))) or
             (isinstance(self.result, dict) and any(v not in ("", [], None) for v in self.result.values()))
-        )
-        if has_content:
+        ):
             self.collapsed = not self.collapsed
-            self.post_message(self.ToggleRequest(self.collapsed))
 
-
-# =============================================================================
-# BASH TOOL WIDGETS
-# =============================================================================
 
 class BashApprovalWidget(ToolApprovalWidget[BashArgs]):
-    """Modern bash approval widget with clean visual hierarchy."""
-    
     def compose(self) -> ComposeResult:
         command = self.args.command if isinstance(self.args, BaseModel) else self.args.get("command", "")
-        is_background = self.args.is_background if isinstance(self.args, BaseModel) else self.args.get("is_background", False)
-        
-        yield NoMarkupStatic("Bash", classes="approval-tool-name")
-        yield Static("")  # Spacer
-        yield Static(f"```bash\n{command}\n```", classes="approval-bash-command")
-        
-        if is_background:
-            yield NoMarkupStatic("  ↳ background: yes", classes="approval-bash-param")
+        yield Markdown(f"```bash\n{command}\n```")
 
 
 class BashResultWidget(ToolResultWidget[BashResult]):
-    """Modern bash result widget with output display."""
-    
     def compose(self) -> ComposeResult:
         if not self.result:
             yield from self._footer()
             return
-        
-        stdout = self.result.stdout or ""
-        stderr = self.result.stderr or ""
-        lines = (stdout + stderr).strip().split("\n") if (stdout or stderr) else []
-        line_count = len(lines)
-        
-        status = "Done" if self.success else "Error"
-        status_class = "bash-success" if self.success else "bash-error"
-        
-        summary = f"└─ {status} ({line_count} lines)"
-        if self.collapsed:
-            summary += " • Ctrl+O to expand"
-        else:
-            summary += " • Ctrl+O to collapse"
-        
-        yield NoMarkupStatic(summary, classes=f"tool-result-summary {status_class}")
-        
-        if not self.collapsed and lines:
-            for line in lines[:15]:
-                yield NoMarkupStatic(f"   {line}", classes="bash-output-line")
             
-            if line_count > 15:
-                remaining = line_count - 15
-                yield NoMarkupStatic(f"   ... ({remaining} more lines)", classes="tool-result-hint")
-        
-        yield from self._footer()
-
-
-# =============================================================================
-# GREP TOOL WIDGETS
-# =============================================================================
-
-class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
-    """Modern grep approval widget with query type indicator."""
-    
-    def compose(self) -> ComposeResult:
-        query = self.args.query if isinstance(self.args, BaseModel) else self.args.get("query", "")
-        path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
-        is_regexp = self.args.is_regexp if isinstance(self.args, BaseModel) else self.args.get("is_regexp", False)
-        max_matches = self.args.max_matches if isinstance(self.args, BaseModel) else self.args.get("max_matches", None)
-        include_pattern = self.args.include_pattern if isinstance(self.args, BaseModel) else self.args.get("include_pattern", None)
-        
-        query_type = "regexp" if is_regexp else "literal"
-        yield NoMarkupStatic(f"grep [{query_type}]", classes="approval-tool-name")
-        yield Static("")
-        yield NoMarkupStatic(f'"{query}"', classes="approval-grep-query")
-        
-        if path != ".":
-            yield NoMarkupStatic(f"  ↳ path: {path}", classes="approval-grep-param")
-        if max_matches:
-            yield NoMarkupStatic(f"  ↳ max: {max_matches}", classes="approval-grep-param")
-        if include_pattern:
-            yield NoMarkupStatic(f"  ↳ filter: {include_pattern}", classes="approval-grep-param")
-
-
-class GrepResultWidget(ToolResultWidget[GrepResult]):
-    """Modern grep result widget with match display."""
-    
-    def compose(self) -> ComposeResult:
-        if not self.result or not self.result.matches:
-            yield NoMarkupStatic("└─ no matches", classes="tool-result-muted")
-            yield from self._footer()
-            return
-        
-        matches = self.result.matches
-        total = len(matches)
-        
-        summary = f"└─ {total} matches"
+        # Result summary
+        summary_text = f"└─ exit code {self.result.returncode}"
         if self.collapsed:
-            summary += " • Ctrl+O to expand"
-        else:
-            summary += " • Ctrl+O to collapse"
-        yield NoMarkupStatic(summary, classes="tool-result-summary")
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
         
         if not self.collapsed:
-            max_show = 15
-            for match in matches[:max_show]:
-                file = match.file
-                line = match.line
-                content = match.content[:100] + "..." if len(match.content) > 100 else match.content
-                yield Static(
-                    f"   [ansi_bright_black]{file}[/][ansi_bright_black]:[/][ansi_bright_yellow]{line}[/][ansi_bright_black]:[/] {content}",
-                    classes="tool-result-match"
+            if self.result.stdout:
+                content, truncation_info = _truncate_lines(self.result.stdout, 15)
+                yield Markdown(f"```text\n{content}\n```")
+                if truncation_info:
+                    yield NoMarkupStatic(truncation_info, classes="tool-result-hint")
+            
+            if self.result.stderr:
+                yield NoMarkupStatic(self.result.stderr, classes="tool-result-error")
+            
+            yield from self._footer()
+        else:
+            yield from self._footer()
+
+
+class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
+    def compose(self) -> ComposeResult:
+        file_path = self.args.filePath if isinstance(self.args, BaseModel) else self.args.get("filePath", "")
+        path = Path(file_path)
+        file_extension = path.suffix.lstrip(".") or "text"
+        content = self.args.content if isinstance(self.args, BaseModel) else self.args.get("content", "")
+
+        yield NoMarkupStatic(f"File: {file_path}", classes="approval-description")
+        yield NoMarkupStatic("")
+        yield Markdown(f"```{file_extension}\n{content}\n```")
+
+
+class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
+    def compose(self) -> ComposeResult:
+        if not self.result:
+            yield from self._footer()
+            return
+            
+        # Result summary
+        summary_text = f"└─ {self.result.bytes_written} bytes written"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        
+        if not self.collapsed:
+            # Show content
+            ext = Path(self.result.path).suffix.lstrip(".") or "text"
+            content, truncation_info = _truncate_lines(self.result.content, 15)
+            yield Markdown(f"```{ext}\n{content}\n```")
+            yield from self._footer(truncation_info)
+        else:
+            yield from self._footer()
+
+
+class TodoApprovalWidget(ToolApprovalWidget[TodoArgs]):
+    def compose(self) -> ComposeResult:
+        action = self.args.action if isinstance(self.args, BaseModel) else self.args.get("action", "")
+        yield NoMarkupStatic(
+            f"Action: {action}", classes="approval-description"
+        )
+        todos = self.args.todos if isinstance(self.args, BaseModel) else self.args.get("todos", [])
+        if todos:
+            yield NoMarkupStatic(
+                f"Todos: {len(todos)} items", classes="approval-description"
+            )
+
+
+class TodoResultWidget(ToolResultWidget[TodoResult]):
+    def compose(self) -> ComposeResult:
+        if not self.result or not self.result.todos:
+            yield NoMarkupStatic("└─ no todos", classes="tool-result-muted")
+            yield from self._footer()
+            return
+
+        total_todos = len(self.result.todos)
+        summary_text = f"└─ {total_todos} items"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+
+        if not self.collapsed:
+            by_status: dict[str, list] = {
+                "in_progress": [],
+                "pending": [],
+                "completed": [],
+                "cancelled": [],
+            }
+            for todo in self.result.todos:
+                status = (
+                    todo.status.value if hasattr(todo.status, "value") else str(todo.status)
                 )
-            
-            if total > max_show:
-                yield NoMarkupStatic(f"   ... ({total - max_show} more lines)", classes="tool-result-hint")
-        
-        yield from self._footer()
+                if status in by_status:
+                    by_status[status].append(todo)
 
-
-# =============================================================================
-# LS TOOL WIDGETS
-# =============================================================================
-
-class LSApprovalWidget(ToolApprovalWidget[LSArgs]):
-    """LS approval widget."""
-    
-    def compose(self) -> ComposeResult:
-        path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
-        yield NoMarkupStatic("ls", classes="approval-tool-name")
-        yield Static("")
-        yield NoMarkupStatic(f"path: {path}", classes="approval-description")
-
-
-class LSResultWidget(ToolResultWidget[LSResult]):
-    """Modern ls result widget with file/directory listing."""
-    
-    def compose(self) -> ComposeResult:
-        if not self.result or not self.result.items:
-            yield NoMarkupStatic("└─ empty directory", classes="tool-result-muted")
+            for status in ["in_progress", "pending", "completed", "cancelled"]:
+                for todo in by_status[status]:
+                    icon = self._get_status_icon(status)
+                    yield NoMarkupStatic(f"   {icon} {todo.content}", classes=f"todo-{status}")
             yield from self._footer()
-            return
-        
-        items = self.result.items
-        total = len(items)
-        
-        summary = f"└─ {total} entries"
-        if self.collapsed:
-            summary += " • Ctrl+O to expand"
         else:
-            summary += " • Ctrl+O to collapse"
-        yield NoMarkupStatic(summary, classes="tool-result-summary")
-        
-        if not self.collapsed:
-            max_show = 15
-            for item in items[:max_show]:
-                is_dir = item.endswith("/")
-                item_class = "tool-result-ls-dir" if is_dir else "tool-result-ls-file"
-                yield Static(f"   {item}", classes=f"tool-result-ls-item {item_class}")
-            
-            if total > max_show:
-                yield NoMarkupStatic(f"   ... {total - max_show} more entries", classes="tool-result-ls-hint")
-        
-        yield from self._footer()
-
-
-# =============================================================================
-# FIND TOOL WIDGETS
-# =============================================================================
-
-class FindApprovalWidget(ToolApprovalWidget[FindArgs]):
-    """Find approval widget."""
-    
-    def compose(self) -> ComposeResult:
-        pattern = self.args.pattern if isinstance(self.args, BaseModel) else self.args.get("pattern", "")
-        path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
-        
-        yield NoMarkupStatic("find", classes="approval-tool-name")
-        yield Static("")
-        yield NoMarkupStatic(f'pattern: "{pattern}"', classes="approval-description")
-        if path and path != ".":
-            yield NoMarkupStatic(f"path: {path}", classes="approval-description")
-
-
-class FindResultWidget(ToolResultWidget[FindResult]):
-    """Modern find result widget with file listing."""
-    
-    def compose(self) -> ComposeResult:
-        if not self.result or not self.result.matches:
-            yield NoMarkupStatic("└─ no files found", classes="tool-result-muted")
             yield from self._footer()
-            return
-        
-        matches = self.result.matches
-        total = len(matches)
-        
-        summary = f"└─ {total} files"
-        if self.collapsed:
-            summary += " • Ctrl+O to expand"
-        else:
-            summary += " • Ctrl+O to collapse"
-        yield NoMarkupStatic(summary, classes="tool-result-summary")
-        
-        if not self.collapsed:
-            max_show = 15
-            for match in matches[:max_show]:
-                is_dir = match.endswith("/")
-                item_class = "tool-result-ls-dir" if is_dir else "tool-result-ls-file"
-                display = _get_relative_path(match) if os.path.isabs(match) else match
-                yield Static(f"   {display}", classes=f"tool-result-ls-item {item_class}")
-            
-            if total > max_show:
-                yield NoMarkupStatic(f"   ... {total - max_show} more files", classes="tool-result-ls-hint")
-        
-        yield from self._footer()
 
+    def _get_status_icon(self, status: str) -> str:
+        icons = {"pending": "☐", "in_progress": "☐", "completed": "☑", "cancelled": "☒"}
+        return icons.get(status, "☐")
 
-# =============================================================================
-# READ FILE TOOL WIDGETS
-# =============================================================================
 
 class ReadFileApprovalWidget(ToolApprovalWidget[ReadFileArgs]):
     def compose(self) -> ComposeResult:
@@ -409,119 +274,143 @@ class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
         if not self.result:
             yield from self._footer()
             return
-        
+            
+        # Result summary
         lines = self.result.content.split("\n")
         line_count = len(lines)
-        
-        summary = f"└─ {line_count} lines loaded"
+        summary_text = f"└─ {line_count} lines loaded"
         if self.collapsed:
-            summary += " • Ctrl+O to expand"
-        else:
-            summary += " • Ctrl+O to collapse"
-        yield NoMarkupStatic(summary, classes="tool-result-summary tool-result-read-summary")
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary tool-result-read-summary")
         
         if not self.collapsed:
             for warning in self.warnings:
-                yield NoMarkupStatic(f"   {warning}", classes="tool-result-warning tool-result-read-warning")
+                yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning tool-result-read-warning")
             
+            # Show content
             ext = Path(self.result.path).suffix.lstrip(".") or "text"
-            content, remaining = _truncate_lines(self.result.content, 15)
-            yield Static(f"```{ext}\n{content}\n```")
-            if remaining:
-                yield NoMarkupStatic(f"   ... ({remaining} more lines)", classes="tool-result-hint")
+            content, truncation_info = _truncate_lines(self.result.content, 15)
+            yield Markdown(f"```{ext}\n{content}\n```")
+            yield from self._footer(truncation_info)
+        else:
+            yield from self._footer()
+
+
+class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
+    """Modern grep approval widget with clean visual hierarchy.
+    
+    Features:
+    - Clear tool identification with icon
+    - Query type indicator (regexp vs literal)
+    - Optional parameters (path, max_matches, include_pattern)
+    - Clean spacing and iconography
+    """
+    
+    def compose(self) -> ComposeResult:
+        query = self.args.query if isinstance(self.args, BaseModel) else self.args.get("query", "")
+        path = self.args.path if isinstance(self.args, BaseModel) else self.args.get("path", ".")
+        is_regexp = self.args.is_regexp if isinstance(self.args, BaseModel) else self.args.get("is_regexp", False)
+        max_matches = self.args.max_matches if isinstance(self.args, BaseModel) else self.args.get("max_matches", None)
+        include_pattern = self.args.include_pattern if isinstance(self.args, BaseModel) else self.args.get("include_pattern", None)
         
-        yield from self._footer()
+        # Tool header with icon and type indicator
+        query_type = "regexp" if is_regexp else "literal"
+        yield NoMarkupStatic(f"🔍 grep [{query_type}]", classes="approval-tool-name")
+        yield Static("")  # Spacer
+        
+        # Main pattern highlighted
+        yield NoMarkupStatic(f'"{query}"', classes="approval-grep-query")
+        
+        # Optional parameters with subtle styling
+        if path != ".":
+            yield NoMarkupStatic(f"  ↳ path: {path}", classes="approval-grep-param")
+        if max_matches:
+            yield NoMarkupStatic(f"  ↳ max: {max_matches}", classes="approval-grep-param")
+        if include_pattern:
+            yield NoMarkupStatic(f"  ↳ filter: {include_pattern}", classes="approval-grep-param")
 
 
-# =============================================================================
-# WRITE FILE TOOL WIDGETS
-# =============================================================================
-
-class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
+class GrepResultWidget(ToolResultWidget[GrepResult]):
+    """Modern grep result widget matching design.
+    
+    Layout:
+    └─ 24 matches
+       src/file.py:10: content
+    """
+    
     def compose(self) -> ComposeResult:
-        file_path = getattr(self.args, "file_path", getattr(self.args, "filePath", "")) if isinstance(self.args, BaseModel) else self.args.get("file_path", self.args.get("filePath", ""))
-        path = Path(file_path)
-        file_extension = path.suffix.lstrip(".") or "text"
-        content = self.args.content if isinstance(self.args, BaseModel) else self.args.get("content", "")
-
-        yield NoMarkupStatic(f"File: {file_path}", classes="approval-description")
-        yield Static("")
-        yield Static(f"```{file_extension}\n{content}\n```")
-
-
-class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
-    def compose(self) -> ComposeResult:
-        if not self.result:
+        if not self.result or not self.result.matches:
+            yield NoMarkupStatic("└─ no matches", classes="tool-result-muted")
             yield from self._footer()
             return
         
-        summary = f"└─ {self.result.bytes_written} bytes written"
+        matches = self.result.matches
+        total_matches = len(matches)
+        
+        # Branch with match count
+        summary_text = f"└─ {total_matches} matches"
         if self.collapsed:
-            summary += " • Ctrl+O to expand"
-        else:
-            summary += " • Ctrl+O to collapse"
-        yield NoMarkupStatic(summary, classes="tool-result-summary")
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
         
         if not self.collapsed:
-            ext = Path(self.result.path).suffix.lstrip(".") or "text"
-            content, remaining = _truncate_lines(self.result.content, 15)
-            yield Static(f"```{ext}\n{content}\n```")
-            if remaining:
-                yield NoMarkupStatic(f"   ... ({remaining} more lines)", classes="tool-result-hint")
+            # Show matches with line numbers and file paths
+            max_matches_to_show = 15
+            for match in matches[:max_matches_to_show]:
+                file = match.file
+                line_num = match.line
+                content = match.content
+                
+                # Truncate very long content
+                display_content = content[:100] + "…" if len(content) > 100 else content
+                # Use markup for colors: bright black for path, yellow for line
+                yield Static(f"   [ansi_bright_black]{file}[/][ansi_bright_black]:[/][ansi_bright_yellow]{line_num}[/][ansi_bright_black]:[/] {display_content}", classes="tool-result-match")
+            
+            if total_matches > max_matches_to_show:
+                remaining = total_matches - max_matches_to_show
+                yield NoMarkupStatic(f"   ... ({remaining} more lines • Ctrl+O to expand)", classes="tool-result-hint")
         
         yield from self._footer()
 
 
-# =============================================================================
-# TODO TOOL WIDGETS
-# =============================================================================
 
-class TodoApprovalWidget(ToolApprovalWidget[TodoArgs]):
+class LSResultWidget(ToolResultWidget[LSResult]):
+    """Modern LS result widget matching design.
+    
+    Layout:
+    └─ 24 entries
+       🗋 .env
+       🗀 src/
+    """
+    
     def compose(self) -> ComposeResult:
-        action = self.args.action if isinstance(self.args, BaseModel) else self.args.get("action", "")
-        yield NoMarkupStatic(f"Action: {action}", classes="approval-description")
-        todos = self.args.todos if isinstance(self.args, BaseModel) else self.args.get("todos", [])
-        if todos:
-            yield NoMarkupStatic(f"Todos: {len(todos)} items", classes="approval-description")
-
-
-class TodoResultWidget(ToolResultWidget[TodoResult]):
-    def compose(self) -> ComposeResult:
-        if not self.result or not self.result.todos:
-            yield NoMarkupStatic("└─ no todos", classes="tool-result-muted")
+        if not self.result or not self.result.items:
+            yield NoMarkupStatic("└─ empty directory", classes="tool-result-muted")
             yield from self._footer()
             return
-
-        total = len(self.result.todos)
-        summary = f"└─ {total} items"
+        
+        items = self.result.items
+        total_items = len(items)
+        
+        # Branch with count
+        summary_text = f"└─ {total_items} entries"
         if self.collapsed:
-            summary += " • Ctrl+O to expand"
-        else:
-            summary += " • Ctrl+O to collapse"
-        yield NoMarkupStatic(summary, classes="tool-result-summary")
-
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        
         if not self.collapsed:
-            by_status: dict[str, list] = {
-                "in_progress": [],
-                "pending": [],
-                "completed": [],
-                "cancelled": [],
-            }
-            for todo in self.result.todos:
-                status = todo.status.value if hasattr(todo.status, "value") else str(todo.status)
-                if status in by_status:
-                    by_status[status].append(todo)
-
-            for status in ["in_progress", "pending", "completed", "cancelled"]:
-                for todo in by_status[status]:
-                    yield NoMarkupStatic(f"   {todo.content}", classes=f"todo-{status}")
+            max_items_to_show = 15
+            for item in items[:max_items_to_show]:
+                is_dir = item.endswith("/")
+                item_class = "tool-result-ls-dir" if is_dir else "tool-result-ls-file"
+                yield Static(f"   {item}", classes=f"tool-result-ls-item {item_class}")
+            
+            if total_items > max_items_to_show:
+                remaining = total_items - max_items_to_show
+                yield NoMarkupStatic(f"   ... {remaining} more entries", classes="tool-result-ls-hint")
         
         yield from self._footer()
 
-
-# =============================================================================
-# ASK USER QUESTION WIDGETS
-# =============================================================================
 
 class AskUserQuestionResultWidget(ToolResultWidget[AskUserQuestionResult]):
     def compose(self) -> ComposeResult:
@@ -530,13 +419,10 @@ class AskUserQuestionResultWidget(ToolResultWidget[AskUserQuestionResult]):
             yield from self._footer()
             return
 
-        total = len(self.result.answers)
-        summary = f"└─ {total} answers"
+        summary_text = f"└─ {len(self.result.answers)} answers"
         if self.collapsed:
-            summary += " • Ctrl+O to expand"
-        else:
-            summary += " • Ctrl+O to collapse"
-        yield NoMarkupStatic(summary, classes="tool-result-summary")
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
 
         if not self.collapsed:
             for answer in self.result.answers:
@@ -544,13 +430,10 @@ class AskUserQuestionResultWidget(ToolResultWidget[AskUserQuestionResult]):
                     yield NoMarkupStatic(f"   Q: {answer.question}", classes="tool-result-detail")
                 prefix = "(Other) " if answer.is_other else ""
                 yield NoMarkupStatic(f"   A: {prefix}{answer.answer}", classes="ask-user-answer")
-        
-        yield from self._footer()
+            yield from self._footer()
+        else:
+            yield from self._footer()
 
-
-# =============================================================================
-# WIDGET REGISTRY
-# =============================================================================
 
 APPROVAL_WIDGETS: dict[str, type[ToolApprovalWidget]] = {
     "bash": BashApprovalWidget,
@@ -558,10 +441,7 @@ APPROVAL_WIDGETS: dict[str, type[ToolApprovalWidget]] = {
     "read_file": ReadFileApprovalWidget,
     "write": WriteFileApprovalWidget,
     "write_file": WriteFileApprovalWidget,
-    "edit": WriteFileApprovalWidget,
     "grep": GrepApprovalWidget,
-    "find": FindApprovalWidget,
-    "ls": LSApprovalWidget,
     "todo": TodoApprovalWidget,
 }
 
@@ -571,10 +451,8 @@ RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
     "read_file": ReadFileResultWidget,
     "write": WriteFileResultWidget,
     "write_file": WriteFileResultWidget,
-    "edit": WriteFileResultWidget,
     "grep": GrepResultWidget,
     "ls": LSResultWidget,
-    "find": FindResultWidget,
     "todo": TodoResultWidget,
     "ask_user_question": AskUserQuestionResultWidget,
 }
@@ -585,23 +463,22 @@ ARGS_MODELS: dict[str, type[BaseModel]] = {
     "read_file": ReadFileArgs,
     "write": WriteFileArgs,
     "write_file": WriteFileArgs,
-    "edit": WriteFileArgs,
     "grep": GrepArgs,
     "ls": LSArgs,
-    "find": FindArgs,
     "todo": TodoArgs,
 }
 
 
 def get_approval_widget(tool_name: str, args: BaseModel | dict) -> ToolApprovalWidget:
-    """Get the appropriate approval widget for a tool."""
     widget_class = APPROVAL_WIDGETS.get(tool_name, ToolApprovalWidget)
+    # Convert dict to appropriate BaseModel if needed
     if isinstance(args, dict):
         from pydantic import create_model
         args_model_cls = ARGS_MODELS.get(tool_name)
         if args_model_cls:
             args = args_model_cls(**args)
         else:
+            # Fallback: wrap in generic container
             field_definitions = {k: (type(v), ...) for k, v in args.items()}
             GenericArgs = create_model("GenericArgs", **field_definitions)  # type: ignore
             args = GenericArgs(**args)
@@ -616,9 +493,9 @@ def get_result_widget(
     collapsed: bool = True,
     warnings: list[str] | None = None,
 ) -> ToolResultWidget:
-    """Get the appropriate result widget for a tool."""
     widget_class = RESULT_WIDGETS.get(tool_name, ToolResultWidget)
     
+    # Wrap results into appropriate models if they come as raw data
     if tool_name == "ls" and isinstance(result, list):
         result = LSResult(items=result)
     elif tool_name == "grep" and isinstance(result, list):
@@ -632,7 +509,5 @@ def get_result_widget(
                     content=r.get("content", "")
                 ))
         result = GrepResult(matches=matches)
-    elif tool_name == "find" and isinstance(result, list):
-        result = FindResult(matches=result)
         
     return widget_class(result, success, message, collapsed, warnings)

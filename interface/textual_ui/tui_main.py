@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -23,17 +24,6 @@ from core.tools.registry import ToolRegistry
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
-from core.tools.windows_tools import (
-    WindowsSnapshotTool,
-    WindowsClickTool,
-    WindowsTypeTool,
-    WindowsScrollTool,
-    WindowsShortcutTool,
-    WindowsAppTool,
-    WindowsClipboardTool,
-    WindowsNotificationTool,
-    WindowsProcessTool,
-)
 
 from interface.textual_ui.app import run_textual_ui
 
@@ -257,26 +247,27 @@ def create_tool_registry() -> AsyncToolRegistry:
     tool_registry.register(SkillTool())
     
     # Register Windows tools
-    from core.tools.windows_tools import (
-        WindowsSnapshotTool,
-        WindowsClickTool,
-        WindowsTypeTool,
-        WindowsScrollTool,
-        WindowsShortcutTool,
-        WindowsAppTool,
-        WindowsClipboardTool,
-        WindowsNotificationTool,
-        WindowsProcessTool,
-    )
-    tool_registry.register(WindowsSnapshotTool())
-    tool_registry.register(WindowsClickTool())
-    tool_registry.register(WindowsTypeTool())
-    tool_registry.register(WindowsScrollTool())
-    tool_registry.register(WindowsShortcutTool())
-    tool_registry.register(WindowsAppTool())
-    tool_registry.register(WindowsClipboardTool())
-    tool_registry.register(WindowsNotificationTool())
-    tool_registry.register(WindowsProcessTool())
+    if sys.platform == "win32":
+        from core.tools.windows_tools import (
+            WindowsSnapshotTool,
+            WindowsClickTool,
+            WindowsTypeTool,
+            WindowsScrollTool,
+            WindowsShortcutTool,
+            WindowsAppTool,
+            WindowsClipboardTool,
+            WindowsNotificationTool,
+            WindowsProcessTool,
+        )
+        tool_registry.register(WindowsSnapshotTool())
+        tool_registry.register(WindowsClickTool())
+        tool_registry.register(WindowsTypeTool())
+        tool_registry.register(WindowsScrollTool())
+        tool_registry.register(WindowsShortcutTool())
+        tool_registry.register(WindowsAppTool())
+        tool_registry.register(WindowsClipboardTool())
+        tool_registry.register(WindowsNotificationTool())
+        tool_registry.register(WindowsProcessTool())
     
     return tool_registry
 
