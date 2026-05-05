@@ -438,7 +438,7 @@ class BaseAgent(ABC):
             else:
                 response, feedback = result, ""
 
-            if response == ApprovalResponse.YES:
+            if response == "yes" or response == ApprovalResponse.YES:
                 return ToolDecision(
                     verdict="execute",
                     approval_type=ToolPermission.ASK,

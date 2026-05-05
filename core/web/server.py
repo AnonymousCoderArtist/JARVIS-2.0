@@ -289,6 +289,7 @@ async def ws_endpoint(websocket: WebSocket):
     try:
         # Initialize the approval request queue for this connection
         _approval_request_queue = asyncio.Queue()
+        _pending_approvals: dict = {}
 
         # Store connection info for this session
         global _connection_info
@@ -454,6 +455,8 @@ async def ws_endpoint(websocket: WebSocket):
                     agent = _get_agent()
 
                     # Run agent processing with streaming
+                    # Initialize original_callbacks before try block for type checking
+                    original_callbacks: dict = {}
                     try:
                         # Set up a stream callback to send delta events
                         # We use a list to capture the asyncio tasks so we can await them
@@ -469,7 +472,7 @@ async def ws_endpoint(websocket: WebSocket):
                             delta_tasks.append(task)
 
                         # Check if agent has reasoning_callback
-                        has_reasoning = hasattr(agent, 'reasoning_callback')
+                        has_reasoning = hasattr(agent, 'reasoning_callback') and agent.reasoning_callback is not None
                         print(f"[DEBUG] Agent has reasoning_callback: {has_reasoning}")
                         if has_reasoning:
                             print(f"[DEBUG] Agent reasoning_callback type: {type(agent.reasoning_callback)}")
@@ -532,6 +535,24 @@ async def ws_endpoint(websocket: WebSocket):
                             # In a full implementation, this would wait for user input from the frontend
                             return {"answer": ""}
 
+                        # Set up approval callback for tool execution approval
+                        async def approval_callback(tool_name: str, tool_args: dict, tool_call_id: str, required_permissions: str) -> tuple:
+                            # Send approval request to frontend and wait for response
+                            _approval_request_queue.put_nowait({
+                                "chat_id": chat_id,
+                                "tool_name": tool_name,
+                                "tool_args": tool_args,
+                                "required_permissions": required_permissions,
+                                "tool_call_id": tool_call_id,
+                            })
+                            # The response will be handled by the approval_response message handler
+                            # which sets the result on the future stored in _pending_approvals
+                            # We need to wait for the response
+                            future = asyncio.Future()
+                            _pending_approvals[tool_call_id] = {"future": future}
+                            result = await future
+                            return result
+
                         # Save original callbacks
                         original_callbacks = {
                             "stream_callback": agent.stream_callback,
@@ -540,8 +561,8 @@ async def ws_endpoint(websocket: WebSocket):
                             "tool_call_callback": agent.tool_call_callback if hasattr(agent, 'tool_call_callback') else None,
                             "tool_result_callback": agent.tool_result_callback if hasattr(agent, 'tool_result_callback') else None,
                             "user_input_callback": agent.user_input_callback if hasattr(agent, 'user_input_callback') else None,
+                            "approval_callback": agent.approval_callback if hasattr(agent, 'approval_callback') else None,
                         }
-
                         # Set up the callbacks
                         agent.stream_callback = stream_callback
                         if hasattr(agent, 'reasoning_callback'):
@@ -554,6 +575,8 @@ async def ws_endpoint(websocket: WebSocket):
                             agent.tool_result_callback = tool_result_callback
                         if hasattr(agent, 'user_input_callback'):
                             agent.user_input_callback = user_input_callback
+                        if hasattr(agent, 'approval_callback'):
+                            agent.approval_callback = approval_callback
 
                         # Process the message
                         # Save user message to history
@@ -582,6 +605,8 @@ async def ws_endpoint(websocket: WebSocket):
                             agent.tool_result_callback = original_callbacks["tool_result_callback"]
                         if hasattr(agent, 'user_input_callback'):
                             agent.user_input_callback = original_callbacks["user_input_callback"]
+                        if hasattr(agent, 'approval_callback'):
+                            agent.approval_callback = original_callbacks["approval_callback"]
 
                         # Wait for all delta events to be sent before proceeding
                         # This ensures streaming works correctly and deltas arrive before final message
