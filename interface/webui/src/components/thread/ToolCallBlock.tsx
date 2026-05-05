@@ -75,4 +75,3 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
     </div>
   );
 }
-EOF
