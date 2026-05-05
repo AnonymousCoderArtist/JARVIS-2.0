@@ -20,9 +20,6 @@ from .base import BaseTool, ToolInput, ToolOutput
 # Code tools
 from .code_tools import BashTool, RunTestsTool
 
-# Document tools
-# Removed: ReadPDFTool
-
 # File tools
 from .file_edit_tool import EditTool
 from .file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
@@ -40,19 +37,6 @@ from .repl_tool import REPLTool
 
 # Web tools
 from .web_tools import WebFetchTool, ExaWebSearchTool
-
-# Windows tools
-from .windows_tools import (
-    WindowsSnapshotTool,
-    WindowsClickTool,
-    WindowsTypeTool,
-    WindowsScrollTool,
-    WindowsShortcutTool,
-    WindowsAppTool,
-    WindowsClipboardTool,
-    WindowsNotificationTool,
-    WindowsProcessTool,
-)
 
 __all__ = [
     "BaseTool",
@@ -85,14 +69,4 @@ __all__ = [
     "AgentStatusTool",
     # Skill tool
     "SkillTool",
-    # Windows tools
-    "WindowsSnapshotTool",
-    "WindowsClickTool",
-    "WindowsTypeTool",
-    "WindowsScrollTool",
-    "WindowsShortcutTool",
-    "WindowsAppTool",
-    "WindowsClipboardTool",
-    "WindowsNotificationTool",
-    "WindowsProcessTool",
 ]

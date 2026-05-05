@@ -3,6 +3,7 @@ import { ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ThreadMessages } from "@/components/thread/ThreadMessages";
+import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "@/lib/types";
@@ -10,6 +11,7 @@ import type { UIMessage } from "@/lib/types";
 interface ThreadViewportProps {
   messages: UIMessage[];
   isStreaming: boolean;
+  thinking: string;
   composer: ReactNode;
   emptyState?: ReactNode;
 }
@@ -19,6 +21,7 @@ const NEAR_BOTTOM_PX = 48;
 export function ThreadViewport({
   messages,
   isStreaming,
+  thinking,
   composer,
   emptyState,
 }: ThreadViewportProps) {
@@ -72,6 +75,13 @@ export function ThreadViewport({
             <div className="flex-1 px-4 pb-20 pt-4">
               <div className="mx-auto w-full max-w-[49.5rem]">
                 <ThreadMessages messages={messages} />
+                {thinking && (
+                  <ThinkingIndicator
+                    isVisible={isStreaming || !!thinking}
+                    text={thinking}
+                    className="mt-2"
+                  />
+                )}
               </div>
             </div>
 

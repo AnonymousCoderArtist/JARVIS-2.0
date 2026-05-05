@@ -298,7 +298,7 @@ If issues arise during implementation:
 **IMPORTANT**: Always use absolute paths or paths relative to the current working directory shown in the System Information.
 
 - The current working directory is provided in the System Information section
-- Use absolute paths (e.g., C:\\Users\\username\\project\\file.py) for clarity
+- Use absolute paths (e.g., /home/username/project/file.py on Linux/Mac, C:\\Users\\username\\project\\file.py on Windows) for clarity
 - When using relative paths, ensure they are relative to the current working directory
 - Never guess or assume paths - use list_directory or glob to find files first
 - If a file read fails with "File not found", use list_directory to verify the correct path

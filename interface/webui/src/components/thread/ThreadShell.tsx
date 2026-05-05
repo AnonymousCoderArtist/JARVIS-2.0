@@ -53,6 +53,7 @@ export function ThreadShell({
   const {
     messages,
     isStreaming,
+    thinking,
     send,
     setMessages,
     streamError,
@@ -167,6 +168,7 @@ export function ThreadShell({
       <ThreadViewport
         messages={messages}
         isStreaming={isStreaming}
+        thinking={thinking}
         emptyState={emptyState}
         composer={
           <>

@@ -73,6 +73,7 @@ export function useJarvisStream(
     toolName: string;
     toolArgs: Record<string, unknown>;
     requiredPermissions: string[];
+    toolCallId: string;
   } | null>(null);
   const buffer = useRef<StreamBuffer | null>(null);
   /** Timer that defers ``isStreaming = false`` after ``stream_end``.
@@ -183,11 +184,13 @@ export function useJarvisStream(
 
       if (ev.event === "reasoning") {
         // Reasoning/thinking content from the agent
-        setThinking(ev.text || "");
+        console.log("[DEBUG] Received reasoning event:", ev.text);
+        setThinking((prev) => prev + (ev.text || ""));
         return;
       }
 
       if (ev.event === "reasoning_end") {
+        console.log("[DEBUG] Received reasoning_end event");
         // Reasoning finished
         setThinking("");
         return;
@@ -199,6 +202,7 @@ export function useJarvisStream(
           toolName: ev.tool_name,
           toolArgs: ev.tool_args,
           requiredPermissions: ev.required_permissions,
+          toolCallId: ev.tool_call_id,
         });
         return;
       }
@@ -334,6 +338,7 @@ export function useJarvisStream(
       // Send the approval response to the server
       client.sendMessage(chatId, "", undefined, {
         type: "approval_response",
+        tool_call_id: pendingApproval.toolCallId,
         approved,
         always_allow: alwaysAllow,
       });

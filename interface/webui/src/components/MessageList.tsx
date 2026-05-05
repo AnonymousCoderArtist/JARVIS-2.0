@@ -78,7 +78,7 @@ export function MessageList({ messages, isStreaming, thinking }: MessageListProp
             <MessageBubble key={m.id} message={m} />
           ))}
           <ThinkingIndicator
-            isVisible={isStreaming}
+            isVisible={isStreaming || !!thinking}
             text={thinking}
             className="mt-2"
           />

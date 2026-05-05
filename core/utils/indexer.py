@@ -4,6 +4,9 @@ import time
 from pathlib import Path
 import logging
 
+# Cross-platform subprocess creation flags
+CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
+
 logger = logging.getLogger(__name__)
 
 class ProjectIndexer:
@@ -32,7 +35,7 @@ class ProjectIndexer:
                 capture_output=True,
                 text=True,
                 check=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                creationflags=CREATE_NO_WINDOW
             )
             self._files = result.stdout.splitlines()
             self._last_index_time = time.time()

@@ -261,6 +261,8 @@ class CommandRegistry:
                 lines.append(f"\n{session_id[:8]}... ({msg_count} messages)")
 
             self.display_manager.show_success("\n".join(lines), title="Sessions")
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to list sessions: {e}")
     
     async def _cmd_exit(self, args: List[str]):
         """Handle exit command."""
