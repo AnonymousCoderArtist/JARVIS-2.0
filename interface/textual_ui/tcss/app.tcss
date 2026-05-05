@@ -363,7 +363,7 @@ Markdown {
     margin: 0;
     color: #6c6c6c;
     text-style: italic;
-    background: #1e1e2e 30%;
+    background: transparent;
 
     * {
         color: #6c6c6c;
