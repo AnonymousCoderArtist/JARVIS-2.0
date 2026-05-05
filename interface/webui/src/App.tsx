@@ -70,7 +70,21 @@ export default function App() {
         });
       } catch (e) {
         if (cancelled) return;
-        setState({ status: "error", message: (e as Error).message });
+        const message = e instanceof Error ? e.message : String(e);
+        // Provide helpful hints based on error type
+        if (message.includes("Failed to fetch") || message.includes("ECONNREFUSED")) {
+          setState({ 
+            status: "error", 
+            message: "Cannot connect to backend server. Make sure the JARVIS backend is running on port 8765." 
+          });
+        } else if (message.includes("bootstrap failed")) {
+          setState({ 
+            status: "error", 
+            message: "Backend server responded with an error. Check if all dependencies are installed (fastapi, uvicorn)." 
+          });
+        } else {
+          setState({ status: "error", message });
+        }
       }
     })();
     return () => {

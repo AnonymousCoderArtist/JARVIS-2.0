@@ -61,14 +61,30 @@ def main(
 
     # Start the backend server using uvicorn (FastAPI's native WebSocket support)
     def start_backend():
-        import uvicorn
-        from core.web.server import app
-        
-        print(f"Starting JARVIS backend on http://{backend_host}:{backend_port} (uvicorn + fastapi)")
-        uvicorn.run(app, host=backend_host, port=backend_port, log_level="info")
+        import traceback
+        try:
+            import uvicorn
+            from core.web.server import app
+            
+            print(f"Starting JARVIS backend on http://{backend_host}:{backend_port} (uvicorn + fastapi)")
+            uvicorn.run(app, host=backend_host, port=backend_port, log_level="info")
+        except ImportError as e:
+            print(f"ERROR: Missing dependency - {e}")
+            print("Please install dependencies with: pip install fastapi uvicorn")
+            raise
+        except Exception as e:
+            print(f"ERROR in backend thread: {e}")
+            traceback.print_exc()
+            raise
 
     backend_thread = threading.Thread(target=start_backend, daemon=True)
     backend_thread.start()
+    
+    # Give the backend a moment to fail early if there's an import error
+    time.sleep(0.5)
+    if not backend_thread.is_alive():
+        print("ERROR: Backend thread failed to start. Check the error messages above.")
+        sys.exit(1)
 
     # Wait for the backend to be ready with a health check
     backend_url = f"http://{backend_connect_host}:{backend_port}"
@@ -79,15 +95,22 @@ def main(
     for i in range(max_retries):
         try:
             req = urllib.request.Request(f"{backend_url}/jarvis/health")
-            urllib.request.urlopen(req, timeout=2)
-            backend_ready = True
-            print(f"Backend server is ready!")
-            break
-        except Exception:
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                if resp.status == 200:
+                    backend_ready = True
+                    print(f"Backend server is ready!")
+                    break
+        except Exception as e:
+            if i == 0:
+                # Log first failure for debugging
+                print(f"  Health check failed (attempt 1): {e}")
             time.sleep(retry_delay)
     
     if not backend_ready:
-        print(f"WARNING: Backend server may not be ready. Proceeding anyway...")
+        print(f"ERROR: Backend server failed to start or respond after {max_retries * retry_delay} seconds.")
+        print(f"  Please check if port {backend_port} is available and the backend can start.")
+        print(f"  You can try running: python -m uvicorn core.web.server:app --host 127.0.0.1 --port {backend_port}")
+        sys.exit(1)
 
     # Start the frontend dev server (npm run dev)
     # On Windows, we need to use npm.cmd instead of npm

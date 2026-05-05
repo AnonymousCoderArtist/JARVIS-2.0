@@ -14,7 +14,8 @@ from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from core.history import ConversationHistory, create_user_message, create_assistant_message
 
 app = FastAPI()
@@ -27,6 +28,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static files for webui
+_WEBUI_DIR = Path(__file__).parent.parent.parent / "interface" / "jarvis" / "web" / "dist"
+if _WEBUI_DIR.exists():
+    app.mount("/brand", StaticFiles(directory=_WEBUI_DIR / "brand"), name="brand")
+    app.mount("/assets", StaticFiles(directory=_WEBUI_DIR / "assets"), name="assets")
 
 # Agent instance for WebSocket chat
 _agent: Any = None
@@ -108,7 +115,7 @@ def _get_agent():
     from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
     from core.tools.code_tools import BashTool, RunTestsTool
     from core.tools.grep_tool import GrepSearchTool
-    from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
+    from core.tools.web_tools import WebFetchTool
     
     # Get configuration from environment
     model = os.getenv("JARVIS_MODEL", "gpt-4o")
@@ -136,7 +143,14 @@ def _get_agent():
     tool_registry.register(RunTestsTool())
     tool_registry.register(GrepSearchTool())
     tool_registry.register(WebFetchTool())
-    tool_registry.register(ExaWebSearchTool())
+    
+    # Try to register ExaWebSearchTool (optional - depends on external service)
+    try:
+        from core.tools.web_tools import ExaWebSearchTool
+        tool_registry.register(ExaWebSearchTool())
+        print("INFO: ExaWebSearchTool registered successfully", file=sys.stderr)
+    except Exception as e:
+        print(f"WARNING: Failed to register ExaWebSearchTool (search will be unavailable): {e}", file=sys.stderr)
     
     # Simple config getter that returns default settings
     def get_settings() -> Settings:
@@ -907,6 +921,26 @@ async def api_update_settings(request: Request):
         },
         "requires_restart": False,
     }
+
+
+@app.get("/")
+async def serve_index():
+    """Serve the webui index.html"""
+    if _WEBUI_DIR.exists():
+        index_file = _WEBUI_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+    return JSONResponse(content={"error": "Web UI not built. Run 'npm run build' in interface/webui/"}, status_code=503)
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """Serve SPA fallback - return index.html for client-side routes"""
+    if _WEBUI_DIR.exists():
+        index_file = _WEBUI_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+    return JSONResponse(content={"error": "Web UI not built"}, status_code=503)
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8765, debug: bool = False):

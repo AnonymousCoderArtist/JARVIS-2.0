@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MarkdownTextRenderer } from "@/components/MarkdownTextRenderer";
+import MarkdownTextRenderer from "@/components/MarkdownTextRenderer";
 
 interface ThinkingBlockProps {
   content: string;
@@ -32,8 +32,8 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
 
       {isExpanded && (
         <div className="border-t border-border/20 px-4 py-3">
-          <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-xs text-muted-foreground/90 italic">
-            <MarkdownTextRenderer content={content} />
+          <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-xs text-muted-foreground/italic">
+            <MarkdownTextRenderer>{content}</MarkdownTextRenderer>
           </div>
           {isStreaming && (
             <div className="mt-2 flex gap-1">
