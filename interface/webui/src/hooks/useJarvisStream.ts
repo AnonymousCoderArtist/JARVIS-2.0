@@ -19,16 +19,8 @@ interface StreamBuffer {
 
 /**
  * Subscribe to a chat by ID. Returns the in-memory message list for the chat,
- * a streaming flag, and a ``send`` function. Initial history must be seeded
- * separately (e.g. via ``fetchSessionMessages``) since the server only replays
- * live events.
+ * a streaming flag, and a ``send`` function.
  */
-/** Payload passed to ``send`` when the user attaches one or more images.
- *
- * ``media`` is handed to the wire client verbatim; ``preview`` powers the
- * optimistic user bubble (blob URLs so the preview appears before the server
- * acks the frame). Keeping the two separate lets the bubble re-use the local
- * blob URL even after the server persists the file under a different name. */
 export interface SendImage {
   media: OutboundMedia;
   preview: UIImage;
@@ -44,26 +36,18 @@ export function useJarvisStream(
   thinking: string;
   send: (content: string, images?: SendImage[]) => void;
   setMessages: React.Dispatch<React.SetStateAction<UIMessage[]>>;
-  /** Latest transport-level fault raised since the last ``dismissStreamError``.
-   * ``null`` when there is nothing to show. */
   streamError: StreamError | null;
-  /** Clear the current ``streamError`` (e.g. after the user dismisses the
-   * notification or starts a fresh action). */
   dismissStreamError: () => void;
-  /** Pending approval request (tool execution that needs user approval) */
   pendingApproval: {
     toolName: string;
     toolArgs: Record<string, unknown>;
     requiredPermissions: string[];
+    toolCallId: string;
   } | null;
-  /** Send approval response to the server */
   sendApprovalResponse: (approved: boolean, alwaysAllow?: boolean) => void;
 } {
   const { client } = useClient();
   const [messages, setMessages] = useState<UIMessage[]>(initialMessages);
-  /** If the last loaded message is a trace row (e.g. "Using 2 tools"),
-   * the model was still processing when the page loaded — keep the
-   * loading spinner alive so the user sees the model is active. */
   const initialStreaming = initialMessages.length > 0
     ? initialMessages[initialMessages.length - 1].kind === "trace"
     : false;
@@ -76,16 +60,9 @@ export function useJarvisStream(
     toolCallId: string;
   } | null>(null);
   const buffer = useRef<StreamBuffer | null>(null);
-  /** Timer that defers ``isStreaming = false`` after ``stream_end``.
-   *
-   * When the model finishes a text segment and calls a tool, the server
-   * sends ``stream_end`` but the agent is still "thinking" while the tool
-   * executes.  By deferring the flag reset by a short window (1 s) we keep
-   * the loading spinner alive across tool-call boundaries without needing
-   * backend changes. */
   const streamEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Track thinking/reasoning content from the server
+  // We still keep thinking for the global spinner/status, but we'll also store it in messages
   const [thinking, setThinking] = useState<string>("");
 
   useEffect(() => {
@@ -94,52 +71,53 @@ export function useJarvisStream(
 
   const dismissStreamError = useCallback(() => setStreamError(null), []);
 
-  // Reset local state when switching chats. ``streamError`` is scoped to the
-     // send that triggered it, so a chat swap should wipe it out: a stale
-     // "Message too large" banner on a freshly-opened chat-B would confuse the
-     // user about which send actually failed (and in which chat).
-     useEffect(() => {
-       setMessages(initialMessages);
-       // Check if the new chat's last message is a trace row — if so, the
-       // model may still be processing.
-       setIsStreaming(
-         initialMessages.length > 0
-           ? initialMessages[initialMessages.length - 1].kind === "trace"
-           : false,
-       );
-       // Also consider hasPendingToolCalls from session history.
-       if (hasPendingToolCalls) {
-         setIsStreaming(true);
-       }
-       setStreamError(null);
-       buffer.current = null;
-       if (streamEndTimerRef.current !== null) {
-         clearTimeout(streamEndTimerRef.current);
-         streamEndTimerRef.current = null;
-       }
-       // eslint-disable-next-line react-hooks/exhaustive-deps
-     }, [chatId, initialMessages, hasPendingToolCalls]);
+  useEffect(() => {
+    setMessages(initialMessages);
+    setIsStreaming(
+      initialMessages.length > 0
+        ? initialMessages[initialMessages.length - 1].kind === "trace"
+        : false,
+    );
+    if (hasPendingToolCalls) {
+      setIsStreaming(true);
+    }
+    setStreamError(null);
+    buffer.current = null;
+    if (streamEndTimerRef.current !== null) {
+      clearTimeout(streamEndTimerRef.current);
+      streamEndTimerRef.current = null;
+    }
+  }, [chatId, initialMessages, hasPendingToolCalls]);
 
   useEffect(() => {
     if (!chatId) return;
 
     const handle = (ev: InboundEvent) => {
-      // Any incoming event while the debounce timer is alive means the model
-      // is still working (e.g. tool result arrived, more text to stream).
-      // Cancel the pending "stream ended" timer so we don't hide the spinner.
       if (streamEndTimerRef.current !== null) {
         clearTimeout(streamEndTimerRef.current);
         streamEndTimerRef.current = null;
       }
 
-      if (ev.event === "delta") {
-        const id = buffer.current?.messageId ?? crypto.randomUUID();
-        if (!buffer.current) {
+      const getActiveAssistantId = () => {
+        if (buffer.current?.messageId) return buffer.current.messageId;
+        // If no buffer, find the last streaming assistant message
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role === "assistant" && messages[i].isStreaming) {
+            return messages[i].id;
+          }
+        }
+        return null;
+      };
+
+      const ensureAssistantMessage = () => {
+        let id = getActiveAssistantId();
+        if (!id) {
+          id = crypto.randomUUID();
           buffer.current = { messageId: id, parts: [] };
           setMessages((prev) => [
             ...prev,
             {
-              id,
+              id: id!,
               role: "assistant",
               content: "",
               isStreaming: true,
@@ -148,56 +126,84 @@ export function useJarvisStream(
           ]);
           setIsStreaming(true);
         }
-        buffer.current.parts.push(ev.text);
-        const combined = buffer.current.parts.join("");
-        const targetId = buffer.current.messageId;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === targetId ? { ...m, content: combined } : m)),
-        );
-        return;
-      }
+        return id;
+      };
 
-      if (ev.event === "stream_end") {
-        // stream_end only means the text segment finished — the model may
-        // still be executing tools.  Do NOT reset isStreaming here; the
-        // definitive "turn is complete" signal is ``turn_end``.
-        // NOTE: We don't clear the buffer here because we need it for the
-        // final message event to properly update the streaming message.
-        // The buffer will be cleared when the message event arrives.
-        return;
-      }
-
-      if (ev.event === "turn_end") {
-        // Definitive signal that the turn is fully complete.  Cancel any
-        // pending debounce timer and stop the loading indicator immediately.
-        if (streamEndTimerRef.current !== null) {
-          clearTimeout(streamEndTimerRef.current);
-          streamEndTimerRef.current = null;
-        }
-        setIsStreaming(false);
-        setThinking(""); // Clear thinking when turn ends
+      if (ev.event === "delta") {
+        const id = ensureAssistantMessage();
+        buffer.current!.parts.push(ev.text);
+        const combined = buffer.current!.parts.join("");
         setMessages((prev) =>
-          prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m)),
+          prev.map((m) => (m.id === id ? { ...m, content: combined } : m)),
         );
         return;
       }
 
       if (ev.event === "reasoning") {
-        // Reasoning/thinking content from the agent
-        console.log("[DEBUG] Received reasoning event:", ev.text);
+        const id = ensureAssistantMessage();
         setThinking((prev) => prev + (ev.text || ""));
+        setMessages((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, reasoning: (m.reasoning || "") + ev.text } : m)),
+        );
         return;
       }
 
       if (ev.event === "reasoning_end") {
-        console.log("[DEBUG] Received reasoning_end event");
-        // Reasoning finished
         setThinking("");
         return;
       }
 
+      if (ev.event === "tool_call") {
+        const id = ensureAssistantMessage();
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== id) return m;
+            const toolCalls = [...(m.toolCalls || [])];
+            toolCalls.push({
+              id: crypto.randomUUID(), // Local ID for tracking
+              name: ev.tool_name,
+              args: ev.tool_args,
+            });
+            return { ...m, toolCalls };
+          }),
+        );
+        return;
+      }
+
+      if (ev.event === "tool_result") {
+        const id = getActiveAssistantId();
+        if (id) {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== id) return m;
+              const toolCalls = (m.toolCalls || []).map(tc => {
+                if (tc.name === ev.tool_name && tc.result === undefined) {
+                  return { ...tc, result: ev.result, success: ev.success };
+                }
+                return tc;
+              });
+              return { ...m, toolCalls };
+            }),
+          );
+        }
+        return;
+      }
+
+      if (ev.event === "stream_end") {
+        return;
+      }
+
+      if (ev.event === "turn_end") {
+        setIsStreaming(false);
+        setThinking("");
+        setMessages((prev) =>
+          prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m)),
+        );
+        buffer.current = null;
+        return;
+      }
+
       if (ev.event === "approval_request") {
-        // Tool execution needs user approval
         setPendingApproval({
           toolName: ev.tool_name,
           toolArgs: ev.tool_args,
@@ -208,9 +214,6 @@ export function useJarvisStream(
       }
 
       if (ev.event === "message") {
-        // Intermediate agent breadcrumbs (tool-call hints, raw progress).
-        // Attach them to the last trace row if it was the last emitted item
-        // so a sequence of calls collapses into one compact trace group.
         if (ev.kind === "tool_hint" || ev.kind === "progress") {
           const line = ev.text;
           setMessages((prev) => {
@@ -242,26 +245,16 @@ export function useJarvisStream(
           ? ev.media_urls.map((m) => toMediaAttachment(m))
           : ev.media?.map((url) => toMediaAttachment({ url }));
 
-        // A complete (non-streamed) assistant message. If a stream was in
-        // flight, drop the placeholder so we don't render the text twice.
-        // We need to handle this carefully to avoid duplicates.
-        const activeId = buffer.current?.messageId;
-        
-        // Do NOT reset isStreaming here — only ``turn_end`` signals that
-        // the full turn (all tool calls + final text) is complete.
+        const activeId = getActiveAssistantId();
+        const content = ev.buttons?.length ? (ev.button_prompt ?? ev.text) : ev.text;
+
         setMessages((prev) => {
-          // If we have an active streaming message, update it in place instead of adding a new one
-          // This ensures we don't get duplicates
-          const content = ev.buttons?.length ? (ev.button_prompt ?? ev.text) : ev.text;
-          
           if (activeId) {
-            // Update the existing streaming message instead of adding a new one
-            // This avoids the duplicate issue entirely
             return prev.map((m) =>
               m.id === activeId
                 ? {
                     ...m,
-                    content,
+                    content: content || m.content, // Preserve existing content if event text is empty
                     isStreaming: false,
                     createdAt: Date.now(),
                     ...(ev.buttons && ev.buttons.length > 0 ? { buttons: ev.buttons } : {}),
@@ -271,7 +264,6 @@ export function useJarvisStream(
             );
           }
           
-          // No streaming message - add a new one (shouldn't happen in normal flow)
           return [
             ...prev,
             {
@@ -285,31 +277,22 @@ export function useJarvisStream(
           ];
         });
         
-        // Clear the buffer AFTER updating messages
         buffer.current = null;
         return;
       }
-      // ``attached`` / ``error`` frames aren't actionable here; the client
-      // shell handles them separately.
     };
 
     const unsub = client.onChat(chatId, handle);
     return () => {
       unsub();
       buffer.current = null;
-      if (streamEndTimerRef.current !== null) {
-        clearTimeout(streamEndTimerRef.current);
-        streamEndTimerRef.current = null;
-      }
     };
-  }, [chatId, client]);
+  }, [chatId, client, messages.length]); // messages.length to re-bind closure if needed
 
   const send = useCallback(
     (content: string, images?: SendImage[]) => {
       if (!chatId) return;
       const hasImages = !!images && images.length > 0;
-      // Text is optional when images are attached — the agent will still see
-      // the image blocks via ``media`` paths.
       if (!hasImages && !content.trim()) return;
 
       const previews = hasImages ? images!.map((i) => i.preview) : undefined;
@@ -323,8 +306,6 @@ export function useJarvisStream(
           ...(previews ? { images: previews } : {}),
         },
       ]);
-      // Mark streaming immediately so the UI shows the loading indicator
-      // right away, before the first delta arrives from the server.
       setIsStreaming(true);
       const wireMedia = hasImages ? images!.map((i) => i.media) : undefined;
       client.sendMessage(chatId, content, wireMedia);
@@ -335,9 +316,9 @@ export function useJarvisStream(
   const sendApprovalResponse = useCallback(
     (approved: boolean, alwaysAllow?: boolean) => {
       if (!chatId || !pendingApproval) return;
-      // Send the approval response to the server
       client.sendMessage(chatId, "", undefined, {
         type: "approval_response",
+        chat_id: chatId,
         tool_call_id: pendingApproval.toolCallId,
         approved,
         always_allow: alwaysAllow,

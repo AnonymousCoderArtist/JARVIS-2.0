@@ -396,13 +396,15 @@ async def ws_endpoint(websocket: WebSocket):
                     # Set up tool result callback to send tool_result events
                     tool_result_tasks = []
 
-                    def tool_result_callback(tool_name: str, result: str, success: bool):
+                    def tool_result_callback(tool_name: str, result: Any, success: bool):
+                        # Convert result to string to avoid serialization errors (e.g. ToolOutput objects)
+                        serialized_result = str(result)
                         task = asyncio.create_task(websocket.send_json({
                             "event": "tool_result",
                             "chat_id": chat_id,
                             "tool_name": tool_name,
-                            "result": result,
-                            "success": success,
+                            "result": serialized_result,
+                            "success": bool(success),
                         }))
                         tool_result_tasks.append(task)
 

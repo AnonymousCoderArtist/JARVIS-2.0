@@ -6,6 +6,8 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { MarkdownText } from "@/components/MarkdownText";
 import { cn } from "@/lib/utils";
 import type { UIImage, UIMediaAttachment, UIMessage } from "@/lib/types";
+import { ThinkingBlock } from "@/components/thread/ThinkingBlock";
+import { ToolCallBlock } from "@/components/thread/ToolCallBlock";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -60,14 +62,32 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   const empty = message.content.trim().length === 0;
   const media = message.media ?? [];
+  const hasReasoning = !!message.reasoning;
+  const hasToolCalls = !!message.toolCalls && message.toolCalls.length > 0;
+
   return (
     <div className={cn("w-full text-sm", baseAnim)} style={{ lineHeight: "var(--cjk-line-height)" }}>
-      {empty && message.isStreaming ? (
+      {/* Reasoning/Thinking section (DeepSeek-style) */}
+      {(hasReasoning || (empty && message.isStreaming)) && (
+        <ThinkingBlock content={message.reasoning || ""} isStreaming={message.isStreaming && !message.content} />
+      )}
+
+      {/* Tool Call section */}
+      {hasToolCalls && (
+        <div className="mb-4">
+          {message.toolCalls!.map((tc) => (
+            <ToolCallBlock key={tc.id} toolCall={tc} />
+          ))}
+        </div>
+      )}
+
+      {/* Main response section */}
+      {empty && message.isStreaming && !hasReasoning ? (
         <TypingDots />
       ) : (
         <>
-          <MarkdownText>{message.content}</MarkdownText>
-          {message.isStreaming && <StreamCursor />}
+          {message.content && <MarkdownText>{message.content}</MarkdownText>}
+          {message.isStreaming && message.content && <StreamCursor />}
           {media.length > 0 ? <MessageMedia media={media} align="left" /> : null}
         </>
       )}
