@@ -231,7 +231,7 @@ jarvis --webui
 jarvis --webui --model gpt-4o --apikey YOUR_KEY
 ```
 
-> **Note:** The WebUI interface provides a browser-based chat interface similar to popular AI assistants. The UI design has been adapted from the [nanobot](https://github.com/OEvortex/nanobot) repository.
+> **Note:** The WebUI interface provides a browser-based chat interface similar to popular AI assistants. The UI design has been adapted from the [nanobot](https://github.com/HKUDS/nanobot) repository.
 
 ### Available CLI Flags
 

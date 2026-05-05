@@ -1,18 +1,17 @@
 /* ========================================
    JARVIS Color Palette
    ======================================== */
-$mistral_orange: #FF8205;
-$accent: #FF8205;
-$surface: #1a1a2e;
-$surface-light: #16213e;
-$text-primary: #e0e0e0;
-$text-secondary: #8b8b9a;
-$border-subtle: #2a2a3e;
-$border-focus: #FF8205;
-$success: #4ade80;
-$warning: #facc15;
-$error: #f87171;
-$info: #60a5fa;
+$accent: ansi_blue;
+$surface: transparent;
+$surface-light: transparent;
+$text-primary: ansi_default;
+$text-secondary: ansi_bright_black;
+$border-subtle: ansi_black;
+$border-focus: ansi_yellow;
+$success: ansi_green;
+$warning: ansi_yellow;
+$error: ansi_red;
+$info: ansi_cyan;
 
 /* ========================================
    Tool Widgets Modern Styles
@@ -26,7 +25,7 @@ $info: #60a5fa;
 }
 
 .tool-result-widget:focus {
-    background: $border-subtle 30%;
+    background: transparent;
 }
 
 /* Branch indicator for collapsed summaries */
@@ -38,19 +37,19 @@ $info: #60a5fa;
 
 .tool-result-summary.collapsed {
     color: $info;
-    background: $surface-light 30%;
+    background: transparent;
     padding: 0 1;
 }
 
 .tool-result-summary.clickable {
     color: $info;
     text-style: bold;
-    background: $surface-light 40%;
+    background: transparent;
     padding: 0 1;
 }
 
 .tool-result-summary.clickable:hover {
-    background: $surface-light 60%;
+    background: transparent;
     color: $text-primary;
 }
 
@@ -109,7 +108,7 @@ $info: #60a5fa;
     margin-left: 2;
     margin-top: 1;
     color: $success;
-    background: $surface-light 30%;
+    background: transparent;
     padding: 0 1;
 }
 
@@ -152,7 +151,7 @@ $info: #60a5fa;
 .tool-result-match {
     color: $text-primary;
     padding-left: 5;
-    background: $surface-light 15%;
+    background: transparent;
 }
 
 /* ========================================

@@ -1,25 +1,24 @@
 /* ========================================
-   JARVIS — Catppuccin Mocha Theme
+   JARVIS — ansi-dark Theme
    ======================================== */
-$base: #1e1e2e;
-$surface: #313244;
-$overlay: #45475a;
-$muted: #6c7086;
-$text: #cdd6f4;
-$subtext: #a6adc8;
-$accent: #cba6f7;
-$accent-soft: #b4befe;
-$success: #a6e3a1;
-$warning: #f9e2af;
-$error: #f38ba8;
-$info: #89b4fa;
-$user: #fab387;
-$peach: #fab387;
+$peach: ansi_bright_yellow;
+$accent: ansi_blue;
+$text: ansi_default;
+$overlay: ansi_bright_black;
+$muted: ansi_bright_black;
+$error: ansi_red;
+$recording: ansi_red;
+$success: ansi_green;
+$warning: ansi_yellow;
+$user: ansi_bright_yellow;
+$surface: transparent;
+$subtext: ansi_bright_black;
+$info: ansi_cyan;
 
 * {
-    scrollbar-color: $overlay;
-    scrollbar-color-hover: $accent;
-    scrollbar-color-active: $accent;
+    scrollbar-color: ansi_black;
+    scrollbar-color-hover: ansi_bright_black;
+    scrollbar-color-active: ansi_bright_black;
     scrollbar-background: transparent;
     scrollbar-background-hover: transparent;
     scrollbar-background-active: transparent;
@@ -27,7 +26,7 @@ $peach: #fab387;
 }
 
 Screen {
-    background: $base;
+    background: transparent;
 }
 
 Horizontal {
@@ -43,7 +42,7 @@ TextArea > .text-area--cursor {
     layout: stream;
     height: 1fr;
     width: 100%;
-    background: $base;
+    background: transparent;
     padding: 0 2;
     align-vertical: bottom;
 }
@@ -107,7 +106,7 @@ TextArea > .text-area--cursor {
     width: auto;
     height: auto;
     color: ansi_default;
-    background: $surface;
+    background: transparent;
     border: solid ansi_bright_black;
     overflow-y: auto;
     scrollbar-size-vertical: 1;
@@ -122,10 +121,10 @@ TextArea > .text-area--cursor {
 #input-box {
     height: auto;
     width: 100%;
-    background: $surface;
-    border: solid $overlay;
+    background: transparent;
+    border: solid ansi_bright_black;
     border-title-align: right;
-    border-title-color: $muted;
+    border-title-color: ansi_bright_black;
     padding: 0 1;
 
     &.border-warning {
@@ -173,7 +172,7 @@ TextArea > .text-area--cursor {
     height: auto;
     min-height: 3;
     max-height: 50vh;
-    background: $surface;
+    background: transparent;
     color: $text;
     border: none;
     padding: 0;
@@ -195,7 +194,7 @@ Markdown {
 
     .code_inline {
         color: $peach;
-        background: $surface;
+        background: transparent;
         text-style: bold;
     }
 
@@ -203,7 +202,7 @@ Markdown {
         overflow-x: auto;
         scrollbar-size-horizontal: 1;
         max-width: 95%;
-        background: $surface;
+        background: transparent;
         border: solid $overlay;
         padding: 1;
 
@@ -217,7 +216,7 @@ Markdown {
     }
 
     MarkdownBlockQuote {
-        background: $surface;
+        background: transparent;
         border-left: outer $accent;
         padding-left: 1;
     }
@@ -277,7 +276,7 @@ Markdown {
     padding: 0 1;
     border-left: heavy $user;
     color: $user;
-    background: $surface 50%;
+    background: transparent;
 }
 
 .assistant-message {
@@ -540,7 +539,7 @@ StatusMessage {
     width: 100%;
     height: auto;
     margin-top: 1;
-    background: $surface 30%;
+    background: transparent 30%;
     border-left: wide $info;
     padding: 0 1;
 }
@@ -567,7 +566,7 @@ StatusMessage {
     margin-top: 0;
     margin-left: 0;
     padding: 0 1;
-    background: $surface 25%;
+    background: transparent 25%;
     color: $text;
     border-left: wide $success;
 
@@ -665,12 +664,12 @@ StatusMessage {
 .tool-result-summary.clickable {
     color: $info;
     text-style: bold;
-    background: $surface 40%;
+    background: transparent 40%;
     padding: 0 1;
 }
 
 .tool-result-summary.clickable:hover {
-    background: $surface 60%;
+    background: transparent 60%;
     color: $text;
 }
 
@@ -745,7 +744,7 @@ StatusMessage {
     width: 100%;
     height: auto;
     color: $subtext;
-    background: $surface 30%;
+    background: transparent 30%;
     padding: 0 1;
     border-left: wide $accent;
 }
@@ -809,7 +808,7 @@ StatusMessage {
 #config-app, #voice-app, #mcp-app, #connectorauth-app {
     width: 100%;
     height: auto;
-    background: $surface;
+    background: transparent;
     border: solid $overlay;
     padding: 0 1;
     margin: 0;
@@ -875,7 +874,7 @@ StatusMessage {
     width: 100%;
     height: auto;
     max-height: 70vh;
-    background: $surface;
+    background: transparent;
     border: solid $warning;
     padding: 0 1;
     margin: 0;
@@ -970,7 +969,7 @@ StatusMessage {
     width: 100%;
     height: auto;
     max-height: 70vh;
-    background: $surface;
+    background: transparent;
     border: solid $overlay;
     padding: 0 1;
     margin: 0;
@@ -1117,7 +1116,7 @@ NarratorStatus {
     color: $accent;
     text-style: bold;
     width: auto;
-    background: $surface 50%;
+    background: transparent;
     padding: 0 1;
 }
 
@@ -1157,7 +1156,7 @@ NarratorStatus {
 .whats-new-message {
     border-left: heavy $accent;
     margin-bottom: 1;
-    background: $surface 30%;
+    background: transparent 30%;
 
     Markdown {
         padding: 0 0 0 1;
@@ -1195,7 +1194,7 @@ NarratorStatus {
 #sessionpicker-app {
     width: 100%;
     height: auto;
-    background: $surface;
+    background: transparent;
     border: solid $overlay;
     padding: 0 1;
     margin: 0;
@@ -1330,7 +1329,7 @@ NarratorStatus {
     max-width: 80;
     min-width: 40;
     height: 100%;
-    background: $surface;
+    background: transparent;
     border-left: solid $overlay;
     padding: 0 1;
 }

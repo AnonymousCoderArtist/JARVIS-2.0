@@ -520,7 +520,7 @@ class VibeApp(App):  # noqa: PLR0904
             yield ContextProgress()
 
     async def on_mount(self) -> None:
-        # Use ANSI-based theme for consistent terminal styling
+        # Use ansi-dark theme with transparent backgrounds
         self.theme = "ansi-dark"
         self._terminal_notifier.restore()
 
@@ -667,7 +667,7 @@ class VibeApp(App):  # noqa: PLR0904
         input_widget.value = ""
 
         if self._agent_running:
-            # Direct check to handle /rw or /rewind even when agent is running (similar to mistral-vibe)
+            # Direct check to handle /rw or /rewind even when agent is running
             if value == "/rw" or value == "/rewind" or value.startswith("/rw ") or value.startswith("/rewind "):
                 self._start_rewind_mode(skip_agent_check=True)
                 # Don't switch to input app - rewind handles its own UI state
