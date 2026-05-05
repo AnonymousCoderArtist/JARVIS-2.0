@@ -19,6 +19,7 @@ from core.agents.profiles import AgentProfile as CoreAgentProfile
 from core.config.settings import Settings
 from core.tools.registry import ToolRegistry
 from core.rewind import RewindManager, RewindError
+from core.history import ConversationHistory, create_user_message, create_assistant_message
 
 from interface.textual_ui.types import (
     AgentStats,
@@ -351,6 +352,12 @@ class AgentLoop:
         self.agent.tool_result_callback = self._on_tool_result
         # Set up reasoning callback to capture reasoning content
         self.agent.reasoning_callback = self._on_reasoning
+
+        # ====================================================================
+        # Conversation History System
+        # ====================================================================
+        self.history = ConversationHistory()
+        self.session_id = self.history.session_id
 
     @property
     def messages(self) -> list[LLMMessage]:
@@ -949,6 +956,10 @@ Create a comprehensive summary that captures:
             # Yield user message event
             yield UserMessageEvent(content=prompt)
 
+            # Save user message to history
+            user_msg = create_user_message(prompt)
+            self.history.append_message(user_msg)
+
             # Process message with JARVIS agent
             # We use a background task so we can yield events while it runs
             task = asyncio.create_task(self.agent.process(prompt))
@@ -1006,6 +1017,12 @@ Create a comprehensive summary that captures:
             elif not self._stream_chunks:
                 # If no response and no stream chunks, yield a message
                 yield AssistantEvent(content="No response generated.")
+
+            # Save assistant response to history
+            assistant_content = response or "".join(self._stream_chunks)
+            if assistant_content:
+                assistant_msg = create_assistant_message(assistant_content)
+                self.history.append_message(assistant_msg)
 
             # Update stats from agent memory
             self.stats.update_from_agent(self.agent)

@@ -143,8 +143,9 @@ export function useJarvisStream(
         // stream_end only means the text segment finished — the model may
         // still be executing tools.  Do NOT reset isStreaming here; the
         // definitive "turn is complete" signal is ``turn_end``.
-        if (!buffer.current) return;
-        buffer.current = null;
+        // NOTE: We don't clear the buffer here because we need it for the
+        // final message event to properly update the streaming message.
+        // The buffer will be cleared when the message event arrives.
         return;
       }
 
@@ -199,15 +200,36 @@ export function useJarvisStream(
 
         // A complete (non-streamed) assistant message. If a stream was in
         // flight, drop the placeholder so we don't render the text twice.
+        // We need to handle this carefully to avoid duplicates.
         const activeId = buffer.current?.messageId;
-        buffer.current = null;
+        
         // Do NOT reset isStreaming here — only ``turn_end`` signals that
         // the full turn (all tool calls + final text) is complete.
         setMessages((prev) => {
-          const filtered = activeId ? prev.filter((m) => m.id !== activeId) : prev;
+          // If we have an active streaming message, update it in place instead of adding a new one
+          // This ensures we don't get duplicates
           const content = ev.buttons?.length ? (ev.button_prompt ?? ev.text) : ev.text;
+          
+          if (activeId) {
+            // Update the existing streaming message instead of adding a new one
+            // This avoids the duplicate issue entirely
+            return prev.map((m) =>
+              m.id === activeId
+                ? {
+                    ...m,
+                    content,
+                    isStreaming: false,
+                    createdAt: Date.now(),
+                    ...(ev.buttons && ev.buttons.length > 0 ? { buttons: ev.buttons } : {}),
+                    ...(media && media.length > 0 ? { media } : {}),
+                  }
+                : m
+            );
+          }
+          
+          // No streaming message - add a new one (shouldn't happen in normal flow)
           return [
-            ...filtered,
+            ...prev,
             {
               id: crypto.randomUUID(),
               role: "assistant",
@@ -218,6 +240,9 @@ export function useJarvisStream(
             },
           ];
         });
+        
+        // Clear the buffer AFTER updating messages
+        buffer.current = null;
         return;
       }
       // ``attached`` / ``error`` frames aren't actionable here; the client

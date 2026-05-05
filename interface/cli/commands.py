@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable, Awaitable, Dict, List, Optional, Any
 
 from core.trusted_folders import trusted_folders_manager
+from core.history import ConversationHistory
 
 from .display import DisplayManager
 
@@ -44,6 +45,9 @@ class CommandRegistry:
         self.register(Command("trust", "Trust a folder for this session and future runs", self._cmd_trust))
         self.register(Command("untrust", "Mark a folder as untrusted", self._cmd_untrust))
         self.register(Command("trust-status", "Show current trust-folder status", self._cmd_trust_status))
+        self.register(Command("history", "Show conversation history", self._cmd_history))
+        self.register(Command("clear-history", "Clear current session history", self._cmd_clear_history))
+        self.register(Command("sessions", "List available sessions", self._cmd_sessions))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
         self.register(Command("quit", "Exit JARVIS", self._cmd_exit))
         
@@ -195,6 +199,68 @@ class CommandRegistry:
             self.display_manager.show_success(message, title="Trust Status")
         except Exception as e:
             self.display_manager.show_error(f"Failed to read trust status: {e}")
+
+    async def _cmd_history(self, args: List[str]):
+        """Show conversation history."""
+        try:
+            history = ConversationHistory()
+            messages = history.get_messages()
+
+            if not messages:
+                self.display_manager.show_info("No conversation history found for this session.")
+                return
+
+            # Format messages for display
+            lines = [f"Session: {history.session_id[:8]}...\n"]
+            lines.append("-" * 50)
+
+            for msg in messages[-20:]:  # Show last 20 messages
+                role = msg.role or msg.type
+                content = msg.content
+                if isinstance(content, str):
+                    preview = content[:100] + "..." if len(content) > 100 else content
+                else:
+                    preview = str(content)[:100]
+                lines.append(f"\n[{role}] {preview}")
+
+            self.display_manager.show_success("\n".join(lines), title="History")
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to read history: {e}")
+
+    async def _cmd_clear_history(self, args: List[str]):
+        """Clear current session history."""
+        try:
+            history = ConversationHistory()
+            history.clear_history()
+            self.display_manager.show_success(
+                f"Cleared history for session {history.session_id[:8]}...",
+                title="History Cleared"
+            )
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to clear history: {e}")
+
+    async def _cmd_sessions(self, args: List[str]):
+        """List available sessions."""
+        try:
+            history_dir = ConversationHistory().history_dir
+            if not history_dir.exists():
+                self.display_manager.show_info("No sessions found.")
+                return
+
+            sessions = list(history_dir.glob("*.jsonl"))
+            if not sessions:
+                self.display_manager.show_info("No sessions found.")
+                return
+
+            lines = ["Available Sessions:\n"]
+            lines.append("-" * 50)
+
+            for session_file in sessions[:10]:  # Show max 10 sessions
+                session_id = session_file.stem
+                msg_count = sum(1 for _ in open(session_file))
+                lines.append(f"\n{session_id[:8]}... ({msg_count} messages)")
+
+            self.display_manager.show_success("\n".join(lines), title="Sessions")
     
     async def _cmd_exit(self, args: List[str]):
         """Handle exit command."""
