@@ -75,7 +75,7 @@ export function ThreadViewport({
             <div className="flex-1 px-4 pb-20 pt-4">
               <div className="mx-auto w-full max-w-[49.5rem]">
                 <ThreadMessages messages={messages} />
-                {thinking && (
+                {(isStreaming || !!thinking) && (
                   <ThinkingIndicator
                     isVisible={isStreaming || !!thinking}
                     text={thinking}
