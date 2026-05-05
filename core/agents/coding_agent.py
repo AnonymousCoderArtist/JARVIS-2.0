@@ -1,6 +1,8 @@
 """Coding Agent - Claude Code style"""
 
+import asyncio
 import time
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from .base import BaseAgent
@@ -8,6 +10,7 @@ from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, PLAN
 from .heartbeat_scheduler import HeartbeatScheduler
 from core.connectors import ConnectorManager
 from core.learn import LearningManager, LearningConfig
+from core.tools.skill_manage_tool import get_skill_dir, create_skill_markdown
 # from core.learn.prompt_optimizer import OptimizedPrompt
 
 if TYPE_CHECKING:
@@ -115,7 +118,11 @@ class CodingAgent(BaseAgent):
         # Set skill creation and evaluation thresholds from learning config
         self._skill_creation_threshold = getattr(settings, 'skill_creation_threshold', 5)
         self._self_evaluation_interval = getattr(settings, 'self_evaluation_interval', 15)
-        
+
+        # Initialize tool tracking attributes
+        self._last_tool_name: str = ""
+        self._tool_usage_history: list[str] = []
+
         # Set up tool call tracking via callback
         self.tool_call_callback = self._on_tool_call
 
@@ -143,20 +150,96 @@ class CodingAgent(BaseAgent):
     def track_tool_call(self) -> None:
         """Track a tool call for learning loop purposes"""
         self._tool_call_count += 1
-        
+
+        # Track tool usage patterns for learning
+        if not hasattr(self, '_tool_usage_history'):
+            self._tool_usage_history: list[str] = []
+        self._tool_usage_history.append(self._last_tool_name or "unknown")
+        if len(self._tool_usage_history) > 100:
+            self._tool_usage_history = self._tool_usage_history[-100:]
+
         # Check if we should trigger skill creation
         if self._tool_call_count >= self._skill_creation_threshold:
-            # This would trigger the skill creation logic
-            # In a full implementation, this would analyze recent tool usage patterns
-            # and potentially create a new skill
-            pass
-        
+            asyncio.create_task(self._create_skill_from_patterns())
+            self._skill_creation_threshold = self._tool_call_count + 5  # Reset threshold
+
         # Check if we should trigger self-evaluation
         if self._tool_call_count >= self._self_evaluation_interval:
-            # This would trigger self-evaluation checkpoint
-            # In a full implementation, this would analyze recent performance
-            # and potentially improve existing skills
-            pass
+            asyncio.create_task(self._perform_self_evaluation())
+            self._self_evaluation_interval = self._tool_call_count + 15  # Reset interval
+
+    async def _create_skill_from_patterns(self) -> str | None:
+        """Analyze tool usage patterns and create a skill if a pattern emerges"""
+        if not self._tool_usage_history or len(self._tool_usage_history) < 3:
+            return None
+
+        recent_tools = self._tool_usage_history[-10:]
+
+        # Check for repeated patterns
+        tool_counts = defaultdict(int, {t: recent_tools.count(t) for t in set(recent_tools)})
+
+        # Find most used tools
+        most_used = [(t, c) for t, c in tool_counts.items() if c >= 2]
+        if not most_used:
+            return None
+
+        # Create skill name and description
+        top_tool = most_used[0][0]
+        skill_name = f"tool-{top_tool.replace('_', '-')}-helper"
+        skill_dir = get_skill_dir()
+        skill_file = skill_dir / f"{skill_name}.md"
+
+        # Create skill markdown
+        skill_content = create_skill_markdown(
+            name=f"Tool {top_tool} Helper",
+            description=f"Automatically generated skill for using the {top_tool} tool effectively",
+            when_to_use=f"When the user needs to use {top_tool} or similar operations",
+            when_not_to_use="When other tools would be more appropriate",
+            procedure=f"1. Identify the user's intent\n2. Use {top_tool} with appropriate parameters\n3. Verify the result\n4. Report back to user",
+            pitfalls="Ensure parameters are correctly formatted",
+            verification="Check that the tool executed successfully"
+        )
+
+        # Write skill file
+        skill_file.write_text(skill_content)
+        return str(skill_file)
+
+    async def _perform_self_evaluation(self) -> dict[str, Any]:
+        """Perform self-evaluation checkpoint and potentially improve skills"""
+        evaluation = {
+            "tool_call_count": self._tool_call_count,
+            "last_10_tools": self._tool_usage_history[-10:] if hasattr(self, '_tool_usage_history') else [],
+            "improvements_made": []
+        }
+
+        # Analyze recent performance
+        if hasattr(self, '_tool_usage_history') and len(self._tool_usage_history) >= 5:
+            recent = self._tool_usage_history[-5:]
+            tool_counts = defaultdict(int)
+            for tool in recent:
+                tool_counts[tool] += 1
+
+            # If a tool is used frequently, ensure skill exists
+            for tool, count in tool_counts.items():
+                if count >= 2:
+                    skill_name = f"tool-{tool.replace('_', '-')}-helper"
+                    skill_dir = get_skill_dir()
+                    skill_file = skill_dir / f"{skill_name}.md"
+
+                    if not skill_file.exists():
+                        # Create missing skill
+                        skill_content = create_skill_markdown(
+                            name=f"Tool {tool} Helper",
+                            description=f"Skill for using {tool} tool effectively",
+                            when_to_use=f"When {tool} is needed",
+                            when_not_to_use="When other tools are more appropriate",
+                            procedure=f"Use {tool} with proper parameters",
+                            pitfalls="Check parameters before use"
+                        )
+                        skill_file.write_text(skill_content)
+                        evaluation["improvements_made"].append(f"Created skill for {tool}")
+
+        return evaluation
 
     def reset_tool_call_count(self) -> None:
         """Reset tool call counter (e.g., after skill creation or evaluation)"""
@@ -164,6 +247,8 @@ class CodingAgent(BaseAgent):
 
     def _on_tool_call(self, tool_name: str, tool_args: dict[str, Any]) -> None:
         """Callback for tracking tool calls"""
+        self._last_tool_name = tool_name
+        _ = tool_args  # Acknowledge for potential future use
         self.track_tool_call()
 
     def set_system_prompt(self, system_prompt: str) -> None:

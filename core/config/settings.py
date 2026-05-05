@@ -55,7 +55,7 @@ class Settings:
                 print(f"Warning: Failed to load config from {self.config_path}: {e}")
         
         # Override with environment config
-        env_config = _load_env_config() if initial_config is None else {}
+        env_config = _load_env_config()
         
         # Merge: start with toml, then env, then initial_config
         merged_config = self._deep_merge(toml_config, env_config)

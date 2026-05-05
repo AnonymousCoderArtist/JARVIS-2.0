@@ -356,6 +356,9 @@ class AgentLoop:
         # Initialize heartbeat system
         self._setup_heartbeat()
         
+        # Note: Heartbeat will be started when the TUI app is mounted
+        # (via start_heartbeat_if_enabled method) to ensure event loop is running
+        
         # ====================================================================
         # Conversation History System
         # ====================================================================
@@ -726,6 +729,11 @@ Create a comprehensive summary that captures:
             logger.info("Heartbeat system configured")
         except Exception as e:
             logger.warning(f"Failed to initialize heartbeat: {e}")
+    
+    async def start_heartbeat_if_enabled(self) -> None:
+        """Start heartbeat if configured (call after event loop is running)."""
+        if self.agent.heartbeat_scheduler and self.agent.heartbeat_scheduler.enabled:
+            await self.agent.start_heartbeat()
 
     def _drain_event_queue(self) -> None:
         """Discard stale events before starting a new turn."""

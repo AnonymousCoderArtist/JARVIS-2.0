@@ -61,12 +61,12 @@ def is_within_active_hours(start: str, end: str, timezone: str = "America/New_Yo
     try:
         import zoneinfo
         tz = zoneinfo.ZoneInfo(timezone)
+        now = datetime.now(tz)
+        current_time = now.strftime("%H:%M")
     except Exception:
-        import time
-        tz = None
-    
-    now = datetime.now(tz)
-    current_time = now.strftime("%H:%M")
+        # Fallback: use naive datetime if timezone fails
+        now = datetime.now()
+        current_time = now.strftime("%H:%M")
     
     return start <= current_time <= end
 

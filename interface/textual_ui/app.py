@@ -563,6 +563,10 @@ class VibeApp(App):  # noqa: PLR0904
 
         self.agent_loop.set_approval_callback(self._approval_callback)
         self.agent_loop.set_user_input_callback(self._user_input_callback)
+        
+        # Start heartbeat if enabled (needs to be called after event loop is running)
+        await self.agent_loop.start_heartbeat_if_enabled()
+        
         self._refresh_profile_widgets()
 
         chat_input_container = self.query_one(ChatInputContainer)

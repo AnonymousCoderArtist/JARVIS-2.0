@@ -1096,7 +1096,6 @@ NarratorStatus {
     width: auto;
     height: auto;
     background: transparent;
-    border: round $border-blurred;
 }
 
 .banner-chat {
