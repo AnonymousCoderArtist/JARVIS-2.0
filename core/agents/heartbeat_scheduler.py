@@ -12,7 +12,33 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-# Virtual heartbeat tool schema for LLM decision making
+# Virtual heartbeat_ok tool for saving heartbeat results
+_HEARTBEAT_RESULT_TOOL = [
+    {
+        "type": "function",
+        "function": {
+            "name": "heartbeat_result",
+            "description": "Save heartbeat completion result and write to results file.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "string",
+                        "description": "The heartbeat task completion result to save",
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["completed", "error"],
+                        "description": "Status of the heartbeat task",
+                    },
+                },
+                "required": ["result", "status"],
+            },
+        },
+    }
+]
+
+# Virtual heartbeat decision tool
 _HEARTBEAT_TOOL = [
     {
         "type": "function",
@@ -160,6 +186,36 @@ def format_heartbeat_result(result: str, max_chars: int = 300) -> str:
     if len(result) <= max_chars:
         return result
     return result[:max_chars - 10] + "... [truncated]"
+
+
+def save_heartbeat_result(result: str, status: str = "completed") -> Path:
+    """Save heartbeat result to .jarvis/HEARTBEAT_RESULTS.md file."""
+    heartbeat_file = get_heartbeat_file()
+    if heartbeat_file:
+        results_dir = heartbeat_file.parent
+    else:
+        results_dir = Path.cwd() / ".jarvis"
+    
+    results_dir.mkdir(parents=True, exist_ok=True)
+    results_file = results_dir / "HEARTBEAT_RESULTS.md"
+    
+    timestamp = datetime.now().isoformat()
+    
+    # Format the result entry
+    entry = f"\n## {timestamp} ({status})\n\n{result}\n"
+    
+    # Read existing content or create new
+    if results_file.exists():
+        existing = results_file.read_text(encoding="utf-8")
+        # Keep last 50 entries to prevent file from growing too large
+        content = entry + existing
+    else:
+        content = f"# Heartbeat Results\n\n{entry}"
+    
+    # Write the file
+    results_file.write_text(content, encoding="utf-8")
+    
+    return results_file
 
 
 def is_deliverable(response: str) -> bool:
@@ -438,6 +494,14 @@ class HeartbeatScheduler:
             if should_notify and self._notifier:
                 logger.info("Heartbeat: completed, delivering response")
                 await self._notifier(response)
+                
+                # Save result to file
+                try:
+                    result_file = save_heartbeat_result(response, "completed")
+                    logger.info(f"Heartbeat result saved to {result_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to save heartbeat result: {e}")
+                
                 return format_heartbeat_result(response, self.ack_max_chars)
             else:
                 logger.info("Heartbeat: silenced by post-run evaluation")

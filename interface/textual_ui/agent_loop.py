@@ -346,6 +346,7 @@ class AgentLoop:
         self._is_running = False
         self._tool_call_ids: dict[str, str] = {}  # Track tool call IDs
         self._disabled_tools: list[str] = []  # Track disabled tools
+        self._heartbeat_running = False  # Track heartbeat subagent status
         
         # Set up tool call/result callbacks for event tracking
         self.agent.tool_call_callback = self._on_tool_call
@@ -733,7 +734,16 @@ Create a comprehensive summary that captures:
     async def start_heartbeat_if_enabled(self) -> None:
         """Start heartbeat if configured (call after event loop is running)."""
         if self.agent.heartbeat_scheduler and self.agent.heartbeat_scheduler.enabled:
-            await self.agent.start_heartbeat()
+            self._heartbeat_running = True
+            try:
+                await self.agent.start_heartbeat()
+            finally:
+                self._heartbeat_running = False
+    
+    @property
+    def is_heartbeat_running(self) -> bool:
+        """Check if heartbeat subagent is currently running."""
+        return self._heartbeat_running
 
     def _drain_event_queue(self) -> None:
         """Discard stale events before starting a new turn."""
