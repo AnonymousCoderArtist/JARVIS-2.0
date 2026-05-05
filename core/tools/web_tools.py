@@ -3,6 +3,7 @@
 
 import json
 import httpx
+import os
 from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
@@ -68,7 +69,8 @@ Content is extracted in LLM-friendly format."""
 
         results = []
         try:
-            async with httpx.AsyncClient(follow_redirects=True) as client:
+            proxy_param = getattr(self, 'proxy', None)
+            async with httpx.AsyncClient(follow_redirects=True, proxy=proxy_param) as client:
                 for url in urls:
                     try:
                         response = await client.get(url, timeout=30.0)
@@ -168,6 +170,7 @@ Returns: Search results with titles, URLs, and content snippets."""
         super().__init__()
         self.mcp_url = "https://mcp.exa.ai/mcp"
         self.timeout = 25
+        self.proxy = None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         # Support camelCase parameter names
@@ -284,3 +287,5 @@ Returns: Search results with titles, URLs, and content snippets."""
                 result=None,
                 error=f"Web search failed: {str(e)}"
             )
+
+

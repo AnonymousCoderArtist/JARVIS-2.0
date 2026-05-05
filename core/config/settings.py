@@ -1,6 +1,7 @@
 """Configuration settings using TOML config file"""
 
 import importlib
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,25 +14,66 @@ else:
     import tomli as tomllib
 
 
+def _load_env_config() -> dict[str, Any]:
+    """Load configuration from environment variables."""
+    env_config: dict[str, Any] = {}
+    
+    # Heartbeat settings from environment
+    heartbeat_env = {}
+    if os.getenv("JARVIS_HEARTBEAT_ENABLED"):
+        heartbeat_env["enabled"] = os.getenv("JARVIS_HEARTBEAT_ENABLED", "true").lower() in ("true", "1", "yes")
+    if os.getenv("JARVIS_HEARTBEAT_EVERY"):
+        heartbeat_env["every"] = os.getenv("JARVIS_HEARTBEAT_EVERY")
+    if os.getenv("JARVIS_HEARTBEAT_TARGET"):
+        heartbeat_env["target"] = os.getenv("JARVIS_HEARTBEAT_TARGET")
+    if os.getenv("JARVIS_HEARTBEAT_LIGHT_CONTEXT"):
+        heartbeat_env["light_context"] = os.getenv("JARVIS_HEARTBEAT_LIGHT_CONTEXT", "false").lower() in ("true", "1", "yes")
+    if os.getenv("JARVIS_HEARTBEAT_SKIP_WHEN_BUSY"):
+        heartbeat_env["skip_when_busy"] = os.getenv("JARVIS_HEARTBEAT_SKIP_WHEN_BUSY", "false").lower() in ("true", "1", "yes")
+    if os.getenv("JARVIS_HEARTBEAT_SHOW_OK"):
+        heartbeat_env["show_ok"] = os.getenv("JARVIS_HEARTBEAT_SHOW_OK", "true").lower() in ("true", "1", "yes")
+    
+    if heartbeat_env:
+        env_config["heartbeat"] = heartbeat_env
+    
+    return env_config
+
+
 class Settings:
-    """Application settings loaded from config.toml"""
+    """Application settings loaded from config.toml with environment variable overrides"""
 
     def __init__(self, config_path: Path | None = None, initial_config: dict[str, Any] | None = None):
         self.config_path: Path = config_path or Path("config.toml")
-        self._config: JarvisSettings = JarvisSettings(**(initial_config or {}))
-        if initial_config is None:
-            self._load_config()
-
-    def _load_config(self) -> None:
-        """Load configuration from TOML file"""
+        
+        # Load TOML config first
+        toml_config: dict[str, Any] = {}
         if self.config_path.exists():
             try:
                 with open(self.config_path, "rb") as f:
-                    data = tomllib.load(f)
-                    self._config = JarvisSettings(**data)
+                    toml_config = tomllib.load(f)
             except Exception as e:
                 print(f"Warning: Failed to load config from {self.config_path}: {e}")
-        # Defaults are handled by Pydantic factories
+        
+        # Override with environment config
+        env_config = _load_env_config() if initial_config is None else {}
+        
+        # Merge: start with toml, then env, then initial_config
+        merged_config = self._deep_merge(toml_config, env_config)
+        if initial_config:
+            merged_config = self._deep_merge(merged_config, initial_config)
+        
+        self._config: JarvisSettings = JarvisSettings(**(merged_config or {}))
+    
+    @staticmethod
+    def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+        """Deep merge two dictionaries, with override taking precedence."""
+        result = base.copy()
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = Settings._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
 
     def get(self, section: str, key: str | None = None, default: Any = None) -> Any:
         """Get a configuration value."""

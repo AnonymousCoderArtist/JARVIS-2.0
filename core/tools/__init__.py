@@ -16,6 +16,7 @@ from .permission_manager import PermissionManager
 # Background tools
 from .background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from .base import BaseTool, ToolInput, ToolOutput
+from .sandbox import wrap_command
 
 # Code tools
 from .code_tools import BashTool, RunTestsTool
@@ -36,7 +37,7 @@ from .skill_manage_tool import SkillTool
 from .repl_tool import REPLTool
 
 # Web tools
-from .web_tools import WebFetchTool, ExaWebSearchTool
+from .web_tools import WebFetchTool, ExaWebSearchTool as ExaWebSearchTool
 
 __all__ = [
     "BaseTool",

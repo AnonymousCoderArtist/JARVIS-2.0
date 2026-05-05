@@ -53,17 +53,14 @@ class Banner(Static):
             yield PetitChat(animate=self._animated)
 
             with Vertical(id="banner-info"):
-                with Horizontal(classes="banner-line"):
+                with Horizontal(classes="banner-line banner-title-row"):
                     yield NoMarkupStatic("JARVIS", id="banner-brand")
-                    yield NoMarkupStatic(" ▰▰▰ ", classes="banner-spacer")
-                    yield NoMarkupStatic(f"v{__version__}", id="banner-version")
-                    yield NoMarkupStatic(" │ ", classes="banner-divider")
+                    yield NoMarkupStatic("", id="banner-version")
                     yield NoMarkupStatic("", id="banner-model")
-                with Horizontal(classes="banner-line"):
+
+                with Horizontal(classes="banner-line banner-meta-row"):
                     yield NoMarkupStatic("", id="banner-meta-counts")
-                    yield NoMarkupStatic(" │ ", classes="banner-divider")
-                    yield NoMarkupStatic("Made by ", classes="banner-label")
-                    yield NoMarkupStatic("@OEvortex", id="banner-attribution")
+                    yield NoMarkupStatic("", id="banner-attribution")
 
     def on_mount(self) -> None:
         self.state = self._initial_state
@@ -71,9 +68,15 @@ class Banner(Static):
     def watch_state(self) -> None:
         if not self.is_attached:
             return
-        self.query_one("#banner-model", NoMarkupStatic).update(self.state.active_model)
+        self.query_one("#banner-version", NoMarkupStatic).update(f"v{__version__}")
+        self.query_one("#banner-model", NoMarkupStatic).update(
+            f"• {self.state.active_model}"
+        )
         self.query_one("#banner-meta-counts", NoMarkupStatic).update(
             self._format_meta_counts()
+        )
+        self.query_one("#banner-attribution", NoMarkupStatic).update(
+            "Made by @OEvortex"
         )
 
     def freeze_animation(self) -> None:
@@ -121,4 +124,4 @@ class Banner(Static):
         parts.append(_pluralize(self.state.connectors_count, "MCP"))
         if self.state.plan_description:
             parts.append(self.state.plan_description)
-        return " · ".join(parts)
+        return "  •  ".join(parts)

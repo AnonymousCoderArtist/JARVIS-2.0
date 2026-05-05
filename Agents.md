@@ -153,6 +153,13 @@ JARVIS_MODEL=gpt-4o
 JARVIS_BASE_URL=https://api.openai.com/v1
 JARVIS_API_KEY=your_key
 JARVIS_SDK=openai
+
+# Heartbeat Configuration (optional)
+JARVIS_HEARTBEAT_ENABLED=true       # Enable periodic heartbeat checks
+JARVIS_HEARTBEAT_EVERY=30m          # Interval (e.g., 15m, 1h)
+JARVIS_HEARTBEAT_TARGET=last        # Target channel
+JARVIS_HEARTBEAT_SKIP_WHEN_BUSY=true # Skip when agent is busy
+JARVIS_HEARTBEAT_SHOW_OK=false      # Show HEARTBEAT_OK messages
 ```
 
 CLI flags:
@@ -162,6 +169,55 @@ CLI flags:
 - `--sdk`: SDK mode (openai/anthropic)
 - `--cli`: Launch CLI
 - `--tui`: Launch TUI
+
+## Heartbeat System (Nanobot-style)
+
+JARVIS includes a nanobot-style two-phase heartbeat system for periodic agent awareness:
+
+### How it Works
+
+1. **Phase 1 (Decision)**: LLM decides via virtual tool call whether to skip or run
+2. **Phase 2 (Execution)**: Only triggered when Phase 1 returns "run"
+3. **Response Filtering**: Non-deliverable responses are automatically suppressed
+
+### Configuration
+
+```bash
+# .env file
+JARVIS_HEARTBEAT_ENABLED=true
+JARVIS_HEARTBEAT_EVERY=30m
+JARVIS_HEARTBEAT_TARGET=last
+JARVIS_HEARTBEAT_SKIP_WHEN_BUSY=true
+JARVIS_HEARTBEAT_SHOW_OK=false
+```
+
+### HEARTBEAT.md File
+
+Create `.jarvis/HEARTBEAT.md` in your project to define periodic tasks:
+
+```markdown
+# Heartbeat Tasks
+
+## Active Tasks
+
+- [ ] Review open PRs
+- [ ] Check build status
+- [ ] Update dependencies
+
+## Completed
+
+- [x] Last task description
+```
+
+### Agent Integration
+
+The heartbeat scheduler integrates with the agent:
+- Checks for `.jarvis/HEARTBEAT.md` at configured intervals
+- Uses `initialize_heartbeat(notifier, evaluator)` for TUI notifications
+- Results appear in TUI with 🫀 emoji prefix
+- `is_deliverable()` filters out leaked reasoning and implementation artifacts
+
+---
 
 ## Common Patterns
 

@@ -1092,8 +1092,11 @@ NarratorStatus {
 
 #banner-container {
     align: left middle;
-    padding: 0 1 0 0;
+    padding: 0 2 0 1;
     width: auto;
+    height: auto;
+    background: transparent;
+    border: round $border-blurred;
 }
 
 .banner-chat {
@@ -1105,6 +1108,7 @@ NarratorStatus {
     height: auto;
     margin-left: 2;
     content-align: left middle;
+    padding: 0 1 0 0;
 }
 
 .banner-line {
@@ -1112,37 +1116,39 @@ NarratorStatus {
     height: auto;
 }
 
+.banner-title-row {
+    height: auto;
+    margin-bottom: 0;
+}
+
+.banner-meta-row {
+    height: auto;
+    margin-top: 0;
+}
+
 #banner-brand {
     color: $accent;
     text-style: bold;
     width: auto;
     background: transparent;
-    padding: 0 1;
-}
+    padding: 0 1 0 0;
 
-.banner-spacer {
-    width: 1;
-    color: $muted;
-}
-
-.banner-divider {
-    color: $overlay;
-    width: auto;
-}
-
-.banner-label {
-    color: $text;
-    width: auto;
 }
 
 #banner-version {
     color: $success;
     width: auto;
+    padding: 0 1;
+    text-style: bold;
 }
 
 #banner-model {
     color: $info;
     width: auto;
+    max-width: 28;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-style: italic;
 }
 
 #banner-user-plan {
@@ -1151,16 +1157,20 @@ NarratorStatus {
 
 #banner-meta-counts {
     width: auto;
+    color: $text-muted;
+    padding: 0 1 0 0;
 }
 
-.banner-cmd {
-    color: $info;
+#banner-attribution {
     width: auto;
+    color: $text-muted;
+    text-align: right;
+    padding: 0 0 0 2;
 }
 
 .petit-chat {
     color: $text;
-    width: 12;
+    width: 13;
 }
 
 .whats-new-message {

@@ -62,7 +62,7 @@ class FileStates:
         self._state[p] = FileReadState(
             mtime=mtime,
             offset=1,
-            limit=None,
+            limit=0,
             content_hash=self._hash_file(p),
             can_dedup=False
         )

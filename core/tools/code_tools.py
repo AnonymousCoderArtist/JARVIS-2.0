@@ -1,11 +1,16 @@
 """Code execution and analysis tools"""
 
 import asyncio
+import os
 import platform
+import re
+import shutil
 import sys
+from pathlib import Path
 from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
+from .sandbox import wrap_command
 from core.tools.permissions import PermissionContext, PermissionScope, RequiredPermission, ToolPermission
 
 
@@ -66,34 +71,35 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                 return value
         return None
 
-    def resolve_permission(self, args: dict) -> PermissionContext | None:
+    def resolve_permission(self, args: dict, bypass_mode: bool = False) -> PermissionContext | None:
         """Resolve permission for bash command with dangerous pattern detection"""
+        if bypass_mode:
+            return None
+            
         command = args.get("command", "")
         if not command:
             return None
 
-        # Dangerous command patterns that require special approval
+        # Dangerous command patterns that ALWAYS require approval
         dangerous_patterns = [
-            "rm -rf",
-            "rm -r",
-            "delete",
-            "format",
-            "truncate",
-            "dd if=",
-            "mkfs",
-            "fdisk",
-            "shred",
-            "wipe",
-            "> /dev/",
-            "chmod 777",
-            "chown",
-            "sudo rm",
-            "sudo dd",
-            "sudo mkfs",
+            r"\brm\s+-[rf]{1,2}\b",          # rm -r, rm -rf, rm -fr
+            r"\bdel\s+/[fq]\b",              # del /f, del /q
+            r"\brmdir\s+/s\b",               # rmdir /s
+            r"(?:^|[;&|]\s*)format\b",       # format (as standalone command only)
+            r"\b(mkfs|diskpart)\b",          # disk operations
+            r"\bdd\s+if=",                   # dd
+            r">\s*/dev/sd",                  # write to disk
+            r"\b(shutdown|reboot|poweroff)\b",  # system power
+            r":\(\)\s*\{.*\};\s*:",          # fork bomb
+            r"\bchmod\s+777\b",             # chmod 777
+            r"\bchown\b",                   # chown
+            r"\bsudo\s+rm\b",               # sudo rm
+            r"\bsudo\s+dd\b",               # sudo dd
+            r"\bsudo\s+mkfs\b",             # sudo mkfs
         ]
 
         for pattern in dangerous_patterns:
-            if pattern in command.lower():
+            if re.search(pattern, command.lower()):
                 return PermissionContext(
                     permission=ToolPermission.ASK,
                     required_permissions=[
@@ -112,6 +118,28 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
         super().__init__()
         self.is_windows = platform.system() == "Windows"
         self.shell = "powershell" if self.is_windows else "/bin/bash"
+        self.deny_patterns = [
+            r"\brm\s+-[rf]{1,2}\b",          # rm -r, rm -rf, rm -fr
+            r"\bdel\s+/[fq]\b",              # del /f, del /q
+            r"\brmdir\s+/s\b",               # rmdir /s
+            r"(?:^|[;&|]\s*)format\b",       # format (as standalone command only)
+            r"\b(mkfs|diskpart)\b",          # disk operations
+            r"\bdd\s+if=",                   # dd
+            r">\s*/dev/sd",                  # write to disk
+            r"\b(shutdown|reboot|poweroff)\b",  # system power
+            r":\(\)\s*\{.*\};\s*:",          # fork bomb
+            r"\bchmod\s+777\b",             # chmod 777
+            r"\bchown\b",                   # chown
+            r"\bsudo\s+rm\b",               # sudo rm
+            r"\bsudo\s+dd\b",               # sudo dd
+            r"\bsudo\s+mkfs\b",             # sudo mkfs
+        ]
+        self.allow_patterns = []
+        self.restrict_to_workspace = False
+        self.sandbox = ""
+        self.path_append = ""
+        self.allowed_env_keys = []
+        self.working_dir = None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
@@ -134,7 +162,27 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
             if not isinstance(timeout, int):
                 timeout = 30
 
+            # Check if we should bypass safety checks
+            bypass_mode = False  # This would be set based on configuration/settings
+            
+            # Safety guard check
+            guard_error = self._guard_command(command, bypass_mode)
+            if guard_error:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=guard_error
+                )
+
             if isBackground:
+                # Apply sandboxing for background processes
+                if self.sandbox:
+                    if self.is_windows:
+                        print(f"Warning: Sandbox '{self.sandbox}' is not supported on Windows; running unsandboxed")
+                    else:
+                        workspace = self.working_dir or os.getcwd()
+                        command = wrap_command(self.sandbox, command, workspace, os.getcwd())
+
                 if self.is_windows:
                     process = await asyncio.create_subprocess_exec(
                         "powershell",
@@ -162,6 +210,14 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                     result=f"Command started in background with PID {pid}",
                     metadata={"pid": pid, "command": command, "shell": self.shell}
                 )
+
+            # Apply sandboxing for foreground processes
+            if self.sandbox:
+                if self.is_windows:
+                    print(f"Warning: Sandbox '{self.sandbox}' is not supported on Windows; running unsandboxed")
+                else:
+                    workspace = self.working_dir or os.getcwd()
+                    command = wrap_command(self.sandbox, command, workspace, os.getcwd())
 
             # Standard foreground execution
             if self.is_windows:
@@ -223,6 +279,58 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                 result=None,
                 error=f"Failed to execute command: {str(e)}. Please check if the command syntax is correct for your shell ({'PowerShell' if self.is_windows else 'bash'}) and if you have the necessary permissions."
             )
+
+    def _guard_command(self, command: str, bypass_mode: bool = False) -> str | None:
+        """Best-effort safety guard for potentially destructive commands"""
+        if bypass_mode:
+            return None
+            
+        cmd = command.strip()
+        lower = cmd.lower()
+
+        # Check allow patterns first (they take priority)
+        explicitly_allowed = bool(self.allow_patterns) and any(
+            re.search(p, lower) for p in self.allow_patterns
+        )
+        
+        if not explicitly_allowed:
+            # Check deny patterns - these should always require approval
+            for pattern in self.deny_patterns:
+                if re.search(pattern, lower):
+                    # Instead of blocking, we'll require approval
+                    # This will be handled by the permission system
+                    return None  # Let permission system handle this
+
+        # Workspace restriction check
+        if self.restrict_to_workspace:
+            if "..\\" in cmd or "../" in cmd:
+                return "Error: Command blocked by safety guard (path traversal detected)"
+
+            # Extract absolute paths and check if they're outside workspace
+            for raw_path in self._extract_absolute_paths(cmd):
+                try:
+                    expanded = os.path.expandvars(raw_path.strip())
+                    p = Path(expanded).expanduser().resolve()
+                    
+                    # Check if path is outside current working directory
+                    cwd = Path.cwd()
+                    if p.is_absolute() and cwd not in p.parents and p != cwd:
+                        return "Error: Command blocked by safety guard (path outside working directory)"
+                except Exception:
+                    continue
+
+        return None
+
+    @staticmethod
+    def _extract_absolute_paths(command: str) -> list[str]:
+        """Extract absolute paths from command"""
+        # Windows: match drive-root paths like `C:\` as well as `C:\path\to\file`
+        win_paths = re.findall(r"[A-Za-z]:\\[^\s\"'|><;]*", command)
+        # POSIX: /absolute only
+        posix_paths = re.findall(r"(?:^|[\s|>'\"])(/[^\s\"'>;|<]+)", command)
+        # POSIX/Windows home shortcut: ~
+        home_paths = re.findall(r"(?:^|[\s>'\"])(~[^\s\"'>;|<]*)", command)
+        return win_paths + posix_paths + home_paths
 
 
 class RunTestsTool(BaseTool):

@@ -34,6 +34,12 @@ class ToolInput(BaseModel):
     exclude: list[str] | None = None
     use_default_excludes: bool = True
     file_filtering_options: dict[str, Any] | None = None
+    
+    # Common tool fields
+    command: str | None = None
+    query: str | None = None
+    content: str | None = None
+    urls: list[str] | None = None
 
 
 class ToolOutput(BaseModel):
