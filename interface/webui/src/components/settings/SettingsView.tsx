@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, Loader2 } from "lucide-react";
 
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Input } from "@/components/ui/input";
 import { fetchSettings, updateSettings } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -10,8 +10,6 @@ import { useClient } from "@/providers/ClientProvider";
 import type { SettingsPayload } from "@/lib/types";
 
 interface SettingsViewProps {
-  theme: "light" | "dark";
-  onToggleTheme: () => void;
   onBackToChat: () => void;
   onModelNameChange: (modelName: string | null) => void;
 }
@@ -23,12 +21,15 @@ export function SettingsView({
   const { token } = useClient();
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     model: "",
     provider: "auto",
   });
+  const [permissionMode, setPermissionMode] = useState<string>("neutral");
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  // Track original settings from the server to compare against
+  const [originalSettings, setOriginalSettings] = useState<SettingsPayload | null>(null);
 
   const applyPayload = useCallback((payload: SettingsPayload) => {
     setSettings(payload);
@@ -36,6 +37,8 @@ export function SettingsView({
       model: payload.agent.model,
       provider: payload.agent.provider,
     });
+    // Set original settings for comparison
+    setOriginalSettings(payload);
   }, []);
 
   useEffect(() => {
@@ -59,28 +62,54 @@ export function SettingsView({
     };
   }, [applyPayload, token]);
 
-  const dirty = useMemo(() => {
-    if (!settings) return false;
-    return (
-      form.model !== settings.agent.model ||
-      form.provider !== settings.agent.provider
-    );
-  }, [form, settings]);
-
-  const save = async () => {
-    if (!dirty || saving) return;
-    setSaving(true);
+  const saveSettings = useCallback(async (formToSave: typeof form) => {
+    console.log("[AUTO-SAVE] Starting save with:", formToSave);
     try {
-      const payload = await updateSettings(token, form);
+      setIsAutoSaving(true);
+      const payload = await updateSettings(token, formToSave);
+      console.log("[AUTO-SAVE] Save successful, response:", payload);
       applyPayload(payload);
+      setOriginalSettings(payload);
       onModelNameChange(payload.agent.model || null);
       setError(null);
     } catch (err) {
+      console.error("[AUTO-SAVE] Error:", err);
       setError((err as Error).message);
     } finally {
-      setSaving(false);
+      setIsAutoSaving(false);
     }
-  };
+  }, [token, applyPayload, onModelNameChange, setError]);
+
+  // Auto-save when form changes
+  useEffect(() => {
+    if (!originalSettings) {
+      console.log("[AUTO-SAVE] No original settings yet");
+      return;
+    }
+    
+    // Check if form is different from original settings
+    const isDifferent = 
+      form.model !== originalSettings.agent.model ||
+      form.provider !== originalSettings.agent.provider;
+    
+    console.log("[AUTO-SAVE] Check: form=", form, "original=", originalSettings, "isDifferent=", isDifferent);
+    
+    if (isDifferent) {
+      console.log("[AUTO-SAVE] Scheduling save in 1s");
+      // Use a simple timeout for auto-save
+      const timer = setTimeout(() => {
+        console.log("[AUTO-SAVE] Executing save");
+        saveSettings(form);
+      }, 1000);
+      
+      return () => {
+        console.log("[AUTO-SAVE] Clearing timeout");
+        clearTimeout(timer);
+      };
+    } else {
+      console.log("[AUTO-SAVE] No changes detected");
+    }
+  }, [form, originalSettings, saveSettings]);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto bg-background">
@@ -112,9 +141,10 @@ export function SettingsView({
             form={form}
             setForm={setForm}
             settings={settings}
-            dirty={dirty}
-            saving={saving}
-            onSave={save}
+            isAutoSaving={isAutoSaving}
+            permissionMode={permissionMode}
+            setPermissionMode={setPermissionMode}
+            onSave={saveSettings}
           />
         ) : null}
       </main>
@@ -126,8 +156,9 @@ function SettingsSection({
   form,
   setForm,
   settings,
-  dirty,
-  saving,
+  isAutoSaving,
+  permissionMode,
+  setPermissionMode,
   onSave,
 }: {
   form: {
@@ -139,9 +170,10 @@ function SettingsSection({
     provider: string;
   }>>;
   settings: SettingsPayload;
-  dirty: boolean;
-  saving: boolean;
-  onSave: () => void;
+  isAutoSaving: boolean;
+  permissionMode: string;
+  setPermissionMode: React.Dispatch<React.SetStateAction<string>>;
+  onSave: (form: { model: string; provider: string }) => void;
 }) {
   return (
     <div className="space-y-7">
@@ -173,14 +205,26 @@ function SettingsSection({
             />
           </SettingsRow>
 
-          {(dirty || saving || settings.requires_restart) ? (
-            <SettingsFooter
-              dirty={dirty}
-              saving={saving}
-              saved={settings.requires_restart && !dirty}
-              onSave={onSave}
-            />
+          {(isAutoSaving) ? (
+            <SettingsGroup>
+              <SettingsRow title="">
+                <div className="flex w-full items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Auto-saving...
+                </div>
+              </SettingsRow>
+            </SettingsGroup>
           ) : null}
+          <SettingsGroup>
+            <SettingsRow>
+              <Button
+                onClick={() => onSave(form)}
+                className="w-full"
+              >
+                Save Now
+              </Button>
+            </SettingsRow>
+          </SettingsGroup>
         </SettingsGroup>
       </section>
 
@@ -189,6 +233,35 @@ function SettingsSection({
         <SettingsGroup>
           <SettingsRow title="Language">
             <LanguageSwitcher />
+          </SettingsRow>
+        </SettingsGroup>
+      </section>
+
+      <section>
+        <h2 className="mb-2 px-2 text-xs font-medium text-muted-foreground">Permissions</h2>
+        <SettingsGroup>
+          <SettingsRow title="Permission Mode">
+            <select
+              value={permissionMode}
+              onChange={(event) => setPermissionMode(event.target.value)}
+              className={cn(
+                "h-8 w-[210px] rounded-md border border-input bg-background px-2 text-sm",
+                "outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+            >
+              <option value="neutral">Default (Ask)</option>
+              <option value="safe">Safe (Read-only)</option>
+              <option value="destructive">Accept Edits</option>
+              <option value="yolo">Auto Approve (YOLO)</option>
+            </select>
+          </SettingsRow>
+          <SettingsRow title="Description">
+            <span className="max-w-[400px] text-sm text-muted-foreground">
+              {permissionMode === "neutral" && "Requires approval for tool executions"}
+              {permissionMode === "safe" && "Read-only mode - can only explore and read files"}
+              {permissionMode === "destructive" && "Auto-approves file edits"}
+              {permissionMode === "yolo" && "Auto-approves all tool executions"}
+            </span>
           </SettingsRow>
         </SettingsGroup>
       </section>
@@ -208,7 +281,7 @@ function SettingsRow({
   title,
   children,
 }: {
-  title: string;
+  title?: string;
   children?: React.ReactNode;
 }) {
   return (
@@ -217,29 +290,6 @@ function SettingsRow({
         <div className="text-sm font-medium leading-5">{title}</div>
       </div>
       {children ? <div className="shrink-0 sm:ml-6">{children}</div> : null}
-    </div>
-  );
-}
-
-function SettingsFooter({
-  dirty,
-  saving,
-  saved,
-  onSave,
-}: {
-  dirty: boolean;
-  saving: boolean;
-  saved: boolean;
-  onSave: () => void;
-}) {
-  return (
-    <div className="flex min-h-[52px] items-center justify-between gap-4 px-3 py-2.5">
-      <div className="text-sm text-muted-foreground">
-        {saved ? "Saved. Restart jarvis to apply." : "Unsaved changes."}
-      </div>
-      <Button size="sm" variant="outline" onClick={onSave} disabled={!dirty || saving}>
-        {saving ? "Saving" : "Save"}
-      </Button>
     </div>
   );
 }

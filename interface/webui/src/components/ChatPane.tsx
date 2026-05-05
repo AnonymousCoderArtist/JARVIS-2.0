@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ApprovalDialog } from "@/components/ApprovalDialog";
 import { Composer } from "@/components/Composer";
 import { MessageList } from "@/components/MessageList";
 import { useClient } from "@/providers/ClientProvider";
@@ -28,7 +29,7 @@ export function ChatPane({ session, onNewChat }: ChatPaneProps) {
   const pendingFirstRef = useRef<string | null>(null);
 
   const initial = useMemo(() => historical, [historical]);
-  const { messages, isStreaming, send, setMessages } = useJarvisStream(
+  const { messages, isStreaming, thinking, send, setMessages, pendingApproval, sendApprovalResponse } = useJarvisStream(
     chatId,
     initial,
     hasPendingToolCalls,
@@ -116,11 +117,19 @@ export function ChatPane({ session, onNewChat }: ChatPaneProps) {
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col">
-      <MessageList messages={messages} isStreaming={isStreaming} />
+      <MessageList messages={messages} isStreaming={isStreaming} thinking={thinking} />
       <Composer
         onSend={send}
         disabled={!chatId}
         placeholder="Type your message…"
+      />
+      <ApprovalDialog
+        isOpen={pendingApproval !== null}
+        toolName={pendingApproval?.toolName ?? ""}
+        toolArgs={pendingApproval?.toolArgs ?? {}}
+        requiredPermissions={pendingApproval?.requiredPermissions ?? []}
+        onApprove={(alwaysAllow) => sendApprovalResponse(true, alwaysAllow)}
+        onReject={() => sendApprovalResponse(false)}
       />
     </section>
   );

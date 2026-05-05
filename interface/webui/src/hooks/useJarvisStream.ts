@@ -41,6 +41,7 @@ export function useJarvisStream(
 ): {
   messages: UIMessage[];
   isStreaming: boolean;
+  thinking: string;
   send: (content: string, images?: SendImage[]) => void;
   setMessages: React.Dispatch<React.SetStateAction<UIMessage[]>>;
   /** Latest transport-level fault raised since the last ``dismissStreamError``.
@@ -49,6 +50,14 @@ export function useJarvisStream(
   /** Clear the current ``streamError`` (e.g. after the user dismisses the
    * notification or starts a fresh action). */
   dismissStreamError: () => void;
+  /** Pending approval request (tool execution that needs user approval) */
+  pendingApproval: {
+    toolName: string;
+    toolArgs: Record<string, unknown>;
+    requiredPermissions: string[];
+  } | null;
+  /** Send approval response to the server */
+  sendApprovalResponse: (approved: boolean, alwaysAllow?: boolean) => void;
 } {
   const { client } = useClient();
   const [messages, setMessages] = useState<UIMessage[]>(initialMessages);
@@ -60,6 +69,11 @@ export function useJarvisStream(
     : false;
   const [isStreaming, setIsStreaming] = useState(initialStreaming || hasPendingToolCalls);
   const [streamError, setStreamError] = useState<StreamError | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<{
+    toolName: string;
+    toolArgs: Record<string, unknown>;
+    requiredPermissions: string[];
+  } | null>(null);
   const buffer = useRef<StreamBuffer | null>(null);
   /** Timer that defers ``isStreaming = false`` after ``stream_end``.
    *
@@ -69,6 +83,9 @@ export function useJarvisStream(
    * the loading spinner alive across tool-call boundaries without needing
    * backend changes. */
   const streamEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track thinking/reasoning content from the server
+  const [thinking, setThinking] = useState<string>("");
 
   useEffect(() => {
     return client.onError((err) => setStreamError(err));
@@ -157,9 +174,32 @@ export function useJarvisStream(
           streamEndTimerRef.current = null;
         }
         setIsStreaming(false);
+        setThinking(""); // Clear thinking when turn ends
         setMessages((prev) =>
           prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m)),
         );
+        return;
+      }
+
+      if (ev.event === "reasoning") {
+        // Reasoning/thinking content from the agent
+        setThinking(ev.text || "");
+        return;
+      }
+
+      if (ev.event === "reasoning_end") {
+        // Reasoning finished
+        setThinking("");
+        return;
+      }
+
+      if (ev.event === "approval_request") {
+        // Tool execution needs user approval
+        setPendingApproval({
+          toolName: ev.tool_name,
+          toolArgs: ev.tool_args,
+          requiredPermissions: ev.required_permissions,
+        });
         return;
       }
 
@@ -288,12 +328,29 @@ export function useJarvisStream(
     [chatId, client],
   );
 
+  const sendApprovalResponse = useCallback(
+    (approved: boolean, alwaysAllow?: boolean) => {
+      if (!chatId || !pendingApproval) return;
+      // Send the approval response to the server
+      client.sendMessage(chatId, "", undefined, {
+        type: "approval_response",
+        approved,
+        always_allow: alwaysAllow,
+      });
+      setPendingApproval(null);
+    },
+    [chatId, client, pendingApproval],
+  );
+
   return {
     messages,
     isStreaming,
+    thinking,
     send,
     setMessages,
     streamError,
     dismissStreamError,
+    pendingApproval,
+    sendApprovalResponse,
   };
 }

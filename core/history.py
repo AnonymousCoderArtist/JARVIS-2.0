@@ -2,8 +2,12 @@
 Conversation History Management - Matches OpenAI/Anthropic SDK format.
 
 Storage format matches both OpenAI and Anthropic SDKs:
-- role: "user" | "assistant" | "system"
+- role: "user" | "assistant" | "system" | "tool"
 - content: string | array of content blocks
+
+Supports tool calls/results in both SDK formats:
+- OpenAI: assistant with tool_calls, tool with tool_call_id
+- Anthropic: assistant with tool_use content, user with tool_result content
 
 See: https://platform.openai.com/docs/guides/chat/completions
 See: https://docs.anthropic.com/en/docs/reference/messages_post
@@ -16,7 +20,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, List
 
 
 # Role types used by both OpenAI and Anthropic SDKs
@@ -25,6 +29,41 @@ class Role(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
+    TOOL = "tool"
+
+
+@dataclass
+class ToolCall:
+    """Represents a tool call in OpenAI format."""
+    id: str
+    type: str = "function"
+    function: Optional[dict] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class ToolUse:
+    """Represents a tool use in Anthropic format."""
+    type: str = "tool_use"
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    input: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class ToolResult:
+    """Represents a tool result in Anthropic format."""
+    type: str = "tool_result"
+    tool_use_id: str = ""
+    content: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 @dataclass
@@ -36,18 +75,30 @@ class HistoryMessage:
     OpenAI format: {"role": "user", "content": "Hello"}
     Anthropic format: {"role": "user", "content": "Hello"}
 
-    This class stores messages in the exact SDK format for compatibility.
+    Supports tool calls/results:
+    - OpenAI: {"role": "assistant", "tool_calls": [...]}, {"role": "tool", "tool_call_id": "...", "content": "..."}
+    - Anthropic: {"role": "assistant", "content": [{"type": "tool_use", ...}]}, {"role": "user", "content": [{"type": "tool_result", ...}]}
     """
-    role: str  # "user", "assistant", or "system"
+    role: str  # "user", "assistant", "system", or "tool"
     content: Union[str, list, None] = None
     uuid: str = field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+    # OpenAI-specific: tool calls from assistant
+    tool_calls: Optional[List[dict]] = None
+
+    # OpenAI-specific: tool call ID for tool role
+    tool_call_id: Optional[str] = None
+
+    # Anthropic-specific: tool use in content array
+    tool_use: Optional[dict] = None
+
+    # Anthropic-specific: tool result in content array
+    tool_result: Optional[dict] = None
+
     # Optional metadata
     name: Optional[str] = None
-    tool_calls: Optional[list] = None
-    tool_call_id: Optional[str] = None
     refusal: Optional[bool] = None
     additional_kwargs: dict = field(default_factory=dict)
 
@@ -108,7 +159,7 @@ class ConversationHistory:
         Append a message to the history file.
 
         Args:
-            message: The message to append (must have role and content)
+            message: The message to append
         """
         message.session_id = self.session_id
         if not message.timestamp:
@@ -168,54 +219,56 @@ class ConversationHistory:
 
 # Convenience functions matching SDK format
 def create_user_message(content: str, **kwargs) -> HistoryMessage:
-    """
-    Create a user message in SDK format.
-
-    Args:
-        content: The user message content (string)
-        **kwargs: Additional fields (name, etc.)
-
-    Returns:
-        HistoryMessage in SDK format
-    """
-    return HistoryMessage(
-        role=Role.USER.value,
-        content=content,
-        **kwargs
-    )
+    """Create a user message in SDK format."""
+    return HistoryMessage(role=Role.USER.value, content=content, **kwargs)
 
 
 def create_assistant_message(content: Union[str, list], **kwargs) -> HistoryMessage:
-    """
-    Create an assistant message in SDK format.
-
-    Args:
-        content: The assistant message content (string or list for tool calls)
-        **kwargs: Additional fields (tool_calls, etc.)
-
-    Returns:
-        HistoryMessage in SDK format
-    """
-    return HistoryMessage(
-        role=Role.ASSISTANT.value,
-        content=content,
-        **kwargs
-    )
+    """Create an assistant message in SDK format."""
+    return HistoryMessage(role=Role.ASSISTANT.value, content=content, **kwargs)
 
 
 def create_system_message(content: str, **kwargs) -> HistoryMessage:
-    """
-    Create a system message in SDK format.
+    """Create a system message in SDK format."""
+    return HistoryMessage(role=Role.SYSTEM.value, content=content, **kwargs)
 
-    Args:
-        content: The system message content
-        **kwargs: Additional fields
 
-    Returns:
-        HistoryMessage in SDK format
-    """
+def create_tool_message(tool_call_id: str, content: str, **kwargs) -> HistoryMessage:
+    """Create a tool result message in OpenAI format."""
     return HistoryMessage(
-        role=Role.SYSTEM.value,
+        role=Role.TOOL.value,
         content=content,
+        tool_call_id=tool_call_id,
         **kwargs
     )
+
+
+def create_openai_tool_call(tool_id: str, name: str, arguments: dict) -> dict:
+    """Create an OpenAI-style tool call."""
+    return {
+        "id": tool_id,
+        "type": "function",
+        "function": {
+            "name": name,
+            "arguments": json.dumps(arguments) if isinstance(arguments, dict) else arguments
+        }
+    }
+
+
+def create_anthropic_tool_use(tool_id: str, name: str, input_data: dict) -> dict:
+    """Create an Anthropic-style tool use content block."""
+    return {
+        "type": "tool_use",
+        "id": tool_id,
+        "name": name,
+        "input": input_data
+    }
+
+
+def create_anthropic_tool_result(tool_use_id: str, content: str) -> dict:
+    """Create an Anthropic-style tool result content block."""
+    return {
+        "type": "tool_result",
+        "tool_use_id": tool_use_id,
+        "content": content
+    }

@@ -23,7 +23,7 @@ import {
   MAX_IMAGES_PER_MESSAGE,
 } from "@/hooks/useAttachedImages";
 import { useClipboardAndDrop } from "@/hooks/useClipboardAndDrop";
-import type { SendImage } from "@/hooks/usejarvisStream";
+import type { SendImage } from "@/hooks/useJarvisStream";
 import { cn } from "@/lib/utils";
 
 /** ``<input accept>``: aligned with the server's MIME whitelist. SVG is

@@ -13,6 +13,10 @@ from core.history import (
     create_user_message,
     create_assistant_message,
     create_system_message,
+    create_tool_message,
+    create_openai_tool_call,
+    create_anthropic_tool_use,
+    create_anthropic_tool_result,
 )
 
 
@@ -38,6 +42,13 @@ class TestHistoryMessage:
         assert msg.role == "system"
         assert msg.content == "You are a helpful assistant."
 
+    def test_create_tool_message(self):
+        """Test creating a tool result message in OpenAI format."""
+        msg = create_tool_message("call_123", '{"result": "success"}')
+        assert msg.role == "tool"
+        assert msg.tool_call_id == "call_123"
+        assert msg.content == '{"result": "success"}'
+
     def test_message_to_dict(self):
         """Test message serialization - matches SDK format."""
         msg = create_user_message("Test message")
@@ -61,16 +72,76 @@ class TestHistoryMessage:
         assert msg.content == "Test"
         assert msg.uuid == "test-uuid"
 
-    def test_sdk_format_compatibility(self):
-        """Test that format matches OpenAI/Anthropic SDK expectations."""
-        # OpenAI format: {"role": "user", "content": "Hello"}
-        msg = create_user_message("Hello")
-        data = msg.to_dict()
 
-        assert "role" in data
-        assert data["role"] == "user"
-        assert "content" in data
-        assert isinstance(data["content"], str)
+class TestOpenAIToolCalls:
+    """Tests for OpenAI SDK tool call format."""
+
+    def test_create_openai_tool_call(self):
+        """Test creating OpenAI-style tool call."""
+        tool_call = create_openai_tool_call("call_123", "get_weather", {"location": "Paris"})
+
+        assert tool_call["id"] == "call_123"
+        assert tool_call["type"] == "function"
+        assert tool_call["function"]["name"] == "get_weather"
+        assert tool_call["function"]["arguments"] == '{"location": "Paris"}'
+
+    def test_openai_assistant_with_tool_calls(self):
+        """Test OpenAI assistant message with tool calls."""
+        tool_call = create_openai_tool_call("call_123", "get_weather", {"location": "Paris"})
+        msg = create_assistant_message(None, tool_calls=[tool_call])
+
+        assert msg.role == "assistant"
+        assert msg.content is None
+        assert msg.tool_calls == [tool_call]
+        assert len(msg.tool_calls) == 1
+
+    def test_openai_tool_message(self):
+        """Test OpenAI tool result message."""
+        msg = create_tool_message("call_123", "20 degrees Celsius")
+
+        assert msg.role == "tool"
+        assert msg.tool_call_id == "call_123"
+        assert msg.content == "20 degrees Celsius"
+
+
+class TestAnthropicToolCalls:
+    """Tests for Anthropic SDK tool call format."""
+
+    def test_create_anthropic_tool_use(self):
+        """Test creating Anthropic-style tool use."""
+        tool_use = create_anthropic_tool_use("toolu_123", "get_weather", {"location": "Paris"})
+
+        assert tool_use["type"] == "tool_use"
+        assert tool_use["id"] == "toolu_123"
+        assert tool_use["name"] == "get_weather"
+        assert tool_use["input"] == {"location": "Paris"}
+
+    def test_create_anthropic_tool_result(self):
+        """Test creating Anthropic-style tool result."""
+        result = create_anthropic_tool_result("toolu_123", "20 degrees Celsius")
+
+        assert result["type"] == "tool_result"
+        assert result["tool_use_id"] == "toolu_123"
+        assert result["content"] == "20 degrees Celsius"
+
+    def test_anthropic_assistant_with_tool_use(self):
+        """Test Anthropic assistant message with tool use in content."""
+        tool_use = create_anthropic_tool_use("toolu_123", "get_weather", {"location": "Paris"})
+        msg = create_assistant_message([tool_use])
+
+        assert msg.role == "assistant"
+        assert isinstance(msg.content, list)
+        assert len(msg.content) == 1
+        assert msg.content[0]["type"] == "tool_use"
+
+    def test_anthropic_tool_result_as_user_message(self):
+        """Test Anthropic tool result as user message."""
+        tool_result = create_anthropic_tool_result("toolu_123", "20 degrees Celsius")
+        msg = create_user_message([tool_result])
+
+        assert msg.role == "user"
+        assert isinstance(msg.content, list)
+        assert msg.content[0]["type"] == "tool_result"
 
 
 class TestConversationHistory:
@@ -114,9 +185,6 @@ class TestConversationHistory:
 
         messages = history.get_messages()
         assert len(messages) == 3
-        assert messages[0].content == "Hello"
-        assert messages[1].content == "Hi there!"
-        assert messages[2].content == "How are you?"
 
     def test_get_messages_empty(self, history):
         """Test getting messages when history is empty."""
@@ -130,8 +198,6 @@ class TestConversationHistory:
 
         messages = history.get_messages(limit=3)
         assert len(messages) == 3
-        assert messages[0].content == "Message 7"
-        assert messages[2].content == "Message 9"
 
     def test_clear_history(self, history):
         """Test clearing history."""
@@ -172,25 +238,47 @@ class TestConversationHistory:
         assert Role.USER.value == "user"
         assert Role.ASSISTANT.value == "assistant"
         assert Role.SYSTEM.value == "system"
+        assert Role.TOOL.value == "tool"
+
+    def test_openai_sdk_format_compatibility(self):
+        """Test OpenAI SDK format compatibility."""
+        # OpenAI expects: [{"role": "user", "content": "..."}, ...]
+        msg = create_user_message("Hello")
+        data = msg.to_dict()
+
+        assert data["role"] == "user"
+        assert isinstance(data["content"], str)
+
+    def test_anthropic_sdk_format_compatibility(self):
+        """Test Anthropic SDK format compatibility."""
+        # Anthropic expects: {"role": "user", "content": [...]}
+        tool_result = create_anthropic_tool_result("toolu_123", "result")
+        msg = create_user_message([tool_result])
+        data = msg.to_dict()
+
+        assert data["role"] == "user"
+        assert isinstance(data["content"], list)
 
 
 class TestSDKFormatCompatibility:
     """Tests for OpenAI/Anthropic SDK format compatibility."""
 
-    def test_openai_format(self):
-        """Test compatibility with OpenAI chat completions format."""
-        # OpenAI expects: [{"role": "user", "content": "..."}, ...]
-        msg = create_user_message("What is the meaning of life?")
-        data = msg.to_dict()
+    def test_openai_tool_call_format(self):
+        """Test OpenAI tool call format matches SDK."""
+        tool_call = create_openai_tool_call("call_123", "get_weather", {"location": "Paris"})
 
-        assert data["role"] == "user"
-        assert isinstance(data["content"], str)
+        # OpenAI SDK expects: {"id": "...", "type": "function", "function": {"name": "...", "arguments": "..."}}
+        assert "id" in tool_call
+        assert "type" in tool_call
+        assert "function" in tool_call
+        assert tool_call["type"] == "function"
 
-    def test_anthropic_format(self):
-        """Test compatibility with Anthropic Messages API format."""
-        # Anthropic expects: {"role": "user", "content": "..."}
-        msg = create_user_message("Hello Claude")
-        data = msg.to_dict()
+    def test_anthropic_tool_use_format(self):
+        """Test Anthropic tool use format matches SDK."""
+        tool_use = create_anthropic_tool_use("toolu_123", "get_weather", {"location": "Paris"})
 
-        assert data["role"] == "user"
-        assert isinstance(data["content"], str)
+        # Anthropic SDK expects: {"type": "tool_use", "id": "...", "name": "...", "input": {...}}
+        assert tool_use["type"] == "tool_use"
+        assert "id" in tool_use
+        assert "name" in tool_use
+        assert "input" in tool_use

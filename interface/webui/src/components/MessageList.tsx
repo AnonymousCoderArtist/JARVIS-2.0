@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
 
 import { MessageBubble } from "@/components/MessageBubble";
+import { ThinkingIndicator } from "@/components/ThinkingIndicator";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "@/lib/types";
@@ -9,6 +10,7 @@ import type { UIMessage } from "@/lib/types";
 interface MessageListProps {
   messages: UIMessage[];
   isStreaming: boolean;
+  thinking?: string;
 }
 
 const NEAR_BOTTOM_PX = 48;
@@ -19,7 +21,7 @@ const NEAR_BOTTOM_PX = 48;
  * position when they've scrolled up to read earlier turns. A floating
  * "scroll to bottom" button appears whenever we're detached from the bottom.
  */
-export function MessageList({ messages, isStreaming }: MessageListProps) {
+export function MessageList({ messages, isStreaming, thinking }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
 
@@ -75,6 +77,11 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
           {messages.map((m) => (
             <MessageBubble key={m.id} message={m} />
           ))}
+          <ThinkingIndicator
+            isVisible={isStreaming}
+            text={thinking}
+            className="mt-2"
+          />
         </div>
       </div>
 
