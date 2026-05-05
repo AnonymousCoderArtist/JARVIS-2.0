@@ -221,6 +221,18 @@ jarvis --cli
 jarvis --cli -m gpt-4o --apikey YOUR_KEY
 ```
 
+### WebUI Mode
+
+```bash
+# Launch WebUI interface
+jarvis --webui
+
+# With explicit configuration
+jarvis --webui --model gpt-4o --apikey YOUR_KEY
+```
+
+> **Note:** The WebUI interface provides a browser-based chat interface similar to popular AI assistants. The UI design has been adapted from the [nanobot](https://github.com/OEvortex/nanobot) repository.
+
 ### Available CLI Flags
 
 | Flag | Short | Description |
@@ -232,6 +244,7 @@ jarvis --cli -m gpt-4o --apikey YOUR_KEY
 | `--cli` | | Launch CLI interface (optional) |
 | `--tui` | `--TUI` | Launch TUI interface (default) |
 | `--bypass` | `--yolo` | Bypass all tool permissions |
+| `--webui` | | Launch WebUI interface |
 
 ---
 
