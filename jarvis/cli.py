@@ -83,7 +83,7 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
     parser.add_argument(
         "--tui", "--TUI",
         action="store_true",
-        help="Launch the Textual UI (TUI)"
+        help="Launch the Textual UI (TUI) [default]"
     )
 
     parser.add_argument(
@@ -129,9 +129,9 @@ def main() -> None:
     """Entry point for the jarvis command."""
     launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port = _parse_args(sys.argv[1:])
 
-    # Default to CLI if no mode specified
+    # Default to TUI if no mode specified
     if not launch_cli and not launch_tui and not launch_webui:
-        launch_cli = True
+        launch_tui = True
 
     # CLI mode always uses bypass mode for smooth tool execution
     if launch_cli and not bypass:

@@ -42,7 +42,7 @@ This is **JARVIS v2.0.beta-Agents** - the core Agentic harness of JARVIS 2.0
 | ✅ JARVIS Agent (PI) | Complete |
 | ✅ Explore Subagent | Ready |
 | ⚠️ CLI Interface | Under Development (Try at your own risk) |
-| ✅ TUI Interface | Complete |
+| ✅ TUI Interface | Complete (Default) |
 | ✅ Permission System | Complete |
 | ✅ Plan Subagent | Ready |
 | ✅ Auto Compact | Complete |
@@ -193,6 +193,19 @@ JARVIS_SDK=openai
 
 ## 🚀 Usage
 
+### TUI Mode (Default)
+
+```bash
+# Launch TUI interface (default - uses .env file from current working directory)
+jarvis
+
+# With explicit configuration
+jarvis --model gpt-4o --apikey YOUR_KEY
+
+# With custom base URL (for local LLMs)
+jarvis --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --sdk openai
+```
+
 ### CLI Mode
 
 > **Note:** The CLI version is still in development. Use it at your own risk.
@@ -208,19 +221,6 @@ jarvis --cli
 jarvis --cli -m gpt-4o --apikey YOUR_KEY
 ```
 
-### TUI Mode
-
-```bash
-# Launch TUI interface (uses .env file from current working directory)
-jarvis --tui
-
-# With explicit configuration
-jarvis --tui --model gpt-4o --apikey YOUR_KEY
-
-# With custom base URL (for local LLMs)
-jarvis --tui --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --sdk openai
-```
-
 ### Available CLI Flags
 
 | Flag | Short | Description |
@@ -229,8 +229,8 @@ jarvis --tui --model llama-3-70b --base_url http://localhost:8000/v1 --apikey du
 | `--base_url` | | Base URL for LLM API |
 | `--apikey` | `--api-key` | API key for the provider |
 | `--sdk` | | SDK mode: `openai` or `anthropic` |
-| `--cli` | | Launch CLI interface |
-| `--tui` | `--TUI` | Launch TUI interface |
+| `--cli` | | Launch CLI interface (optional) |
+| `--tui` | `--TUI` | Launch TUI interface (default) |
 | `--bypass` | `--yolo` | Bypass all tool permissions |
 
 ---

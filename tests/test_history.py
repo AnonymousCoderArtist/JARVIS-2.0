@@ -93,7 +93,7 @@ class TestOpenAIToolCalls:
         assert msg.role == "assistant"
         assert msg.content is None
         assert msg.tool_calls == [tool_call]
-        assert len(msg.tool_calls) == 1
+        assert msg.tool_calls is not None and len(msg.tool_calls) == 1
 
     def test_openai_tool_message(self):
         """Test OpenAI tool result message."""

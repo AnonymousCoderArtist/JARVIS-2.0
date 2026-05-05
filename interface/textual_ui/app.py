@@ -964,7 +964,7 @@ class VibeApp(App):  # noqa: PLR0904
             for widget in children[:compact_index]:
                 await widget.remove()
 
-    async def _handle_command(self, user_input: str) -> bool:
+    async def _handle_command(self, user_input: str) -> bool | str:
         """Handle slash commands."""
         try:
             if resolved := self.commands.parse_command(user_input):
@@ -2812,8 +2812,10 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def action_toggle_thinking(self) -> None:
         self._thinking_collapsed = not self._thinking_collapsed
+        from interface.textual_ui.widgets.messages import ReasoningMessage
         for msg in self.query("ReasoningMessage"):
-            msg.collapsed = self._thinking_collapsed
+            if isinstance(msg, ReasoningMessage):
+                msg.collapsed = self._thinking_collapsed
 
     def action_cycle_mode(self) -> None:
         if self._current_bottom_app != BottomApp.Input:

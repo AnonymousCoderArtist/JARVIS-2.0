@@ -218,12 +218,12 @@ class ConversationHistory:
 
 
 # Convenience functions matching SDK format
-def create_user_message(content: str, **kwargs) -> HistoryMessage:
+def create_user_message(content: str | list | None, **kwargs) -> HistoryMessage:
     """Create a user message in SDK format."""
     return HistoryMessage(role=Role.USER.value, content=content, **kwargs)
 
 
-def create_assistant_message(content: Union[str, list], **kwargs) -> HistoryMessage:
+def create_assistant_message(content: Union[str, list, None], **kwargs) -> HistoryMessage:
     """Create an assistant message in SDK format."""
     return HistoryMessage(role=Role.ASSISTANT.value, content=content, **kwargs)
 

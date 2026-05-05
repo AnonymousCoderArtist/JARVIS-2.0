@@ -14,13 +14,17 @@ uv pip install -e .
 ### Running JARVIS
 
 ```bash
-# Launch CLI
-python main.py --cli
+# Launch TUI (default)
+python main.py
 
-# Or directly
+# Or directly (TUI is default)
+jarvis --model gpt-4o
+
+# Launch CLI explicitly
+python main.py --cli
 jarvis --cli --model gpt-4o
 
-# Launch TUI (Textual-based)
+# Launch TUI explicitly
 python main.py --tui
 ```
 
@@ -183,7 +187,10 @@ pytest tests/test_read_many_files.py -v
 ### Debugging
 
 ```bash
-# Run with debug output
+# Run with debug output (TUI)
+python main.py --tui --model gpt-4o
+
+# Run with debug output (CLI)
 python main.py --cli --model gpt-4o
 
 # Check type errors

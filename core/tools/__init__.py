@@ -1,7 +1,5 @@
 """Tools Package"""
 
-import sys
-
 # Agent and Skill tools
 from .agent_tools import AgentsTool, AgentStatusTool
 
@@ -40,20 +38,6 @@ from .repl_tool import REPLTool
 # Web tools
 from .web_tools import WebFetchTool, ExaWebSearchTool
 
-# Windows tools
-if sys.platform == "win32":
-    from .windows_tools import (
-        WindowsSnapshotTool,
-        WindowsClickTool,
-        WindowsTypeTool,
-        WindowsScrollTool,
-        WindowsShortcutTool,
-        WindowsAppTool,
-        WindowsClipboardTool,
-        WindowsNotificationTool,
-        WindowsProcessTool,
-    )
-
 __all__ = [
     "BaseTool",
     "ToolInput",
@@ -86,17 +70,3 @@ __all__ = [
     # Skill tool
     "SkillTool",
 ]
-
-if sys.platform == "win32":
-    __all__.extend([
-        # Windows tools
-        "WindowsSnapshotTool",
-        "WindowsClickTool",
-        "WindowsTypeTool",
-        "WindowsScrollTool",
-        "WindowsShortcutTool",
-        "WindowsAppTool",
-        "WindowsClipboardTool",
-        "WindowsNotificationTool",
-        "WindowsProcessTool",
-    ])

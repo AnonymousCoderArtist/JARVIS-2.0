@@ -102,7 +102,7 @@ class ToolResultWidget(Generic[TResult], Static, can_focus=True):
 
     def watch_collapsed(self, collapsed: bool) -> None:
         """Update the widget when collapsed state changes."""
-        self.recompose()
+        self.refresh()
 
     def _footer(self, extra: str | None = None) -> ComposeResult:
         """Yield the footer with optional extra info."""
@@ -176,7 +176,7 @@ class BashResultWidget(ToolResultWidget[BashResult]):
 
 class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
     def compose(self) -> ComposeResult:
-        file_path = self.args.filePath if isinstance(self.args, BaseModel) else self.args.get("filePath", "")
+        file_path = self.args.file_path if isinstance(self.args, BaseModel) else self.args.get("file_path", self.args.get("filePath", ""))
         path = Path(file_path)
         file_extension = path.suffix.lstrip(".") or "text"
         content = self.args.content if isinstance(self.args, BaseModel) else self.args.get("content", "")

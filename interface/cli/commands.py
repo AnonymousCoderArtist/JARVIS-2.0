@@ -207,7 +207,7 @@ class CommandRegistry:
             messages = history.get_messages()
 
             if not messages:
-                self.display_manager.show_info("No conversation history found for this session.")
+                self.display_manager.show_error("No conversation history found for this session.")
                 return
 
             # Format messages for display
@@ -215,7 +215,7 @@ class CommandRegistry:
             lines.append("-" * 50)
 
             for msg in messages[-20:]:  # Show last 20 messages
-                role = msg.role or msg.type
+                role = msg.role
                 content = msg.content
                 if isinstance(content, str):
                     preview = content[:100] + "..." if len(content) > 100 else content
@@ -244,12 +244,12 @@ class CommandRegistry:
         try:
             history_dir = ConversationHistory().history_dir
             if not history_dir.exists():
-                self.display_manager.show_info("No sessions found.")
+                self.display_manager.show_error("No sessions found.")
                 return
 
             sessions = list(history_dir.glob("*.jsonl"))
             if not sessions:
-                self.display_manager.show_info("No sessions found.")
+                self.display_manager.show_error("No sessions found.")
                 return
 
             lines = ["Available Sessions:\n"]

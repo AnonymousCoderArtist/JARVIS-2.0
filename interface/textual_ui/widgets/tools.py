@@ -308,7 +308,7 @@ class ToolResultMessage(Static):
             self._call_widget.stop_spinning(success=self._success)
         await self._render_result()
 
-    def on_tool_result_widget_toggle_request(self, message: ToolResultWidget.ToggleRequest) -> None:
+    def on_tool_result_widget_toggle_request(self, message: Any) -> None:
         """Keep our state in sync with the child widget."""
         self.collapsed = message.collapsed
 
