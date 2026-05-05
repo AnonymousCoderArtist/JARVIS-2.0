@@ -70,8 +70,14 @@ class CodingAgent(BaseAgent):
         """Get the heartbeat scheduler instance"""
         return self._heartbeat_scheduler
 
-    def initialize_heartbeat(self, config_getter=None) -> None:
-        """Initialize the heartbeat scheduler with configuration"""
+    def initialize_heartbeat(self, config_getter=None, notifier=None, evaluator=None) -> None:
+        """Initialize the heartbeat scheduler with configuration
+        
+        Args:
+            config_getter: Function returning settings (optional)
+            notifier: Callback for delivering heartbeat results (async function)
+            evaluator: Optional callback to evaluate if response should be delivered
+        """
         settings = config_getter() if config_getter else None
         if not settings:
             return
@@ -93,9 +99,11 @@ class CodingAgent(BaseAgent):
             "show_ok": settings.heartbeat_show_ok,
             "show_alerts": settings.heartbeat_show_alerts,
             "use_indicator": settings.heartbeat_use_indicator,
+            "evaluator": evaluator,
+            "notifier": notifier,
         }
         
-        # Create agent executor for heartbeat
+        # Create agent executor for heartbeat (Phase 1 decision)
         async def agent_executor(prompt: str) -> str:
             return await self.process(prompt, {"heartbeat": True})
         
