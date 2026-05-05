@@ -563,6 +563,10 @@ StatusMessage {
     color: ansi_default;
 }
 
+.tool-result-widget:focus {
+    background: ansi_bright_black 10%;
+}
+
 .tool-result-widget Static {
     height: auto;
 }

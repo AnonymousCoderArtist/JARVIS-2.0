@@ -20,9 +20,6 @@ from .base import BaseTool, ToolInput, ToolOutput
 # Code tools
 from .code_tools import BashTool, RunTestsTool
 
-# Document tools
-# Removed: ReadPDFTool
-
 # File tools
 from .file_edit_tool import EditTool
 from .file_tools import FileReadTool, FileWriteTool, FindTool, LSTool

@@ -52,7 +52,8 @@ def collect_mcp_tool_index(
     connector_tools: dict[str, list[tuple[str, type[MCPTool]]]] = {}
 
     for tool_name, cls in list(registered.items()):
-        if not issubclass(cls, MCPTool):
+        # Check if cls is a class before calling issubclass()
+        if not isinstance(cls, type) or not issubclass(cls, MCPTool):
             continue
         server_name = cls.get_server_name()
         if server_name is None:

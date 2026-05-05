@@ -6,7 +6,7 @@ from enum import Enum
 import json
 from logging import getLogger
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices, model_validator
 import re
 from typing import Any, Optional
 
@@ -180,6 +180,22 @@ class CommandRegistry:
             handler="_start_rewind_mode",
         )
 
+        # Config command (like Vibe)
+        self.commands["config"] = Command(
+            aliases=("/config", "/settings"),
+            description="Edit config settings",
+            usage="",
+            handler="_show_config",
+        )
+
+        # MCP command (like Vibe)
+        self.commands["mcp"] = Command(
+            aliases=("/mcp", "/connectors"),
+            description="Display available MCP servers and connectors",
+            usage="[server_name]",
+            handler="_show_mcp",
+        )
+
     def refresh(self, availability_context: CommandAvailabilityContext) -> None:
         """Refresh command availability based on context."""
         self.availability_context = availability_context
@@ -306,7 +322,7 @@ class PathCompletionController:
     def __init__(self, completer: Any, parent: Any):
         self.completer = completer
         self.parent = parent
-        self._suggestions: list[tuple[str, str]] = []
+        self._suggestions: list[tuple[str, str, str]] = []
         self._selected_index = 0
         self._popup_visible = False
 
@@ -315,24 +331,36 @@ class PathCompletionController:
         if cursor_index == 0:
             return False
         before_cursor = text[:cursor_index]
-        return before_cursor.rstrip().endswith((" ", "@", "~")) or before_cursor.endswith(("/", "\\")) or "@" in before_cursor
+        # Check if the current word starts with @, ~, /, or .
+        parts = before_cursor.split()
+        if not parts:
+            return False
+        last_word = parts[-1]
+        return last_word.startswith(("@", "~", "/", "."))
 
     def on_text_changed(self, text: str, cursor_index: int) -> None:
         if not self.can_handle(text, cursor_index):
-            self._suggestions = []
-            self._popup_visible = False
+            self.reset()
             return
 
         # Get the word being completed
         before_cursor = text[:cursor_index]
         parts = before_cursor.split()
-        if parts:
-            word = parts[-1] if parts else ""
-            # Get suggestions from completer
-            self._suggestions = self.completer.get_completions(word, self.parent) if hasattr(self.completer, 'get_completions') else []
-            self._popup_visible = bool(self._suggestions)
-            if self._suggestions and self.parent:
-                self.parent.render_completion_suggestions(self._suggestions, 0)
+        if not parts:
+            self.reset()
+            return
+            
+        word = parts[-1]
+        
+        # Get suggestions from completer
+        self._suggestions = self.completer.get_completions(word, self.parent) if hasattr(self.completer, 'get_completions') else []
+        self._selected_index = 0
+        self._popup_visible = bool(self._suggestions)
+        
+        if self._suggestions and self.parent:
+            self.parent.render_completion_suggestions(self._suggestions, 0)
+        elif self.parent:
+            self.parent.clear_completion_suggestions()
 
     def on_key(self, event: Any, text: str, cursor_index: int) -> CompletionResult:
         if not self._popup_visible or not self._suggestions:
@@ -340,21 +368,21 @@ class PathCompletionController:
 
         if event.key == "tab":
             if 0 <= self._selected_index < len(self._suggestions):
-                replacement = self._suggestions[self._selected_index][0]
+                replacement = self._suggestions[self._selected_index][2]
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
                     self.parent.replace_completion_range(cursor_index - len(self._get_word_before_cursor(text, cursor_index)),
-                                                          cursor_index, replacement + " ")
+                                                          cursor_index, replacement)
                 return CompletionResult.HANDLED
         elif event.key == "enter":
             if 0 <= self._selected_index < len(self._suggestions):
                 current_word = self._get_word_before_cursor(text, cursor_index)
-                # If the current text exactly matches a suggestion, let it submit instead of completing
-                if current_word in [suggestion[0] for suggestion in self._suggestions]:
+                # If the current text exactly matches a suggestion's replacement, let it submit instead of completing
+                if current_word in [suggestion[2] for suggestion in self._suggestions]:
                     return CompletionResult.IGNORED
-                replacement = self._suggestions[self._selected_index][0]
+                replacement = self._suggestions[self._selected_index][2]
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
                     self.parent.replace_completion_range(cursor_index - len(self._get_word_before_cursor(text, cursor_index)),
-                                                          cursor_index, replacement + " ")
+                                                          cursor_index, replacement)
                 return CompletionResult.HANDLED
         elif event.key == "escape":
             self.reset()
@@ -390,7 +418,7 @@ class SlashCommandController:
     def __init__(self, completer: Any, parent: Any):
         self.completer = completer
         self.parent = parent
-        self._suggestions: list[tuple[str, str]] = []
+        self._suggestions: list[tuple[str, str, str]] = []
         self._selected_index = 0
         self._popup_visible = False
 
@@ -425,7 +453,7 @@ class SlashCommandController:
                 else []
             )
             self._suggestions = [
-                (label, desc)
+                (label, desc, label)
                 for label, desc in entries
                 if label.lower().startswith(cmd_alias.lower())
             ]
@@ -437,7 +465,7 @@ class SlashCommandController:
             )
             prefix = "" if text_before_cursor.endswith(" ") else current_word
             self._suggestions = [
-                (label, desc)
+                (label, desc, label)
                 for label, desc in arg_entries
                 if label.lower().startswith(prefix.lower())
             ]
@@ -458,7 +486,7 @@ class SlashCommandController:
                 replacement = self._format_replacement(
                     text,
                     cursor_index,
-                    self._suggestions[self._selected_index][0],
+                    self._suggestions[self._selected_index][2],
                 )
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
                     self.parent.replace_completion_range(
@@ -469,16 +497,15 @@ class SlashCommandController:
             return CompletionResult.HANDLED
         elif event.key == "enter":
             # Only handle enter if popup is visible and we have a selection
-            # Otherwise let it pass through for command execution
             if 0 <= self._selected_index < len(self._suggestions):
                 current_word = self._get_current_word(text, cursor_index)
                 # If the current text exactly matches a command, let it submit instead of completing
-                if current_word in [suggestion[0] for suggestion in self._suggestions]:
+                if current_word in [suggestion[2] for suggestion in self._suggestions]:
                     return CompletionResult.IGNORED
                 replacement = self._format_replacement(
                     text,
                     cursor_index,
-                    self._suggestions[self._selected_index][0],
+                    self._suggestions[self._selected_index][2],
                 )
                 if self.parent and hasattr(self.parent, 'replace_completion_range'):
                     self.parent.replace_completion_range(
@@ -981,33 +1008,59 @@ class CommandCompleter:
 
 
 class PathCompleter:
-    """Completer for file paths."""
+    """Completer for file paths and @ search."""
 
     def __init__(self, watcher_enabled_getter: Any = None):
         self.watcher_enabled_getter = watcher_enabled_getter
+        from core.utils.indexer import ProjectIndexer
+        self.indexer = ProjectIndexer()
 
-    def get_completions(self, document, complete_event):
-        # Handle both document objects and strings (for backward compatibility)
+    def get_completions(self, document, complete_event) -> list[tuple[str, str, str]]:
+        # Handle both document objects and strings
         if isinstance(document, str):
             text = document
-        else:
+        elif hasattr(document, 'get_word_before_cursor'):
             text = document.get_word_before_cursor()
+        else:
+            text = str(document)
 
-        if text.startswith('@') or text.startswith('/') or text.startswith('~'):
+        if text.startswith('@'):
+            # Use ProjectIndexer for project-wide search
+            return self.indexer.search(text)
+        
+        if text.startswith('/') or text.startswith('~') or text.startswith('.'):
             import os
             base_path = text
-            if '/' in text:
-                base_path = text[:text.rfind('/') + 1]
-                prefix = text[text.rfind('/') + 1:]
+            if '/' in text or '\\' in text:
+                # Use split to handle both separators
+                if '/' in text:
+                    base_path = text[:text.rfind('/') + 1]
+                    prefix = text[text.rfind('/') + 1:]
+                else:
+                    base_path = text[:text.rfind('\\') + 1]
+                    prefix = text[text.rfind('\\') + 1:]
             else:
                 base_path = './'
                 prefix = text
+            
+            suggestions = []
             try:
-                for item in os.listdir(base_path):
-                    if item.startswith(prefix) and Completion:
-                        yield Completion(item, start_position=-len(prefix))
+                # Expand user for ~ paths
+                expanded_base = os.path.expanduser(base_path)
+                for item in os.listdir(expanded_base):
+                    if item.lower().startswith(prefix.lower()):
+                        full_path = os.path.join(expanded_base, item)
+                        is_dir = os.path.isdir(full_path)
+                        label = item + ("/" if is_dir else "")
+                        desc = base_path
+                        # For local paths, replacement is just the label without icon
+                        replacement = item + ("/" if is_dir else "")
+                        suggestions.append((label, desc, replacement))
             except (FileNotFoundError, PermissionError):
                 pass
+            return suggestions
+        
+        return []
 
 
 # ============================================================================
@@ -1057,6 +1110,7 @@ class MCPServer:
     command: str = ""
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
+    url: str = ""  # For HTTP/SSE transport
     disabled: bool = False
     disabled_tools: list[str] = field(default_factory=list)
 
@@ -1410,15 +1464,21 @@ class BashArgs(BaseModel):
 
 
 class GrepArgs(BaseModel):
-    query: str
+    query: str = Field(validation_alias=AliasChoices("query", "pattern"))
     path: str = "."
-    max_matches: Optional[int] = None
-    is_regexp: Optional[bool] = False
-    include_pattern: Optional[str] = None
+    max_matches: Optional[int] = Field(None, validation_alias=AliasChoices("max_matches", "maxMatches"))
+    is_regexp: Optional[bool] = Field(False, validation_alias=AliasChoices("is_regexp", "isRegexp"))
+    include_pattern: Optional[str] = Field(None, validation_alias=AliasChoices("include_pattern", "includePattern"))
 
 
 class LSArgs(BaseModel):
-    path: str = "."
+    path: str = Field(".", validation_alias=AliasChoices("path", "directory"))
+
+
+class FindArgs(BaseModel):
+    pattern: str
+    path: str = ""
+    max_results: Optional[int] = Field(None, validation_alias=AliasChoices("max_results", "maxResults"))
 
 
 class ReadFileArgs(BaseModel):
@@ -1427,6 +1487,16 @@ class ReadFileArgs(BaseModel):
     files: list = []
     encoding: str = "utf-8"
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_files(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # If called with single path instead of files list
+            path = data.get("path") or data.get("filePath") or data.get("file_path")
+            if path and not data.get("files"):
+                data["files"] = [{"file_path": path}]
+        return data
+
 
 class TodoArgs(BaseModel):
     action: str
@@ -1434,7 +1504,7 @@ class TodoArgs(BaseModel):
 
 
 class WriteFileArgs(BaseModel):
-    filePath: str
+    file_path: str = Field(validation_alias=AliasChoices("file_path", "filePath", "path"))
     content: str
 
 
@@ -1692,7 +1762,7 @@ class ToolUIDataAdapter:
             summary = command.split("\n")[0]
             if len(summary) > 50:
                 summary = summary[:47] + "..."
-            return Display(summary=f"run \"{summary}\"")
+            return Display(summary=f"Bash \"{summary}\"")
 
         if tool_name == "ls":
             path_str = args.get("path", ".")
@@ -1711,6 +1781,25 @@ class ToolUIDataAdapter:
                 return Display(summary=f"List {display_path}")
             except Exception:
                 return Display(summary=f"List {path_str}")
+
+        if tool_name == "find":
+            pattern = args.get("pattern", "")
+            path_str = args.get("path", "")
+            if not path_str:
+                path_str = "."
+            try:
+                p = Path(path_str).resolve()
+                cwd = Path.cwd().resolve()
+                if p == cwd:
+                    display_path = str(cwd).replace('\\', '/')
+                elif p.is_relative_to(cwd):
+                    rel = p.relative_to(cwd)
+                    display_path = f"{str(cwd).replace('\\', '/')}/{str(rel).replace('\\', '/')}".rstrip('/')
+                else:
+                    display_path = path_str.replace('\\', '/')
+                return Display(summary=f"Find \"{pattern}\" in {display_path}")
+            except Exception:
+                return Display(summary=f"Find \"{pattern}\" in {path_str}")
 
         args_text = self._format_args(args)
         if args_text:

@@ -53,10 +53,22 @@ dependencies = [
     # CLI dependencies
     "prompt-toolkit>=3.0.0",
     "pygments>=2.16.0",
+    "questionary>=2.0.0",
     # TUI dependencies
     "textual>=0.50.0",
     # Resource monitoring
     "psutil>=5.9.0",
+    # Windows automation dependencies
+    "Pillow>=10.2.0",
+    "markdownify>=0.11.6",
+    "fuzzywuzzy>=0.18.0",
+    "python-Levenshtein>=0.23.0",
+    "requests>=2.31.0",
+    "posthog>=3.3.1",
+    # Web UI dependencies
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.6",
 ]
 [project.optional-dependencies]
 dev = [

@@ -173,7 +173,7 @@ class ChatInputContainer(Vertical):
             self._body.focus_input()
 
     def render_completion_suggestions(
-        self, suggestions: list[tuple[str, str]], selected_index: int
+        self, suggestions: list[tuple[str, str, str]], selected_index: int
     ) -> None:
         try:
             popup = self.query_one(CompletionPopup)
@@ -189,18 +189,18 @@ class ChatInputContainer(Vertical):
             return
         popup.hide()
 
-    def _compute_line_count(self, suggestions: list[tuple[str, str]]) -> int:
+    def _compute_line_count(self, suggestions: list[tuple[str, str, str]]) -> int:
         line_count_without_scrollbar = sum(
             math.ceil(
                 CompletionPopup.rendered_text_length(label, description)
                 / COMPLETION_POPUP_MAX_CHARS
             )
-            for label, description in suggestions
+            for label, description, _ in suggestions
         )
         return min(line_count_without_scrollbar, COMPLETION_POPUP_MAX_LINES)
 
     def _position_popup(
-        self, popup: CompletionPopup, suggestions: list[tuple[str, str]]
+        self, popup: CompletionPopup, suggestions: list[tuple[str, str, str]]
     ) -> None:
         widget = self.input_widget
         if not widget:
@@ -292,7 +292,7 @@ class ChatInputContainer(Vertical):
 
     def _apply_input_box_chrome(self) -> None:
         try:
-            input_box = self.get_widget_by_id(self.ID_INPUT_BOX)
+            input_box = self.query_one(f"#{self.ID_INPUT_BOX}")
         except Exception:
             return
 

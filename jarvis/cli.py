@@ -35,7 +35,7 @@ def _load_env_config() -> dict[str, str]:
     }
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, bool, str, str, str, str, bool]:
+def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int]:
     # Load .env configuration as defaults
     env_config = _load_env_config()
 
@@ -87,22 +87,50 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, str, str, str, str, bool]:
     )
 
     parser.add_argument(
+        "--webui",
+        action="store_true",
+        help="Launch the Web UI"
+    )
+
+    parser.add_argument(
         "--bypass", "--yolo",
         action="store_true",
         help="Bypass all tool permission checks (yolo mode)"
     )
 
+    # WebUI specific arguments
+    parser.add_argument(
+        "--host", "-H",
+        type=str,
+        default="127.0.0.1",
+        help="WebUI host to bind to (use 0.0.0.0 for all devices)"
+    )
+
+    parser.add_argument(
+        "--port", "-p",
+        type=int,
+        default=5173,
+        help="WebUI port (default: 5173)"
+    )
+
+    parser.add_argument(
+        "--backend-port", "-b",
+        type=int,
+        default=8765,
+        help="Backend server port (default: 8765)"
+    )
+
     args = parser.parse_args(argv)
 
-    return args.cli, args.tui, args.model, args.base_url, args.apikey, args.sdk, args.bypass
+    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port
 
 
 def main() -> None:
     """Entry point for the jarvis command."""
-    launch_cli, launch_tui, model, base_url, apikey, sdk, bypass = _parse_args(sys.argv[1:])
+    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port = _parse_args(sys.argv[1:])
 
     # Default to CLI if no mode specified
-    if not launch_cli and not launch_tui:
+    if not launch_cli and not launch_tui and not launch_webui:
         launch_cli = True
 
     # CLI mode always uses bypass mode for smooth tool execution
@@ -114,6 +142,9 @@ def main() -> None:
         from interface.textual_ui.tui_main import main as tui_main
         # TUI needs to be run synchronously (Textual handles its own event loop)
         tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass)
+    elif launch_webui:
+        from interface.webui.webui_main import main as webui_main
+        webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port)
     else:
         from interface.cli.cli import main as cli_main
         # CLI is now async

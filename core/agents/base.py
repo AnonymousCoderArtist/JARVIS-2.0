@@ -438,7 +438,7 @@ class BaseAgent(ABC):
             else:
                 response, feedback = result, ""
 
-            if response == ApprovalResponse.YES:
+            if response == "yes" or response == ApprovalResponse.YES:
                 return ToolDecision(
                     verdict="execute",
                     approval_type=ToolPermission.ASK,
@@ -582,6 +582,11 @@ class BaseAgent(ABC):
                                 if chunk_reasoning and chunk_reasoning.strip():
                                     if self.reasoning_callback:
                                         self.reasoning_callback(chunk_reasoning)
+                            elif chunk["type"] == "thinking":
+                                # Periodic thinking indicator for models without native reasoning
+                                chunk_thinking = cast(str, chunk["content"])
+                                if self.reasoning_callback:
+                                    self.reasoning_callback(chunk_thinking)
                             elif chunk["type"] == "tool_calls":
                                 for tc in cast(list[dict[str, Any]], chunk.get("tool_calls", [])):
                                     tool_calls.append(ToolCall(

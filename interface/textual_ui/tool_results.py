@@ -45,3 +45,7 @@ class SearchReplaceResult(BaseModel):
 
 class LSResult(BaseModel):
     items: list[str] = []
+
+
+class FindResult(BaseModel):
+    matches: list[str] = []

@@ -132,6 +132,7 @@ class AnthropicSDK(BaseLLMSDK):
 
     async def _stream_response_with_tools(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from Anthropic API with tool calling support"""
+        import time
         try:
             content_buffer = ""
             tool_calls = []
@@ -162,7 +163,8 @@ class AnthropicSDK(BaseLLMSDK):
                                 yield {"type": "text", "content": text_chunk}
                             elif delta.get("type") == "thinking_delta":
                                 # Extended thinking (reasoning) content
-                                yield {"type": "reasoning", "content": delta.get("thinking", "")}
+                                thinking_content = delta.get("thinking", "")
+                                yield {"type": "reasoning", "content": thinking_content}
                             elif delta.get("type") == "input_json_delta":
                                 if current_tool_call:
                                     current_tool_call["arguments"] += delta.get("partial_json", "")

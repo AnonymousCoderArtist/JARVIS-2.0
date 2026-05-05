@@ -126,6 +126,7 @@ class OpenAISDK(BaseLLMSDK):
 
     async def _stream_response_with_tools(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from OpenAI API with tool calling support"""
+        import time
         try:
             content_buffer = ""
             tool_calls = []
@@ -138,11 +139,11 @@ class OpenAISDK(BaseLLMSDK):
 
                     try:
                         chunk = json.loads(data_str)
-                        
+
                         # Check if this chunk has usage info (usually in final chunk)
                         if chunk.get("usage"):
                             yield {"type": "usage", "usage": chunk["usage"]}
-                        
+
                         if not chunk.get("choices"):
                             continue
 
