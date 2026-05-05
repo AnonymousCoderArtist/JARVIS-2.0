@@ -97,6 +97,7 @@ class BaseEvent:
 class AssistantEvent(BaseEvent):
     """Assistant event."""
     content: str = ""
+    is_heartbeat: bool = False
 
 
 @dataclass

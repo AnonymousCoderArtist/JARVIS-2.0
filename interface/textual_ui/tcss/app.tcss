@@ -1122,11 +1122,21 @@ NarratorStatus {
 
 .banner-spacer {
     width: 1;
-    color: transparent;
+    color: $muted;
 }
 
-.banner-meta {
+.banner-divider {
+    color: $overlay;
+    width: auto;
+}
+
+.banner-label {
     color: $text;
+    width: auto;
+}
+
+#banner-version {
+    color: $success;
     width: auto;
 }
 

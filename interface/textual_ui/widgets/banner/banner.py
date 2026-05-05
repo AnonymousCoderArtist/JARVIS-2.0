@@ -54,14 +54,16 @@ class Banner(Static):
 
             with Vertical(id="banner-info"):
                 with Horizontal(classes="banner-line"):
-                    yield NoMarkupStatic("JARVIS Agent", id="banner-brand")
-                    yield NoMarkupStatic(" ", classes="banner-spacer")
-                    yield NoMarkupStatic(f"v{__version__} · ", classes="banner-meta")
+                    yield NoMarkupStatic("JARVIS", id="banner-brand")
+                    yield NoMarkupStatic(" ▰▰▰ ", classes="banner-spacer")
+                    yield NoMarkupStatic(f"v{__version__}", id="banner-version")
+                    yield NoMarkupStatic(" │ ", classes="banner-divider")
                     yield NoMarkupStatic("", id="banner-model")
                 with Horizontal(classes="banner-line"):
                     yield NoMarkupStatic("", id="banner-meta-counts")
-                with Horizontal(classes="banner-line"):
-                    yield NoMarkupStatic("Made by @OEvortex", id="banner-attribution")
+                    yield NoMarkupStatic(" │ ", classes="banner-divider")
+                    yield NoMarkupStatic("Made by ", classes="banner-label")
+                    yield NoMarkupStatic("@OEvortex", id="banner-attribution")
 
     def on_mount(self) -> None:
         self.state = self._initial_state

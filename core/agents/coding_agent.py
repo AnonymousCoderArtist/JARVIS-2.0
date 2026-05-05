@@ -83,10 +83,10 @@ class CodingAgent(BaseAgent):
             return
         
         # Check if heartbeat is enabled in config
-        if not getattr(settings, 'heartbeat_enabled', False):
+        if not settings.heartbeat_enabled:
             return
         
-        # Get heartbeat config
+        # Get heartbeat config from settings properties
         heartbeat_config = {
             "enabled": settings.heartbeat_enabled,
             "every": settings.heartbeat_interval,

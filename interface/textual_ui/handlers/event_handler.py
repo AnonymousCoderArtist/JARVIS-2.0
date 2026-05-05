@@ -206,7 +206,10 @@ class EventHandler:
             self.current_streaming_reasoning = None
 
         if self.current_streaming_message is None:
-            msg = AssistantMessage(event.content)
+            msg = AssistantMessage(event.content, enable_math=False)
+            # Apply heartbeat styling if this is a heartbeat message
+            if event.is_heartbeat:
+                msg.add_class("heartbeat-message")
             self.current_streaming_message = msg
             await self.mount_callback(msg)
         else:

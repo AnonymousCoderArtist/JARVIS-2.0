@@ -346,13 +346,16 @@ class AgentLoop:
         self._is_running = False
         self._tool_call_ids: dict[str, str] = {}  # Track tool call IDs
         self._disabled_tools: list[str] = []  # Track disabled tools
-
+        
         # Set up tool call/result callbacks for event tracking
         self.agent.tool_call_callback = self._on_tool_call
         self.agent.tool_result_callback = self._on_tool_result
         # Set up reasoning callback to capture reasoning content
         self.agent.reasoning_callback = self._on_reasoning
-
+        
+        # Initialize heartbeat system
+        self._setup_heartbeat()
+        
         # ====================================================================
         # Conversation History System
         # ====================================================================
@@ -696,6 +699,33 @@ Create a comprehensive summary that captures:
     async def inject_user_context(self, context: str) -> None:
         """Inject user context into agent."""
         self.agent.update_context("user_context", context)
+
+    def _setup_heartbeat(self) -> None:
+        """Set up heartbeat system with TUI notifications."""
+        # Create notifier callback that pushes events to the event queue
+        async def heartbeat_notifier(result: str) -> None:
+            """Notifier callback to deliver heartbeat results in TUI."""
+            if result and not result.startswith("HEARTBEAT_OK") and "skipped" not in result.lower():
+                # Emit heartbeat result as an assistant message
+                try:
+                    self._get_event_queue().put_nowait(AssistantEvent(
+                        content=f"🫀 **Heartbeat**: {result}",
+                        is_heartbeat=True
+                    ))
+                except Exception as e:
+                    logger.debug(f"Failed to queue heartbeat event: {e}")
+        
+        # Initialize heartbeat on the agent if enabled in config
+        try:
+            self.agent.initialize_heartbeat(
+                config_getter=lambda: self.agent_manager.config,
+                notifier=heartbeat_notifier
+            )
+            # Heartbeat scheduler is created but not started yet
+            # It will be started when needed (e.g., on user command or background task)
+            logger.info("Heartbeat system configured")
+        except Exception as e:
+            logger.warning(f"Failed to initialize heartbeat: {e}")
 
     def _drain_event_queue(self) -> None:
         """Discard stale events before starting a new turn."""

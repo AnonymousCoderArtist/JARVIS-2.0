@@ -6,6 +6,7 @@ from typing import Any
 import aiofiles
 
 from .base import BaseTool, ToolInput, ToolOutput
+from .file_state import current_file_states
 from core.tools.permissions import (
     PermissionContext,
     PermissionScope,
