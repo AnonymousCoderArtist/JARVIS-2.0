@@ -213,8 +213,8 @@ class EventHandler:
         # Create a ToolCallMessage for the agent (like regular tools)
         task_id = event.task_id
         
-        # Create a ToolCallMessage - use agent_name as tool_name
-        tool_call = ToolCallMessage(tool_name=f"agents: {event.agent_name}")
+        # Create a ToolCallMessage for the agent
+        tool_call = ToolCallMessage(tool_name="Agent")
         
         # Store in tool_calls keyed by task_id
         if task_id:
@@ -247,7 +247,7 @@ class EventHandler:
             event=None,  # No event, we'll provide content
             call_widget=call_widget,
             collapsed=tools_collapsed,
-            tool_name=f"agents: {event.agent_name}",
+            tool_name="Agent",
             content=event.result if event.result else (f"Error: {event.error}" if event.error else "Completed"),
         )
         
