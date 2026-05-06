@@ -1,225 +1,222 @@
-"""Agent tree widget showing all background agents with rich metrics in chat."""
+"""Agent tree widget - compact tree-style UI for displaying all agents.
+
+Layout:
+● Agents
+ ├─ ⠹ Agent  Refactor auth module · ⟳5≤30 · 5 tool uses · 33.8k token (62%) · 12.3s
+ │    ⎿  editing 2 files…
+ ├─ ⠹ Explore  Find auth files · ⟳3 · 3 tool uses · 12.4k token (8%) · 4.1s
+ │    ⎿  searching…
+ ├─ ⠹ Agent  Long-running task · ⟳42 · 38 tool uses · 91.0k token (84% · ↻2) · 2m17s
+ │    ⎿  reading…
+ └─ 2 queued
+"""
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime
+import time
+from dataclasses import dataclass, field
 from typing import Any
-
-from textual.containers import Horizontal, Vertical
-from textual.timer import Timer
+from textual.app import ComposeResult
+from textual.containers import Vertical
 from textual.widgets import Static
+from textual.reactive import reactive
 
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.widgets.messages import NonSelectableStatic
-
-from core.tools.consolidated_agent_tool import (
-    list_background_agents,
-    BackgroundAgentTask,
-)
 
 
-class AgentTreeWidget(Static):
-    """Tree widget displaying all background agents with rich status.
-    
-    Displays in main chat:
-    ● Agents
-    ├─ ⠹ Agent  Refactor auth module · ⟳5≤30 · 5 tool uses · 33.8k token (62%) · 12.3s
-    │    ⎿  editing 2 files…
-    ├─ ⠹ Explore  Find auth files · ⟳3 · 3 tool uses · 12.4k token (8%) · 4.1s
-    │    ⎿  searching…
-    └─ 2 queued
-    """
-    
-    BRANCH_MID = "├─"
-    BRANCH_LAST = "└─"
-    VERTICAL = "│"
-    
+@dataclass
+class AgentTreeItemData:
+    """Data for a single agent in the tree."""
+    task_id: str
+    agent_name: str
+    prompt: str
+    status: str = "running"  # running, completed, failed
+    start_time: float = field(default_factory=time.time)
+    tool_uses: int = 0
+    token_usage: int = 0
+    token_limit: int = 200000  # Default, should be updated from model
+    retries: int = 0
+    max_retries: int = 30
+    current_action: str = ""
+    result: str = ""
+    error: str | None = None
+    queued: bool = False
+
+
+class AgentTreeWidget(Static, can_focus=True):
+    """Tree-style widget showing all agents in a compact format."""
+
     SPINNER_FRAMES = ("⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
-    
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self._agents: list[BackgroundAgentTask] = []
-        self._queued_count = 0
-        self._spinner_index = 0
-        self._refresh_timer: Timer | None = None
+    STATUS_ICONS = {
+        "running": "⠹",
+        "completed": "✓",
+        "failed": "✗",
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.agents: dict[str, AgentTreeItemData] = {}
+        self.agent_order: list[str] = []
+        self._is_spinning = False
+        self._frame_index = 0
+        self._container: Vertical | None = None
         self.add_class("agent-tree-widget")
-    
-    def on_mount(self) -> None:
-        """Initial render and start periodic refresh."""
-        self._refresh_display()
-        self._refresh_timer = self.set_interval(0.8, self._refresh_display)
-    
-    def on_unmount(self) -> None:
-        """Stop timer."""
-        if self._refresh_timer:
-            self._refresh_timer.stop()
-            self._refresh_timer = None
-    
-    async def _refresh_display(self) -> None:
-        """Refresh the display with current agent data."""
-        self._agents = await list_background_agents()
-        self._queued_count = sum(1 for a in self._agents if a.status == "pending")
-        
-        # Clear and rebuild
-        self.remove_children()
-        
-        # Header
-        self.mount(NoMarkupStatic("● Agents", classes="agent-tree-header"))
-        
-        if not self._agents:
-            self.mount(NoMarkupStatic("  No background agents.", classes="agent-tree-empty"))
+
+    def compose(self) -> ComposeResult:
+        """Render the agent tree."""
+        self._container = Vertical(classes="agent-tree-container")
+        yield self._container
+        self._update_content()
+
+    def _update_content(self) -> None:
+        """Update the content of the container."""
+        if not self._container:
             return
-        
-        # Filter: show running + recent completed (last 5)
-        running = [a for a in self._agents if a.status in ("pending", "running")]
-        completed = sorted(
-            [a for a in self._agents if a.status == "completed"],
-            key=lambda a: a.completed_at or a.created_at,
-            reverse=True
-        )[:5]
-        
-        display_agents = running + completed
-        
-        # Agent entries
-        for i, agent in enumerate(display_agents):
-            is_last_agent = (i == len(display_agents) - 1) and self._queued_count == 0
-            self._mount_agent_entry(agent, is_last_agent)
-        
+
+        # Clear existing children
+        self._container.remove_children()
+
+        # Header
+        self._container.mount(NoMarkupStatic("● Agents", classes="agent-tree-header"))
+
+        if not self.agent_order:
+            self._container.mount(NoMarkupStatic("  (no agents)", classes="agent-tree-empty"))
+            return
+
+        active_agents = [tid for tid in self.agent_order if not self.agents[tid].queued]
+        queued_agents = [tid for tid in self.agent_order if self.agents[tid].queued]
+
+        for i, task_id in enumerate(active_agents):
+            is_last = (i == len(active_agents) - 1) and len(queued_agents) == 0
+            self._render_agent_to_container(task_id, is_last)
+
         # Queued count
-        if self._queued_count > 0:
-            self.mount(
-                NonSelectableStatic(
-                    f"{self.BRANCH_LAST} {self._queued_count} queued",
-                    classes="agent-tree-queued"
-                )
+        if queued_agents:
+            if active_agents:
+                self._container.mount(NoMarkupStatic("│   ", classes="agent-tree-branch"))
+            self._container.mount(
+                NoMarkupStatic(f"└─ {len(queued_agents)} queued", classes="agent-tree-queued")
             )
-    
-    def _mount_agent_entry(self, agent: BackgroundAgentTask, is_last: bool) -> None:
-        """Mount a single agent entry."""
-        entry = Vertical(classes="agent-tree-entry")
-        
-        # Main line
-        main_line = Horizontal(classes="agent-tree-main")
-        
-        # Branch
-        branch = self.BRANCH_LAST if is_last else self.BRANCH_MID
-        main_line.mount(NonSelectableStatic(branch, classes="agent-tree-branch"))
-        
-        # Status icon (spinning if running)
-        icon = self._get_status_icon(agent)
-        main_line.mount(
-            NonSelectableStatic(icon, classes=f"agent-tree-icon agent-status-{agent.status}")
-        )
-        
-        # Agent type badge
-        agent_type = agent.agent_name.capitalize() if agent.agent_name else "Agent"
-        main_line.mount(NoMarkupStatic(f" {agent_type} ", classes="agent-tree-type"))
-        
-        # Prompt (truncated)
-        prompt = self._truncate(agent.prompt, 35)
-        main_line.mount(NoMarkupStatic(f" {prompt} ", classes="agent-tree-prompt"))
-        
-        # Separator
-        main_line.mount(NoMarkupStatic(" · ", classes="agent-tree-sep"))
-        
-        # Metrics
-        metrics = self._get_metrics(agent)
-        main_line.mount(NoMarkupStatic(metrics, classes="agent-tree-metrics"))
-        
-        entry.mount(main_line)
-        
-        # Activity line (if running or has activity)
-        if agent.status == "running" or agent.current_activity:
-            activity = self._get_activity_text(agent)
-            if activity:
-                activity_branch = " " if is_last else self.VERTICAL
-                entry.mount(
-                    NonSelectableStatic(
-                        f"{activity_branch}    ⎿  {activity}",
-                        classes="agent-tree-activity"
-                    )
-                )
-        
-        self.mount(entry)
-    
-    def _get_status_icon(self, agent: BackgroundAgentTask) -> str:
-        """Get status icon for agent."""
-        if agent.status == "running":
-            icon = self.SPINNER_FRAMES[self._spinner_index % len(self.SPINNER_FRAMES)]
-            self._spinner_index += 1
-            return icon
-        elif agent.status == "completed":
-            return "●"
-        elif agent.status == "failed":
-            return "●"
-        else:  # pending
-            return "○"
-    
-    def _get_metrics(self, agent: BackgroundAgentTask) -> str:
-        """Get formatted metrics string."""
-        parts = []
-        
-        # Retry info
-        retries = f"⟳{agent.retries}" if agent.retries > 0 else "⟳0"
-        retries += f"≤{agent.max_retries}"
-        parts.append(retries)
-        
-        # Tool uses
-        tool_text = f"{agent.tool_uses} tool uses" if agent.tool_uses != 1 else "1 tool use"
-        parts.append(tool_text)
-        
-        # Token usage
-        if agent.max_tokens > 0:
-            percentage = (agent.token_usage / agent.max_tokens * 100) if agent.max_tokens else 0
-            token_text = f"{agent.token_usage/1000:.1f}k token ({percentage:.0f}%)"
-        else:
-            token_text = f"{agent.token_usage/1000:.1f}k token"
-        parts.append(token_text)
-        
-        # Time elapsed
-        if agent.status == "running" and agent.created_at:
-            elapsed = (datetime.now() - agent.created_at).total_seconds()
-        elif agent.completed_at and agent.created_at:
-            elapsed = (agent.completed_at - agent.created_at).total_seconds()
-        else:
-            elapsed = 0
-        
-        time_str = self._format_time(elapsed)
-        parts.append(time_str)
-        
-        return " · ".join(parts)
-    
-    def _get_activity_text(self, agent: BackgroundAgentTask) -> str:
-        """Get activity description."""
-        if agent.current_activity:
-            activity = agent.current_activity
-            # Make it more readable
-            activity_map = {
-                "read": "reading…",
-                "grep": "searching…",
-                "edit": "editing…",
-                "write": "writing…",
-                "ls": "listing…",
-                "find": "finding…",
-                "web_search": "searching web…",
-                "fetch_webpage": "fetching…",
-            }
-            return activity_map.get(activity, f"{activity}…")
-        elif agent.status == "running":
-            return "running…"
-        return ""
-    
+
+    def _render_agent_to_container(self, task_id: str, is_last: bool) -> None:
+        """Render a single agent entry to the container."""
+        if not self._container:
+            return
+        data = self.agents[task_id]
+        branch = "└─" if is_last else "├─"
+        status_icon = self._get_status_icon(data)
+
+        # First line: status and metrics
+        agent_type = data.agent_name.capitalize() if data.agent_name != "agent" else "Agent"
+        prompt = self._truncate_prompt(data.prompt, 30)
+
+        line = f"{branch} {status_icon} {agent_type}  {prompt}"
+
+        # Add metrics
+        metrics = []
+        if data.retries > 0:
+            metrics.append(f"⟳{data.retries}≤{data.max_retries}")
+        if data.tool_uses > 0:
+            metrics.append(f"{data.tool_uses} tool uses")
+        if data.token_usage > 0:
+            pct = (data.token_usage / data.token_limit * 100) if data.token_limit > 0 else 0
+            token_str = self._format_tokens(data.token_usage)
+            metrics.append(f"{token_str} token ({pct:.0f}%)")
+        if data.status == "running":
+            elapsed = time.time() - data.start_time
+            metrics.append(self._format_time(elapsed))
+
+        if metrics:
+            line += " · " + " · ".join(metrics)
+
+        self._container.mount(NoMarkupStatic(line, classes=f"agent-tree-item status-{data.status}"))
+
+        # Second line: current action
+        if data.current_action or data.status == "running":
+            continuation = "│" if not is_last else " "
+            action = data.current_action or "running…"
+            self._container.mount(
+                NoMarkupStatic(f"{continuation}    ⎿  {action}", classes="agent-tree-action")
+            )
+
+    def _get_status_icon(self, data: AgentTreeItemData) -> str:
+        """Get the status icon, with spinning animation for running agents."""
+        if data.status == "running" and self._is_spinning:
+            return self.SPINNER_FRAMES[self._frame_index % len(self.SPINNER_FRAMES)]
+        return self.STATUS_ICONS.get(data.status, "?")
+
+    def _truncate_prompt(self, prompt: str, max_length: int = 30) -> str:
+        """Truncate prompt for display."""
+        if len(prompt) <= max_length:
+            return prompt
+        return prompt[:max_length-3] + "..."
+
+    def _format_tokens(self, tokens: int) -> str:
+        """Format token count (e.g., 33800 -> 33.8k)."""
+        if tokens >= 1000:
+            return f"{tokens/1000:.1f}k"
+        return str(tokens)
+
     def _format_time(self, seconds: float) -> str:
-        """Format time as s, ms, or m:s."""
+        """Format time duration."""
         if seconds < 60:
             return f"{seconds:.1f}s"
         minutes = int(seconds // 60)
         secs = int(seconds % 60)
         return f"{minutes}m{secs:02d}s"
-    
-    def _truncate(self, text: str, max_len: int) -> str:
-        """Truncate text with ellipsis."""
-        if len(text) <= max_len:
-            return text
-        return text[:max_len-1] + "…"
+
+    def on_mount(self) -> None:
+        """Start spinner animation."""
+        self._is_spinning = True
+        self._frame_index = 0
+        self.set_interval(0.3, self._update_spinner)
+
+    def on_unmount(self) -> None:
+        """Stop spinner animation."""
+        self._is_spinning = False
+
+    def _update_spinner(self) -> None:
+        """Update spinner frames."""
+        self._frame_index += 1
+        # Only update if there are running agents
+        if any(a.status == "running" for a in self.agents.values()):
+            self._update_content()
+
+    def add_agent(self, task_id: str, agent_name: str, prompt: str, queued: bool = False) -> None:
+        """Add a new agent to the tree."""
+        data = AgentTreeItemData(
+            task_id=task_id,
+            agent_name=agent_name,
+            prompt=prompt,
+            queued=queued,
+        )
+        self.agents[task_id] = data
+        self.agent_order.append(task_id)
+        self._update_content()
+
+    def update_agent(self, task_id: str, **kwargs: Any) -> None:
+        """Update agent data."""
+        if task_id not in self.agents:
+            return
+        data = self.agents[task_id]
+        for key, value in kwargs.items():
+            if hasattr(data, key):
+                setattr(data, key, value)
+        self._update_content()
+
+    def complete_agent(self, task_id: str, result: str = "", error: str | None = None) -> None:
+        """Mark an agent as completed or failed."""
+        if task_id not in self.agents:
+            return
+        data = self.agents[task_id]
+        data.status = "completed" if not error else "failed"
+        data.result = result
+        data.error = error
+        self._update_content()
+
+    def remove_agent(self, task_id: str) -> None:
+        """Remove an agent from the tree."""
+        if task_id in self.agents:
+            del self.agents[task_id]
+            self.agent_order.remove(task_id)
+            self._update_content()

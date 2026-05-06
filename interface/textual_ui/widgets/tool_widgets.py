@@ -22,10 +22,6 @@ from interface.textual_ui.cli_adapters import (
     TodoArgs,
     WriteFileArgs,
 )
-from interface.textual_ui.widgets.agent_tool_widgets import (
-    AgentToolCallWidget,
-    AgentToolResultWidget,
-)
 from interface.textual_ui.tool_results import (
     BashResult,
     GrepResult,
@@ -519,29 +515,3 @@ def get_result_widget(
         result = GrepResult(matches=matches)
         
     return widget_class(result, success, message, collapsed, warnings)
-
-
-def get_agent_tool_call_widget(
-    agent_name: str,
-    prompt: str,
-    task_id: str,
-    *,
-    is_history: bool = False
-) -> AgentToolCallWidget:
-    """Get an agent tool call widget."""
-    return AgentToolCallWidget(agent_name, prompt, task_id, is_history=is_history)
-
-
-def get_agent_tool_result_widget(
-    agent_name: str,
-    prompt: str,
-    task_id: str,
-    result: str = "",
-    status: str = "completed",
-    error: str | None = None,
-    collapsed: bool = True
-) -> AgentToolResultWidget:
-    """Get an agent tool result widget."""
-    return AgentToolResultWidget(
-        agent_name, prompt, task_id, result, status, error, collapsed
-    )

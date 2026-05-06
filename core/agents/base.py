@@ -14,6 +14,12 @@ from typing import Any, TypeAlias, cast
 from core.agents.system_prompts import get_system_context
 from core.llm.base import BaseLLMProvider, MessageDict, ToolDefDict
 from core.llm_sdk.base.sdk import ToolCall
+from core.llm_sdk.tool_parser import (
+    extract_tool_calls_from_text,
+    has_text_tool_calls,
+    normalize_tool_calls,
+    extract_text_and_tool_calls,
+)
 from core.config.settings import Settings
 from core.tools.permissions import (
     ApprovedRule,
@@ -629,6 +635,22 @@ class BaseAgent(ABC):
                             use_concurrent=self.use_concurrent_tools
                         )
                         continue  # Loop again with updated messages
+                    
+                    # Check for text-embedded tool calls in the response
+                    if has_text_tool_calls(full_response):
+                        cleaned_text, text_tool_calls = extract_text_and_tool_calls(full_response)
+                        if text_tool_calls:
+                            normalized_calls = normalize_tool_calls(text_tool_calls)
+                            response_dict: dict[str, Any] = {
+                                "content": cleaned_text,
+                                "tool_calls": [{"function": {"name": tc["name"], "arguments": tc["arguments"]}, "id": f"text_tool_{i}"} for i, tc in enumerate(normalized_calls)]
+                            }
+                            updated_messages = await self._execute_tools_and_update_messages(
+                                response_dict,
+                                updated_messages,
+                                use_concurrent=self.use_concurrent_tools
+                            )
+                            continue
 
                     # Signal that reasoning is done
                     if self.reasoning_done_callback:
@@ -674,6 +696,21 @@ class BaseAgent(ABC):
                     use_concurrent=self.use_concurrent_tools
                 )
                 continue  # Loop again with updated messages
+            
+            # Check for text-embedded tool calls in non-streaming response
+            if has_text_tool_calls(content):
+                cleaned_text, text_tool_calls = extract_text_and_tool_calls(content)
+                if text_tool_calls:
+                    normalized_calls = normalize_tool_calls(text_tool_calls)
+                    # Update the response with cleaned content and text tool calls
+                    response["content"] = cleaned_text
+                    response["tool_calls"] = [{"function": {"name": tc["name"], "arguments": tc["arguments"]}, "id": f"text_tool_{i}"} for i, tc in enumerate(normalized_calls)]
+                    updated_messages = await self._execute_tools_and_update_messages(
+                        response,
+                        updated_messages,
+                        use_concurrent=self.use_concurrent_tools
+                    )
+                    continue
 
             return content
 

@@ -370,3 +370,58 @@ $info: ansi_cyan;
    interface/textual_ui/widgets/subagent_viewer.py
    and are scoped to the SubagentOverlay screen.
    ======================================== */
+
+/* Agent Tree Widget Styles */
+.agent-tree-widget {
+    width: 100%;
+    margin: 0 0 1 0;
+}
+
+.agent-tree-container {
+    width: 100%;
+}
+
+.agent-tree-header {
+    color: $text-primary;
+    text-style: bold;
+    padding: 0 0 0 1;
+}
+
+.agent-tree-item {
+    color: $text-primary;
+    padding-left: 1;
+}
+
+.agent-tree-item.status-running {
+    color: $text-primary;
+}
+
+.agent-tree-item.status-completed {
+    color: $success;
+}
+
+.agent-tree-item.status-failed {
+    color: $error;
+}
+
+.agent-tree-action {
+    color: $text-secondary;
+    padding-left: 1;
+    text-style: italic;
+}
+
+.agent-tree-queued {
+    color: $text-secondary;
+    padding-left: 1;
+    text-style: italic;
+}
+
+.agent-tree-empty {
+    color: $text-secondary;
+    padding-left: 1;
+    text-style: italic;
+}
+
+.agent-tree-branch {
+    color: $text-secondary;
+}
