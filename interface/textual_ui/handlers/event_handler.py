@@ -42,7 +42,6 @@ from interface.textual_ui.widgets.messages import (
 )
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
-from interface.textual_ui.widgets.agent_tree_widget import AgentTreeWidget
 
 if TYPE_CHECKING:
     from interface.textual_ui.widgets.loading import LoadingWidget
@@ -68,9 +67,8 @@ class EventHandler:
         self.get_thinking_collapsed: GetThinkingCollapsed = get_thinking_collapsed
         self.on_profile_changed: OnProfileChanged | None = on_profile_changed
         self.is_remote: bool = is_remote
-        self.tool_calls: dict[str, ToolCallMessage] = {}
+        self.tool_calls: dict[str, ToolCallMessage] = {}  # Also used for agent calls (keyed by tool_call_id or task_id)
         self.last_tool_call: ToolCallMessage | None = None
-        self.agent_tree_widget: AgentTreeWidget | None = None
         self.current_compact: CompactMessage | None = None
         self.current_streaming_message: AssistantMessage | None = None
         self.current_streaming_reasoning: ReasoningMessage | None = None
@@ -211,30 +209,56 @@ class EventHandler:
 
     async def _handle_agent_tool_call(
         self, event: AgentToolCallEvent, loading_widget: LoadingWidget | None = None
-    ) -> None:
-        # Initialize tree widget if needed
-        if not self.agent_tree_widget:
-            self.agent_tree_widget = AgentTreeWidget()
-            await self.mount_callback(self.agent_tree_widget)
+    ) -> ToolCallMessage | None:
+        # Create a ToolCallMessage for the agent (like regular tools)
+        task_id = event.task_id
         
-        # Add agent to tree
-        if self.agent_tree_widget:
-            self.agent_tree_widget.add_agent(
-                task_id=event.task_id,
-                agent_name=event.agent_name,
-                prompt=event.prompt,
-            )
+        # Create a ToolCallMessage - use agent_name as tool_name
+        tool_call = ToolCallMessage(tool_name=f"agents: {event.agent_name}")
+        
+        # Store in tool_calls keyed by task_id
+        if task_id:
+            self.tool_calls[task_id] = tool_call
+        self.last_tool_call = tool_call
+        await self.mount_callback(tool_call)
+        
+        # Show initial info
+        tool_call.set_stream_message(event.prompt[:50] + "..." if len(event.prompt) > 50 else event.prompt)
         
         if loading_widget:
             loading_widget.set_status(f"Running agent {event.agent_name}")
+        
+        return tool_call
 
     async def _handle_agent_tool_result(self, event: AgentToolResultEvent) -> None:
-        if self.agent_tree_widget:
-            self.agent_tree_widget.complete_agent(
-                task_id=event.task_id,
-                result=event.result,
-                error=event.error if event.status == "failed" else None,
-            )
+        task_id = event.task_id
+        
+        # Find the tool call message
+        call_widget = self.tool_calls.get(task_id) if task_id else None
+        
+        # Stop spinning on the call widget
+        if call_widget:
+            call_widget.stop_spinning(success=(event.status == "completed"))
+        
+        tools_collapsed = self.get_tools_collapsed()
+        
+        # Create a ToolResultMessage for the agent result
+        tool_result = ToolResultMessage(
+            event=None,  # No event, we'll provide content
+            call_widget=call_widget,
+            collapsed=tools_collapsed,
+            tool_name=f"agents: {event.agent_name}",
+            content=event.result if event.result else (f"Error: {event.error}" if event.error else "Completed"),
+        )
+        
+        if call_widget:
+            await self.mount_callback(tool_result, after=call_widget)
+        else:
+            await self.mount_callback(tool_result)
+        
+        # Clean up from tool_calls
+        if task_id and task_id in self.tool_calls:
+            del self.tool_calls[task_id]
 
     async def _handle_assistant_message(self, event: AssistantEvent) -> None:
         if self.current_streaming_reasoning is not None:

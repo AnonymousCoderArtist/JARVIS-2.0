@@ -319,7 +319,7 @@ class AgentTool(BaseTool):
             "runInBackground": {
                 "type": "boolean",
                 "description": "Run agent in background (true) or wait for immediate results (false)",
-                "default": True
+                "default": False
             },
             "taskId": {
                 "type": "string",
@@ -368,7 +368,7 @@ class AgentTool(BaseTool):
 
         # Normalize runInBackground default (legacy callers frequently omit it).
         if runInBackground is None:
-            runInBackground = True
+            runInBackground = False  # Default to foreground (run immediately)
 
         # Validate action
         if not isinstance(action, str) or action not in ["launch", "status", "results", "list"]:
