@@ -1,8 +1,10 @@
 """OpenAI GPT SDK implementation using curl_cffi and httpx"""
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
+from difflib import SequenceMatcher
 from typing import Any
 
 from ...llm_sdk.context_length_manager import context_length_manager
@@ -272,13 +274,60 @@ class OpenAISDK(BaseLLMSDK):
             "gpt-3.5-turbo",
         ]
 
+    def model_supports_vision(self, model: str) -> bool:
+        """Check if a model supports vision/multimodal input."""
+        # Hardcoded vision models for OpenAI
+        vision_models = {
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4-turbo",
+        }
+        # Check exact match first
+        if model in vision_models:
+            return True
+
+        # Check fuzzy match for hardcoded models
+        for vm in vision_models:
+            if SequenceMatcher(None, model.lower(), vm.lower()).ratio() >= 0.8:
+                return True
+
+        # Check models.dev API for other providers
+        try:
+            import importlib
+            module = importlib.import_module("core.llm.model_info")
+            info = asyncio.run(module.get_model_info(model))
+            if info:
+                return "image" in info.modalities.input
+        except Exception:
+            pass
+
+        return False
+
     def convert_messages_to_dict(self, messages: list[Message]) -> list[dict]:
-        """Convert Message objects to dictionaries"""
-        return [
-            {
-                "role": msg.role,
-                "content": msg.content,
-                **(msg.metadata or {})
-            }
-            for msg in messages
-        ]
+        """Convert Message objects to dictionaries.
+
+        For multimodal models with image_parts, content is formatted as a list
+        of text and image_url objects.
+        """
+        result = []
+        for msg in messages:
+            if msg.image_parts:
+                # Multimodal message format
+                content: list[dict[str, Any]] = [{"type": "text", "text": msg.content}]
+                for image_url in msg.image_parts:
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": image_url}
+                    })
+                result.append({
+                    "role": msg.role,
+                    "content": content,
+                    **(msg.metadata or {})
+                })
+            else:
+                result.append({
+                    "role": msg.role,
+                    "content": msg.content,
+                    **(msg.metadata or {})
+                })
+        return result

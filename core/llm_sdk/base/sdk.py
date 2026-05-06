@@ -21,6 +21,7 @@ class Message:
     role: str
     content: str
     metadata: dict[str, Any] | None = None
+    image_parts: list[str] | None = None  # List of base64 image data URLs
 
 
 @dataclass
@@ -33,6 +34,7 @@ class GenerationConfig:
     frequency_penalty: float | None = None
     presence_penalty: float | None = None
     stop_sequences: list[str] | None = None
+    supports_vision: bool = False  # Whether the model supports vision/multimodal
 
 
 @dataclass
@@ -117,15 +119,33 @@ class BaseLLMSDK(ABC):
         pass
 
     def convert_messages_to_dict(self, messages: list[Message]) -> list[dict]:
-        """Convert Message objects to dictionaries"""
-        return [
-            {
-                "role": msg.role,
-                "content": msg.content,
-                **(msg.metadata or {})
-            }
-            for msg in messages
-        ]
+        """Convert Message objects to dictionaries.
+
+        For multimodal models with image_parts, content is formatted as a list
+        of text and image_url objects.
+        """
+        result = []
+        for msg in messages:
+            if msg.image_parts:
+                # Multimodal message format
+                content: list[dict[str, Any]] = [{"type": "text", "text": msg.content}]
+                for image_url in msg.image_parts:
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": image_url}
+                    })
+                result.append({
+                    "role": msg.role,
+                    "content": content,
+                    **(msg.metadata or {})
+                })
+            else:
+                result.append({
+                    "role": msg.role,
+                    "content": msg.content,
+                    **(msg.metadata or {})
+                })
+        return result
 
     def convert_dict_to_messages(self, messages: list[dict]) -> list[Message]:
         """Convert dictionaries to Message objects"""

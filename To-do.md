@@ -18,3 +18,4 @@
 - [X] TUI/CLI interface
 - [ ] Implement Rewind feature for agents to undo actions
 - [ ] UI improvements for Subagents
+- [X] Image upload support in TUI

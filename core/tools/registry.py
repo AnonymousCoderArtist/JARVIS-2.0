@@ -17,6 +17,7 @@ class ToolRegistry:
         self.model = model
         self.config_getter = config_getter
         self.active_skills: dict[str, str] = {}
+        self.event_queue = None
 
     def register(self, tool: BaseTool):
         """
@@ -29,10 +30,13 @@ class ToolRegistry:
         tool.tool_registry = self
         tool.llm_provider = self.llm_provider
         tool.model = self.model
+        # Inject event queue if available
+        if hasattr(self, 'event_queue') and self.event_queue is not None:
+            tool.event_queue = self.event_queue
 
         self._tools[tool.name] = tool
 
-    def update_tool_providers(self, llm_provider=None, model=None, config_getter=None):
+    def update_tool_providers(self, llm_provider=None, model=None, config_getter=None, event_queue=None):
         """
         Update the provider and model references for all registered tools.
         Call this after the provider is initialized.
@@ -40,11 +44,14 @@ class ToolRegistry:
         Args:
             llm_provider: LLM provider instance
             model: Model name string
+            event_queue: Event queue for tools that need to emit events
         """
         self.llm_provider = llm_provider
         self.model = model
         if config_getter is not None:
             self.config_getter = config_getter
+        if event_queue is not None:
+            self.event_queue = event_queue
         for tool in self._tools.values():
             tool.llm_provider = llm_provider
             tool.model = model

@@ -9,7 +9,7 @@ import pytest
 
 from core.agents.base import BaseAgent
 from core.config.settings import Settings
-from core.tools.agent_tools import AgentsTool
+from core.tools.consolidated_agent_tool import AgentsTool
 from core.tools.base import BaseTool, ToolInput, ToolOutput
 from core.tools.file_tools import FileReadTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool

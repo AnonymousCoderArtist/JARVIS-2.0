@@ -73,6 +73,7 @@ class BaseTool(ABC):
         self.tool_registry = tool_registry
         self.llm_provider = llm_provider
         self.model = model
+        self.event_queue = None
 
     @abstractmethod
     async def execute(self, input_data: ToolInput) -> ToolOutput:

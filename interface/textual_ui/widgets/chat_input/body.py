@@ -39,8 +39,9 @@ class _PromptSpinner(SpinnerMixin, Static):
 
 class ChatInputBody(VoiceManagerListener, Widget):
     class Submitted(Message):
-        def __init__(self, value: str) -> None:
+        def __init__(self, value: str, image_parts: list[str] | None = None) -> None:
             self.value = value
+            self.image_parts = image_parts or []
             super().__init__()
 
     def __init__(

@@ -48,8 +48,9 @@ class ChatInputContainer(Vertical):
     REMOTE_BORDER_CLASS = "border-remote"
 
     class Submitted(Message):
-        def __init__(self, value: str) -> None:
+        def __init__(self, value: str, image_parts: list[str] | None = None) -> None:
             self.value = value
+            self.image_parts = image_parts or []
             super().__init__()
 
     def __init__(
@@ -252,7 +253,7 @@ class ChatInputContainer(Vertical):
 
     def on_chat_input_body_submitted(self, event: ChatInputBody.Submitted) -> None:
         event.stop()
-        self.post_message(self.Submitted(event.value))
+        self.post_message(self.Submitted(event.value, event.image_parts))
 
     @property
     def switching_mode(self) -> bool:

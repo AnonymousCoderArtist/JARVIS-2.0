@@ -280,6 +280,12 @@ class AgentLoop:
         self.config: Settings = config
         self.base_config: Settings = config
         self.tool_registry: ToolRegistry = tool_registry
+        # Initialize event queue first
+        self._event_queue: asyncio.Queue[Event] = asyncio.Queue()
+        # Set event queue on tool registry for tools that need to emit events
+        self.tool_registry.event_queue = self._event_queue
+        # Also update all tools with the event queue
+        self.tool_registry.update_tool_providers(event_queue=self._event_queue)
         self._disabled_tools: list[str] = disabled_tools or []
 
         # Use provided agent manager or create a new one

@@ -196,6 +196,14 @@ class CommandRegistry:
             handler="_show_mcp",
         )
 
+        # Copy command
+        self.commands["copy"] = Command(
+            aliases=("/copy",),
+            description="Copy last assistant answer to clipboard",
+            usage="",
+            handler="_copy_last_answer",
+        )
+
     def refresh(self, availability_context: CommandAvailabilityContext) -> None:
         """Refresh command availability based on context."""
         self.availability_context = availability_context

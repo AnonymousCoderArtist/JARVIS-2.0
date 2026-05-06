@@ -15,6 +15,8 @@ from interface.textual_ui.cli_adapters import (
 )
 from interface.textual_ui.types import (
     AgentProfileChangedEvent,
+    AgentToolCallEvent,
+    AgentToolResultEvent,
     AssistantEvent,
     BaseEvent,
     CompactEndEvent,
@@ -40,6 +42,7 @@ from interface.textual_ui.widgets.messages import (
 )
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
+from interface.textual_ui.widgets.agent_tool_widgets import AgentToolCallWidget, AgentToolResultWidget
 
 if TYPE_CHECKING:
     from interface.textual_ui.widgets.loading import LoadingWidget
@@ -67,6 +70,8 @@ class EventHandler:
         self.is_remote: bool = is_remote
         self.tool_calls: dict[str, ToolCallMessage] = {}
         self.last_tool_call: ToolCallMessage | None = None
+        self.agent_tool_calls: dict[str, AgentToolCallWidget] = {}
+        self.last_agent_tool_call: AgentToolCallWidget | None = None
         self.current_compact: CompactMessage | None = None
         self.current_streaming_message: AssistantMessage | None = None
         self.current_streaming_reasoning: ReasoningMessage | None = None
@@ -113,6 +118,12 @@ class EventHandler:
             await self._handle_tool_result(sanitized_event)
         elif isinstance(event, ToolStreamEvent):
             await self._handle_tool_stream(event)
+        elif isinstance(event, AgentToolCallEvent):
+            await self.finalize_streaming()
+            return await self._handle_agent_tool_call(event, loading_widget)
+        elif isinstance(event, AgentToolResultEvent):
+            await self.finalize_streaming()
+            await self._handle_agent_tool_result(event)
         elif isinstance(event, CompactStartEvent):
             await self.finalize_streaming()
             await self._handle_compact_start()
@@ -198,6 +209,62 @@ class EventHandler:
         tool_call = self.tool_calls.get(event.tool_call_id)
         if tool_call:
             tool_call.set_stream_message(event.content)
+
+    async def _handle_agent_tool_call(
+        self, event: AgentToolCallEvent, loading_widget: LoadingWidget | None = None
+    ) -> AgentToolCallWidget | None:
+        task_id = event.task_id
+        existing_agent_tool_call = self.agent_tool_calls.get(task_id) if task_id else None
+        if existing_agent_tool_call:
+            # Update existing call (though agent calls don't typically update)
+            tool_call = existing_agent_tool_call
+        else:
+            tool_call = AgentToolCallWidget(
+                agent_name=event.agent_name,
+                prompt=event.prompt,
+                task_id=event.task_id,
+                is_history=False
+            )
+            if task_id:
+                self.agent_tool_calls[task_id] = tool_call
+            self.last_agent_tool_call = tool_call
+            await self.mount_callback(tool_call)
+
+        if loading_widget:
+            loading_widget.set_status(f"Running agent {event.agent_name}")
+
+        return tool_call
+
+    async def _handle_agent_tool_result(self, event: AgentToolResultEvent) -> None:
+        tools_collapsed = self.get_tools_collapsed()
+
+        call_widget = (
+            self.agent_tool_calls.get(event.task_id) if event.task_id else None
+        )
+        
+        # Fallback to last agent tool call if ID is missing or mismatched
+        if not call_widget:
+            call_widget = self.last_agent_tool_call
+
+        agent_tool_result = AgentToolResultWidget(
+            agent_name=event.agent_name,
+            prompt=event.prompt,
+            task_id=event.task_id,
+            result=event.result,
+            status=event.status,
+            error=event.error,
+            collapsed=tools_collapsed
+        )
+        await self.mount_callback(agent_tool_result, after=call_widget)
+        
+        # Update the call widget status
+        if call_widget:
+            if event.status == "completed":
+                call_widget.stop_spinning(success=True)
+                call_widget.update_status("completed", f"Task ID: {event.task_id}")
+            else:
+                call_widget.stop_spinning(success=False)
+                call_widget.update_status(event.status, event.error or "")
 
     async def _handle_assistant_message(self, event: AssistantEvent) -> None:
         if self.current_streaming_reasoning is not None:

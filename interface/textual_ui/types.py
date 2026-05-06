@@ -34,6 +34,13 @@ class ToolCall:
 
 
 @dataclass
+class ImageContentPart:
+    """Image content part for multimodal messages."""
+    type: str = "image_url"
+    image_url: dict[str, str] = field(default_factory=lambda: {"url": ""})
+
+
+@dataclass
 class LLMMessage:
     """LLM message."""
     role: Role = Role.user
@@ -42,6 +49,7 @@ class LLMMessage:
     injected: bool = False
     tool_call_id: str = ""
     name: str = ""
+    image_parts: list[ImageContentPart] = field(default_factory=list)
 
 
 class HookMessageSeverity(str, Enum):
@@ -127,6 +135,27 @@ class ToolResultEvent(BaseEvent):
     skip_reason: str = ""
     cancelled: bool = False
     duration: float = 0.0
+
+
+@dataclass
+class AgentToolCallEvent(BaseEvent):
+    """Agent tool call event."""
+    agent_name: str = ""
+    prompt: str = ""
+    task_id: str = ""
+    event_type: str = "agent_tool_call"
+
+
+@dataclass
+class AgentToolResultEvent(BaseEvent):
+    """Agent tool result event."""
+    agent_name: str = ""
+    prompt: str = ""
+    task_id: str = ""
+    result: str = ""
+    status: str = "completed"
+    error: str = ""
+    event_type: str = "agent_tool_result"
 
 
 @dataclass

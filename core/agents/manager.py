@@ -221,6 +221,13 @@ class AgentManager:
             a for a in self.available_agents.values() if a.agent_type == AgentType.SUBAGENT
         ]
 
+    def get_all_agents(self) -> list[dict[str, str]]:
+        """Get all agents as list of dicts for UI display."""
+        return [
+            {"name": name, "display_name": profile.display_name}
+            for name, profile in self.available_agents.items()
+        ]
+
     def get_agent_order(self) -> list[str]:
         """Get ordered list of agents for cycling"""
         primary_agents = [

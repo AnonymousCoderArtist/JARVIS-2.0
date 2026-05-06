@@ -9,6 +9,7 @@ from typing import Callable, Awaitable, Dict, List, Optional, Any
 
 from core.trusted_folders import trusted_folders_manager
 from core.history import ConversationHistory
+from core.clipboard import copy_to_clipboard
 
 from .display import DisplayManager
 
@@ -48,6 +49,7 @@ class CommandRegistry:
         self.register(Command("history", "Show conversation history", self._cmd_history))
         self.register(Command("clear-history", "Clear current session history", self._cmd_clear_history))
         self.register(Command("sessions", "List available sessions", self._cmd_sessions))
+        self.register(Command("copy", "Copy the last assistant answer to clipboard", self._cmd_copy))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
         self.register(Command("quit", "Exit JARVIS", self._cmd_exit))
         
@@ -226,6 +228,36 @@ class CommandRegistry:
             self.display_manager.show_success("\n".join(lines), title="History")
         except Exception as e:
             self.display_manager.show_error(f"Failed to read history: {e}")
+
+    async def _cmd_copy(self, args: List[str]):
+        """Copy the last assistant answer to clipboard."""
+        try:
+            # Get the last assistant message
+            from core.history import ConversationHistory
+            history = ConversationHistory()
+            messages = history.get_messages()
+
+            last_assistant = None
+            for msg in reversed(messages):
+                if msg.role == "assistant" and msg.content:
+                    last_assistant = msg
+                    break
+
+            if not last_assistant:
+                self.display_manager.show_error("No assistant answer available yet.")
+                return
+
+            text = last_assistant.content
+            if isinstance(text, str):
+                copy_to_clipboard(text)
+                self.display_manager.show_success(
+                    f"Copied {len(text)} chars to clipboard",
+                    title="Copy Complete"
+                )
+            else:
+                self.display_manager.show_error("Last message content is not text.")
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to copy to clipboard: {e}")
 
     async def _cmd_clear_history(self, args: List[str]):
         """Clear current session history."""

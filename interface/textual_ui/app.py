@@ -100,6 +100,7 @@ from interface.textual_ui.widgets.messages import (
     WhatsNewMessage,
 )
 from interface.textual_ui.widgets.model_picker import ModelPickerApp
+from interface.textual_ui.widgets.subagent_viewer import SubagentViewer
 from interface.textual_ui.widgets.narrator_status import NarratorStatus
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.path_display import PathDisplay
@@ -266,6 +267,7 @@ class BottomApp(str, Enum):
     ThinkingPicker = "ThinkingPicker"
     Rewind = "Rewind"
     SessionPicker = "SessionPicker"
+    Subagents = "Subagents"
     # Voice = "Voice"  # Not supported in core Settings
 
     def __str__(self) -> str:
@@ -372,7 +374,9 @@ class VibeApp(App):  # noqa: PLR0904
         Binding("ctrl+t", "toggle_thinking", "Toggle Thinking", show=False),
         Binding("ctrl+y", "copy_selection", "Copy", show=False, priority=True),
         Binding("ctrl+shift+c", "copy_selection", "Copy", show=False, priority=True),
+        Binding("ctrl+shift+backspace", "copy_last_answer", "Copy Answer", show=False, priority=True),
         Binding("shift+tab", "cycle_mode", "Cycle Mode", show=False, priority=True),
+        Binding("tab", "toggle_subagents", "Subagents", show=False, priority=True),
         Binding("shift+up", "scroll_chat_up", "Scroll Up", show=False, priority=True),
         Binding(
             "shift+down", "scroll_chat_down", "Scroll Down", show=False, priority=True
@@ -967,6 +971,22 @@ class VibeApp(App):  # noqa: PLR0904
         with self.batch_update():
             for widget in children[:compact_index]:
                 await widget.remove()
+
+    async def on_subagent_viewer_agent_selected(
+        self, message: SubagentViewer.AgentSelected
+    ) -> None:
+        """Handle agent selection from subagent viewer."""
+        agent_name = message.agent_name
+        self.agent_loop.agent_manager.switch_profile(agent_name)
+        await self._mount_and_scroll(UserCommandMessage(f"Switched to agent: {agent_name}"))
+        await self._switch_to_input_app()
+        self._refresh_banner()
+
+    async def on_subagent_viewer_cancelled(
+        self, _message: SubagentViewer.Cancelled
+    ) -> None:
+        """Handle subagent viewer cancellation."""
+        await self._switch_to_input_app()
 
     async def _handle_command(self, user_input: str) -> bool | str:
         """Handle slash commands."""
@@ -2401,6 +2421,8 @@ class VibeApp(App):  # noqa: PLR0904
                     self.query_one(ConnectorAuthApp).focus()
                 case BottomApp.Rewind:
                     self.query_one(RewindApp).focus()
+                case BottomApp.Subagents:
+                    self.query_one(SubagentViewer).focus()
                 # case BottomApp.Voice:  # Not supported in core Settings
                 #     self.query_one(VoiceApp).focus()
                 case app:
@@ -2714,6 +2736,8 @@ class VibeApp(App):  # noqa: PLR0904
             self._handle_thinking_picker_app_escape()
         elif self._current_bottom_app == BottomApp.SessionPicker:
             self._handle_session_picker_app_escape()
+        elif self._current_bottom_app == BottomApp.Subagents:
+            self._handle_subagents_app_escape()
         elif self._current_bottom_app == BottomApp.Rewind:
             self.run_worker(self._exit_rewind_mode(), exclusive=False)
             self._last_escape_time = None
@@ -2827,6 +2851,64 @@ class VibeApp(App):  # noqa: PLR0904
         self._refresh_profile_widgets()
         self._focus_current_bottom_app()
         self.run_worker(self._cycle_agent(), group="mode_switch", exclusive=True)
+
+    def action_copy(self) -> None:
+        """Copy the last assistant answer to clipboard."""
+        self._copy_last_answer()
+
+    def action_copy_last_answer(self) -> None:
+        """Copy the last assistant answer to clipboard (keybinding)."""
+        self._copy_last_answer()
+
+    def _copy_last_answer(self, **kwargs: Any) -> None:
+        """Internal method to copy the last assistant answer."""
+        # Find the last assistant message
+        last_assistant = None
+        for msg in reversed(self.agent_loop.messages):
+            if msg.role == "assistant" and msg.content:
+                last_assistant = msg
+                break
+
+        if not last_assistant:
+            self.notify("No assistant answer available yet.", severity="warning", timeout=2)
+            return
+
+        text = last_assistant.content
+        if not isinstance(text, str):
+            self.notify("Last message content is not text.", severity="warning", timeout=2)
+            return
+
+        try:
+            from core.clipboard import copy_to_clipboard
+            copy_to_clipboard(text)
+            self.notify(f"Copied {len(text)} chars to clipboard", severity="information", timeout=2)
+        except Exception as e:
+            self.notify(f"Failed to copy: {e}", severity="error", timeout=2)
+
+    def action_toggle_subagents(self) -> None:
+        """Toggle the subagents panel."""
+        if self._current_bottom_app == BottomApp.Subagents:
+            self.run_worker(self._close_subagents_app(), exclusive=False)
+        else:
+            self.run_worker(self._switch_to_subagents_app(), exclusive=False)
+
+    async def _switch_to_subagents_app(self) -> None:
+        if self._current_bottom_app == BottomApp.Subagents:
+            return
+
+        self._current_bottom_app = BottomApp.Subagents
+        agents = self.agent_loop.agent_manager.get_all_agents()
+        current_agent = self.agent_loop.agent_profile.name
+        subagents_panel = SubagentViewer(agents=agents, current_agent=current_agent)
+        await self._mount_and_scroll(UserCommandMessage("Select agent..."))
+        await self._switch_from_input(subagents_panel)
+
+    async def _close_subagents_app(self) -> None:
+        await self._mount_and_scroll(UserCommandMessage("Closed."))
+        await self._switch_to_input_app()
+
+    def _handle_subagents_app_escape(self) -> None:
+        self.run_worker(self._close_subagents_app(), exclusive=False)
 
     def _refresh_profile_widgets(self) -> None:
         self._update_profile_widgets(self.agent_loop.agent_profile)

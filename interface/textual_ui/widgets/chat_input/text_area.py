@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from textual import events
@@ -38,8 +40,9 @@ class ChatTextArea(TextArea):
     DEFAULT_MODE: ClassVar[Literal[">"]] = ">"
 
     class Submitted(Message):
-        def __init__(self, value: str) -> None:
+        def __init__(self, value: str, image_parts: list[dict[str, str]] | None = None) -> None:
             self.value = value
+            self.image_parts = image_parts or []
             super().__init__()
 
     class HistoryPrevious(Message):
@@ -75,6 +78,8 @@ class ChatTextArea(TextArea):
         self._completion_manager: MultiCompletionManager | None = None
         self._app_has_focus: bool = True
         self._voice_manager = voice_manager
+        self._image_parts: list[str] = []
+        self._image_counter: int = 0
 
     def on_blur(self, event: events.Blur) -> None:
         if self._app_has_focus:
@@ -397,3 +402,79 @@ class ChatTextArea(TextArea):
             replacement = replacement[mode_len:]
 
         return adj_start, adj_end, replacement
+
+    def action_paste(self) -> None:
+        """Handle paste events, including image pastes."""
+        # Check if clipboard has image data
+        image_data = self._read_image_from_clipboard()
+        if image_data:
+            self._insert_image_placeholder(image_data)
+        else:
+            # Default paste behavior for text - let parent handle it
+            super().action_paste()
+
+    def _read_image_from_clipboard(self) -> str | None:
+        """Try to read an image from the clipboard."""
+        try:
+            import tkinter as tk
+            from PIL import Image
+            import io
+
+            root = tk.Tk()
+            root.withdraw()
+            try:
+                clipboard_data = root.clipboard_get()
+                if isinstance(clipboard_data, Image.Image):
+                    buffer = io.BytesIO()
+                    img_format = (clipboard_data.format or "PNG") if callable(clipboard_data.format) else clipboard_data.format or "PNG"
+                    if callable(img_format):
+                        img_format = img_format()
+                    clipboard_data.save(buffer, format=img_format)
+                    base64_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                    return f"data:image/{img_format.lower()};base64,{base64_data}"
+            except tk.TclError:
+                pass
+            finally:
+                root.destroy()
+        except Exception:
+            pass
+        return None
+
+    def _insert_image_placeholder(self, image_data: str) -> None:
+        """Insert an image placeholder and store the image data."""
+        self._image_counter += 1
+        placeholder = f" [Image #{self._image_counter}]"
+        self.insert(placeholder)
+        self._image_parts.append(image_data)
+
+    def _image_file_to_data_url(self, file_path: Path) -> str:
+        """Convert an image file to a data URL."""
+        mime_type = self._get_image_mime_type(file_path)
+        with open(file_path, "rb") as f:
+            data = f.read()
+        base64_data = base64.b64encode(data).decode("utf-8")
+        return f"data:{mime_type};base64,{base64_data}"
+
+    def _get_image_mime_type(self, file_path: Path) -> str:
+        """Get the MIME type for an image file based on extension."""
+        extension = file_path.suffix.lower()
+        mime_types = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".bmp": "image/bmp",
+            ".tiff": "image/tiff",
+            ".tif": "image/tiff",
+        }
+        return mime_types.get(extension, "image/png")
+
+    def get_image_parts(self) -> list[str]:
+        """Get the list of image data URLs."""
+        return list(self._image_parts)
+
+    def clear_image_parts(self) -> None:
+        """Clear the stored image parts and reset counter."""
+        self._image_parts.clear()
+        self._image_counter = 0
