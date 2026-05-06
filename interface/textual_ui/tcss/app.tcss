@@ -16,7 +16,7 @@ $subtext: ansi_bright_black;
 $info: ansi_cyan;
 
 * {
-    scrollbar-color: ansi_black;
+    scrollbar-color: black;
     scrollbar-color-hover: ansi_bright_black;
     scrollbar-color-active: ansi_bright_black;
     scrollbar-background: transparent;
@@ -39,7 +39,7 @@ TextArea > .text-area--cursor {
 }
 
 #chat {
-    layout: stream;
+    layout: vertical;
     height: 1fr;
     width: 100%;
     background: transparent;
@@ -85,7 +85,7 @@ TextArea > .text-area--cursor {
 }
 
 #messages {
-    layout: stream;
+    layout: vertical;
     width: 100%;
     height: auto;
     text-align: left;

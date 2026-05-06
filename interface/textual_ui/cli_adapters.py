@@ -426,6 +426,7 @@ class SlashCommandController:
     def __init__(self, completer: Any, parent: Any):
         self.completer = completer
         self.parent = parent
+        # (label, description, replacement)
         self._suggestions: list[tuple[str, str, str]] = []
         self._selected_index = 0
         self._popup_visible = False
@@ -460,8 +461,9 @@ class SlashCommandController:
                 if hasattr(self.completer, "entries_getter")
                 else []
             )
+            # (label, description, replacement)
             self._suggestions = [
-                (label, desc, label)
+                (label, desc, self._format_command_replacement(label))
                 for label, desc in entries
                 if label.lower().startswith(cmd_alias.lower())
             ]
@@ -472,8 +474,9 @@ class SlashCommandController:
                 else []
             )
             prefix = "" if text_before_cursor.endswith(" ") else current_word
+            # (label, description, replacement)
             self._suggestions = [
-                (label, desc, label)
+                (label, desc, self._format_argument_replacement(label, text, cursor_index))
                 for label, desc in arg_entries
                 if label.lower().startswith(prefix.lower())
             ]
@@ -508,7 +511,7 @@ class SlashCommandController:
             if 0 <= self._selected_index < len(self._suggestions):
                 current_word = self._get_current_word(text, cursor_index)
                 # If the current text exactly matches a command, let it submit instead of completing
-                if current_word in [suggestion[2] for suggestion in self._suggestions]:
+                if current_word in [suggestion[0] for suggestion in self._suggestions]:
                     return CompletionResult.IGNORED
                 replacement = self._format_replacement(
                     text,
@@ -552,6 +555,14 @@ class SlashCommandController:
         if replacement.startswith("/"):
             return replacement + (" " if not suffix or not suffix[0].isspace() else "")
         return replacement + (" " if not suffix or not suffix[0].isspace() else "")
+
+    def _format_command_replacement(self, label: str) -> str:
+        """Format a slash command for replacement."""
+        return label
+
+    def _format_argument_replacement(self, label: str, text: str, cursor_index: int) -> str:
+        """Format an argument for replacement."""
+        return label
 
     def reset(self) -> None:
         self._suggestions = []

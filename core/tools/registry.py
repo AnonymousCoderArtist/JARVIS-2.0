@@ -31,7 +31,7 @@ class ToolRegistry:
         tool.llm_provider = self.llm_provider
         tool.model = self.model
         # Inject event queue if available
-        if hasattr(self, 'event_queue') and self.event_queue is not None:
+        if self.event_queue is not None:
             tool.event_queue = self.event_queue
 
         self._tools[tool.name] = tool
@@ -41,20 +41,34 @@ class ToolRegistry:
         Update the provider and model references for all registered tools.
         Call this after the provider is initialized.
 
+        Only non-None arguments overwrite the existing values so that callers
+        that only want to inject an event_queue don't accidentally clear a
+        previously configured llm_provider or model.
+
         Args:
-            llm_provider: LLM provider instance
-            model: Model name string
-            event_queue: Event queue for tools that need to emit events
+            llm_provider: LLM provider instance (skipped when None)
+            model: Model name string (skipped when None)
+            config_getter: Config getter callable (skipped when None)
+            event_queue: Event queue for tools that need to emit events (skipped when None)
         """
-        self.llm_provider = llm_provider
-        self.model = model
+        if llm_provider is not None:
+            self.llm_provider = llm_provider
+        if model is not None:
+            self.model = model
         if config_getter is not None:
             self.config_getter = config_getter
         if event_queue is not None:
             self.event_queue = event_queue
         for tool in self._tools.values():
-            tool.llm_provider = llm_provider
-            tool.model = model
+            # Ensure tools always have a back-reference to the registry.
+            # Some tools (e.g. `agents`) require this and may fail if created outside `register()`.
+            tool.tool_registry = self
+            if llm_provider is not None:
+                tool.llm_provider = llm_provider
+            if model is not None:
+                tool.model = model
+            if self.event_queue is not None:
+                tool.event_queue = self.event_queue
 
     def get(self, name: str) -> BaseTool | None:
         """

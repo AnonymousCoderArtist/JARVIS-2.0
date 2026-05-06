@@ -1,0 +1,88 @@
+/* Agent Tree Widget Styles */
+
+AgentTreeWidget {
+    width: 100%;
+    height: auto;
+    background: transparent;
+    margin: 0 0 1 0;
+}
+
+.agent-tree-header {
+    color: ansi_blue;
+    text-style: bold;
+    height: 1;
+}
+
+.agent-tree-entry {
+    width: 100%;
+    height: auto;
+    margin-left: 1;
+}
+
+.agent-tree-main {
+    width: 100%;
+    height: auto;
+}
+
+.agent-tree-branch {
+    color: ansi_bright_black;
+    width: auto;
+}
+
+.agent-tree-icon {
+    width: auto;
+}
+
+.agent-tree-icon.agent-status-running {
+    color: ansi_bright_yellow;
+}
+
+.agent-tree-icon.agent-status-completed {
+    color: ansi_green;
+}
+
+.agent-tree-icon.agent-status-failed {
+    color: ansi_red;
+}
+
+.agent-tree-icon.agent-status-pending {
+    color: ansi_bright_black;
+}
+
+.agent-tree-type {
+    color: ansi_cyan;
+    text-style: bold;
+    width: auto;
+}
+
+.agent-tree-prompt {
+    color: ansi_default;
+    width: auto;
+}
+
+.agent-tree-sep {
+    color: ansi_bright_black;
+    width: auto;
+}
+
+.agent-tree-metrics {
+    color: ansi_bright_black;
+    width: auto;
+}
+
+.agent-tree-activity {
+    color: ansi_bright_black;
+    text-style: italic;
+    margin-left: 4;
+}
+
+.agent-tree-queued {
+    color: ansi_bright_black;
+    margin-top: 1;
+}
+
+.agent-tree-empty {
+    color: ansi_bright_black;
+    text-style: italic;
+    margin-left: 2;
+}

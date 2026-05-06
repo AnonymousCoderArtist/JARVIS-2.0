@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -10,6 +11,8 @@ from datetime import datetime
 from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
+
+logger = logging.getLogger(__name__)
 
 
 # Global background agent tracker with activity support
@@ -29,6 +32,13 @@ class BackgroundAgentTask:
     created_at: datetime = field(default_factory=datetime.now)
     completed_at: datetime | None = None
     task: asyncio.Task | None = None
+    # Metrics
+    tool_uses: int = 0
+    token_usage: int = 0
+    max_tokens: int = 0
+    retries: int = 0
+    max_retries: int = 30
+    current_activity: str = ""  # e.g., "editing", "searching"
 
 
 async def get_background_agent(task_id: str) -> BackgroundAgentTask | None:
@@ -70,6 +80,27 @@ async def _run_agent_in_background(
     """Run an agent in the background and update status when done"""
     from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
     from core.config.settings import Settings
+    from core.agents.base import BaseAgent
+
+    # Define callback to track tool usage
+    def _on_tool_call(tool_name: str, tool_args: dict) -> None:
+        """Increment tool usage counter"""
+        import asyncio
+        async def _update():
+            async with _background_lock:
+                if task_id in _background_agents:
+                    _background_agents[task_id].tool_uses += 1
+                    _background_agents[task_id].current_activity = f"{tool_name}"
+        asyncio.create_task(_update())
+    
+    def _on_tool_result(tool_name: str, result: Any) -> None:
+        """Clear current activity after tool completes"""
+        import asyncio
+        async def _update():
+            async with _background_lock:
+                if task_id in _background_agents:
+                    _background_agents[task_id].current_activity = ""
+        asyncio.create_task(_update())
 
     try:
         # Update status to running
@@ -101,16 +132,29 @@ async def _run_agent_in_background(
                 model=model,
                 config_getter=explore_config_getter,
             )
+            # Set callbacks for metrics tracking
+            subagent.tool_call_callback = _on_tool_call
+            subagent.tool_result_callback = _on_tool_result
             subagent.rebuild_system_prompt()
 
             # Execute the task
             result = await subagent.process(prompt)
+            
+            # Try to capture token usage from result if available
+            token_usage = 0
+            if isinstance(result, dict) and "usage" in result:
+                usage = result["usage"]
+                if isinstance(usage, dict):
+                    token_usage = usage.get("total_tokens", 0)
+                elif hasattr(usage, "total_tokens"):
+                    token_usage = usage.total_tokens
 
             # Update with result
             async with _background_lock:
                 if task_id in _background_agents:
                     _background_agents[task_id].status = "completed"
                     _background_agents[task_id].result = result
+                    _background_agents[task_id].token_usage = token_usage
                     _background_agents[task_id].completed_at = datetime.now()
 
         elif agent_name == "plan":
@@ -136,16 +180,29 @@ async def _run_agent_in_background(
                 model=model,
                 config_getter=plan_config_getter,
             )
+            # Set callbacks for metrics tracking
+            subagent.tool_call_callback = _on_tool_call
+            subagent.tool_result_callback = _on_tool_result
             subagent.rebuild_system_prompt()
 
             # Execute the task
             result = await subagent.process(prompt)
+            
+            # Try to capture token usage from result if available
+            token_usage = 0
+            if isinstance(result, dict) and "usage" in result:
+                usage = result["usage"]
+                if isinstance(usage, dict):
+                    token_usage = usage.get("total_tokens", 0)
+                elif hasattr(usage, "total_tokens"):
+                    token_usage = usage.total_tokens
 
             # Update with result
             async with _background_lock:
                 if task_id in _background_agents:
                     _background_agents[task_id].status = "completed"
                     _background_agents[task_id].result = result
+                    _background_agents[task_id].token_usage = token_usage
                     _background_agents[task_id].completed_at = datetime.now()
 
         else:
@@ -217,26 +274,24 @@ class _FilteredToolRegistry:
 
 
 class AgentTool(BaseTool):
-    """PRIMARY AGENT MANAGEMENT TOOL - Your unified interface for all subagent operations.
+    """Primary agent management tool - unified interface for all subagent operations.
 
-    🔥 THIS IS YOUR GO-TO TOOL FOR WORKING WITH SUBAGENTS 🔥
-    
-    Use this tool WHENEVER you need to:
-    1. DELEGATE tasks to specialized subagents (explore/plan)
-    2. MONITOR progress of background agent tasks
-    3. RETRIEVE results from completed background work
-    4. MANAGE your active and completed agent tasks
+    Use this tool whenever you need to:
+    1. Delegate tasks to specialized subagents (explore/plan)
+    2. Monitor progress of background agent tasks
+    3. Retrieve results from completed background work
+    4. Manage your active and completed agent tasks
 
-    CRITICAL USAGE RULES:
-    - ALWAYS use runInBackground=true when you can do other work while waiting
-    - ONLY use runInBackground=false when you NEED immediate results for current task
-    - NEVER repeatedly check status - do meaningful work between checks
-    - ALWAYS retrieve results when tasks complete to avoid memory buildup
+    Usage rules:
+    - Always use runInBackground=true when you can do other work while waiting
+    - Only use runInBackground=false when you need immediate results for current task
+    - Do not repeatedly check status - do meaningful work between checks
+    - Always retrieve results when tasks complete to avoid memory buildup
     - Use 'list' operation to see all active agents before launching new ones
 
-    AVAILABLE SUBAGENTS:
-    - explore: 🔍 Codebase exploration, file analysis, pattern finding (read-only, safe)
-    - plan: 📋 Task decomposition, implementation planning, architecture design (read-only, safe)
+    Available subagents:
+    - explore: Codebase exploration, file analysis, pattern finding
+    - plan: Task decomposition, implementation planning, architecture design
 
     """
     name = "agents"
@@ -248,7 +303,8 @@ class AgentTool(BaseTool):
             "action": {
                 "type": "string",
                 "description": "Action to perform: 'launch', 'status', 'results', or 'list'",
-                "enum": ["launch", "status", "results", "list"]
+                "enum": ["launch", "status", "results", "list"],
+                "default": "launch",
             },
             "agentName": {
                 "type": "string",
@@ -276,7 +332,8 @@ class AgentTool(BaseTool):
                 "enum": ["check", "retrieve", "clear"]
             }
         },
-        "required": ["action"]
+        # Backwards compatible: older callers omitted "action" and used agentName/prompt.
+        "required": []
     }
 
     def _get_param(self, input_data: ToolInput, *names) -> Any:
@@ -295,6 +352,23 @@ class AgentTool(BaseTool):
         runInBackground = self._get_param(input_data, "runInBackground", "run_in_background")
         taskId = self._get_param(input_data, "taskId")
         resultsAction = self._get_param(input_data, "resultsAction")
+
+        # Backwards-compatible inference for legacy callers:
+        # - If agentName + prompt are provided, treat as launch.
+        # - Otherwise infer status/results/list from the other parameters.
+        if action is None:
+            if isinstance(agent_name, str) and isinstance(prompt, str):
+                action = "launch"
+            elif isinstance(resultsAction, str):
+                action = "results"
+            elif isinstance(taskId, str):
+                action = "status"
+            else:
+                action = "list"
+
+        # Normalize runInBackground default (legacy callers frequently omit it).
+        if runInBackground is None:
+            runInBackground = True
 
         # Validate action
         if not isinstance(action, str) or action not in ["launch", "status", "results", "list"]:
@@ -338,19 +412,39 @@ class AgentTool(BaseTool):
                 error="Invalid agent invocation input: agentName and prompt must be non-empty strings. Please provide a valid agent name and a descriptive task prompt."
             )
 
-        # Check if the tool has access to the registry and provider
-        if not hasattr(self, 'tool_registry') or not hasattr(self, 'llm_provider'):
+        # Resolve tool registry, provider, model, config getter, and event queue.
+        # Prefer attributes set directly on the tool, but fall back to the registry
+        # so the tool keeps working when the provider is injected via
+        # ToolRegistry.update_tool_providers() after registration.
+        tool_registry = self.tool_registry
+        llm_provider = self.llm_provider or (tool_registry.llm_provider if tool_registry is not None else None)
+        model = self.model or (tool_registry.model if tool_registry is not None else None)
+        config_getter = tool_registry.config_getter if tool_registry is not None else None
+        event_queue = tool_registry.event_queue if tool_registry is not None else None
+
+        if tool_registry is None or llm_provider is None:
+            # Build a detailed diagnostic message so the TUI shows exactly what is missing.
+            missing = []
+            if tool_registry is None:
+                missing.append("tool_registry=None (tool was never registered into a ToolRegistry)")
+            if llm_provider is None:
+                reg_provider = getattr(tool_registry, "llm_provider", "<no attr>") if tool_registry is not None else "<no registry>"
+                missing.append(
+                    f"llm_provider=None (self.llm_provider=None, registry.llm_provider={reg_provider!r}). "
+                    "This usually means update_tool_providers() was called without a provider after "
+                    "the provider was set, wiping it out."
+                )
+            diag = " | ".join(missing)
+            logger.error("agents tool initialization failure: %s", diag)
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Agent tool not properly initialized with tool_registry and llm_provider. Please ensure the tool registry is properly configured with provider references."
+                error=(
+                    f"Agent tool not properly initialized. Diagnostic: {diag}. "
+                    "Ensure ToolRegistry.update_tool_providers(llm_provider=...) is called with a "
+                    "non-None provider before any call to update_tool_providers() that omits it."
+                )
             )
-
-        tool_registry = self.tool_registry
-        llm_provider = self.llm_provider
-        model = getattr(self, 'model', None)
-        config_getter = getattr(tool_registry, "config_getter", None)
-        event_queue = getattr(tool_registry, "event_queue", None)
 
         # Create task ID for execution
         task_id = str(uuid.uuid4())
@@ -363,6 +457,7 @@ class AgentTool(BaseTool):
                 agent_name=agent_name,
                 prompt=prompt,
                 status="pending",
+                max_tokens=128000,  # Default context window, should be fetched from model config
             )
 
             async with _background_lock:
@@ -731,3 +826,55 @@ def clear_subagent_activities(task_id: str | None = None) -> None:
         _subagent_activities.pop(task_id, None)
     else:
         _subagent_activities.clear()
+
+
+class AgentsTool(AgentTool):
+    """Alias for AgentTool for backward compatibility"""
+    name = "agents"
+
+
+class AgentStatusTool(AgentTool):
+    """Specialized tool for checking agent status"""
+    name = "agent_status"
+    description = "Check the status and results of background agents"
+
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "description": "Action to perform: 'status', 'results', or 'list'",
+                "enum": ["status", "results", "list"],
+                "default": "status"
+            },
+            "taskId": {
+                "type": "string",
+                "description": "Task ID for status/results queries, or 'list' for all tasks",
+                "minLength": 1
+            },
+            "resultsAction": {
+                "type": "string",
+                "description": "For 'results' action: 'check', 'retrieve', or 'clear'",
+                "enum": ["check", "retrieve", "clear"]
+            }
+        }
+    }
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        # Default action to 'status' if not provided
+        action = self._get_param(input_data, "action") or "status"
+        # If taskId not provided but action is status, default to 'list'
+        taskId = self._get_param(input_data, "taskId")
+        if action == "status" and not taskId:
+            taskId = "list"
+
+        # Call base execute with adjusted input
+        if action == "status":
+            return await self._handle_status(taskId)
+        elif action == "results":
+            resultsAction = self._get_param(input_data, "resultsAction") or "check"
+            return await self._handle_results(resultsAction, taskId)
+        elif action == "list":
+            return await self._handle_status("list")
+
+        return await super().execute(input_data)

@@ -261,8 +261,13 @@ class TodoResultWidget(ToolResultWidget[TodoResult]):
             yield from self._footer()
 
     def _get_status_icon(self, status: str) -> str:
-        icons = {"pending": "☐", "in_progress": "☐", "completed": "☑", "cancelled": "☒"}
-        return icons.get(status, "☐")
+        icons = {
+            "pending": "[ ]",
+            "in_progress": "[~]",
+            "completed": "[x]",
+            "cancelled": "[-]",
+        }
+        return icons.get(status, "[ ]")
 
 
 class ReadFileApprovalWidget(ToolApprovalWidget[ReadFileArgs]):
@@ -289,7 +294,7 @@ class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
         
         if not self.collapsed:
             for warning in self.warnings:
-                yield NoMarkupStatic(f"⚠ {warning}", classes="tool-result-warning tool-result-read-warning")
+                yield NoMarkupStatic(f"warning: {warning}", classes="tool-result-warning tool-result-read-warning")
             
             # Show content
             ext = Path(self.result.path).suffix.lstrip(".") or "text"
@@ -301,13 +306,12 @@ class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
 
 
 class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
-    """Modern grep approval widget with clean visual hierarchy.
-    
+    """Grep approval widget with clean visual hierarchy.
+
     Features:
-    - Clear tool identification with icon
+    - Tool identification (text only)
     - Query type indicator (regexp vs literal)
     - Optional parameters (path, max_matches, include_pattern)
-    - Clean spacing and iconography
     """
     
     def compose(self) -> ComposeResult:
@@ -317,21 +321,21 @@ class GrepApprovalWidget(ToolApprovalWidget[GrepArgs]):
         max_matches = self.args.max_matches if isinstance(self.args, BaseModel) else self.args.get("max_matches", None)
         include_pattern = self.args.include_pattern if isinstance(self.args, BaseModel) else self.args.get("include_pattern", None)
         
-        # Tool header with icon and type indicator
+        # Tool header with type indicator
         query_type = "regexp" if is_regexp else "literal"
-        yield NoMarkupStatic(f"🔍 grep [{query_type}]", classes="approval-tool-name")
+        yield NoMarkupStatic(f"grep [{query_type}]", classes="approval-tool-name")
         yield Static("")  # Spacer
-        
+
         # Main pattern highlighted
         yield NoMarkupStatic(f'"{query}"', classes="approval-grep-query")
-        
+
         # Optional parameters with subtle styling
         if path != ".":
-            yield NoMarkupStatic(f"  ↳ path: {path}", classes="approval-grep-param")
+            yield NoMarkupStatic(f"  path: {path}", classes="approval-grep-param")
         if max_matches:
-            yield NoMarkupStatic(f"  ↳ max: {max_matches}", classes="approval-grep-param")
+            yield NoMarkupStatic(f"  max: {max_matches}", classes="approval-grep-param")
         if include_pattern:
-            yield NoMarkupStatic(f"  ↳ filter: {include_pattern}", classes="approval-grep-param")
+            yield NoMarkupStatic(f"  filter: {include_pattern}", classes="approval-grep-param")
 
 
 class GrepResultWidget(ToolResultWidget[GrepResult]):
@@ -379,12 +383,12 @@ class GrepResultWidget(ToolResultWidget[GrepResult]):
 
 
 class LSResultWidget(ToolResultWidget[LSResult]):
-    """Modern LS result widget matching design.
-    
+    """LS result widget.
+
     Layout:
     └─ 24 entries
-       🗋 .env
-       🗀 src/
+       .env
+       src/
     """
     
     def compose(self) -> ComposeResult:

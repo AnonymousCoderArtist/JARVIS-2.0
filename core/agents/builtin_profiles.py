@@ -39,35 +39,40 @@ DEFAULT = AgentProfile(
     },
 )
 
-# Plan agent - read-only for exploration and planning
+# Plan agent - sub-agent with all tools always allowed
 PLAN = AgentProfile(
     name="plan",
     display_name="Plan",
-    description="Read-only agent for exploration and planning",
+    description="Sub-agent for exploration and planning (all tools always allowed)",
     safety=AgentSafety.SAFE,
     agent_type=AgentType.SUBAGENT,
     overrides={
         "tools": {
-            # Explore-level tools - always allowed
+            # File tools - always allowed
             "read": {"permission": "always"},
+            "write_file": {"permission": "always"},
+            "edit": {"permission": "always"},
             "ls": {"permission": "always"},
             "find": {"permission": "always"},
+            # Search tools - always allowed
             "grep": {"permission": "always"},
-            # All other tools - disabled
-            "write": {"permission": "never"},
-            "edit": {"permission": "never"},
-            "bash": {"permission": "never"},
-            "run_tests": {"permission": "never"},
-            "repl": {"permission": "never"},
-            "list_background_processes": {"permission": "never"},
-            "read_background_output": {"permission": "never"},
+            # Code tools - always allowed
+            "bash": {"permission": "always"},
+            "run_tests": {"permission": "always"},
+            "repl": {"permission": "always"},
+            # Background tools - always allowed
+            "list_background_processes": {"permission": "always"},
+            "read_background_output": {"permission": "always"},
+            # Memory tools - always allowed
             "save_memory": {"permission": "always"},
             "read_memory": {"permission": "always"},
+            # Web tools - always allowed
             "fetch_webpage": {"permission": "always"},
             "web_search": {"permission": "always"},
-            "agents": {"permission": "never"},
-            "activate_skill": {"permission": "never"},
-            "agent_status": {"permission": "never"},
+            # Agent tools - always allowed
+            "agents": {"permission": "always"},
+            "activate_skill": {"permission": "always"},
+            "agent_status": {"permission": "always"},
         },
         "system_prompt_id": "plan",
     },
@@ -119,40 +124,40 @@ AUTO_APPROVE = AgentProfile(
     overrides={"bypass_tool_permissions": True},
 )
 
-# Explore agent - all tools always except bash, edit, and subagent tools
+# Explore agent - sub-agent with all tools always allowed
 EXPLORE = AgentProfile(
     name="explore",
     display_name="Explore",
-    description="All tools always except bash, edit, and subagent tools",
+    description="Sub-agent for codebase exploration (all tools always allowed)",
     safety=AgentSafety.SAFE,
     agent_type=AgentType.SUBAGENT,
     overrides={
         "tools": {
-            # File tools - always
+            # File tools - always allowed
             "read": {"permission": "always"},
             "write_file": {"permission": "always"},
-            "edit": {"permission": "never"},  # Excluded
+            "edit": {"permission": "always"},
             "ls": {"permission": "always"},
             "find": {"permission": "always"},
-            # Search tools - always
+            # Search tools - always allowed
             "grep": {"permission": "always"},
-            # Code tools - bash excluded, others always
-            "bash": {"permission": "never"},  # Excluded
+            # Code tools - always allowed
+            "bash": {"permission": "always"},
             "run_tests": {"permission": "always"},
             "repl": {"permission": "always"},
-            # Background tools - always
+            # Background tools - always allowed
             "list_background_processes": {"permission": "always"},
             "read_background_output": {"permission": "always"},
-            # Memory tools - always
+            # Memory tools - always allowed
             "save_memory": {"permission": "always"},
             "read_memory": {"permission": "always"},
-            # Web tools - always
+            # Web tools - always allowed
             "fetch_webpage": {"permission": "always"},
             "web_search": {"permission": "always"},
-            # Agent tools - excluded (subagent tools)
-            "agents": {"permission": "never"},  # Excluded
-            "activate_skill": {"permission": "never"},  # Excluded
-            "agent_status": {"permission": "never"},  # Excluded
+            # Agent tools - always allowed
+            "agents": {"permission": "always"},
+            "activate_skill": {"permission": "always"},
+            "agent_status": {"permission": "always"},
         },
         "system_prompt_id": "explore",
     },

@@ -90,7 +90,7 @@ class ApprovalApp(Container):
 
         with Vertical(id="approval-content"):
             self.title_widget = NoMarkupStatic(
-                f"⚠ {self.tool_name} command", classes="approval-title"
+                f"Approval required: {self.tool_name}", classes="approval-title"
             )
             yield self.title_widget
 

@@ -193,5 +193,8 @@ async def test_agents_applies_explore_profile_to_subagent(monkeypatch) -> None:
     subagent_config = captured["config"]
     assert isinstance(subagent_config, Settings)
     assert subagent_config.tools["read"]["permission"] == "always"
-    assert subagent_config.tools["agents"]["permission"] == "never"
+    # Sub-agents now have "always" permission for every tool they know about,
+    # including the agents tool itself (the filtered registry still restricts
+    # which tools the explore subagent can actually invoke).
+    assert subagent_config.tools["agents"]["permission"] == "always"
     assert captured["tool_names"] == ["read", "ls", "find", "grep"]

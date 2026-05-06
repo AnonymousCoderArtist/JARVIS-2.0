@@ -464,27 +464,5 @@ State persists across calls within the same session_id."""
             return count
 
 
-# ============================================================================
-# LEGACY API - For backward compatibility
-# ============================================================================
-
-# Class-level session storage (legacy compatibility)
-_REPLTool = REPLTool
-
-
-class REPLToolLegacy:
-    """Legacy REPLTool class for backward compatibility.
-    
-    This is now a wrapper around the secured REPLTool.
-    """
-    
-    _sessions: dict[str, dict] = {}
-    
-    @staticmethod
-    def create_secured() -> REPLTool:
-        """Create a new secured REPL tool instance."""
-        return REPLTool()
-
-
 # Export the main class
-__all__ = ["REPLTool", "REPLToolLegacy"]
+__all__ = ["REPLTool"]

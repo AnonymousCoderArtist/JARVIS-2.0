@@ -139,6 +139,21 @@ class BaseAgent(ABC):
                 skills_section += f"### {skill_name}\n{skill_content}\n\n"
             full_prompt += skills_section
 
+        # Add available tool descriptions from the tool registry (dynamic)
+        # This is required for UI help text and for tests expecting registered tool sections.
+        try:
+            tools = self.tools.get_tools()
+            if tools:
+                tool_section = "\n\n## Tool Descriptions\n\n"
+                # Sort by tool name for stable prompt output.
+                for tool_name, tool in sorted(tools.items(), key=lambda kv: kv[0]):
+                    tool_desc = tool.description or ""
+                    tool_section += f"### {tool_name}\n{tool_desc}\n\n"
+                full_prompt += tool_section
+        except Exception:
+            # If tool registry doesn't support enumeration, don't break prompt construction.
+            pass
+
         # Add available skills information dynamically
         try:
             from core.skills import SkillManager

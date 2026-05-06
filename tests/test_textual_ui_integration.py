@@ -230,7 +230,7 @@ def test_tui_slash_command_argument_completion_suggests_matching_args() -> None:
     text = "/skills act"
     controller.on_text_changed(text, len(text))
 
-    assert parent.suggestions == [("activate", "Activate a skill")]
+    assert parent.suggestions == [("activate", "Activate a skill", "activate")]
 
     result = controller.on_key(SimpleNamespace(key="tab"), text, len(text))
 

@@ -703,12 +703,6 @@ JARVIS_V2_SYSTEM_PROMPT = build_jarvis_v2_system_prompt(auto_discover=True)
 
 
 # ==============================================================================
-# BACKWARD COMPATIBILITY - deprecated alias
-# ==============================================================================
-JARVIS_MINIMAL_SYSTEM_PROMPT = JARVIS_V2_SYSTEM_PROMPT
-
-
-# ==============================================================================
 # EXPLORE SUBAGENT SYSTEM PROMPT
 # ==============================================================================
 
@@ -725,8 +719,8 @@ def get_explore_tools() -> str:
     """Get the list of available tools for exploration."""
     return """Available tools:
 - read: Read file contents. Use to load files before analyzing or searching patterns.
-- list_dir: List directory contents. Use to discover files and understand structure.
-- glob: Find files by pattern. Use to locate candidate files.
+- ls: List directory contents. Use to discover files and understand structure.
+- find: Find files by pattern. Use to locate candidate files.
 - grep: Search file contents by regex or substring. Use to find code patterns, functions, or classes.
 - bash: Execute shell commands. Use for git operations, running scripts, or system commands.
 - web_search: Perform a web search for documentation or external references.
@@ -738,7 +732,7 @@ def get_explore_guidelines() -> str:
     return """Guidelines:
 - You are the Explore Agent, specialized in codebase exploration and analysis.
 - Use tools proactively to inspect the repository rather than guessing or assuming structure.
-- Be systematic: start broad (list_dir/glob), then narrow (grep), then deep dive (read).
+- Be systematic: start broad (ls/find), then narrow (grep), then deep dive (read).
 - Provide structured output: overview, structure, key components, relationships, entry points, dependencies, patterns.
 - Focus on actionable insights over exhaustive detail.
 - When finding specific functionality: search keywords -> identify files -> read implementations -> trace dependencies -> summarize.
@@ -795,8 +789,8 @@ def get_plan_tools() -> str:
     """Get the list of available tools for planning."""
     return """Available tools:
 - read: Read file contents. Use to load files before analyzing or planning.
-- list_dir: List directory contents. Use to discover files and understand structure.
-- glob: Find files by pattern. Use to locate candidate files.
+- ls: List directory contents. Use to discover files and understand structure.
+- find: Find files by pattern. Use to locate candidate files.
 - grep: Search file contents by regex or substring. Use to find code patterns or requirements.
 - web_search: Perform a web search for documentation or best practices.
 - fetch_webpage: Fetch webpage content for additional context.

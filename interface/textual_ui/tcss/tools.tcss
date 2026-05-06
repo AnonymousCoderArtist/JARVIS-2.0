@@ -6,7 +6,7 @@ $surface: transparent;
 $surface-light: transparent;
 $text-primary: ansi_default;
 $text-secondary: ansi_bright_black;
-$border-subtle: ansi_black;
+$border-subtle: black;
 $border-focus: ansi_yellow;
 $success: ansi_green;
 $warning: ansi_yellow;
@@ -365,19 +365,8 @@ $info: ansi_cyan;
 
 /* ========================================
    Agent Overlay Styles
+   --------------------------------------------------
+   The active styles for the sub-agent overlay live in
+   interface/textual_ui/widgets/subagent_viewer.py
+   and are scoped to the SubagentOverlay screen.
    ======================================== */
-
-#header {
-    background: $primary;
-    color: $text;
-    text-style: bold;
-}
-
-#output {
-    color: $text-primary;
-}
-
-.empty-msg {
-    color: $text-secondary;
-    text-style: italic;
-}

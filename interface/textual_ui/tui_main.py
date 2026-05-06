@@ -2,24 +2,27 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 from core.agents.coding_agent import CodingAgent
 from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
-from core.tools.consolidated_agent_tool import AgentTool
+from core.tools.consolidated_agent_tool import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
 from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
-from core.tools.memory_tool import SaveMemoryTool
+from core.tools.memory_tool import SaveMemoryTool, ReadMemoryTool
 from core.tools.registry import ToolRegistry
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
@@ -238,9 +241,11 @@ def create_tool_registry() -> AsyncToolRegistry:
     
     # Register memory tools
     tool_registry.register(SaveMemoryTool())
-    
+    tool_registry.register(ReadMemoryTool())
+
     # Register agent tools
-    tool_registry.register(AgentTool())
+    tool_registry.register(AgentsTool())
+    tool_registry.register(AgentStatusTool())
     # Register skill tool
     from core.tools.skill_manage_tool import SkillTool
     tool_registry.register(SkillTool())
@@ -287,7 +292,8 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         llm_provider=provider,
         model=model
     )
-    
+    logger.info("Tool registry provider set: provider=%r, model=%s", provider, model)
+
     # Connect to MCP servers and register their tools
     import asyncio
     mcp_count = asyncio.run(connect_mcp_servers(tool_registry, provider, model))
@@ -304,10 +310,15 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
     )
 
     # Make the active profile configuration available to tools that need it
+    # NOTE: always pass llm_provider and model so they are never cleared.
     tool_registry.update_tool_providers(
         llm_provider=provider,
         model=model,
         config_getter=lambda: agent_manager.config,
+    )
+    logger.info(
+        "Tool registry after config_getter injection: registry.llm_provider=%r",
+        tool_registry.llm_provider,
     )
 
     # Initialize async agent manager for concurrent operations (optional)

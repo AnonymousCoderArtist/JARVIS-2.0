@@ -421,7 +421,7 @@ class HookRunContainer(Vertical):
 
 _HOOK_SEVERITY_ICONS: dict[HookMessageSeverity, str] = {
     HookMessageSeverity.OK: "✓",
-    HookMessageSeverity.WARNING: "⚠",
+    HookMessageSeverity.WARNING: "!",
     HookMessageSeverity.ERROR: "✗",
 }
 

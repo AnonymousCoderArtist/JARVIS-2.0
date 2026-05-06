@@ -346,7 +346,8 @@ class AgentLoop:
         # Integration with JARVIS's actual memory system
         self._approval_callback: Callable[[str, dict[str, Any], str, list[Any]], bool] | None = None
         self._user_input_callback: Callable[[str], str] | None = None
-        self._event_queue: asyncio.Queue[Event] = asyncio.Queue()
+        # NOTE: _event_queue is already created at the top of __init__ (line ~284)
+        # and shared with the tool registry.  Do NOT recreate it here.
         self._stream_chunks: list[str] = []
         self._reasoning_chunks: list[str] = []
         self._is_running = False
@@ -739,10 +740,24 @@ Create a comprehensive summary that captures:
     
     async def start_heartbeat_if_enabled(self) -> None:
         """Start heartbeat if configured (call after event loop is running)."""
-        if self.agent.heartbeat_scheduler and self.agent.heartbeat_scheduler.enabled:
+        # Some test agents/mocks don't implement the full heartbeat surface.
+        scheduler = getattr(self.agent, "heartbeat_scheduler", None)
+        if callable(scheduler):
+            try:
+                scheduler = scheduler()
+            except Exception:
+                scheduler = None
+
+        start_heartbeat = getattr(self.agent, "start_heartbeat", None)
+
+        if (
+            scheduler
+            and getattr(scheduler, "enabled", False)
+            and callable(start_heartbeat)
+        ):
             self._heartbeat_running = True
             try:
-                await self.agent.start_heartbeat()
+                await start_heartbeat()
             finally:
                 self._heartbeat_running = False
     

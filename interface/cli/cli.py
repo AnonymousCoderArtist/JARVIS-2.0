@@ -29,7 +29,7 @@ from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tools import AgentsTool, AgentStatusTool
+from core.tools.consolidated_agent_tool import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
@@ -168,9 +168,9 @@ class CLIInterface:
         self._initialize_systems()
 
     def _initialize_systems(self):
-        self._initialize_tools()
-        self._initialize_agents()
-        # Update tool registry with provider after agent initialization
+        self._initialize_agents()  # Initialize provider first
+        self._initialize_tools()   # Then register tools with provider available
+        # Provider is already set on tools via update_tool_providers call in _initialize_agents
         if self._current_provider:
             self.tool_registry.update_tool_providers(
                 llm_provider=self._current_provider,
@@ -251,6 +251,12 @@ class CLIInterface:
 
         # Store provider reference for tool registry
         self._current_provider = provider
+
+        # Update tool registry with provider immediately so tools can be registered with it
+        self.tool_registry.update_tool_providers(
+            llm_provider=provider,
+            model=self.model
+        )
 
         # Initialize settings and managers
         settings = Settings()

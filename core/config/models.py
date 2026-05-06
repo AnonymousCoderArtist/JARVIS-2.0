@@ -71,6 +71,8 @@ class ToolSettings(BaseModel):
     
     # Tool permissions
     read: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
+    ls: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
+    find: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
     list_dir: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
     glob: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
     grep: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))

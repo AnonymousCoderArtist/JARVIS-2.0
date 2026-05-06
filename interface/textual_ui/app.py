@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from rich import print as rprint
 from textual.app import WINDOWS, App, ComposeResult
 from textual.binding import Binding, BindingType
+from textual.theme import Theme
 from textual.containers import Horizontal, VerticalGroup, VerticalScroll
 from textual.driver import Driver
 from textual.events import AppBlur, AppFocus, MouseUp
@@ -99,7 +100,6 @@ from interface.textual_ui.widgets.messages import (
     WhatsNewMessage,
 )
 from interface.textual_ui.widgets.model_picker import ModelPickerApp
-from interface.textual_ui.widgets.subagent_viewer import SubagentOverlay
 from interface.textual_ui.widgets.narrator_status import NarratorStatus
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.path_display import PathDisplay
@@ -266,8 +266,6 @@ class BottomApp(str, Enum):
     ThinkingPicker = "ThinkingPicker"
     Rewind = "Rewind"
     SessionPicker = "SessionPicker"
-    Subagents = "Subagents"
-    SubagentViewer = "SubagentViewer"
     # Voice = "Voice"  # Not supported in core Settings
 
     def __str__(self) -> str:
@@ -360,6 +358,24 @@ class StartupOptions:
     show_resume_picker: bool = False
 
 
+ANSI_DARK = Theme(
+    name="ansi-dark",
+    primary="ansi_blue",
+    secondary="ansi_bright_yellow",
+    accent="ansi_blue",
+    warning="ansi_yellow",
+    error="ansi_red",
+    success="ansi_green",
+    # Keep the app stable: Rich parses these theme colors directly.
+    # "transparent" isn't a valid Rich color, so we only use it in TCSS (Screen background).
+    background="black",
+    surface="black",
+    panel="ansi_bright_black",
+    boost="ansi_bright_black",
+)
+
+
+
 class VibeApp(App):  # noqa: PLR0904
     ENABLE_COMMAND_PALETTE = False
     CSS_PATH = ["tcss/app.tcss", "tcss/tools.tcss"]
@@ -376,7 +392,7 @@ class VibeApp(App):  # noqa: PLR0904
         Binding("ctrl+shift+c", "copy_selection", "Copy", show=False, priority=True),
         Binding("ctrl+shift+backspace", "copy_last_answer", "Copy Answer", show=False, priority=True),
         Binding("shift+tab", "cycle_mode", "Cycle Mode", show=False, priority=True),
-        Binding("tab", "toggle_subagents", "Subagents", show=False, priority=True),
+        # Tab binding removed - subagent overlay removed
         Binding("shift+up", "scroll_chat_up", "Scroll Up", show=False, priority=True),
         Binding(
             "shift+down", "scroll_chat_down", "Scroll Down", show=False, priority=True
@@ -402,6 +418,8 @@ class VibeApp(App):  # noqa: PLR0904
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        self.register_theme(ANSI_DARK)
+        self.theme = "ansi-dark"
         self.scroll_sensitivity_y = 1.0
         self.agent_loop = agent_loop
         self._plan_info: PlanInfo | None = None
@@ -524,8 +542,6 @@ class VibeApp(App):  # noqa: PLR0904
             yield ContextProgress()
 
     async def on_mount(self) -> None:
-        # Use ansi-dark theme with transparent backgrounds
-        self.theme = "ansi-dark"
         self._terminal_notifier.restore()
 
         self._cached_messages_area = self.query_one("#messages")
@@ -971,12 +987,6 @@ class VibeApp(App):  # noqa: PLR0904
         with self.batch_update():
             for widget in children[:compact_index]:
                 await widget.remove()
-
-    async def on_subagent_viewer_close_requested(
-        self, message: SubagentViewer.CloseRequested
-    ) -> None:
-        """Handle close request from subagent viewer."""
-        await self._switch_to_input_app()
 
     async def _handle_command(self, user_input: str) -> bool | str:
         """Handle slash commands."""
@@ -2415,8 +2425,6 @@ class VibeApp(App):  # noqa: PLR0904
                     self.query_one(ConnectorAuthApp).focus()
                 case BottomApp.Rewind:
                     self.query_one(RewindApp).focus()
-                case BottomApp.Subagents:
-                    self.query_one(SubagentViewer).focus()
                 # case BottomApp.Voice:  # Not supported in core Settings
                 #     self.query_one(VoiceApp).focus()
                 case app:
@@ -2730,8 +2738,6 @@ class VibeApp(App):  # noqa: PLR0904
             self._handle_thinking_picker_app_escape()
         elif self._current_bottom_app == BottomApp.SessionPicker:
             self._handle_session_picker_app_escape()
-        elif self._current_bottom_app == BottomApp.Subagents:
-            self._handle_subagents_app_escape()
         elif self._current_bottom_app == BottomApp.Rewind:
             self.run_worker(self._exit_rewind_mode(), exclusive=False)
             self._last_escape_time = None
@@ -2878,20 +2884,6 @@ class VibeApp(App):  # noqa: PLR0904
             self.notify(f"Copied {len(text)} chars to clipboard", severity="information", timeout=2)
         except Exception as e:
             self.notify(f"Failed to copy: {e}", severity="error", timeout=2)
-
-    def action_toggle_subagents(self) -> None:
-        """Toggle the subagents panel."""
-        if self._current_bottom_app == BottomApp.Subagents:
-            self.run_worker(self._close_subagents_app(), exclusive=False)
-        else:
-            self.run_worker(self._switch_to_subagents_app(), exclusive=False)
-
-    async def _switch_to_subagents_app(self) -> None:
-        if self._current_bottom_app == BottomApp.Subagents:
-            return
-
-        # Show subagent overlay
-        self.push_screen(SubagentOverlay(agent_name=self.agent_loop.agent_profile.name))
 
     def _refresh_profile_widgets(self) -> None:
         self._update_profile_widgets(self.agent_loop.agent_profile)
