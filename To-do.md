@@ -19,3 +19,6 @@
 - [ ] Implement Rewind feature for agents to undo actions
 - [ ] UI improvements for Subagents
 - [X] Image upload support in TUI
+- [X] Implement Model Info fetching and caching system
+- [X] /copy command to copy content to clipboard
+- [ ] Make !bang commands to be non-blocking and run via async subprocess for better latency

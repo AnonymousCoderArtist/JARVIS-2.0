@@ -190,8 +190,8 @@ class CommandRegistry:
 
         # MCP command (like Vibe)
         self.commands["mcp"] = Command(
-            aliases=("/mcp", "/connectors"),
-            description="Display available MCP servers and connectors",
+            aliases=("/mcp",),
+            description="Display available MCP servers",
             usage="[server_name]",
             handler="_show_mcp",
         )

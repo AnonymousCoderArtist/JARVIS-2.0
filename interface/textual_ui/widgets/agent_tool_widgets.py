@@ -176,7 +176,10 @@ class AgentToolResultWidget(Static, can_focus=True):
                 )
                 if self.status == "completed":
                     self._indicator_widget.add_class("success")
+                elif self.status == "failed":
+                    self._indicator_widget.add_class("error")
                 else:
+                    self._indicator_widget.add_class("running")
                     self._indicator_widget.add_class("error")
                 yield self._indicator_widget
 
@@ -227,43 +230,51 @@ class AgentToolResultWidget(Static, can_focus=True):
         # Clear existing content
         self._content_container.remove_children()
 
-        if self.error:
-            # Show error message
-            error_widget = NoMarkupStatic(f"Error: {self.error}", classes="agent-tool-result-error")
-            self._content_container.mount(error_widget)
-            return
-
-        if not self.result:
-            # No result content
-            if self.collapsed:
-                hint_widget = NoMarkupStatic("└─ no output • Ctrl+O to expand", classes="agent-tool-result-hint")
-                self._content_container.mount(hint_widget)
-            return
-
-        # Show result content
+        # Show result content based on collapsed state
         if self.collapsed:
             # Collapsed view - just show a hint
-            lines = self.result.split('\n')
-            line_count = len(lines)
-            hint_text = f"└─ {line_count} lines • Ctrl+O to expand"
-            hint_widget = NoMarkupStatic(hint_text, classes="agent-tool-result-hint")
-            self._content_container.mount(hint_widget)
-        else:
-            # Expanded view - show full result
-            result_lines = self.result.split('\n')
-            max_lines_to_show = 20
-            
-            for line in result_lines[:max_lines_to_show]:
-                content_widget = NoMarkupStatic(f"   {line}", classes="agent-tool-result-line")
-                self._content_container.mount(content_widget)
-            
-            if len(result_lines) > max_lines_to_show:
-                remaining = len(result_lines) - max_lines_to_show
-                hint_widget = NoMarkupStatic(
-                    f"   ... ({remaining} more lines)", 
-                    classes="agent-tool-result-hint"
-                )
+            if self.error:
+                # Show error hint
+                error_hint = f"└─ failed • {self.error[:30]}..." if len(self.error) > 30 else f"└─ failed • {self.error}"
+                hint_widget = NoMarkupStatic(error_hint, classes="agent-tool-result-hint error-text")
                 self._content_container.mount(hint_widget)
+            elif not self.result:
+                # No result content
+                hint_widget = NoMarkupStatic("└─ no output • Ctrl+O to expand", classes="agent-tool-result-hint")
+                self._content_container.mount(hint_widget)
+            else:
+                # Show result hint
+                lines = self.result.split('\n')
+                line_count = len(lines)
+                hint_text = f"└─ {line_count} lines • Ctrl+O to expand"
+                hint_widget = NoMarkupStatic(hint_text, classes="agent-tool-result-hint")
+                self._content_container.mount(hint_widget)
+        else:
+            # Expanded view - show full content
+            if self.error:
+                # Show error details
+                error_header = NoMarkupStatic("ERROR:", classes="agent-tool-result-error")
+                self._content_container.mount(error_header)
+                error_lines = self.error.split('\n')
+                for line in error_lines[:15]:
+                    content_widget = NoMarkupStatic(f"   {line}", classes="agent-tool-result-error")
+                    self._content_container.mount(content_widget)
+            elif self.result:
+                # Show result
+                result_lines = self.result.split('\n')
+                max_lines_to_show = 20
+                
+                for line in result_lines[:max_lines_to_show]:
+                    content_widget = NoMarkupStatic(f"   {line}", classes="agent-tool-result-line")
+                    self._content_container.mount(content_widget)
+                
+                if len(result_lines) > max_lines_to_show:
+                    remaining = len(result_lines) - max_lines_to_show
+                    hint_widget = NoMarkupStatic(
+                        f"   ... ({remaining} more lines)", 
+                        classes="agent-tool-result-hint"
+                    )
+                    self._content_container.mount(hint_widget)
 
     def on_click(self, event) -> None:
         """Toggle collapsed/expanded state on click."""

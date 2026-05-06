@@ -9,7 +9,6 @@ import gc
 import os
 from pathlib import Path
 import signal
-import subprocess
 import time
 from typing import Any, ClassVar, cast, TYPE_CHECKING
 from weakref import WeakKeyDictionary
@@ -100,7 +99,7 @@ from interface.textual_ui.widgets.messages import (
     WhatsNewMessage,
 )
 from interface.textual_ui.widgets.model_picker import ModelPickerApp
-from interface.textual_ui.widgets.subagent_viewer import SubagentViewer
+from interface.textual_ui.widgets.subagent_viewer import SubagentOverlay
 from interface.textual_ui.widgets.narrator_status import NarratorStatus
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.path_display import PathDisplay
@@ -268,6 +267,7 @@ class BottomApp(str, Enum):
     Rewind = "Rewind"
     SessionPicker = "SessionPicker"
     Subagents = "Subagents"
+    SubagentViewer = "SubagentViewer"
     # Voice = "Voice"  # Not supported in core Settings
 
     def __str__(self) -> str:
@@ -972,20 +972,10 @@ class VibeApp(App):  # noqa: PLR0904
             for widget in children[:compact_index]:
                 await widget.remove()
 
-    async def on_subagent_viewer_agent_selected(
-        self, message: SubagentViewer.AgentSelected
+    async def on_subagent_viewer_close_requested(
+        self, message: SubagentViewer.CloseRequested
     ) -> None:
-        """Handle agent selection from subagent viewer."""
-        agent_name = message.agent_name
-        self.agent_loop.agent_manager.switch_profile(agent_name)
-        await self._mount_and_scroll(UserCommandMessage(f"Switched to agent: {agent_name}"))
-        await self._switch_to_input_app()
-        self._refresh_banner()
-
-    async def on_subagent_viewer_cancelled(
-        self, _message: SubagentViewer.Cancelled
-    ) -> None:
-        """Handle subagent viewer cancellation."""
+        """Handle close request from subagent viewer."""
         await self._switch_to_input_app()
 
     async def _handle_command(self, user_input: str) -> bool | str:
@@ -1097,18 +1087,23 @@ class VibeApp(App):  # noqa: PLR0904
             )
             return
 
+        process: asyncio.subprocess.Process | None = None
         try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=False, timeout=30
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
+            stdout_bytes, stderr_bytes = await process.communicate()
+
             stdout = (
-                result.stdout.decode("utf-8", errors="replace") if result.stdout else ""
+                stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
             )
             stderr = (
-                result.stderr.decode("utf-8", errors="replace") if result.stderr else ""
+                stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
             )
             output = stdout or stderr or "(no output)"
-            exit_code = result.returncode
+            exit_code = process.returncode if process.returncode is not None else 1
             await self._mount_and_scroll(
                 BashOutputMessage(command, str(Path.cwd()), output, exit_code)
             )
@@ -1121,17 +1116,13 @@ class VibeApp(App):  # noqa: PLR0904
                     stderr=stderr,
                 )
             )
-        except subprocess.TimeoutExpired as error:
-            stdout = (
-                error.stdout.decode("utf-8", errors="replace")
-                if isinstance(error.stdout, bytes)
-                else (error.stdout or "")
-            )
-            stderr = (
-                error.stderr.decode("utf-8", errors="replace")
-                if isinstance(error.stderr, bytes)
-                else (error.stderr or "")
-            )
+        except asyncio.TimeoutError:
+            if process is not None:
+                process.kill()
+                try:
+                    await process.wait()
+                except Exception:
+                    pass
             await self._mount_and_scroll(
                 ErrorMessage(
                     "Command timed out after 30 seconds",
@@ -1142,8 +1133,6 @@ class VibeApp(App):  # noqa: PLR0904
                 self._format_manual_command_context(
                     command=command,
                     cwd=str(Path.cwd()),
-                    stdout=stdout,
-                    stderr=stderr,
                     status="timed out after 30 seconds",
                 )
             )
@@ -1728,6 +1717,11 @@ class VibeApp(App):  # noqa: PLR0904
         return "Refreshed."
 
     async def _show_mcp(self, cmd_args: str = "", **kwargs: Any) -> None:
+        # Guard: agent_loop must be initialized
+        if not self.agent_loop:
+            await self._mount_and_scroll(UserCommandMessage("Agent not initialized yet."))
+            return
+
         # Load MCP servers from config file
         mcp_servers = self._get_mcp_servers()
         connector_registry = (
@@ -2896,19 +2890,8 @@ class VibeApp(App):  # noqa: PLR0904
         if self._current_bottom_app == BottomApp.Subagents:
             return
 
-        self._current_bottom_app = BottomApp.Subagents
-        agents = self.agent_loop.agent_manager.get_all_agents()
-        current_agent = self.agent_loop.agent_profile.name
-        subagents_panel = SubagentViewer(agents=agents, current_agent=current_agent)
-        await self._mount_and_scroll(UserCommandMessage("Select agent..."))
-        await self._switch_from_input(subagents_panel)
-
-    async def _close_subagents_app(self) -> None:
-        await self._mount_and_scroll(UserCommandMessage("Closed."))
-        await self._switch_to_input_app()
-
-    def _handle_subagents_app_escape(self) -> None:
-        self.run_worker(self._close_subagents_app(), exclusive=False)
+        # Show subagent overlay
+        self.push_screen(SubagentOverlay(agent_name=self.agent_loop.agent_profile.name))
 
     def _refresh_profile_widgets(self) -> None:
         self._update_profile_widgets(self.agent_loop.agent_profile)

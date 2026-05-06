@@ -238,95 +238,45 @@ class AgentTool(BaseTool):
     - explore: 🔍 Codebase exploration, file analysis, pattern finding (read-only, safe)
     - plan: 📋 Task decomposition, implementation planning, architecture design (read-only, safe)
 
-    OPERATION TYPES:
-    - LAUNCH: Start new agent tasks (background or foreground)
-    - STATUS: Check task progress (specific ID or list all)
-    - RESULTS: Manage completed task outputs (check/retrieve/clear)
-    - LIST: Shortcut to list all active background tasks
-
-    TYPICAL WORKFLOW:
-    1. Launch background agent with runInBackground=true
-    2. Continue with other meaningful work
-    3. Periodically check status OR use results action
-    4. Retrieve and use results when ready
-    5. Clear completed tasks to keep registry clean
     """
     name = "agents"
-    description = "Consolidated agent tool for launching, monitoring, and retrieving results from subagents"
+    description = "Launch, monitor, and retrieve results from specialized subagents (explore, plan)"
+
     input_schema = {
         "type": "object",
         "properties": {
-            "operation": {
+            "action": {
                 "type": "string",
-                "description": "Operation to perform: 'launch', 'status', 'results', or 'list'",
+                "description": "Action to perform: 'launch', 'status', 'results', or 'list'",
                 "enum": ["launch", "status", "results", "list"]
             },
-            # Launch parameters
             "agentName": {
                 "type": "string",
-                "description": "Name of the specialized subagent to invoke (e.g., 'explore', 'plan') - required for 'launch'",
+                "description": "Name of specialized subagent: 'explore' (codebase analysis), 'plan' (task decomposition)",
                 "minLength": 1
             },
             "prompt": {
                 "type": "string",
-                "description": "The complete query or task to send to the subagent - required for 'launch'",
+                "description": "Task description to send to the subagent",
                 "minLength": 1
             },
             "runInBackground": {
                 "type": "boolean",
-                "description": "Set to true for background execution, false for immediate results - required for 'launch'",
+                "description": "Run agent in background (true) or wait for immediate results (false)",
+                "default": True
             },
-            # Status parameters
             "taskId": {
                 "type": "string",
-                "description": "Task ID of the background agent to check, or 'list' to see all tasks - required for 'status'",
+                "description": "Task ID for status/results queries, or 'list' for all tasks",
                 "minLength": 1
             },
-            # Results parameters
-            "action": {
+            "resultsAction": {
                 "type": "string",
-                "description": "Action for results operation: 'check', 'retrieve', or 'clear' - required for 'results'",
+                "description": "For 'results' action: 'check', 'retrieve', or 'clear'",
                 "enum": ["check", "retrieve", "clear"]
             }
         },
-        "oneOf": [
-            # Launch operation
-            {
-                "required": ["operation", "agentName", "prompt", "runInBackground"],
-                "properties": {
-                    "operation": {
-                        "const": "launch"
-                    }
-                }
-            },
-            # Status operation
-            {
-                "required": ["operation", "taskId"],
-                "properties": {
-                    "operation": {
-                        "const": "status"
-                    }
-                }
-            },
-            # Results operation
-            {
-                "required": ["operation", "action"],
-                "properties": {
-                    "operation": {
-                        "const": "results"
-                    }
-                }
-            },
-            # List operation (alias for status with taskId='list')
-            {
-                "required": ["operation"],
-                "properties": {
-                    "operation": {
-                        "const": "list"
-                    }
-                }
-            }
-        ]
+        "required": ["action"]
     }
 
     def _get_param(self, input_data: ToolInput, *names) -> Any:
@@ -338,30 +288,30 @@ class AgentTool(BaseTool):
         return None
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Support camelCase parameter names
-        operation = self._get_param(input_data, "operation")
+        # Get parameters - 'action' is the primary parameter name
+        action = self._get_param(input_data, "action")
         agent_name = self._get_param(input_data, "agentName")
         prompt = self._get_param(input_data, "prompt")
-        runInBackground = self._get_param(input_data, "runInBackground")
+        runInBackground = self._get_param(input_data, "runInBackground", "run_in_background")
         taskId = self._get_param(input_data, "taskId")
-        action = self._get_param(input_data, "action")
+        resultsAction = self._get_param(input_data, "resultsAction")
 
-        # Validate operation
-        if not isinstance(operation, str) or operation not in ["launch", "status", "results", "list"]:
+        # Validate action
+        if not isinstance(action, str) or action not in ["launch", "status", "results", "list"]:
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid operation: must be 'launch', 'status', 'results', or 'list'. Please provide a valid operation."
+                error="Invalid action: must be 'launch', 'status', 'results', or 'list'. Please provide a valid action."
             )
 
         try:
-            if operation == "launch":
+            if action == "launch":
                 return await self._handle_launch(agent_name, prompt, runInBackground)
-            elif operation == "status":
+            elif action == "status":
                 return await self._handle_status(taskId)
-            elif operation == "results":
-                return await self._handle_results(action, taskId)
-            elif operation == "list":
+            elif action == "results":
+                return await self._handle_results(resultsAction, taskId)
+            elif action == "list":
                 # List is an alias for status with taskId='list'
                 return await self._handle_status("list")
 
