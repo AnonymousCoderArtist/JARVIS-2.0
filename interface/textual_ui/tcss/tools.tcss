@@ -248,3 +248,136 @@ $info: ansi_cyan;
     color: $info;
     text-style: bold;
 }
+
+/* ========================================
+   Agent Tool Styles
+   ======================================== */
+
+.agent-tool-call-container {
+    width: 100%;
+}
+
+.agent-tool-call-header {
+    width: 100%;
+    padding: 0;
+}
+
+.agent-tool-indicator {
+    width: 3;
+    text-align: center;
+    color: $info;
+}
+
+.agent-tool-indicator.success {
+    color: $success;
+}
+
+.agent-tool-indicator.error {
+    color: $error;
+}
+
+.agent-tool-name {
+    width: auto;
+    color: $text-primary;
+    text-style: bold;
+}
+
+.agent-tool-info {
+    color: $text-secondary;
+    padding-left: 3;
+}
+
+.agent-tool-result-container {
+    width: 100%;
+}
+
+.agent-tool-result-header {
+    width: 100%;
+    padding: 0;
+}
+
+.agent-tool-result-indicator {
+    width: 3;
+    text-align: center;
+}
+
+.agent-tool-result-indicator.success {
+    color: $success;
+}
+
+.agent-tool-result-indicator.error {
+    color: $error;
+}
+
+.agent-tool-result-name {
+    width: auto;
+    color: $text-primary;
+    text-style: bold;
+}
+
+.agent-tool-status {
+    color: $text-secondary;
+}
+
+.agent-tool-result-content {
+    width: 100%;
+    padding-left: 3;
+}
+
+.agent-tool-result-line {
+    color: $text-primary;
+}
+
+.agent-tool-result-error {
+    color: $error;
+}
+
+.agent-tool-result-hint {
+    color: $text-secondary;
+    text-style: italic;
+}
+
+/* Collapsed state for agent tools */
+.agent-tool-result-widget {
+    width: 100%;
+}
+
+.agent-tool-result-widget:focus {
+    background: transparent;
+}
+
+.agent-tool-result-summary {
+    color: $text-primary;
+    text-style: bold;
+    padding-left: 1;
+}
+
+.agent-tool-result-summary.clickable {
+    color: $info;
+    text-style: bold;
+    background: transparent;
+}
+
+.agent-tool-result-summary.clickable:hover {
+    background: transparent;
+    color: $text-primary;
+}
+
+/* ========================================
+   Agent Overlay Styles
+   ======================================== */
+
+#header {
+    background: $primary;
+    color: $text;
+    text-style: bold;
+}
+
+#output {
+    color: $text-primary;
+}
+
+.empty-msg {
+    color: $text-secondary;
+    text-style: italic;
+}
