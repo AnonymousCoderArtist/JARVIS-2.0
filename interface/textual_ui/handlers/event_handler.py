@@ -213,8 +213,16 @@ class EventHandler:
         # Create a ToolCallMessage for the agent (like regular tools)
         task_id = event.task_id
         
-        # Create a ToolCallMessage for the agent
-        tool_call = ToolCallMessage(tool_name="Agent")
+        # Create a proper ToolCallEvent so the adapter can format it nicely
+        agent_event = ToolCallEvent(
+            tool_name="agents",
+            tool_args={"agentName": event.agent_name, "prompt": event.prompt},
+            tool_call_id=task_id,
+            tool_class="agents",
+        )
+        
+        # Create ToolCallMessage with the event so it gets formatted properly
+        tool_call = ToolCallMessage(event=agent_event)
         
         # Store in tool_calls keyed by task_id
         if task_id:

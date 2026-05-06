@@ -1705,6 +1705,12 @@ class ToolUIDataAdapter:
             path_suffix = f" in {path}" if path != "." else ""
             return Display(summary=f"Grep \"{query}\"{path_suffix}")
         
+        if tool_name == "agents":
+            agent_name = args.get("agentName", "agent")
+            prompt = args.get("prompt", "")
+            prompt_preview = prompt[:30] + "..." if len(prompt) > 30 else prompt
+            return Display(summary=f"Agent {agent_name}: {prompt_preview}")
+        
         if tool_name in ("read", "read_file"):
             def get_rel_path(p_str):
                 if not p_str: return "unknown"
