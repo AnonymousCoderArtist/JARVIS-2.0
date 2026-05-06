@@ -801,8 +801,22 @@ Create a comprehensive summary that captures:
             tool_class=tool_class
         ))
 
+    def _normalize_arguments(self, arguments: dict[str, Any] | str) -> dict[str, Any]:
+        """Normalize arguments to always be a dict."""
+        if isinstance(arguments, str):
+            try:
+                import json
+                return json.loads(arguments)
+            except json.JSONDecodeError:
+                logger.warning(f"Failed to parse arguments as JSON: {arguments[:100]}")
+                return {}
+        return arguments if isinstance(arguments, dict) else {}
+
     def _map_tool_result(self, tool_name: str, arguments: dict[str, Any], result: Any) -> Any:
         """Map raw tool output to structured result models for TUI."""
+        # Normalize arguments to dict (might be JSON string from text-embedded tool calls)
+        arguments = self._normalize_arguments(arguments)
+        
         # If result is a ToolOutput (from core), use its inner result
         raw_result = result
         if hasattr(result, 'result'):
@@ -848,6 +862,9 @@ Create a comprehensive summary that captures:
 
     def _on_tool_result(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
         """Handle tool result event from agent."""
+        # Normalize arguments to dict (might be JSON string from text-embedded tool calls)
+        arguments = self._normalize_arguments(arguments)
+        
         # Queue tool result event for UI synchronously
         # Use the same tool_call_id as the tool call
         tool_call_id = self._tool_call_ids.get(tool_name, "")
