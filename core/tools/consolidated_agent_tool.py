@@ -278,24 +278,23 @@ class AgentTool(BaseTool):
 
     Use this tool whenever you need to:
     1. Delegate tasks to specialized subagents (explore/plan)
-    2. Monitor progress of background agent tasks
-    3. Retrieve results from completed background work
-    4. Manage your active and completed agent tasks
+    2. Get immediate results from subagents (foreground mode)
+    3. Monitor progress of background agent tasks
+    4. Retrieve results from completed background work
 
-    Usage rules:
-    - Always use runInBackground=true when you can do other work while waiting
-    - Only use runInBackground=false when you need immediate results for current task
-    - Do not repeatedly check status - do meaningful work between checks
-    - Always retrieve results when tasks complete to avoid memory buildup
+    Usage rules (Foreground is recommended):
+    - Prefer runInBackground=false (default): Agent runs synchronously, tool calls appear in your conversation, you get results immediately
+    - Only use runInBackground=true when you need to do other work while waiting for a long-running task
+    - When using background mode, use 'status' or 'results' action to check progress and get results
     - Use 'list' operation to see all active agents before launching new ones
 
     Available subagents:
-    - explore: Codebase exploration, file analysis, pattern finding
-    - plan: Task decomposition, implementation planning, architecture design
+    - explore: Codebase exploration, file analysis, pattern finding (read-only)
+    - plan: Task decomposition, implementation planning, architecture design (read-only)
 
     """
     name = "agents"
-    description = "Launch, monitor, and retrieve results from specialized subagents (explore, plan)"
+    description = "Launch subagents (explore/plan) for codebase analysis and task planning. Defaults to foreground mode for immediate results."
 
     input_schema = {
         "type": "object",
@@ -318,7 +317,7 @@ class AgentTool(BaseTool):
             },
             "runInBackground": {
                 "type": "boolean",
-                "description": "Run agent in background (true) or wait for immediate results (false)",
+                "description": "Run agent in background (async) or foreground (sync, default). Use false for immediate results in your conversation.",
                 "default": False
             },
             "taskId": {
