@@ -1157,7 +1157,7 @@ class VibeConfig:
     bypass_tool_permissions: bool = False
     mcp_servers: list[MCPServer] = field(default_factory=list)
     session_logging: SessionLoggingConfig = field(default_factory=SessionLoggingConfig)
-    api_timeout: float = 30.0
+    api_timeout: float = 1800.0  # 30 minutes for long-running tool operations
     installed_agents: list[str] = field(default_factory=list)
     enable_update_checks: bool = False
     enable_auto_update: bool = False

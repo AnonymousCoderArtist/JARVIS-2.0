@@ -172,6 +172,9 @@ class QuestionApp(Container):
         tabs = []
         for i, question in enumerate(self.questions):
             header = question.header or f"Q{i + 1}"
+            # Truncate header to 12 chars for display if too long
+            if len(header) > 12:
+                header = header[:11] + "…"
             if i in self.answers:
                 header += " ✓"
             if i == self.current_question_idx:

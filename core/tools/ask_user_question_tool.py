@@ -17,16 +17,19 @@ class QuestionOptionSchema(BaseModel):
     """Schema for a single option in a multiple choice question."""
     label: str = Field(
         description="The display text for this option that the user will see and select. "
-                   "Should be concise (1-5 words) and clearly describe the choice."
+                   "Should be concise (1-5 words) and clearly describe the choice. "
+                   "Example: 'Fix existing code', 'Build new feature', 'Research best practices'."
     )
     description: str = Field(
-        description="Explanation of what this option means or what will happen if chosen. "
-                   "Useful for providing context about trade-offs or implications."
+        description="Detailed explanation of what this option means, what will happen if chosen, "
+                   "and the trade-offs or implications. This helps users understand the impact of their choice. "
+                   "Example: 'I will analyze the existing codebase, identify the issue, and implement a fix. "
+                   "This is best when you have a specific bug or problem to solve.'"
     )
     preview: str | None = Field(
         default=None,
         description="Optional preview content rendered when this option is focused. "
-                   "Use for mockups, code snippets, or visual comparisons."
+                   "Use for mockups, code snippets, or visual comparisons. Supports ANSI, diff, or markdown."
     )
 
 
@@ -34,23 +37,23 @@ class QuestionSchema(BaseModel):
     """Schema for a single question."""
     question: str = Field(
         description="The complete question to ask the user. Should be clear, specific, "
-                    "and end with a question mark."
+                   "end with a question mark, and provide enough context for the user to make an informed choice. "
+                   "Example: 'What type of task would you like me to work on?'"
     )
     header: str = Field(
-        description="Very short label displayed as a chip/tag (max 12 chars). "
-                    "Examples: 'Auth method', 'Library', 'Approach'.",
-        max_length=12
+        description="Short label displayed as a chip/tag (ideally 1-8 chars). Keep it simple: use category words like 'Style', 'StyleLib', 'DB', 'Auth', 'Testing'. If longer, it will be truncated automatically for display.",
+        max_length=20
     )
     options: list[QuestionOptionSchema] = Field(
         description="The available choices for this question. Must have 2-4 options. "
-                    "Each option should be a distinct, mutually exclusive choice "
-                    "(unless multiSelect is enabled).",
+                   "Each option should be a distinct, mutually exclusive choice with clear labels and detailed descriptions explaining what happens if chosen and the trade-offs involved.",
         min_length=2,
         max_length=4
     )
     multiSelect: bool = Field(
         default=False,
-        description="Set to true to allow the user to select multiple options instead of just one."
+        description="Set to true to allow multiple answers to be selected for a question "
+                   "(shows checkboxes instead of radio buttons)."
     )
 
 
@@ -137,6 +140,7 @@ Usage notes:
 - Users will always be able to select "Other" to provide custom text input
 - Use multiSelect: true to allow multiple answers to be selected for a question
 - If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label
+- For the header field: use simple 1-8 character category words like 'Style', 'StyleLib', 'DB', 'Auth', 'Testing'. Keep it short!
 
 IMPORTANT: Do not reference "the plan" in your questions because the user cannot see the plan in the UI until you finalize it. Use appropriate tool for plan approval.
 """
@@ -181,9 +185,7 @@ class AskUserQuestionTool(BaseTool):
                         },
                         "header": {
                             "type": "string",
-                            "description": "Very short label displayed as a chip/tag (max 12 chars). "
-                                        "Examples: 'Auth method', 'Library', 'Approach'.",
-                            "maxLength": 12
+                            "description": "Short label displayed as a chip/tag (ideally 1-8 chars). Keep it simple: use category words like 'Style', 'StyleLib', 'DB', 'Auth', 'Testing'. If longer, it will be truncated automatically."
                         },
                         "options": {
                             "type": "array",
