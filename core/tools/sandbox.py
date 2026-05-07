@@ -15,7 +15,7 @@ def _bwrap(command: str, workspace: str, cwd: str) -> str:
     # and bind-mount the actual workspace read-write
     workspace_path = Path(workspace).resolve()
     parent_path = workspace_path.parent.resolve()
-    
+
     # Basic bwrap command structure
     bwrap_cmd = [
         "bwrap",
@@ -29,7 +29,7 @@ def _bwrap(command: str, workspace: str, cwd: str) -> str:
         "--chdir", cwd,
         "/bin/sh", "-c", command
     ]
-    
+
     return shlex.join(bwrap_cmd)
 
 
@@ -38,8 +38,8 @@ def wrap_command(sandbox: str, command: str, workspace: str, cwd: str) -> str:
     backends = {
         "bwrap": _bwrap
     }
-    
+
     if backend := backends.get(sandbox):
         return backend(command, workspace, cwd)
-    
+
     raise ValueError(f"Unknown sandbox backend {sandbox!r}. Available: {list(backends.keys())}")

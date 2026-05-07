@@ -18,10 +18,9 @@ import time
 import uuid
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
-
 
 # ============================================================================
 # SECURITY LAYERS
@@ -80,8 +79,6 @@ _REMOVED_BUILTINS = {
     "copyright",
     "credits",
     "license",
-    "exit",
-    "quit",
 }
 
 # Layer 3: Safe import allowlist - only these modules can be imported
@@ -146,7 +143,7 @@ def _make_safe_import(allowed: frozenset = _SAFE_IMPORT_MODULES):
     return _safe_import
 
 
-def _make_restricted_builtins() -> Dict[str, Any]:
+def _make_restricted_builtins() -> dict[str, Any]:
     """Build a builtins dict with dangerous functions removed."""
     safe = {k: v for k, v in vars(builtins).items() if k not in _REMOVED_BUILTINS}
     safe["__import__"] = _make_safe_import()
@@ -161,7 +158,7 @@ def _make_restricted_builtins() -> Dict[str, Any]:
 class ReplSession:
     """Represents a REPL session with persistent state."""
     session_id: str
-    namespace: Dict[str, Any] = field(default_factory=dict)
+    namespace: dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     last_used: float = field(default_factory=time.time)
     execution_count: int = 0
@@ -231,7 +228,7 @@ State persists across calls within the same session_id."""
         self._timeout = timeout
         self._max_output = max_output
         self._max_sessions = max_sessions
-        self._sessions: Dict[str, ReplSession] = {}
+        self._sessions: dict[str, ReplSession] = {}
         self._lock = threading.Lock()
 
     def _get_param(self, input_data: ToolInput, *names) -> Any:
@@ -320,7 +317,7 @@ State persists across calls within the same session_id."""
                 error=f"Failed to execute REPL code: {str(e)}. Please check if your Python code is syntactically correct and if required modules are installed."
             )
 
-    def _check_blocked_patterns(self, code: str) -> Optional[str]:
+    def _check_blocked_patterns(self, code: str) -> str | None:
         """Check if code contains any blocked patterns."""
         for pattern in _BLOCKED_PATTERNS:
             if pattern in code:
@@ -372,7 +369,7 @@ State persists across calls within the same session_id."""
 
         Returns (output, success).
         """
-        result_holder: Dict[str, Any] = {"output": "", "success": True}
+        result_holder: dict[str, Any] = {"output": "", "success": True}
 
         def _run() -> None:
             """Run code in a separate thread."""
@@ -407,7 +404,7 @@ State persists across calls within the same session_id."""
 
         return result_holder["output"], result_holder["success"]
 
-    def _run_with_timeout(self, target, timeout: int, result_holder: Dict[str, Any]) -> None:
+    def _run_with_timeout(self, target, timeout: int, result_holder: dict[str, Any]) -> None:
         """Run target function with timeout."""
         thread = threading.Thread(target=target, daemon=True)
         thread.start()
@@ -429,7 +426,7 @@ State persists across calls within the same session_id."""
                 return True
             return False
 
-    def list_sessions(self) -> list[Dict[str, Any]]:
+    def list_sessions(self) -> list[dict[str, Any]]:
         """List all active REPL sessions with metadata."""
         with self._lock:
             return [
@@ -442,7 +439,7 @@ State persists across calls within the same session_id."""
                 for sid, sess in self._sessions.items()
             ]
 
-    def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session_info(self, session_id: str) -> dict[str, Any] | None:
         """Get info about a specific session."""
         with self._lock:
             if session_id in self._sessions:

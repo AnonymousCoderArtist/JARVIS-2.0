@@ -2,12 +2,11 @@
 
 import asyncio
 import logging
-import psutil
-import time
 from dataclasses import dataclass
-from typing import Any
 
-from .base import BaseTool, ToolInput, ToolOutput
+import psutil
+
+from .base import ToolOutput
 from .registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -78,16 +77,16 @@ class ConcurrentToolExecutor:
             cpu_percent = psutil.cpu_percent(interval=0.1)
             if cpu_percent > self.resource_limits.max_cpu_percent:
                 return False, f"CPU usage ({cpu_percent}%) exceeds limit ({self.resource_limits.max_cpu_percent}%)"
-            
+
             # Check memory usage
             memory = psutil.virtual_memory()
             memory_used_mb = memory.used / (1024 * 1024)
-            
+
             if memory_used_mb > self.resource_limits.max_memory_mb:
                 return False, f"Memory usage ({memory_used_mb:.1f} MB) exceeds limit ({self.resource_limits.max_memory_mb} MB)"
-            
+
             return True, ""
-            
+
         except Exception as e:
             logger.warning(f"Failed to check resource limits: {e}")
             # If we can't check limits, allow execution (fail-safe)
@@ -118,7 +117,7 @@ class ConcurrentToolExecutor:
                     result=None,
                     error=f"Resource limit exceeded: {limit_error}",
                 )
-            
+
             tool = self.tool_registry.get(name)
             if not tool:
                 return ToolOutput(

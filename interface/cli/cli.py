@@ -40,6 +40,7 @@ from core.tools.registry import ToolRegistry
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
+from core.tools.worktree_tool import EnterWorktreeTool, ExitWorktreeTool
 
 from .display import DisplayManager, StreamingResponse
 from .commands import CommandHandler
@@ -241,6 +242,9 @@ class CLIInterface:
         self.tool_registry.register(AgentStatusTool())
         from core.tools import SkillTool
         self.tool_registry.register(SkillTool())
+        # Register worktree tools
+        self.tool_registry.register(EnterWorktreeTool())
+        self.tool_registry.register(ExitWorktreeTool())
 
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters

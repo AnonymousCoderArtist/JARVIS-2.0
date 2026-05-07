@@ -27,6 +27,7 @@ from core.tools.registry import ToolRegistry
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
+from core.tools.worktree_tool import EnterWorktreeTool, ExitWorktreeTool
 
 from interface.textual_ui.app import run_textual_ui
 
@@ -254,6 +255,10 @@ def create_tool_registry() -> AsyncToolRegistry:
     from core.tools.skill_manage_tool import SkillTool
     tool_registry.register(SkillTool())
     
+    # Register worktree tools
+    tool_registry.register(EnterWorktreeTool())
+    tool_registry.register(ExitWorktreeTool())
+
     return tool_registry
 
 

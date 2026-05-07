@@ -13,21 +13,17 @@ Components:
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import mcp
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamable_http_client
 from mcp.client.streamable_http import streamable_http_client
 
 from .base import BaseTool, ToolInput, ToolOutput
 from .registry import ToolRegistry
-from .permissions import PermissionContext
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +101,7 @@ class MCPClient:
         """Reset the client state when event loop changes"""
         if self._stop_event:
             self._stop_event.set()
-            
+
         if self._run_task and not self._run_task.done():
             try:
                 # Wait for the task to finish cleanup
@@ -113,7 +109,7 @@ class MCPClient:
             except Exception as e:
                 logger.warning(f"Error waiting for MCP client task shutdown: {e}")
                 self._run_task.cancel()
-        
+
         self._run_task = None
         self._stop_event = None
         self._ready_event = None
@@ -152,13 +148,13 @@ class MCPClient:
             self._stop_event = asyncio.Event()
             self._ready_event = asyncio.Event()
             self._connect_error = None
-            
+
             # Start background task to manage the context managers
             self._run_task = asyncio.create_task(self._run_client_task())
-            
+
             # Wait for it to be ready or fail
             await self._ready_event.wait()
-            
+
             if self._connect_error:
                 raise self._connect_error
 
@@ -199,7 +195,7 @@ class MCPClient:
                 elif self.config.transport in (MCPTransportType.HTTP, MCPTransportType.SSE):
                     if not self.config.url:
                         raise ValueError(f"No URL configured for HTTP MCP server '{self.config.name}'")
-                    
+
                     logger.info(f"Connecting to MCP server via HTTP: {self.config.url}")
                     ctx = streamable_http_client(self.config.url)
                     streams = await stack.enter_async_context(ctx)
@@ -214,20 +210,20 @@ class MCPClient:
                 # Create session
                 session_ctx = ClientSession(read_stream, write_stream)
                 self._session = await stack.enter_async_context(session_ctx)
-                
+
                 # Initialize the session
                 await self._session.initialize()
-                
+
                 logger.info(f"MCP transport initialized for {self.config.name}")
-                
+
                 # Signal ready
                 if self._ready_event:
                     self._ready_event.set()
-                
+
                 # Wait until stopped
                 if self._stop_event:
                     await self._stop_event.wait()
-                    
+
         except Exception as e:
             self._connect_error = e
             if self._ready_event and not self._ready_event.is_set():

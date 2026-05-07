@@ -2,9 +2,9 @@
 
 
 import json
-import httpx
-import os
 from typing import Any
+
+import httpx
 
 from .base import BaseTool, ToolInput, ToolOutput
 

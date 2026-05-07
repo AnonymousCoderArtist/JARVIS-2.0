@@ -5,17 +5,18 @@ from typing import Any
 
 import aiofiles
 
-from .base import BaseTool, ToolInput, ToolOutput
-from .file_state import current_file_states
 from core.tools.permissions import (
     PermissionContext,
     PermissionScope,
     RequiredPermission,
-    is_path_within_workdir,
-    resolve_path_permission,
-    resolve_file_tool_permission,
     ToolPermission,
+    is_path_within_workdir,
+    resolve_file_tool_permission,
+    resolve_path_permission,
 )
+
+from .base import BaseTool, ToolInput, ToolOutput
+from .file_state import current_file_states
 
 
 class FileReadTool(BaseTool):
@@ -110,11 +111,11 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file read operation with granular checks"""
         files = args.get("files", [])
-        
+
         # Handle case where files is not a list (e.g., passed as string)
         if not isinstance(files, list):
             return None
-        
+
         if files and len(files) > 0:
             first_file = files[0]
             # Support camelCase
@@ -124,7 +125,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 file_path = None
         else:
             file_path = None
-        
+
         if not file_path:
             return None
 
@@ -259,7 +260,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 # Validate file_obj is a dict
                 if not isinstance(file_obj, dict):
                     return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path/filePath, offset, and limit, got {type(file_obj).__name__}", None, None)
-                
+
                 # Support camelCase
                 fp = file_obj.get("filePath")
                 off = file_obj.get("offset")
@@ -278,7 +279,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                         current_mtime = os.path.getmtime(fp)
                     except OSError:
                         current_mtime = 0.0
-                    
+
                     if current_mtime == entry.mtime:
                         # File unchanged - return dedup message
                         return (fp, f"[File unchanged since last read: {fp}]", None, off or 1, lim or 0)
@@ -315,7 +316,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 # Validate file_obj is a dict
                 if not isinstance(file_obj, dict):
                     return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path/filePath, offset, and limit, got {type(file_obj).__name__}", None, None)
-                
+
                 # Support camelCase
                 fp = file_obj.get("filePath")
                 off = file_obj.get("offset")
@@ -387,8 +388,8 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
             metadata=metadata
         )
 
-    
-    
+
+
 
 class FileWriteTool(BaseTool):
     """Tool for writing content to files (OpenClaude style)"""

@@ -4,12 +4,13 @@ import difflib
 import os
 from typing import Any
 
-from .base import BaseTool, ToolInput, ToolOutput
 from core.tools.permissions import (
     PermissionContext,
-    resolve_file_tool_permission,
     ToolPermission,
+    resolve_file_tool_permission,
 )
+
+from .base import BaseTool, ToolInput, ToolOutput
 
 
 class EditTool(BaseTool):
@@ -75,7 +76,7 @@ Supports multiple replacements in single call."""
     def resolve_permission(self, args: dict) -> PermissionContext | None:
         """Resolve permission for file edit operation with granular checks"""
         import json
-        
+
         replacements = args.get("replacements", [])
         if not replacements:
             return None
@@ -151,7 +152,7 @@ Supports multiple replacements in single call."""
     async def _execute_multiple_replacements(self, replacements: list[dict[str, str]]) -> ToolOutput:
         """Execute multiple replacement operations in a single call"""
         import json
-        
+
         results = []
         errors = []
 
