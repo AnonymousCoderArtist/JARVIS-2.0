@@ -24,7 +24,8 @@ class PlanAgent(BaseAgent):
             tool_registry=tool_registry,
             system_prompt=get_agent_prompt("plan"),
             model=model,
-            config_getter=config_getter
+            config_getter=config_getter,
+            auto_discover_context=False  # Don't override the plan system prompt
         )
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()

@@ -91,7 +91,8 @@ class VerificationAgent(BaseAgent):
             tool_registry=tool_registry,
             system_prompt=VERIFICATION_SYSTEM_PROMPT,
             model=model,
-            config_getter=config_getter
+            config_getter=config_getter,
+            auto_discover_context=False  # Don't override the verification system prompt
         )
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()

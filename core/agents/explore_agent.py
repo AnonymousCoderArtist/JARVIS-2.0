@@ -25,7 +25,8 @@ class ExploreAgent(BaseAgent):
             tool_registry=tool_registry,
             system_prompt=get_agent_prompt("explore"),
             model=model,
-            config_getter=config_getter
+            config_getter=config_getter,
+            auto_discover_context=False  # Don't override the explore system prompt
         )
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()

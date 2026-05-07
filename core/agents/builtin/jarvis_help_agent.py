@@ -88,7 +88,8 @@ class JarvisHelpAgent(BaseAgent):
             tool_registry=tool_registry,
             system_prompt=GetJarvisHelpPrompt(),
             model=model,
-            config_getter=config_getter
+            config_getter=config_getter,
+            auto_discover_context=False  # Don't override the help system prompt
         )
         self.rebuild_system_prompt()
 
