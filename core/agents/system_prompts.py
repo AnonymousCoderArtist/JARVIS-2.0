@@ -1,8 +1,53 @@
 """System prompts for JARVIS agent"""
 
 import os
+import platform
+import sys
+from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+# Fork detection marker
+FORK_PROMPT_MARKER = " FORK:"  # Marker to detect if prompt is a fork of another agent
+
+
+@dataclass
+class AgentPromptMetadata:
+    """Metadata for agent prompts."""
+    agent_type: str
+    when_to_use: str
+    model: str = "default"
+    max_turns: int = 100
+
+
+def enhanceSystemPromptWithEnvDetails(prompt: str, agent_name: str = "jarvis", emoji: str = "🤖") -> str:
+    """Enhance system prompt with environment details for agent identification.
+    
+    Adds:
+    - Absolute paths for key directories (cwd, project root)
+    - Platform information (OS, Python version)
+    - Emoji prefix for agent identification in logs
+    """
+    cwd = Path.cwd()
+    project_root = cwd
+    while project_root.parent != project_root and not (project_root / ".git").exists():
+        project_root = project_root.parent
+    
+    context_lines = [
+        f"\n\n---\n",
+        f"# Agent Environment Details",
+        f"- **Emoji**: {emoji}",
+        f"- **Agent Name**: {agent_name}",
+        f"- **Working Directory**: {cwd}",
+        f"- **Project Root**: {project_root}",
+        f"- **OS**: {platform.system()} {platform.release()}",
+        f"- **Python**: {sys.version.split()[0]}",
+        f"- **Platform**: {platform.machine()}",
+        f"---\n",
+    ]
+    
+    return prompt + "\n".join(context_lines)
 
 
 def get_system_context() -> str:
@@ -301,4 +346,66 @@ End of system prompt."""
 # DEFAULT PLAN SYSTEM PROMPT
 # ==============================================================================
 PLAN_SYSTEM_PROMPT = build_plan_system_prompt()
+
+
+# ==============================================================================
+# AGENT PROMPTS REGISTRY
+# ==============================================================================
+
+# Registry mapping agent names to (prompt, metadata) tuples
+AGENT_PROMPTS: dict[str, Tuple[str, AgentPromptMetadata]] = {
+    "jarvis": (
+        JARVIS_V2_SYSTEM_PROMPT,
+        AgentPromptMetadata(
+            agent_type="main",
+            when_to_use="Use for general coding, research, and documentation tasks. Default agent for user interaction.",
+            model="gpt-4o",
+            max_turns=100,
+        ),
+    ),
+    "explore": (
+        EXPLORE_SYSTEM_PROMPT,
+        AgentPromptMetadata(
+            agent_type="subagent",
+            when_to_use="Use for codebase exploration and analysis. Read-only specialized agent that understands structure, finds files/patterns.",
+            model="default",
+            max_turns=50,
+        ),
+    ),
+    "plan": (
+        PLAN_SYSTEM_PROMPT,
+        AgentPromptMetadata(
+            agent_type="subagent",
+            when_to_use="Use for task decomposition and planning. Read-only agent that creates structured plans with phases and steps.",
+            model="default",
+            max_turns=50,
+        ),
+    ),
+}
+
+
+def get_agent_prompt(agent_name: str) -> str:
+    """Get the system prompt for a named agent from the registry."""
+    return AGENT_PROMPTS.get(agent_name, (AGENT_PROMPTS["jarvis"][0],))[0]
+
+
+def get_agent_metadata(agent_name: str) -> Optional[AgentPromptMetadata]:
+    """Get the metadata for a named agent from the registry."""
+    return AGENT_PROMPTS.get(agent_name, (None, None))[1] if agent_name in AGENT_PROMPTS else None
+
+
+def get_enhanced_prompt(agent_name: str, emoji: Optional[str] = None) -> str:
+    """Get an enhanced system prompt with environment details for a named agent."""
+    prompt = get_agent_prompt(agent_name)
+    metadata = get_agent_metadata(agent_name)
+    
+    # Default emoji mapping
+    emoji_map = {
+        "jarvis": "🤖",
+        "explore": "🔍",
+        "plan": "📋",
+    }
+    agent_emoji = emoji or emoji_map.get(agent_name, "🤖")
+    
+    return enhanceSystemPromptWithEnvDetails(prompt, agent_name, agent_emoji)
 

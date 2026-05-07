@@ -121,6 +121,7 @@ class JarvisSettings(BaseModel):
     learning: LearningSettings = Field(default_factory=LearningSettings)
     
     bypass_tool_permissions: bool = False
+    disallowed_tools: list[str] = Field(default_factory=list)
     agent_paths: list[str] = Field(default_factory=list)
     enabled_agents: list[str] = Field(default_factory=list)
     disabled_agents: list[str] = Field(default_factory=list)

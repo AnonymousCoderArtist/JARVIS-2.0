@@ -206,6 +206,10 @@ class Settings:
         return self._config.bypass_tool_permissions
 
     @property
+    def disallowed_tools(self) -> list[str]:
+        return self._config.disallowed_tools
+
+    @property
     def tools(self) -> dict[str, Any]:
         return self._config.tools.model_dump()
 
