@@ -71,7 +71,7 @@ class AsyncAgentConfig:
     """Configuration for async agent operations"""
     max_concurrent_agents: int = 5
     max_concurrent_tools: int = 10
-    default_timeout: int = 30
+    default_timeout: int = 1800  # 30 minutes default for LLM operations
     enable_background_tasks: bool = True
     resource_monitoring: bool = True
     progress_updates: bool = True

@@ -18,7 +18,7 @@ class ExecutorResourceLimits:
     """Resource limits for tool execution"""
     max_memory_mb: int = 512
     max_cpu_percent: float = 80.0
-    timeout_seconds: float = 30.0
+    timeout_seconds: float = 1800.0  # 30 minutes default for LLM operations
 
 
 class ConcurrentToolExecutor:

@@ -1051,8 +1051,8 @@ Create a comprehensive summary that captures:
             # We use a background task so we can yield events while it runs
             task = asyncio.create_task(self.agent.process(prompt))
             
-            # Add a timeout to prevent indefinite hanging
-            timeout_task = asyncio.create_task(asyncio.sleep(120))  # 2 minute timeout
+            # Add a timeout to prevent indefinite hanging (30 minutes default)
+            timeout_task = asyncio.create_task(asyncio.sleep(1800))
             
             # Yield events as they come in with a longer timeout
             while not task.done() and not timeout_task.done():

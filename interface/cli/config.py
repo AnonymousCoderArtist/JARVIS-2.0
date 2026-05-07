@@ -42,7 +42,7 @@ class BehaviorConfig:
     auto_save_history: bool = True
     history_size: int = 1000
     confirm_on_exit: bool = False
-    timeout_seconds: int = 600
+    timeout_seconds: int = 1800  # 30 minutes default for LLM operations
     max_response_length: int = 2500
     show_tool_calls: bool = True
     show_reasoning: bool = True
