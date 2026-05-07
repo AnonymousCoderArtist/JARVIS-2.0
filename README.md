@@ -62,7 +62,7 @@ graph TB
     end
 
     subgraph "Core Components"
-        B[Agents<br/>base.py, coding_agent.py,<br/>explore_agent.py]
+        B[Agents<br/>base.py, jarvis_v2.py,<br/>explore_agent.py]
         C[Tools<br/>Registry + 14+ Tools]
         D[Config<br/>Settings, Models]
     end
@@ -92,7 +92,7 @@ graph TB
 graph LR
     subgraph "Agent System (core/agents/)"
         A1[base.py<br/>Abstract BaseAgent]
-        A2[coding_agent.py<br/>Main JARVIS Agent]
+        A2[jarvis_v2.py<br/>Main JARVIS Agent]
         A3[explore_agent.py<br/>Codebase Exploration]
         A4[manager.py<br/>AgentManager]
         A5[profiles.py<br/>Profile Definitions]

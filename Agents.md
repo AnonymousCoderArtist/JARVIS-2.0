@@ -66,9 +66,9 @@ JARVIS/
 ├── core/
 │   ├── agents/
 │   │   ├── base.py            # BaseAgent abstract class
-│   │   ├── coding_agent.py    # JARVIS agent implementation
+│   │   ├── jarvis_v2.py       # JARVIS agent implementation (renamed from coding_agent.py)
 │   │   ├── explore_agent.py   # Explore subagent
-│   │   └── system_prompts.py  # System prompt definitions
+│   │   └── system_prompts.py  # System prompt manager
 │   ├── config/
 │   │   ├── settings.py        # Configuration management
 │   │   └── models.py          # Pydantic settings models
@@ -96,9 +96,9 @@ Abstract base class for all agents. Key methods:
 - `_build_messages(user_content)` - Build message list with roles
 - `rebuild_system_prompt()` - Update system prompt with tool descriptions
 
-### CodingAgent (`core/agents/coding_agent.py`)
+### JarvisV2 (`core/agents/jarvis_v2.py`)
 
-The main JARVIS agent for coding, research, and documentation tasks.
+The main JARVIS agent for coding, research, and documentation tasks. (JarvisV2 class, with CodingAgent as an alias for backwards compatibility.)
 
 ### ExploreAgent (`core/agents/explore_agent.py`)
 
