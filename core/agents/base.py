@@ -41,6 +41,7 @@ ToolResultCallback: TypeAlias = Callable[[str, dict[str, Any], Any], None]
 ReasoningCallback: TypeAlias = Callable[[str], None]
 ReasoningDoneCallback: TypeAlias = Callable[[], None]
 ApprovalCallback: TypeAlias = Callable[[str, dict[str, Any], str, list[Any]], Any]
+UserInputCallback: TypeAlias = Callable[[dict[str, Any]], Any]
 ConfigGetter: TypeAlias = Callable[[], Settings]
 ProgressCallback: TypeAlias = Callable[[str, float], None]
 StatusCallback: TypeAlias = Callable[[str], None]
@@ -61,6 +62,7 @@ class ToolDecision:
     verdict: str  # "execute" or "skip"
     approval_type: ToolPermission
     feedback: str | None = None
+    updated_args: dict[str, Any] | None = None  # Updated args with user input
 
 
 class BaseAgent(ABC):
@@ -103,6 +105,7 @@ class BaseAgent(ABC):
 
         # Permission system
         self.approval_callback: ApprovalCallback | None = None
+        self.user_input_callback: UserInputCallback | None = None
         self._session_rules: list[ApprovedRule] = []
         self._config_getter: ConfigGetter = config_getter or (lambda: Settings())
         self.bypass_tool_permissions: bool = bypass_tool_permissions
@@ -275,6 +278,15 @@ class BaseAgent(ABC):
         """
         self.approval_callback = callback
 
+    def set_user_input_callback(self, callback: UserInputCallback) -> None:
+        """
+        Set the callback for user input requests (e.g., AskUserQuestion tool)
+
+        Args:
+            callback: Function to call for user input (tool_args) -> user input result
+        """
+        self.user_input_callback = callback
+
     def add_session_rule(self, rule: ApprovedRule) -> None:
         """
         Add a session-level permission rule
@@ -329,6 +341,56 @@ class BaseAgent(ABC):
         Returns:
             ToolDecision with verdict and approval type
         """
+        # Special handling for AskUserQuestion tool - get user input before execution
+        if tool_name == "AskUserQuestion" and self.user_input_callback:
+            try:
+                user_input_result = await self.user_input_callback(tool_args)
+                
+                # Check if user cancelled
+                if hasattr(user_input_result, 'cancelled') and user_input_result.cancelled:
+                    return ToolDecision(
+                        verdict="skip",
+                        approval_type=ToolPermission.ASK,
+                        feedback="User declined to answer questions",
+                    )
+                
+                # Convert answers list to dict format expected by the tool
+                # The tool expects: dict[str, str] where key is question text and value is answer
+                answers_dict = {}
+                annotations_dict = {}
+                
+                if hasattr(user_input_result, 'answers') and user_input_result.answers:
+                    for answer in user_input_result.answers:
+                        if hasattr(answer, 'question') and hasattr(answer, 'answer'):
+                            answers_dict[answer.question] = answer.answer
+                elif isinstance(user_input_result, dict) and 'answers' in user_input_result:
+                    # Handle dict format
+                    answers_list = user_input_result.get('answers', [])
+                    for answer in answers_list:
+                        if isinstance(answer, dict):
+                            q = answer.get('question', '')
+                            a = answer.get('answer', '')
+                            if q and a:
+                                answers_dict[q] = a
+                
+                # Update tool_args with the converted answers
+                tool_args = tool_args.copy()
+                tool_args['answers'] = answers_dict
+                
+                # Return decision to execute with updated args
+                return ToolDecision(
+                    verdict="execute",
+                    approval_type=ToolPermission.ALWAYS,
+                    updated_args=tool_args,
+                )
+            except Exception as e:
+                # If user input fails, skip tool execution
+                return ToolDecision(
+                    verdict="skip",
+                    approval_type=ToolPermission.ASK,
+                    feedback=f"User input failed: {str(e)}",
+                )
+
         # Get permission context from tool
         tool = self.tools.get(tool_name)
         ctx = None
@@ -778,6 +840,10 @@ class BaseAgent(ABC):
                     })
                     continue
 
+                # Use updated args if provided by decision (e.g., from user input)
+                if decision.updated_args:
+                    tool_args = decision.updated_args
+
                 # Invoke tool call callback if set
                 if self.tool_call_callback:
                     self.tool_call_callback(tool_name, tool_args)
@@ -864,6 +930,9 @@ class BaseAgent(ABC):
                     "skipped": True,
                 })
             else:
+                # Use updated args if provided by decision (e.g., from user input)
+                if decision.updated_args:
+                    tool_args = decision.updated_args
                 # Invoke tool call callback if set
                 if self.tool_call_callback:
                     self.tool_call_callback(tool_name, tool_args)

@@ -11,12 +11,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from core.agents.coding_agent import CodingAgent
+from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
-from core.tools.consolidated_agent_tool import AgentsTool, AgentStatusTool
+from core.tools.agent_tool import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
@@ -72,7 +72,7 @@ class Config:
     disabled_agents: list[str] = field(default_factory=list)
     mcp_servers: list = field(default_factory=list)
     session_logging: SessionLoggingConfig = field(default_factory=SessionLoggingConfig)
-    api_timeout: float = 30.0
+    api_timeout: float = 1800.0  # 30 minutes for long-running tool operations
     installed_agents: list = field(default_factory=list)
     enable_update_checks: bool = False
     enable_auto_update: bool = False
@@ -242,6 +242,10 @@ def create_tool_registry() -> AsyncToolRegistry:
     # Register memory tools
     tool_registry.register(SaveMemoryTool())
     tool_registry.register(ReadMemoryTool())
+
+    # Register AskUserQuestion tool
+    from core.tools.ask_user_question_tool import AskUserQuestionTool
+    tool_registry.register(AskUserQuestionTool())
 
     # Register agent tools
     tool_registry.register(AgentsTool())

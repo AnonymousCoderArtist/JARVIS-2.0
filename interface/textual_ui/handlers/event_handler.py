@@ -285,10 +285,12 @@ class EventHandler:
             await self.current_streaming_message.append_content(event.content)
 
     async def _handle_reasoning_message(self, event: ReasoningEvent) -> None:
+        # When reasoning starts, finalize any existing streaming message
+        # This ensures reasoning appears cleanly without mixing with assistant content
         if self.current_streaming_message is not None:
             await self.current_streaming_message.stop_stream()
-            if self.current_streaming_message.is_stripped_content_empty():
-                await self.current_streaming_message.remove()
+            # Remove the stopped message from the DOM to prevent content leakage
+            await self.current_streaming_message.remove()
             self.current_streaming_message = None
 
         if self.current_streaming_reasoning is None:

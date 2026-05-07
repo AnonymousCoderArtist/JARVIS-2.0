@@ -1,13 +1,13 @@
 <div align="center">
 
-# JARVIS v2.0.beta-Agents
+# JARVIS v2.0
 
 <a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/github/v/release/OEvortex/JARVIS?label=version&style=for-the-badge&color=blue"></a>
 <a href="https://github.com/OEvortex/JARVIS/blob/main/LICENSE"><img src="https://img.shields.io/github/license/OEvortex/JARVIS?style=for-the-badge&color=green"></a>
 <a href="https://github.com/OEvortex/JARVIS/stargazers"><img src="https://img.shields.io/github/stars/OEvortex/JARVIS?style=for-the-badge&color=yellow"></a>
 <a href="https://github.com/OEvortex/JARVIS/issues"><img src="https://img.shields.io/github/issues/OEvortex/JARVIS?style=for-the-badge&color=red"></a>
 
-**Your Personal AI Assistant - Fully Agentic PI with Claude Code-style Capabilities**
+**Your Personal AI Assistant - Fully Agentic AI Harness with Claude Code-style Capabilities**
 
 </div>
 
@@ -23,32 +23,38 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 |---------|-------------|
 | **🤖 Fully Agentic** | JARVIS agent handles coding, research, documentation, and complex tasks autonomously |
 | **🔍 Explore Subagent** | Specialized agent for codebase exploration and architecture analysis |
-| ** Plan Subagent** | Specialized agent for planning and strategy with read-only access |
-| **🔧 14+ Tools** | Comprehensive tools for file ops, code execution, web fetching, and more |
-| **🔒 Safety First** | Granular permission system with 5 agent profiles (SAFE to YOLO) |
-| **💻 Dual Interfaces** | Rich CLI and modern TUI (Textual-based) with streaming support |
-| **🔌 Multi-LLM** | OpenAI and Anthropic SDKs with easy configuration |
+| **📝 Plan Subagent** | Specialized agent for planning and task decomposition |
+| **🍴 Fork Subagent** | Fork conversation context for parallel exploration |
+| **🔌 MCP Integration** | Connect to external MCP servers (stdio/HTTP transports) |
+| **🌐 WebUI** | Full-featured browser-based interface with FastAPI backend |
+| **💡 Learning System** | Pattern detection, skill creation, and self-evaluation |
+| **💾 Semantic Memory** | Memory management for knowledge retrieval |
+| **💻 Dual Interfaces** | Rich CLI, modern TUI (Textual), and WebUI |
+| **🔒 Safety First** | Granular permission system with 5 agent profiles |
+| **🔧 20+ Tools** | Comprehensive tools for file ops, code execution, web, and more |
+| **🔌 Multi-LLM** | OpenAI, Anthropic, and custom SDK adapters |
 
 ---
 
 ## 🎯 Current Status
 
-This is **JARVIS v2.0.beta-Agents** - the core Agentic harness of JARVIS 2.0
-
 | Component | Status |
 |-----------|--------|
 | ✅ LLM Provider Abstraction | Complete |
-| ✅ Tool System | Complete (14 tools) |
+| ✅ Tool System | Complete (20+ tools) |
 | ✅ JARVIS Agent (PI) | Complete |
 | ✅ Explore Subagent | Ready |
-| ⚠️ CLI Interface | Under Development (Try at your own risk) |
-| ✅ TUI Interface | Complete (Default) |
-| ✅ Permission System | Complete |
 | ✅ Plan Subagent | Ready |
-| ✅ Auto Compact | Complete |
-| 🔄 Additional Tools | Coming Soon |
-| 🔄 Better Skill System | Coming Soon |
-| 🔄 Updated Conversation Management | Coming Soon |
+| ✅ Fork Subagent | Ready |
+| ✅ CLI Interface | Stable |
+| ✅ TUI Interface | Complete (Default) |
+| ✅ WebUI Interface | Complete |
+| ✅ Permission System | Complete |
+| ✅ MCP Integration | Complete |
+| ✅ Learning System | Complete |
+| ✅ Heartbeat System | Complete |
+| ✅ Connectors System | Complete |
+
 ---
 
 ## 🏗️ Architecture
@@ -62,19 +68,21 @@ graph TB
     end
 
     subgraph "Core Components"
-        B[Agents<br/>base.py, coding_agent.py,<br/>explore_agent.py]
-        C[Tools<br/>Registry + 14+ Tools]
+        B[Agents<br/>jarvis_v2, explore, plan,<br/>fork, builtin]
+        C[Tools<br/>Registry + 20+ Tools]
         D[Config<br/>Settings, Models]
     end
 
     subgraph "Supporting Systems"
-        E[Memory<br/>Conversation Manager]
-        F[RAG<br/>Knowledge Retrieval]
-        G[Safety<br/>Permissions, Trusted Folders]
+        E[Memory]
+        F[Skills<br/>SkillManager]
+        G[Safety<br/>Permissions, Profiles]
+        H[Learn<br/>LearningManager]
+        I[Connectors<br/>ConnectorManager]
     end
 
     subgraph "Provider Layer"
-        H[LLM Provider<br/>OpenAI / Anthropic]
+        J[LLM SDK<br/>OpenAI / Anthropic / Custom]
     end
 
     A --> B
@@ -83,66 +91,70 @@ graph TB
     B --> E
     C --> F
     D --> G
-    B --> H
-    C --> H
-    D --> H
+    B --> J
+    C --> J
+    D --> J
+    A --> H
+    A --> I
 ```
 
-```mermaid
-graph LR
-    subgraph "Agent System (core/agents/)"
-        A1[base.py<br/>Abstract BaseAgent]
-        A2[coding_agent.py<br/>Main JARVIS Agent]
-        A3[explore_agent.py<br/>Codebase Exploration]
-        A4[manager.py<br/>AgentManager]
-        A5[profiles.py<br/>Profile Definitions]
-        A6[system_prompts.py<br/>Prompts]
-    end
+### Directory Structure
 
-    subgraph "Tool System (core/tools/)"
-        T1[base.py<br/>Base Tool Class]
-        T2[permissions.py<br/>Granular Permissions]
-        T3[permission_manager.py<br/>Permission Logic]
-        T4[file_tools/<br/>Read, Write, Edit, etc.]
-        T5[code_tools/<br/>Bash, REPL, Tests]
-        T6[agent_tools/<br/>InvokeAgent, Skills]
-    end
-
-    subgraph "LLM SDK (core/llm_sdk/)"
-        L1[openai/sdk.py<br/>OpenAI Adapter]
-        L2[anthropic/sdk.py<br/>Anthropic Adapter]
-        L3[base/sdk.py<br/>Base Interface]
-    end
-
-    subgraph "Config & Safety"
-        S1[settings.py<br/>App Configuration]
-        S2[models.py<br/>Config Models]
-        S3[trusted_folders.py<br/>Folder Trust]
-    end
 ```
-
-## 🧩 Key Modules
-
-| Module | Purpose |
-|--------|---------|
-| `core/agents/` | Agent implementations (BaseAgent, CodingAgent, ExploreAgent) |
-| `core/tools/` | Tool system with 14+ tools and granular permissions |
-| `core/llm_sdk/` | Multi-provider LLM adapters (OpenAI, Anthropic) |
-| `core/config/` | Application settings and configuration models |
-| `core/memory/` | Conversation history and memory management |
-| `core/rag/` | Knowledge retrieval system |
-| `core/safety/` | Security, permissions, and trusted folder management |
-
-### Core Components
-
-| Component | Description |
-|-----------|-------------|
-| **BaseAgent** | Abstract base class providing memory, context management, streaming, and tool integration |
-| **CodingAgent** | Main JARVIS agent for coding, research, documentation, and general assistance |
-| **ExploreAgent** | Specialized subagent for comprehensive codebase exploration and analysis |
-| **ToolRegistry** | Central registry managing all available tools with dynamic descriptions |
-| **AgentManager** | Manages agent profiles and applies permission overrides |
-| **Permission System** | Vibe-style granular permissions with path-based allowlist/denylist |
+JARVIS/
+├── core/
+│   ├── agents/          # Agent system
+│   │   ├── base.py          # Abstract BaseAgent
+│   │   ├── jarvis_v2.py     # Main JARVIS agent
+│   │   ├── explore_agent.py    # Codebase exploration
+│   │   ├── plan_agent.py       # Planning subagent
+│   │   ├── fork_subagent.py   # Fork context subagent
+│   │   ├── heartbeat_scheduler.py  # Nanobot-style heartbeat
+│   │   ├── manager.py        # AgentManager
+│   │   ├── profiles.py       # Profile definitions
+│   │   ├── builtin_agents.py # Built-in agents
+│   │   └── system_prompts.py # Prompt management
+│   ├── config/          # Configuration
+│   │   ├── settings.py   # App settings
+│   │   └── models.py    # Pydantic models
+│   ├── tools/           # Tool system
+│   │   ├── registry.py # Tool registry
+│   │   ├── base.py     # BaseTool class
+│   │   ├── permissions.py   # Permission system
+│   │   ├── file_tools.py    # File operations
+│   │   ├── code_tools.py    # Bash, REPL, tests
+│   │   ├── mcp_adapter.py   # MCP integration
+│   │   ├── skill_tool.py    # Skill invocation
+│   │   ├── skill_manage_tool.py  # Skill management
+│   │   ├── memory_tool.py   # Memory operations
+│   │   ├── web_tools.py     # Web fetching
+│   │   ├── grep_tool.py     # Pattern search
+│   │   └── background_tools.py  # Background tasks
+│   ├── llm_sdk/        # LLM provider SDKs
+│   │   ├── openai/     # OpenAI adapter
+│   │   ├── anthropic/  # Anthropic adapter
+│   │   ├── copilot/    # Copilot adapter
+│   │   └── base/       # Base interface
+│   ├── learn/          # Learning system
+│   │   ├── learning_manager.py  # Main learning
+│   │   ├── pattern_detector.py   # Pattern detection
+│   │   └── prompt_optimizer.py   # Prompt optimization
+│   ├── connectors/     # Connectors system
+│   │   ├── manager.py # ConnectorManager
+│   │   └── filesystem.py  # Filesystem connector
+│   ├── memory/         # Memory system
+│   ├── skills/         # Skill management
+│   ├── learn/          # Learning system
+│   └── web/            # Web server
+├── interface/
+│   ├── cli/            # Rich CLI interface
+│   ├── textual_ui/    # TUI interface (Textual)
+│   └── webui/          # WebUI (TypeScript + FastAPI)
+├── jarvis/            # Entry point
+│   └── cli.py         # CLI launcher
+├── tests/             # Test suite
+└── docs/              # Documentation
+```
 
 ---
 
@@ -151,7 +163,6 @@ graph LR
 ### Prerequisites
 
 - **Python 3.10+** (recommended 3.11+)
-- **pip** package manager
 - **API Key** from OpenAI or Anthropic
 
 ### Quick Setup
@@ -189,6 +200,8 @@ JARVIS_API_KEY=your_api_key_here
 JARVIS_SDK=openai
 ```
 
+For more advanced configuration, create a `.jarvis/settings.json` file (see Configuration Reference below).
+
 ---
 
 ## 🚀 Usage
@@ -208,13 +221,11 @@ jarvis --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --
 
 ### CLI Mode
 
-> **Note:** The CLI version is still in development. Use it at your own risk.
-
 ```bash
 # Using CLI flags
 jarvis --cli --model gpt-4o --apikey YOUR_KEY --sdk openai
 
-# Using .env configuration (reads from current working directory)
+# Using .env configuration
 jarvis --cli
 
 # Using short flags
@@ -224,14 +235,15 @@ jarvis --cli -m gpt-4o --apikey YOUR_KEY
 ### WebUI Mode
 
 ```bash
-# Launch WebUI interface
+# Launch WebUI interface (default: http://127.0.0.1:5173)
 jarvis --webui
 
-# With explicit configuration
-jarvis --webui --model gpt-4o --apikey YOUR_KEY
-```
+# With custom port
+jarvis --webui --port 8080 --backend-port 8765
 
-> **Note:** The WebUI interface provides a browser-based chat interface similar to popular AI assistants. The UI design has been adapted from the [nanobot](https://github.com/HKUDS/nanobot) repository.
+# Expose to network
+jarvis --webui --host 0.0.0.0 --port 5173
+```
 
 ### Available CLI Flags
 
@@ -241,16 +253,19 @@ jarvis --webui --model gpt-4o --apikey YOUR_KEY
 | `--base_url` | | Base URL for LLM API |
 | `--apikey` | `--api-key` | API key for the provider |
 | `--sdk` | | SDK mode: `openai` or `anthropic` |
-| `--cli` | | Launch CLI interface (optional) |
+| `--cli` | | Launch CLI interface |
 | `--tui` | `--TUI` | Launch TUI interface (default) |
-| `--bypass` | `--yolo` | Bypass all tool permissions |
 | `--webui` | | Launch WebUI interface |
+| `--bypass` | `--yolo` | Bypass all tool permissions |
+| `--host` | `-H` | WebUI host (default: 127.0.0.1) |
+| `--port` | `-p` | WebUI frontend port (default: 5173) |
+| `--backend-port` | `-b` | WebUI backend port (default: 8765) |
 
 ---
 
 ## 🛠️ Available Tools
 
-JARVIS comes with 14+ built-in tools for comprehensive task handling:
+JARVIS comes with 20+ built-in tools for comprehensive task handling:
 
 ### File Operations
 
@@ -276,28 +291,69 @@ JARVIS comes with 14+ built-in tools for comprehensive task handling:
 |------|-------------|
 | `grep` | Search for patterns in files |
 
-### Web & Background
+### Web & Network
 
 | Tool | Description |
 |------|-------------|
 | `web_fetch` | Fetch web content |
-| `list_background_processes` | List running background processes |
-| `read_background_output` | Read background process output |
+| `web_search` | Search the web via Brave API |
 
-### Memory & Agents
+### Background & Async
 
 | Tool | Description |
 |------|-------------|
-| `save_memory` | Save information to memory |
+| `run_in_background` | Run commands in background |
+| `list_background_processes` | List running background processes |
+| `read_background_output` | Read background process output |
+
+### Memory & Knowledge
+
+| Tool | Description |
+|------|-------------|
+| `save_memory` | Save information to semantic memory |
 | `read_memory` | Read from memory |
-| `agents` | Invoke subagents for specialized tasks |
+| `learn_from_interaction` | Learn from interactions |
+
+### Agents & Skills
+
+| Tool | Description |
+|------|-------------|
+| `agents` | Invoke subagents (explore, plan, fork) |
 | `activate_skill` | Activate specialized skills |
+| `manage_skills` | Create and manage custom skills |
+| `ask_user_question` | Ask user structured questions |
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `mcp_tools` | Execute tools from connected MCP servers |
+| `mcp_list_servers` | List connected MCP servers |
+
+### System Tools
+
+| Tool | Description |
+|------|-------------|
+| `clipboard_read` | Read system clipboard |
+| `clipboard_write` | Write to system clipboard |
+| `resource_monitor` | Check system resources |
 
 ---
 
 ## 👤 Agent Profiles
 
-**JARVIS** is your main **Personal AI Assistant (PI)** agent. The Explore subagent handles specialized codebase analysis. Switch between safety levels for your workflow:
+**JARVIS** is your main **Personal AI Assistant (PI)** agent with multiple specialized subagents:
+
+| Agent | Purpose |
+|-------|---------|
+| **JARVIS** | Main agent for all tasks (coding, research, documentation) |
+| **Explore** | Codebase exploration and architecture analysis |
+| **Plan** | Task decomposition and planning |
+| **Fork** | Fork conversation for parallel exploration |
+
+### Safety Profiles
+
+Switch between safety levels for your workflow:
 
 | Profile | Safety Level | Description |
 |---------|--------------|-------------|
@@ -325,6 +381,114 @@ JARVIS comes with 14+ built-in tools for comprehensive task handling:
 
 ---
 
+## 🔌 MCP Integration
+
+JARVIS supports connecting to external MCP servers for extended capabilities:
+
+```json
+// .mcp.json (or ~/.jarvis/mcp_servers.json)
+{
+  "mcp_servers": [
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed"],
+      "transport": "stdio"
+    },
+    {
+      "name": "github",
+      "command": "python",
+      "args": ["-m", "mcp.server.github"],
+      "transport": "stdio",
+      "env": { "GITHUB_TOKEN": "..." }
+    },
+    {
+      "name": "http-server",
+      "url": "http://localhost:3000/mcp",
+      "transport": "http"
+    }
+  ]
+}
+```
+
+### MCP Transport Types
+
+- **stdio**: Local subprocess-based MCP servers
+- **http/sse**: Remote MCP servers via HTTP
+
+---
+
+## 💡 Learning System
+
+JARVIS includes an intelligent learning system that:
+
+1. **Pattern Detection**: Identifies recurring patterns in user interactions
+2. **Skill Creation**: Automatically creates skills after threshold interactions
+3. **Self-Evaluation**: Periodically evaluates its own performance
+4. **Memory Management**: Semantic memory with importance scoring
+
+### Configuration
+
+```toml
+[learning]
+enabled = true
+skill_creation_threshold = 5
+self_evaluation_interval = 15
+memory_dir = "~/.jarvis/memory"
+skills_dir = "~/.jarvis/skills"
+max_memory_chars = 100000
+max_user_chars = 50000
+```
+
+---
+
+## 💓 Heartbeat System
+
+JARVIS includes a nanobot-style two-phase heartbeat for periodic awareness:
+
+### How it Works
+
+1. **Phase 1 (Decision)**: LLM decides via virtual tool call whether to skip or run
+2. **Phase 2 (Execution)**: Only triggered when Phase 1 returns "run"
+3. **Response Filtering**: Non-deliverable responses are automatically suppressed
+
+### Configuration
+
+```toml
+[heartbeat]
+enabled = true
+every = "30m"
+target = "last"
+light_context = false
+isolated_session = false
+skip_when_busy = true
+prompt = "Review tasks and decide if action is needed."
+active_hours = { start = "09:00", end = "18:00", timezone = "America/New_York" }
+show_ok = false
+show_alerts = true
+use_indicator = true
+```
+
+### HEARTBEAT.md
+
+Create `.jarvis/HEARTBEAT.md` in your project to define periodic tasks:
+
+```markdown
+# Heartbeat Tasks
+
+## Active Tasks
+
+- [ ] Review open PRs
+- [ ] Check build status
+- [ ] Update dependencies
+
+## Completed
+
+- [x] Last task description
+```
+
+---
+
 ## 🔧 Configuration Reference
 
 ### Environment Variables
@@ -342,18 +506,55 @@ JARVIS_HEARTBEAT_EVERY=30m
 JARVIS_HEARTBEAT_TARGET=last
 JARVIS_HEARTBEAT_SKIP_WHEN_BUSY=true
 JARVIS_HEARTBEAT_SHOW_OK=false
-
-# Token Limits (optional)
-JARVIS_MAX_CONTEXT_TOKENS=131072
-JARVIS_MAX_INPUT_TOKENS=111616
-JARVIS_MAX_OUTPUT_TOKENS=16384
 ```
 
-### Agent Model Selection
+### Full Configuration (settings.json)
 
-```python
-# Initialize with specific model
-jarvis = CodingAgent(provider, tool_registry, model="gpt-4o")
+```json
+{
+  "app": {
+    "name": "JARVIS",
+    "version": "2.0.0",
+    "debug": false
+  },
+  "provider": {
+    "selected_provider_id": "openai",
+    "config_file": "providers.json"
+  },
+  "learning": {
+    "enabled": true,
+    "skill_creation_threshold": 5,
+    "self_evaluation_interval": 15,
+    "memory_dir": "~/.jarvis/memory",
+    "skills_dir": "~/.jarvis/skills"
+  },
+  "tools": {
+    "enable_code_execution": true,
+    "enable_file_operations": true,
+    "enable_git_operations": true
+  },
+  "async": {
+    "max_concurrent_agents": 5,
+    "max_concurrent_tools": 10,
+    "default_timeout": 300,
+    "enable_background_tasks": true,
+    "resource_monitoring": true,
+    "progress_updates": true
+  },
+  "heartbeat": {
+    "enabled": false,
+    "every": "30m",
+    "target": "last",
+    "light_context": false,
+    "skip_when_busy": true,
+    "show_ok": false
+  },
+  "learning": {
+    "enabled": true,
+    "skill_creation_threshold": 5,
+    "self_evaluation_interval": 15
+  }
+}
 ```
 
 ---
@@ -364,10 +565,13 @@ jarvis = CodingAgent(provider, tool_registry, model="gpt-4o")
 
 ```bash
 # Run all tests
-pytest tests/
+pytest tests/ -v
 
-# Run with coverage
-pytest tests/ --cov=core
+# Run specific test file
+pytest tests/test_async_agents.py -v
+
+# Run single test
+pytest tests/test_async_agents.py::test_function_name -v
 ```
 
 ### Code Quality
@@ -378,27 +582,9 @@ black core/ interface/ jarvis/
 
 # Lint
 ruff check core/ interface/ jarvis/
-```
 
-### Project Structure
-
-```
-JARVIS/
-├── core/
-│   ├── agents/          # Agent system (CodingAgent, ExploreAgent)
-│   ├── config/          # Configuration and settings
-│   ├── llm_sdk/         # LLM provider SDKs
-│   ├── tools/           # Tool implementations
-│   ├── memory/          # Semantic memory system
-│   ├── rag/             # RAG system
-│   ├── safety/          # Safety manager
-│   └── skills/          # Skill management
-├── interface/
-│   ├── cli/             # Rich CLI interface
-│   └── textual_ui/      # TUI interface
-├── jarvis/              # Entry point
-├── tests/               # Test suite
-└── docs/                # Documentation
+# Type check
+ty check .
 ```
 
 ---

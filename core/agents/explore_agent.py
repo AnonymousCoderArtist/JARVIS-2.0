@@ -3,7 +3,7 @@
 from typing import Any
 
 from core.agents.base import BaseAgent
-from core.agents.system_prompts import EXPLORE_SYSTEM_PROMPT
+from core.agents.system_prompts import get_agent_prompt
 
 
 class ExploreAgent(BaseAgent):
@@ -23,9 +23,10 @@ class ExploreAgent(BaseAgent):
         super().__init__(
             llm_provider=llm_provider,
             tool_registry=tool_registry,
-            system_prompt=EXPLORE_SYSTEM_PROMPT,
+            system_prompt=get_agent_prompt("explore"),
             model=model,
-            config_getter=config_getter
+            config_getter=config_getter,
+            auto_discover_context=False  # Don't override the explore system prompt
         )
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()

@@ -81,7 +81,7 @@ class AsyncToolRegistry(ToolRegistry):
         self,
         name: str,
         input_data: dict,
-        timeout: float = 30.0
+        timeout: float = 1800.0  # 30 minutes default
     ) -> ToolOutput:
         """
         Execute a tool with timeout

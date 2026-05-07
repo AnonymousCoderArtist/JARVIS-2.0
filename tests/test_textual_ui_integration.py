@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.agents.coding_agent import CodingAgent
+from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.tools.base import ToolOutput
 from core.tools.registry import ToolRegistry
 from interface.textual_ui.agent_loop import AgentLoop
@@ -45,6 +45,9 @@ class FakeStreamingAgent:
 
     def set_approval_callback(self, callback) -> None:
         self._approval_callback = callback
+
+    def set_user_input_callback(self, callback) -> None:
+        self._user_input_callback = callback
 
     def set_system_prompt(self, prompt: str) -> None:
         self._system_prompt = prompt

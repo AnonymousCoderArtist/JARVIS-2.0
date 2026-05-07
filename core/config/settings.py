@@ -1,17 +1,23 @@
-"""Configuration settings using TOML config file"""
+"""Configuration settings using JSON config files"""
 
-import importlib
+import json
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
 from core.config.models import JarvisSettings
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
+
+def _get_default_config_paths() -> list[Path]:
+    """Get default configuration file paths in order of precedence.
+    
+    Priority (lowest to highest):
+    1. ~/.jarvis/settings.json (global defaults)
+    2. .jarvis/settings.json (project-specific overrides)
+    """
+    home_settings = Path.home() / ".jarvis" / "settings.json"
+    project_settings = Path(".jarvis") / "settings.json"
+    return [home_settings, project_settings]
 
 
 def _load_env_config() -> dict[str, Any]:
@@ -40,25 +46,43 @@ def _load_env_config() -> dict[str, Any]:
 
 
 class Settings:
-    """Application settings loaded from config.toml with environment variable overrides"""
+    """Application settings loaded from JSON config files with environment variable overrides.
+    
+    Configuration precedence (lowest to highest):
+    1. ~/.jarvis/settings.json (global defaults)
+    2. .jarvis/settings.json (project-specific overrides)
+    3. Environment variables
+    4. initial_config parameter
+    """
 
     def __init__(self, config_path: Path | None = None, initial_config: dict[str, Any] | None = None):
-        self.config_path: Path = config_path or Path("config.toml")
+        # Determine config paths to load
+        if config_path:
+            # Single explicit path
+            config_paths = [Path(config_path)]
+            self._config_path = config_paths[0]
+        else:
+            # Default: search in order of precedence
+            config_paths = _get_default_config_paths()
+            # Use the highest priority path (last one) as the config_path for save()
+            self._config_path = config_paths[-1] if config_paths else Path(".jarvis") / "settings.json"
         
-        # Load TOML config first
-        toml_config: dict[str, Any] = {}
-        if self.config_path.exists():
-            try:
-                with open(self.config_path, "rb") as f:
-                    toml_config = tomllib.load(f)
-            except Exception as e:
-                print(f"Warning: Failed to load config from {self.config_path}: {e}")
+        # Load JSON configs in order (lowest to highest priority)
+        json_config: dict[str, Any] = {}
+        for path in config_paths:
+            if path.exists():
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                        json_config = self._deep_merge(json_config, loaded)
+                except Exception as e:
+                    print(f"Warning: Failed to load config from {path}: {e}")
         
         # Override with environment config
         env_config = _load_env_config()
         
-        # Merge: start with toml, then env, then initial_config
-        merged_config = self._deep_merge(toml_config, env_config)
+        # Merge: start with json, then env, then initial_config
+        merged_config = self._deep_merge(json_config, env_config)
         if initial_config:
             merged_config = self._deep_merge(merged_config, initial_config)
         
@@ -106,13 +130,17 @@ class Settings:
         elif hasattr(section_obj, "__dict__"):
             setattr(section_obj, key, value)
 
+    def model_dump(self) -> dict[str, Any]:
+        """Convert config to dictionary for agent lifecycle."""
+        return self._config.model_dump()
+
     def save(self) -> None:
-        """Save configuration to TOML file"""
+        """Save configuration to JSON file"""
         try:
-            import tomli_w
-            with open(self.config_path, "wb") as f:
-                toml_writer = importlib.import_module("tomli_w")
-                toml_writer.dump(self._config.model_dump(), f)
+            # Ensure parent directory exists
+            self._config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config.model_dump(), f, indent=4)
         except Exception as e:
             print(f"Warning: Failed to save config: {e}")
 
@@ -138,62 +166,6 @@ class Settings:
         return self._config.provider.config_file
 
     @property
-    def max_memory_entries(self) -> int:
-        return self._config.memory.max_entries
-
-    @property
-    def memory_importance_threshold(self) -> float:
-        return self._config.memory.importance_threshold
-
-    @property
-    def max_conversation_history(self) -> int:
-        return self._config.memory.max_conversation_history
-
-    @property
-    def rag_enabled(self) -> bool:
-        return self._config.rag.enabled
-
-    @property
-    def max_rag_results(self) -> int:
-        return self._config.rag.max_results
-
-    @property
-    def rag_similarity_threshold(self) -> float:
-        return self._config.rag.similarity_threshold
-
-    @property
-    def require_confirmation(self) -> bool:
-        return self._config.safety.require_confirmation
-
-    @property
-    def auto_checkpoint(self) -> bool:
-        return self._config.safety.auto_checkpoint
-
-    @property
-    def max_checkpoints(self) -> int:
-        return self._config.safety.max_checkpoints
-
-    @property
-    def enable_code_execution(self) -> bool:
-        return self._config.tools.enable_code_execution
-
-    @property
-    def enable_file_operations(self) -> bool:
-        return self._config.tools.enable_file_operations
-
-    @property
-    def enable_git_operations(self) -> bool:
-        return self._config.tools.enable_git_operations
-
-    @property
-    def cli_prompt(self) -> str:
-        return self._config.interface.cli_prompt
-
-    @property
-    def vibe_code_enabled(self) -> bool:
-        return self._config.interface.vibe_code_enabled
-
-    @property
     def installed_agents(self) -> list[str]:
         return self._config.app.installed_agents
 
@@ -204,6 +176,10 @@ class Settings:
     @property
     def bypass_tool_permissions(self) -> bool:
         return self._config.bypass_tool_permissions
+
+    @property
+    def disallowed_tools(self) -> list[str]:
+        return self._config.disallowed_tools
 
     @property
     def tools(self) -> dict[str, Any]:
@@ -314,15 +290,3 @@ class Settings:
     @property
     def skills_dir(self) -> Path:
         return Path(self._config.learning.skills_dir).expanduser()
-
-    @property
-    def max_memory_chars(self) -> int:
-        return self._config.learning.max_memory_chars
-
-    @property
-    def max_user_chars(self) -> int:
-        return self._config.learning.max_user_chars
-
-    def model_dump(self) -> dict[str, Any]:
-        """Return configuration as dictionary"""
-        return self._config.model_dump()

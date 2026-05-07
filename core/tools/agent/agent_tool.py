@@ -1,283 +1,45 @@
-"""Consolidated agent tool that combines AgentsTool, AgentStatusTool, and BackgroundAgentResultsTool functionality."""
+"""Main agent tool class for subagent management."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import uuid
-from collections.abc import Iterable
-from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
-from .base import BaseTool, ToolInput, ToolOutput
+from core.tools.base import BaseTool, ToolInput, ToolOutput
+from .background_task import (
+    BackgroundAgentTask,
+    _background_agents,
+    _background_lock,
+    get_background_agent,
+    list_background_agents,
+    get_completed_background_agents,
+    clear_completed_background_agents,
+)
+from .agent_lifecycle import _run_agent_in_background
+from .agent_memory import SubagentActivity, add_subagent_activity
+from .constants import (
+    AGENT_TOOL_NAME,
+    DEFAULT_MAX_TOKENS,
+    EXPLORE_ALLOWED_TOOLS,
+    PLAN_ALLOWED_TOOLS,
+    JARVIS_HELP_ALLOWED_TOOLS,
+    VERIFICATION_ALLOWED_TOOLS,
+    STATUSLINE_SETUP_ALLOWED_TOOLS,
+)
+from .filtered_registry import _FilteredToolRegistry
+from .utils import get_agent_param
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
-
-
-# Global background agent tracker with activity support
-_background_agents: dict[str, 'BackgroundAgentTask'] = {}
-_background_lock = asyncio.Lock()
-
-
-@dataclass
-class BackgroundAgentTask:
-    """Represents a background agent task"""
-    task_id: str
-    agent_name: str
-    prompt: str
-    status: str = "pending"  # pending, running, completed, failed
-    result: str = ""
-    error: str | None = None
-    created_at: datetime = field(default_factory=datetime.now)
-    completed_at: datetime | None = None
-    task: asyncio.Task | None = None
-    # Metrics
-    tool_uses: int = 0
-    token_usage: int = 0
-    max_tokens: int = 0
-    retries: int = 0
-    max_retries: int = 30
-    current_activity: str = ""  # e.g., "editing", "searching"
-
-
-async def get_background_agent(task_id: str) -> BackgroundAgentTask | None:
-    """Get a background agent task by ID"""
-    async with _background_lock:
-        return _background_agents.get(task_id)
-
-
-async def list_background_agents() -> list[BackgroundAgentTask]:
-    """List all background agent tasks"""
-    async with _background_lock:
-        return list(_background_agents.values())
-
-
-async def get_completed_background_agents() -> list[BackgroundAgentTask]:
-    """Get list of completed background agent tasks"""
-    async with _background_lock:
-        return [agent for agent in _background_agents.values() if agent.status == "completed"]
-
-
-async def clear_completed_background_agents() -> None:
-    """Clear completed background agent tasks from the registry"""
-    async with _background_lock:
-        completed_task_ids = [task_id for task_id, agent in _background_agents.items() if agent.status == "completed"]
-        for task_id in completed_task_ids:
-            del _background_agents[task_id]
-
-
-async def _run_agent_in_background(
-    task_id: str,
-    agent_name: str,
-    prompt: str,
-    llm_provider,
-    tool_registry,
-    model,
-    config_getter,
-    event_queue=None,
-):
-    """Run an agent in the background and update status when done"""
-    from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
-    from core.config.settings import Settings
-    from core.agents.base import BaseAgent
-
-    # Define callback to track tool usage
-    def _on_tool_call(tool_name: str, tool_args: dict) -> None:
-        """Increment tool usage counter"""
-        import asyncio
-        async def _update():
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].tool_uses += 1
-                    _background_agents[task_id].current_activity = f"{tool_name}"
-        asyncio.create_task(_update())
-    
-    def _on_tool_result(tool_name: str, result: Any) -> None:
-        """Clear current activity after tool completes"""
-        import asyncio
-        async def _update():
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].current_activity = ""
-        asyncio.create_task(_update())
-
-    try:
-        # Update status to running
-        async with _background_lock:
-            if task_id in _background_agents:
-                _background_agents[task_id].status = "running"
-
-        # Create the appropriate subagent
-        if agent_name == "explore":
-            def explore_config_getter() -> Settings:
-                if callable(config_getter):
-                    base_settings = config_getter()
-                else:
-                    base_settings = Settings()
-                merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
-                return Settings(initial_config=merged_config)
-
-            explore_registry = _FilteredToolRegistry(
-                tool_registry,
-                allowed_tools=("read", "ls", "find", "grep"),
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=explore_config_getter,
-            )
-
-            subagent = ExploreAgent(
-                llm_provider=llm_provider,
-                tool_registry=explore_registry,
-                model=model,
-                config_getter=explore_config_getter,
-            )
-            # Set callbacks for metrics tracking
-            subagent.tool_call_callback = _on_tool_call
-            subagent.tool_result_callback = _on_tool_result
-            subagent.rebuild_system_prompt()
-
-            # Execute the task
-            result = await subagent.process(prompt)
-            
-            # Try to capture token usage from result if available
-            token_usage = 0
-            if isinstance(result, dict) and "usage" in result:
-                usage = result["usage"]
-                if isinstance(usage, dict):
-                    token_usage = usage.get("total_tokens", 0)
-                elif hasattr(usage, "total_tokens"):
-                    token_usage = usage.total_tokens
-
-            # Update with result
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].status = "completed"
-                    _background_agents[task_id].result = result
-                    _background_agents[task_id].token_usage = token_usage
-                    _background_agents[task_id].completed_at = datetime.now()
-
-        elif agent_name == "plan":
-            def plan_config_getter() -> Settings:
-                if callable(config_getter):
-                    base_settings = config_getter()
-                else:
-                    base_settings = Settings()
-                merged_config = PLAN.apply_to_config(base_settings.model_dump())
-                return Settings(initial_config=merged_config)
-
-            plan_registry = _FilteredToolRegistry(
-                tool_registry,
-                allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=plan_config_getter,
-            )
-
-            subagent = PlanAgent(
-                llm_provider=llm_provider,
-                tool_registry=plan_registry,
-                model=model,
-                config_getter=plan_config_getter,
-            )
-            # Set callbacks for metrics tracking
-            subagent.tool_call_callback = _on_tool_call
-            subagent.tool_result_callback = _on_tool_result
-            subagent.rebuild_system_prompt()
-
-            # Execute the task
-            result = await subagent.process(prompt)
-            
-            # Try to capture token usage from result if available
-            token_usage = 0
-            if isinstance(result, dict) and "usage" in result:
-                usage = result["usage"]
-                if isinstance(usage, dict):
-                    token_usage = usage.get("total_tokens", 0)
-                elif hasattr(usage, "total_tokens"):
-                    token_usage = usage.total_tokens
-
-            # Update with result
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].status = "completed"
-                    _background_agents[task_id].result = result
-                    _background_agents[task_id].token_usage = token_usage
-                    _background_agents[task_id].completed_at = datetime.now()
-
-        else:
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].status = "failed"
-                    _background_agents[task_id].error = f"Unknown agent: {agent_name}"
-                    _background_agents[task_id].completed_at = datetime.now()
-
-    except Exception as e:
-        async with _background_lock:
-            if task_id in _background_agents:
-                _background_agents[task_id].status = "failed"
-                _background_agents[task_id].error = str(e)
-                _background_agents[task_id].completed_at = datetime.now()
-
-
-class _FilteredToolRegistry:
-    """Read-only filtered view over a tool registry."""
-
-    def __init__(
-        self,
-        source_registry,
-        allowed_tools: Iterable[str],
-        llm_provider=None,
-        model=None,
-        config_getter=None,
-    ):
-        self._source_registry = source_registry
-        self._allowed_tools = set(allowed_tools)
-        self.llm_provider = llm_provider
-        self.model = model
-        self.config_getter = config_getter
-        self.active_skills = getattr(source_registry, "active_skills", {})
-
-    def get(self, name: str):
-        if name not in self._allowed_tools:
-            return None
-        return self._source_registry.get(name)
-
-    def get_tools(self) -> dict[str, BaseTool]:
-        return {
-            name: tool
-            for name, tool in self._source_registry.get_tools().items()
-            if name in self._allowed_tools
-        }
-
-    def list_tools(self) -> list[dict[str, object]]:
-        return [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.input_schema,
-            }
-            for tool in self.get_tools().values()
-        ]
-
-    def get_function_definitions(self) -> list[dict[str, object]]:
-        return [tool.get_function_definition() for tool in self.get_tools().values()]
-
-    async def execute_tool(self, name: str, input_data: dict) -> ToolOutput:
-        if name not in self._allowed_tools:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error=f"Tool '{name}' is not available to the explore subagent.",
-            )
-        return await self._source_registry.execute_tool(name, input_data)
 
 
 class AgentTool(BaseTool):
     """Primary agent management tool - unified interface for all subagent operations.
 
     Use this tool whenever you need to:
-    1. Delegate tasks to specialized subagents (explore/plan)
+    1. Delegate tasks to specialized subagents (explore/plan/jarvis-help/verification/statusline-setup)
     2. Get immediate results from subagents (foreground mode)
     3. Monitor progress of background agent tasks
     4. Retrieve results from completed background work
@@ -291,10 +53,12 @@ class AgentTool(BaseTool):
     Available subagents:
     - explore: Codebase exploration, file analysis, pattern finding (read-only)
     - plan: Task decomposition, implementation planning, architecture design (read-only)
-
+    - jarvis-help: Guidance on JARVIS features, tools, and configuration (read-only)
+    - verification: Post-implementation testing and adversarial verification (read/write)
+    - statusline-setup: Shell prompt customization guidance (read-only)
     """
     name = "agents"
-    description = "Launch subagents (explore/plan) for codebase analysis and task planning. Defaults to foreground mode for immediate results."
+    description = "Launch subagents (explore/plan/jarvis-help/verification/statusline-setup) for codebase analysis, planning, help, and testing. Defaults to foreground mode for immediate results."
 
     input_schema = {
         "type": "object",
@@ -337,11 +101,7 @@ class AgentTool(BaseTool):
 
     def _get_param(self, input_data: ToolInput, *names) -> Any:
         """Get parameter using multiple possible names"""
-        for name in names:
-            value = getattr(input_data, name, None)
-            if value is not None:
-                return value
-        return None
+        return get_agent_param(input_data, *names)
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         # Get parameters - 'action' is the primary parameter name
@@ -387,6 +147,13 @@ class AgentTool(BaseTool):
             elif action == "list":
                 # List is an alias for status with taskId='list'
                 return await self._handle_status("list")
+            else:
+                # This should never happen due to validation above, but type checker needs it
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Internal error: unhandled action type"
+                )
 
         except ImportError as e:
             return ToolOutput(
@@ -456,7 +223,7 @@ class AgentTool(BaseTool):
                 agent_name=agent_name,
                 prompt=prompt,
                 status="pending",
-                max_tokens=128000,  # Default context window, should be fetched from model config
+                max_tokens=DEFAULT_MAX_TOKENS,
             )
 
             async with _background_lock:
@@ -504,6 +271,8 @@ class AgentTool(BaseTool):
         else:
             # Run synchronously (blocking) - for backwards compatibility
             from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
+            from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
+            from core.agents.builtin.verification_agent import VerificationAgent
             from core.config.settings import Settings
 
             if agent_name == "explore":
@@ -517,7 +286,7 @@ class AgentTool(BaseTool):
 
                 explore_registry = _FilteredToolRegistry(
                     tool_registry,
-                    allowed_tools=("read", "ls", "find", "grep"),
+                    allowed_tools=EXPLORE_ALLOWED_TOOLS,
                     llm_provider=llm_provider,
                     model=model,
                     config_getter=explore_config_getter,
@@ -550,7 +319,7 @@ class AgentTool(BaseTool):
 
                 plan_registry = _FilteredToolRegistry(
                     tool_registry,
-                    allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"),
+                    allowed_tools=PLAN_ALLOWED_TOOLS,
                     llm_provider=llm_provider,
                     model=model,
                     config_getter=plan_config_getter,
@@ -572,11 +341,79 @@ class AgentTool(BaseTool):
                     metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
                 )
 
+            elif agent_name == "jarvis-help":
+                def help_config_getter() -> Settings:
+                    if callable(config_getter):
+                        return config_getter()
+                    return Settings()
+
+                help_registry = _FilteredToolRegistry(
+                    tool_registry,
+                    allowed_tools=JARVIS_HELP_ALLOWED_TOOLS,
+                    llm_provider=llm_provider,
+                    model=model,
+                    config_getter=help_config_getter,
+                )
+
+                subagent = JarvisHelpAgent(
+                    llm_provider=llm_provider,
+                    tool_registry=help_registry,
+                    model=model,
+                    config_getter=help_config_getter,
+                )
+                subagent.rebuild_system_prompt()
+
+                result = await subagent.process(prompt)
+
+                return ToolOutput(
+                    success=True,
+                    result=result,
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                )
+
+            elif agent_name == "verification":
+                def verify_config_getter() -> Settings:
+                    if callable(config_getter):
+                        return config_getter()
+                    return Settings()
+
+                verify_registry = _FilteredToolRegistry(
+                    tool_registry,
+                    allowed_tools=VERIFICATION_ALLOWED_TOOLS,
+                    llm_provider=llm_provider,
+                    model=model,
+                    config_getter=verify_config_getter,
+                )
+
+                subagent = VerificationAgent(
+                    llm_provider=llm_provider,
+                    tool_registry=verify_registry,
+                    model=model,
+                    config_getter=verify_config_getter,
+                )
+                subagent.rebuild_system_prompt()
+
+                result = await subagent.process(prompt)
+
+                return ToolOutput(
+                    success=True,
+                    result=result,
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                )
+
+            elif agent_name == "statusline-setup":
+                # statusline-setup is read-only guidance
+                return ToolOutput(
+                    success=True,
+                    result=f"I can help with statusline customization for bash, zsh, PowerShell, and other shells.\n\n{prompt}",
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                )
+
             else:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"Unknown agent: {agent_name}. Available agents: 'explore', 'plan'"
+                    error=f"Unknown agent: {agent_name}. Available agents: 'explore', 'plan', 'jarvis-help', 'verification', 'statusline-setup'"
                 )
 
     async def _handle_status(self, taskId: str) -> ToolOutput:
@@ -780,6 +617,13 @@ class AgentTool(BaseTool):
                     result=f"Cleared {cleared_count} completed background agent(s).",
                     metadata={"cleared_count": cleared_count}
                 )
+            else:
+                # This should never happen due to validation above, but type checker needs it
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Internal error: unhandled results action type"
+                )
 
         except Exception as e:
             return ToolOutput(
@@ -789,51 +633,17 @@ class AgentTool(BaseTool):
             )
 
 
-
-
-# Activity tracking for subagent view-only mode
-@dataclass
-class SubagentActivity:
-    """Activity event from a subagent for view-only display."""
-    timestamp: datetime = field(default_factory=datetime.now)
-    event_type: str = "info"  # info, tool_use, tool_result, output
-    message: str = ""
-    tool_name: str | None = None
-    tool_input: dict | None = None
-    tool_output: str | None = None
-
-
-# Activity registry for view-only display
-_subagent_activities: dict[str, list[SubagentActivity]] = {}  # task_id -> activities
-
-
-def add_subagent_activity(task_id: str, activity: SubagentActivity) -> None:
-    """Add an activity event for a subagent task."""
-    if task_id not in _subagent_activities:
-        _subagent_activities[task_id] = []
-    _subagent_activities[task_id].append(activity)
-
-
-def get_subagent_activities(task_id: str) -> list[SubagentActivity]:
-    """Get all activities for a subagent task."""
-    return _subagent_activities.get(task_id, [])
-
-
-def clear_subagent_activities(task_id: str | None = None) -> None:
-    """Clear activities for a specific task or all tasks."""
-    if task_id:
-        _subagent_activities.pop(task_id, None)
-    else:
-        _subagent_activities.clear()
-
-
 class AgentsTool(AgentTool):
-    """Alias for AgentTool for backward compatibility"""
+    """Alias for AgentTool for backward compatibility."""
     name = "agents"
 
 
 class AgentStatusTool(AgentTool):
-    """Specialized tool for checking agent status"""
+    """Specialized tool for checking agent status.
+    
+    This tool provides a simpler interface focused on status and results
+    operations for background agents.
+    """
     name = "agent_status"
     description = "Check the status and results of background agents"
 
@@ -877,3 +687,6 @@ class AgentStatusTool(AgentTool):
             return await self._handle_status("list")
 
         return await super().execute(input_data)
+
+
+import asyncio  # Required for create_task

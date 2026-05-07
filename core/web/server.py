@@ -103,7 +103,7 @@ def _get_agent():
         return _agent
     
     # Import here to avoid circular imports
-    from core.agents.coding_agent import CodingAgent
+    from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
     from core.llm.sdk_adapter import SDKAdapter
     from core.llm_sdk.openai.sdk import OpenAISDK
     from core.llm_sdk.anthropic.sdk import AnthropicSDK
@@ -143,6 +143,10 @@ def _get_agent():
     tool_registry.register(RunTestsTool())
     tool_registry.register(GrepSearchTool())
     tool_registry.register(WebFetchTool())
+    
+    # Register AskUserQuestion tool
+    from core.tools.ask_user_question_tool import AskUserQuestionTool
+    tool_registry.register(AskUserQuestionTool())
     
     # Try to register ExaWebSearchTool (optional - depends on external service)
     try:

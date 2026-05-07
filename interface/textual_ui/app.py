@@ -1359,14 +1359,28 @@ class VibeApp(App):  # noqa: PLR0904
                     await self._switch_to_input_app()
 
     async def _user_input_callback(self, args: BaseModel) -> BaseModel:
-        question_args = cast(AskUserQuestionArgs, args)
+        # Convert dict to AskUserQuestionArgs model if needed
+        if isinstance(args, dict):
+            questions_data = args.get("questions", [])
+            questions = []
+            for q in questions_data:
+                if isinstance(q, dict):
+                    # Convert options (Choice) items
+                    options_data = q.get("options", [])
+                    options = [Choice(**o) if isinstance(o, dict) else o for o in options_data]
+                    questions.append(Question(options=options, **{k: v for k, v in q.items() if k != "options"}))
+                else:
+                    questions.append(q)
+            question_args = AskUserQuestionArgs(questions=questions)
+        else:
+            question_args = args  # Already a model instance
 
         async with self._user_interaction_lock:
             self._pending_question = asyncio.Future()
             self._terminal_notifier.notify(NotificationContext.ACTION_REQUIRED)
             try:
                 with paused_timer(self._loading_widget):
-                    await self._switch_to_question_app(question_args)
+                    await self._switch_to_question_app(question_args)  # ty:ignore[invalid-argument-type]
                     result = await self._pending_question
                 return result
             finally:

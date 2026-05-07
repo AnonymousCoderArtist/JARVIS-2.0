@@ -11,6 +11,7 @@ from core.tools.permissions import (
     PermissionScope,
     RequiredPermission,
     ToolPermission,
+    is_tool_disallowed,
     resolve_path_permission,
     resolve_file_tool_permission,
 )
@@ -45,13 +46,21 @@ class PermissionManager:
         Returns:
             PermissionContext with permission level and required permissions
         """
-        # Check tool-level permission
-        tool_config = self._config.tools.get(tool_name, {})
-        permission = ToolPermission(tool_config.get("permission", "ask"))
-
         # Check if bypass is enabled
         if self._config.bypass_tool_permissions:
             return PermissionContext(permission=ToolPermission.ALWAYS)
+
+        # Check disallowed_tools from profile config - takes precedence
+        disallowed = getattr(self._config, 'disallowed_tools', [])
+        if disallowed and is_tool_disallowed(tool_name, disallowed):
+            return PermissionContext(
+                permission=ToolPermission.NEVER,
+                reason=f"Tool '{tool_name}' is explicitly disallowed for this agent"
+            )
+
+        # Check tool-level permission
+        tool_config = self._config.tools.get(tool_name, {})
+        permission = ToolPermission(tool_config.get("permission", "ask"))
 
         # Check path-aware tool permissions first so trusted folders can short-circuit.
         path_ctx = self._resolve_path_permission(tool_name, args)

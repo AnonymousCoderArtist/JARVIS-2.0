@@ -1,7 +1,7 @@
 """Tools Package"""
 
 # Agent and Skill tools
-from .consolidated_agent_tool import AgentTool
+from .agent_tool import AgentTool, AgentsTool, AgentStatusTool
 
 # Permission system
 from .permissions import (
@@ -31,6 +31,9 @@ from .grep_tool import GrepSearchTool
 # Memory tools
 from .memory_tool import SaveMemoryTool, ReadMemoryTool, get_memory_context
 from .registry import ToolRegistry
+
+# Ask User Question tool
+from .ask_user_question_tool import AskUserQuestionTool
 
 # Skill tool
 from .skill_manage_tool import SkillTool
@@ -67,6 +70,10 @@ __all__ = [
     "ReadMemoryTool",
     # Agent tools
     "AgentTool",
+    "AgentsTool",
+    "AgentStatusTool",
     # Skill tool
     "SkillTool",
+    # Ask User Question tool
+    "AskUserQuestionTool",
 ]

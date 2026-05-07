@@ -2,7 +2,7 @@
 
 - [ ] Add support for any ACP client as SDK providers
 - [ ] Implement connector system for external services
-- [ ] Add more built-in tools for common tasks
+- [X] Add AskUserTool for agents to ask users for input when needed
 - [x] TUI uses ansi-dark theme with transparent backgrounds
 - [ ] Enhance Web UI with better interface and user experience
 - [ ] Add support for custom themes in Web UI
@@ -21,4 +21,7 @@
 - [X] Image upload support in TUI
 - [X] Implement Model Info fetching and caching system
 - [X] /copy command to copy content to clipboard
-- [ ] Make !bang commands to be non-blocking and run via async subprocess for better latency
+- [X] Make !bang commands to be non-blocking and run via async subprocess for better latency
+- [ ] Add more built-in agents for specific tasks (e.g. research, data analysis, etc.)
+- [ ] Implement better error handling and recovery mechanisms for agents
+- [ ] Add support for agent collaboration and communication

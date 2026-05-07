@@ -1,4 +1,4 @@
-"""Coding Agent - Claude Code style"""
+"""Jarvis V2 Agent - Main agent for all tasks"""
 
 import asyncio
 import time
@@ -6,7 +6,8 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from .base import BaseAgent
-from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT
+from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, GENERAL_PURPOSE_SYSTEM_PROMPT, FORK_SYSTEM_PROMPT
+from .system_prompts import get_agent_prompt
 from .heartbeat_scheduler import HeartbeatScheduler
 from core.connectors import ConnectorManager
 from core.learn import LearningManager, LearningConfig
@@ -17,16 +18,25 @@ if TYPE_CHECKING:
     pass
 
 
-# Mapping from system_prompt_id to system prompts
+# Mapping from system_prompt_id to system prompts (loaded lazily)
+def _get_system_prompt(agent_type: str) -> str:
+    return get_agent_prompt(agent_type)
+
+
 SYSTEM_PROMPT_MAP = {
     "jarvis": JARVIS_V2_SYSTEM_PROMPT,
-    "explore": EXPLORE_SYSTEM_PROMPT,
-    "plan": PLAN_SYSTEM_PROMPT,
+    "explore": lambda: get_agent_prompt("explore"),
+    "plan": lambda: get_agent_prompt("plan"),
+    "jarvis-help": lambda: get_agent_prompt("jarvis-help"),
+    "statusline-setup": lambda: get_agent_prompt("statusline-setup"),
+    "verification": lambda: get_agent_prompt("verification"),
+    "general-purpose": GENERAL_PURPOSE_SYSTEM_PROMPT,
+    "fork": FORK_SYSTEM_PROMPT,
 }
 
 
-class CodingAgent(BaseAgent):
-    """JARVIS - Single agent for all tasks"""
+class JarvisV2(BaseAgent):
+    """JARVIS V2 - Single agent for all tasks"""
 
     SYSTEM_PROMPT = JARVIS_V2_SYSTEM_PROMPT
 
@@ -259,8 +269,14 @@ class CodingAgent(BaseAgent):
     @classmethod
     def get_system_prompt_for_profile(cls, system_prompt_id: str | None) -> str:
         """Get the appropriate system prompt for a profile's system_prompt_id."""
+        from typing import Callable, cast
         if system_prompt_id and system_prompt_id in SYSTEM_PROMPT_MAP:
-            return SYSTEM_PROMPT_MAP[system_prompt_id]
+            value = SYSTEM_PROMPT_MAP[system_prompt_id]
+            # Handle both string and lazy-loaded lambda values
+            if callable(value):
+                # Cast to tell type checker this callable returns str
+                return cast(Callable[[], str], value)()
+            return value
         return cls.SYSTEM_PROMPT  # Default to JARVIS_V2_SYSTEM_PROMPT
 
     async def process(self, input: str, context: dict | None = None) -> str:

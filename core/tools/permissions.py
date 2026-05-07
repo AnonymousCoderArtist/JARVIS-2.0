@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from core.trusted_folders import trusted_folders_manager
+
+if TYPE_CHECKING:
+    from core.agents.builtin_agents import AgentDefinition
 
 
 class ToolPermission(str, Enum):
@@ -52,6 +56,22 @@ class ApprovedRule(BaseModel):
     tool_name: str
     scope: PermissionScope
     session_pattern: str
+
+
+def is_tool_disallowed(tool_name: str, disallowed_list: list[str]) -> bool:
+    """Check if a tool is explicitly disallowed.
+    
+    Args:
+        tool_name: Name of the tool to check
+        disallowed_list: List of disallowed tool patterns (can include wildcards)
+    
+    Returns:
+        True if the tool matches any disallowed pattern, False otherwise
+    """
+    for pattern in disallowed_list:
+        if wildcard_match(tool_name, pattern):
+            return True
+    return False
 
 
 def wildcard_match(text: str, pattern: str) -> bool:
@@ -254,3 +274,102 @@ def resolve_file_tool_permission(
         )
 
     return None
+
+
+def resolve_permission(
+    tool_name: str,
+    allowed_tools: list[str] | None = None,
+    disallowed_tools: list[str] | None = None,
+) -> PermissionContext | None:
+    """Resolve permission for a tool based on allowed/disallowed tool lists.
+    
+    This function implements a combined allow/disallow approach:
+    - If disallowed_tools contains the tool (or a matching pattern), returns NEVER
+    - If allowed_tools is specified and doesn't contain the tool, returns ASK
+    - If allowed_tools contains "*" (all tools), returns None (default handling)
+    - Otherwise returns None to allow default permission checking
+    
+    Args:
+        tool_name: Name of the tool to check
+        allowed_tools: List of allowed tool patterns (None means inherit parent's rules)
+        disallowed_tools: List of explicitly disallowed tool patterns
+    
+    Returns:
+        PermissionContext if the tool should be blocked, None otherwise
+    """
+    
+    disallowed_list = disallowed_tools or []
+    
+    # Check disallowed list first - deny takes precedence
+    if is_tool_disallowed(tool_name, disallowed_list):
+        return PermissionContext(
+            permission=ToolPermission.NEVER,
+            reason=f"Tool '{tool_name}' is explicitly disallowed"
+        )
+    
+    # If allowed_tools is None, inherit from parent (return None for default behavior)
+    if allowed_tools is None:
+        return None
+    
+    # Check if all tools are allowed via wildcard
+    if "*" in allowed_tools:
+        return None
+    
+    # Check if tool is in allowed list
+    for pattern in allowed_tools:
+        if wildcard_match(tool_name, pattern):
+            return None
+    
+    # Tool is not in allowed list - requires permission
+    return PermissionContext(
+        permission=ToolPermission.ASK,
+        reason=f"Tool '{tool_name}' is not in the allowed tools list"
+    )
+
+
+def resolve_agent_permission(
+    tool_name: str,
+    agent_def: AgentDefinition | None = None,
+) -> PermissionContext | None:
+    """Resolve permission for a tool based on agent definition.
+    
+    This function checks both allowed_tools and disallowed_tools from an agent
+    definition to determine if a tool should be allowed, blocked, or require
+    permission.
+    
+    Args:
+        tool_name: Name of the tool to check
+        agent_def: AgentDefinition containing tools and disallowed_tools
+    
+    Returns:
+        PermissionContext if the tool should be blocked, None otherwise
+    """
+    
+    if agent_def is None:
+        return None
+    
+    # Check disallowed tools first - deny takes precedence
+    if agent_def.disallowed_tools and is_tool_disallowed(tool_name, agent_def.disallowed_tools):
+        return PermissionContext(
+            permission=ToolPermission.NEVER,
+            reason=f"Tool '{tool_name}' is explicitly disallowed for this agent"
+        )
+    
+    # If allowed_tools is not specified, inherit parent's rules (return None)
+    if agent_def.tools is None:
+        return None
+    
+    # Check if all tools are allowed via wildcard
+    if "*" in agent_def.tools:
+        return None
+    
+    # Check if tool is in allowed list
+    for pattern in agent_def.tools:
+        if wildcard_match(tool_name, pattern):
+            return None
+    
+    # Tool is not in allowed list - requires permission
+    return PermissionContext(
+        permission=ToolPermission.ASK,
+        reason=f"Tool '{tool_name}' is not in the allowed tools list for this agent"
+    )

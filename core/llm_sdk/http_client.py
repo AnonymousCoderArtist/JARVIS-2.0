@@ -4,8 +4,12 @@ from typing import Any
 
 import httpx
 from curl_cffi.requests import AsyncSession
+from curl_cffi.requests import Headers as CurlHeaders
 
 logger = logging.getLogger(__name__)
+
+# Default timeout for HTTP requests (30 minutes for long-running LLM operations)
+DEFAULT_TIMEOUT = 1800.0
 
 class HTTPClient:
     """
@@ -16,8 +20,14 @@ class HTTPClient:
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.httpx_client = httpx.AsyncClient(base_url=self.base_url)
-        self.curl_session = AsyncSession(impersonate="chrome110")
+        self.httpx_client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=30.0)
+        )
+        self.curl_session = AsyncSession(
+            impersonate="chrome110",
+            timeout=DEFAULT_TIMEOUT
+        )
 
     async def fetch_models(self, endpoint: str, headers: dict[str, str]) -> dict[str, Any]:
         """Fetch models using httpx as requested."""
@@ -32,7 +42,12 @@ class HTTPClient:
     async def post(self, endpoint: str, json_data: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
         """Post request using curl_cffi."""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        response = await self.curl_session.post(url, json=json_data, headers=headers)
+        response = await self.curl_session.post(
+            url,
+            json=json_data,
+            headers=headers,
+            timeout=DEFAULT_TIMEOUT
+        )
         if response.status_code >= 400:
             raise Exception(f"HTTP {response.status_code}: {response.text}")
         return response.json()
@@ -42,7 +57,13 @@ class HTTPClient:
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
 
         # curl_cffi stream handling
-        response = await self.curl_session.post(url, json=json_data, headers=headers, stream=True)
+        response = await self.curl_session.post(
+            url,
+            json=json_data,
+            headers=headers,
+            stream=True,
+            timeout=DEFAULT_TIMEOUT
+        )
         if response.status_code >= 400:
             raise Exception(f"HTTP {response.status_code}: {response.text}")
 
