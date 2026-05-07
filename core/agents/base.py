@@ -62,6 +62,7 @@ class ToolDecision:
     verdict: str  # "execute" or "skip"
     approval_type: ToolPermission
     feedback: str | None = None
+    updated_args: dict[str, Any] | None = None  # Updated args with user input
 
 
 class BaseAgent(ABC):
@@ -380,6 +381,7 @@ class BaseAgent(ABC):
                 return ToolDecision(
                     verdict="execute",
                     approval_type=ToolPermission.ALWAYS,
+                    updated_args=tool_args,
                 )
             except Exception as e:
                 # If user input fails, skip tool execution
@@ -838,6 +840,10 @@ class BaseAgent(ABC):
                     })
                     continue
 
+                # Use updated args if provided by decision (e.g., from user input)
+                if decision.updated_args:
+                    tool_args = decision.updated_args
+
                 # Invoke tool call callback if set
                 if self.tool_call_callback:
                     self.tool_call_callback(tool_name, tool_args)
@@ -924,6 +930,9 @@ class BaseAgent(ABC):
                     "skipped": True,
                 })
             else:
+                # Use updated args if provided by decision (e.g., from user input)
+                if decision.updated_args:
+                    tool_args = decision.updated_args
                 # Invoke tool call callback if set
                 if self.tool_call_callback:
                     self.tool_call_callback(tool_name, tool_args)
