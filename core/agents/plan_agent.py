@@ -3,7 +3,7 @@
 from typing import Any
 
 from core.agents.base import BaseAgent
-from core.agents.system_prompts import PLAN_SYSTEM_PROMPT
+from core.agents.system_prompts import get_agent_prompt
 
 
 class PlanAgent(BaseAgent):
@@ -22,7 +22,7 @@ class PlanAgent(BaseAgent):
         super().__init__(
             llm_provider=llm_provider,
             tool_registry=tool_registry,
-            system_prompt=PLAN_SYSTEM_PROMPT,
+            system_prompt=get_agent_prompt("plan"),
             model=model,
             config_getter=config_getter
         )
@@ -54,65 +54,3 @@ class PlanAgent(BaseAgent):
         response = await self._process_with_tools(messages, stream=stream)
 
         return response
-
-    async def plan(self, task: str) -> list[dict[str, Any]]:
-        """
-        Plan an execution task
-
-        Args:
-            task: Task description
-
-        Returns:
-            List of planning steps
-        """
-        # Build messages for planning
-        user_content = f"""Plan the following task step by step:
-
-{task}
-
-Provide a detailed plan with:
-1. Phase breakdown (e.g., Analysis, Implementation, Testing, Verification)
-2. Specific steps for each phase
-3. Dependencies between steps
-4. Potential risks or edge cases
-5. How to verify each step succeeds
-
-Return your plan in a structured format."""
-
-        messages = self._build_messages(user_content, include_memory=False)
-
-        # Process without tools for initial planning
-        response = await self._process_without_tools(messages, stream=False)
-
-        # Parse the plan into structured steps
-        steps = self._parse_plan(response)
-        return steps
-
-    def _parse_plan(self, plan_text: str) -> list[dict[str, Any]]:
-        """Parse plan text into structured steps"""
-        steps = []
-        lines = plan_text.split('\n')
-
-        current_phase = None
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Detect phase headers (e.g., "Phase 1:", "Analysis:", "## Analysis")
-            if line.lower().startswith('phase') or line.endswith(':') and len(line) < 30:
-                current_phase = line.rstrip(':').strip()
-                continue
-
-            # Detect step items (numbered or bulleted)
-            if line and (line[0].isdigit() or line.startswith('-') or line.startswith('*')):
-                # Clean up the step text
-                step_text = line.lstrip('0123456789.-* ').strip()
-                if step_text:
-                    steps.append({
-                        "phase": current_phase,
-                        "description": step_text,
-                        "completed": False
-                    })
-
-        return steps if steps else [{"phase": "General", "description": plan_text, "completed": False}]

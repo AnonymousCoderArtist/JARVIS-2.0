@@ -6,7 +6,8 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from .base import BaseAgent
-from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, JARVIS_HELP_SYSTEM_PROMPT, VERIFICATION_SYSTEM_PROMPT, STATUSLINE_SETUP_SYSTEM_PROMPT, GENERAL_PURPOSE_SYSTEM_PROMPT, FORK_SYSTEM_PROMPT
+from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, GENERAL_PURPOSE_SYSTEM_PROMPT, FORK_SYSTEM_PROMPT
+from .system_prompts import get_agent_prompt
 from .heartbeat_scheduler import HeartbeatScheduler
 from core.connectors import ConnectorManager
 from core.learn import LearningManager, LearningConfig
@@ -17,14 +18,18 @@ if TYPE_CHECKING:
     pass
 
 
-# Mapping from system_prompt_id to system prompts
+# Mapping from system_prompt_id to system prompts (loaded lazily)
+def _get_system_prompt(agent_type: str) -> str:
+    return get_agent_prompt(agent_type)
+
+
 SYSTEM_PROMPT_MAP = {
     "jarvis": JARVIS_V2_SYSTEM_PROMPT,
-    "explore": EXPLORE_SYSTEM_PROMPT,
-    "plan": PLAN_SYSTEM_PROMPT,
-    "jarvis-help": JARVIS_HELP_SYSTEM_PROMPT,
-    "statusline-setup": STATUSLINE_SETUP_SYSTEM_PROMPT,
-    "verification": VERIFICATION_SYSTEM_PROMPT,
+    "explore": lambda: get_agent_prompt("explore"),
+    "plan": lambda: get_agent_prompt("plan"),
+    "jarvis-help": lambda: get_agent_prompt("jarvis-help"),
+    "statusline-setup": lambda: get_agent_prompt("statusline-setup"),
+    "verification": lambda: get_agent_prompt("verification"),
     "general-purpose": GENERAL_PURPOSE_SYSTEM_PROMPT,
     "fork": FORK_SYSTEM_PROMPT,
 }

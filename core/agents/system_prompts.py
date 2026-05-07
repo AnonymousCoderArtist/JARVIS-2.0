@@ -153,8 +153,56 @@ JARVIS_V2_SYSTEM_PROMPT = build_jarvis_v2_system_prompt(auto_discover=True)
 
 # Build prompts directly in this file (avoids circular imports with builtin modules)
 # Prompts are kept here to maintain the manager-only role of this module
+# For explore and plan, we inline the prompts to match the module structure
 
-def _build_explore_prompt() -> str:
+def _get_builtin_prompts() -> dict:
+    """Lazy import of builtin prompts to avoid circular imports."""
+    from core.agents.builtin.explore_prompt import GetExploreSystemPrompt
+    from core.agents.builtin.plan_prompt import GetPlanSystemPrompt
+    from core.agents.builtin.jarvis_help_agent import GetJarvisHelpPrompt
+    from core.agents.builtin.statusline_setup_agent import GetStatuslineSetupPrompt
+    from core.agents.builtin.verification_agent import GetVerificationPrompt
+    return {
+        'explore': GetExploreSystemPrompt(),
+        'plan': GetPlanSystemPrompt(),
+        'jarvis-help': GetJarvisHelpPrompt(),
+        'statusline-setup': GetStatuslineSetupPrompt(),
+        'verification': GetVerificationPrompt(),
+    }
+
+
+# Prompt modules loaded lazily - call these functions at runtime
+def get_explore_prompt() -> str:
+    """Get the explore system prompt."""
+    from core.agents.builtin.explore_prompt import GetExploreSystemPrompt
+    return GetExploreSystemPrompt()
+
+
+def get_plan_prompt() -> str:
+    """Get the plan system prompt."""
+    from core.agents.builtin.plan_prompt import GetPlanSystemPrompt
+    return GetPlanSystemPrompt()
+
+
+def get_jarvis_help_prompt() -> str:
+    """Get the JARVIS help system prompt."""
+    from core.agents.builtin.jarvis_help_agent import GetJarvisHelpPrompt
+    return GetJarvisHelpPrompt()
+
+
+def get_statusline_prompt() -> str:
+    """Get the statusline setup system prompt."""
+    from core.agents.builtin.statusline_setup_agent import GetStatuslineSetupPrompt
+    return GetStatuslineSetupPrompt()
+
+
+def get_verification_prompt() -> str:
+    """Get the verification system prompt."""
+    from core.agents.builtin.verification_agent import GetVerificationPrompt
+    return GetVerificationPrompt()
+
+
+def _build_general_purpose_prompt() -> str:
     """Build the explore agent prompt."""
     from datetime import datetime
     date = datetime.now().strftime("%Y-%m-%d")
@@ -301,19 +349,41 @@ Current working directory: {cwd}
 """
 
 
-# Build prompts
-EXPLORE_SYSTEM_PROMPT = _build_explore_prompt()
-PLAN_SYSTEM_PROMPT = _build_plan_prompt()
-JARVIS_HELP_SYSTEM_PROMPT = _build_jarvis_help_prompt()
-STATUSLINE_SETUP_SYSTEM_PROMPT = _build_statusline_prompt()
-VERIFICATION_SYSTEM_PROMPT = _build_verification_prompt()
+# Placeholder prompts for registry (actual prompts loaded lazily)
+_EXPLORE_PLACEHOLDER = "Loading..."
+_PLAN_PLACEHOLDER = "Loading..."
+_JARVIS_HELP_PLACEHOLDER = "Loading..."
+_STATUSLINE_PLACEHOLDER = "Loading..."
+_VERIFICATION_PLACEHOLDER = "Loading..."
+
+# Runtime loaded prompts (initialized by _init_prompts)
+_RUNTIME_EXPLORE_PROMPT = None
+_RUNTIME_PLAN_PROMPT = None
+_RUNTIME_JARVIS_HELP_PROMPT = None
+_RUNTIME_STATUSLINE_PROMPT = None
+_RUNTIME_VERIFICATION_PROMPT = None
+
+# Build the prompts that don't need lazy loading
 GENERAL_PURPOSE_SYSTEM_PROMPT = _build_general_purpose_prompt()
 FORK_SYSTEM_PROMPT = _build_fork_prompt()
 
 
-# ==============================================================================
-# AGENT PROMPTS REGISTRY
-# ==============================================================================
+def _init_prompts():
+    """Initialize prompts by calling lazy load functions."""
+    global _RUNTIME_EXPLORE_PROMPT, _RUNTIME_PLAN_PROMPT, _RUNTIME_JARVIS_HELP_PROMPT
+    global _RUNTIME_STATUSLINE_PROMPT, _RUNTIME_VERIFICATION_PROMPT
+    
+    if _RUNTIME_EXPLORE_PROMPT is None:
+        _RUNTIME_EXPLORE_PROMPT = get_explore_prompt()
+    if _RUNTIME_PLAN_PROMPT is None:
+        _RUNTIME_PLAN_PROMPT = get_plan_prompt()
+    if _RUNTIME_JARVIS_HELP_PROMPT is None:
+        _RUNTIME_JARVIS_HELP_PROMPT = get_jarvis_help_prompt()
+    if _RUNTIME_STATUSLINE_PROMPT is None:
+        _RUNTIME_STATUSLINE_PROMPT = get_statusline_prompt()
+    if _RUNTIME_VERIFICATION_PROMPT is None:
+        _RUNTIME_VERIFICATION_PROMPT = get_verification_prompt()
+
 
 AGENT_PROMPTS: dict[str, Tuple[str, AgentPromptMetadata]] = {
     "jarvis": (
@@ -321,23 +391,23 @@ AGENT_PROMPTS: dict[str, Tuple[str, AgentPromptMetadata]] = {
         AgentPromptMetadata(agent_type="main", when_to_use="Use for general coding tasks.", model="inherit", max_turns=100),
     ),
     "explore": (
-        EXPLORE_SYSTEM_PROMPT,
+        _EXPLORE_PLACEHOLDER,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for codebase exploration.", model="default", max_turns=50),
     ),
     "plan": (
-        PLAN_SYSTEM_PROMPT,
+        _PLAN_PLACEHOLDER,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for task planning.", model="default", max_turns=50),
     ),
     "jarvis-help": (
-        JARVIS_HELP_SYSTEM_PROMPT,
+        _JARVIS_HELP_PLACEHOLDER,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for JARVIS help.", model="inherit", max_turns=50),
     ),
     "statusline-setup": (
-        STATUSLINE_SETUP_SYSTEM_PROMPT,
+        _STATUSLINE_PLACEHOLDER,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for prompt setup.", model="inherit", max_turns=50),
     ),
     "verification": (
-        VERIFICATION_SYSTEM_PROMPT,
+        _VERIFICATION_PLACEHOLDER,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for verification.", model="inherit", max_turns=10),
     ),
     "general-purpose": (
@@ -352,8 +422,19 @@ AGENT_PROMPTS: dict[str, Tuple[str, AgentPromptMetadata]] = {
 
 
 def get_agent_prompt(agent_name: str) -> str:
-    """Get the system prompt for a named agent."""
-    return AGENT_PROMPTS.get(agent_name, (AGENT_PROMPTS["jarvis"][0],))[0]
+    """Get the system prompt for a named agent (lazy loads prompts)."""
+    _init_prompts()
+    prompts = {
+        'jarvis': JARVIS_V2_SYSTEM_PROMPT,
+        'explore': _RUNTIME_EXPLORE_PROMPT,
+        'plan': _RUNTIME_PLAN_PROMPT,
+        'jarvis-help': _RUNTIME_JARVIS_HELP_PROMPT,
+        'statusline-setup': _RUNTIME_STATUSLINE_PROMPT,
+        'verification': _RUNTIME_VERIFICATION_PROMPT,
+        'general-purpose': GENERAL_PURPOSE_SYSTEM_PROMPT,
+        'fork': FORK_SYSTEM_PROMPT,
+    }
+    return prompts.get(agent_name, JARVIS_V2_SYSTEM_PROMPT)
 
 
 def get_agent_metadata(agent_name: str) -> Optional[AgentPromptMetadata]:

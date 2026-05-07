@@ -79,6 +79,9 @@ async def _run_agent_in_background(
 ):
     """Run an agent in the background and update status when done"""
     from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
+    from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent, JARVIS_HELP_AGENT
+    from core.agents.builtin.verification_agent import VerificationAgent, VERIFICATION_AGENT
+    from core.agents.builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
     from core.config.settings import Settings
     from core.agents.base import BaseAgent
 
@@ -205,6 +208,93 @@ async def _run_agent_in_background(
                     _background_agents[task_id].token_usage = token_usage
                     _background_agents[task_id].completed_at = datetime.now()
 
+        elif agent_name == "jarvis-help":
+            def help_config_getter() -> Settings:
+                if callable(config_getter):
+                    return config_getter()
+                return Settings()
+
+            help_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage"),
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=help_config_getter,
+            )
+
+            subagent = JarvisHelpAgent(
+                llm_provider=llm_provider,
+                tool_registry=help_registry,
+                model=model,
+                config_getter=help_config_getter,
+            )
+            subagent.tool_call_callback = _on_tool_call
+            subagent.tool_result_callback = _on_tool_result
+            subagent.rebuild_system_prompt()
+
+            result = await subagent.process(prompt)
+
+            async with _background_lock:
+                if task_id in _background_agents:
+                    _background_agents[task_id].status = "completed"
+                    _background_agents[task_id].result = result
+                    _background_agents[task_id].completed_at = datetime.now()
+
+        elif agent_name == "verification":
+            def verify_config_getter() -> Settings:
+                if callable(config_getter):
+                    return config_getter()
+                return Settings()
+
+            verify_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=("bash", "read", "ls", "find", "grep", "web_search", "fetch_webpage"),
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=verify_config_getter,
+            )
+
+            subagent = VerificationAgent(
+                llm_provider=llm_provider,
+                tool_registry=verify_registry,
+                model=model,
+                config_getter=verify_config_getter,
+            )
+            subagent.tool_call_callback = _on_tool_call
+            subagent.tool_result_callback = _on_tool_result
+            subagent.rebuild_system_prompt()
+
+            result = await subagent.process(prompt)
+
+            async with _background_lock:
+                if task_id in _background_agents:
+                    _background_agents[task_id].status = "completed"
+                    _background_agents[task_id].result = result
+                    _background_agents[task_id].completed_at = datetime.now()
+
+        elif agent_name == "statusline-setup":
+            def statusline_config_getter() -> Settings:
+                if callable(config_getter):
+                    return config_getter()
+                return Settings()
+
+            statusline_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage"),
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=statusline_config_getter,
+            )
+
+            # statusline-setup is a read-only guidance agent (no edit/bash tools)
+            result = "I can help with statusline customization for bash, zsh, PowerShell, and other shells. " + prompt
+            
+            async with _background_lock:
+                if task_id in _background_agents:
+                    _background_agents[task_id].status = "completed"
+                    _background_agents[task_id].result = result
+                    _background_agents[task_id].completed_at = datetime.now()
+
         else:
             async with _background_lock:
                 if task_id in _background_agents:
@@ -277,7 +367,7 @@ class AgentTool(BaseTool):
     """Primary agent management tool - unified interface for all subagent operations.
 
     Use this tool whenever you need to:
-    1. Delegate tasks to specialized subagents (explore/plan)
+    1. Delegate tasks to specialized subagents (explore/plan/jarvis-help/verification/statusline-setup)
     2. Get immediate results from subagents (foreground mode)
     3. Monitor progress of background agent tasks
     4. Retrieve results from completed background work
@@ -291,10 +381,13 @@ class AgentTool(BaseTool):
     Available subagents:
     - explore: Codebase exploration, file analysis, pattern finding (read-only)
     - plan: Task decomposition, implementation planning, architecture design (read-only)
+    - jarvis-help: Guidance on JARVIS features, tools, and configuration (read-only)
+    - verification: Post-implementation testing and adversarial verification (read/write)
+    - statusline-setup: Shell prompt customization guidance (read-only)
 
     """
     name = "agents"
-    description = "Launch subagents (explore/plan) for codebase analysis and task planning. Defaults to foreground mode for immediate results."
+    description = "Launch subagents (explore/plan/jarvis-help/verification/statusline-setup) for codebase analysis, planning, help, and testing. Defaults to foreground mode for immediate results."
 
     input_schema = {
         "type": "object",
@@ -504,6 +597,8 @@ class AgentTool(BaseTool):
         else:
             # Run synchronously (blocking) - for backwards compatibility
             from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
+            from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
+            from core.agents.builtin.verification_agent import VerificationAgent
             from core.config.settings import Settings
 
             if agent_name == "explore":
@@ -572,11 +667,79 @@ class AgentTool(BaseTool):
                     metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
                 )
 
+            elif agent_name == "jarvis-help":
+                def help_config_getter() -> Settings:
+                    if callable(config_getter):
+                        return config_getter()
+                    return Settings()
+
+                help_registry = _FilteredToolRegistry(
+                    tool_registry,
+                    allowed_tools=("read", "ls", "find", "grep", "web_search", "fetch_webpage"),
+                    llm_provider=llm_provider,
+                    model=model,
+                    config_getter=help_config_getter,
+                )
+
+                subagent = JarvisHelpAgent(
+                    llm_provider=llm_provider,
+                    tool_registry=help_registry,
+                    model=model,
+                    config_getter=help_config_getter,
+                )
+                subagent.rebuild_system_prompt()
+
+                result = await subagent.process(prompt)
+
+                return ToolOutput(
+                    success=True,
+                    result=result,
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                )
+
+            elif agent_name == "verification":
+                def verify_config_getter() -> Settings:
+                    if callable(config_getter):
+                        return config_getter()
+                    return Settings()
+
+                verify_registry = _FilteredToolRegistry(
+                    tool_registry,
+                    allowed_tools=("bash", "read", "ls", "find", "grep", "web_search", "fetch_webpage"),
+                    llm_provider=llm_provider,
+                    model=model,
+                    config_getter=verify_config_getter,
+                )
+
+                subagent = VerificationAgent(
+                    llm_provider=llm_provider,
+                    tool_registry=verify_registry,
+                    model=model,
+                    config_getter=verify_config_getter,
+                )
+                subagent.rebuild_system_prompt()
+
+                result = await subagent.process(prompt)
+
+                return ToolOutput(
+                    success=True,
+                    result=result,
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                )
+
+            elif agent_name == "statusline-setup":
+                # statusline-setup is read-only guidance
+                return ToolOutput(
+                    success=True,
+                    result=f"I can help with statusline customization for bash, zsh, PowerShell, and other shells.\n\n{prompt}",
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                )
+
             else:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"Unknown agent: {agent_name}. Available agents: 'explore', 'plan'"
+                    error=f"Unknown agent: {agent_name}. Available agents: 'explore', 'plan', 'jarvis-help', 'verification', 'statusline-setup'"
                 )
 
     async def _handle_status(self, taskId: str) -> ToolOutput:
