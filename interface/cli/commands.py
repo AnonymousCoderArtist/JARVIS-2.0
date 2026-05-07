@@ -48,6 +48,7 @@ class CommandRegistry:
         self.register(Command("history", "Show conversation history", self._cmd_history))
         self.register(Command("clear-history", "Clear current session history", self._cmd_clear_history))
         self.register(Command("sessions", "List available sessions", self._cmd_sessions))
+        self.register(Command("new-session", "Start a new session with fresh history", self._cmd_new_session))
         self.register(Command("copy", "Copy the last assistant answer to clipboard", self._cmd_copy))
         self.register(Command("themes", "List and change UI themes", self._cmd_themes))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
@@ -272,6 +273,29 @@ class CommandRegistry:
         except Exception as e:
             self.display_manager.show_error(f"Failed to clear history: {e}")
 
+    async def _cmd_new_session(self, args: list[str]):
+        """Start a new session with fresh history."""
+        try:
+            # Create new conversation history (new session)
+            history = ConversationHistory()
+            old_session = getattr(self, '_current_session_id', None)
+            
+            # Clear agent memory if available
+            if hasattr(self, 'jarvis_agent') and self.jarvis_agent:
+                self.jarvis_agent.clear_memory()
+                self.jarvis_agent.rebuild_system_prompt()
+            
+            # Store new session info
+            self._current_session_id = history.session_id
+            
+            self.display_manager.show_success(
+                f"Started new session: {history.session_id[:8]}...\n"
+                f"Previous session: {old_session[:8] if old_session else 'none'}...",
+                title="New Session Started"
+            )
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to start new session: {e}")
+
     async def _cmd_sessions(self, args: list[str]):
         """List available sessions."""
         try:
@@ -401,7 +425,7 @@ class CommandHandler:
             Command("status", "Show system status", _cmd_status)
         )
 
-    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent, config_manager=None, learning_manager=None):
+    def set_managers(self, agent_manager, tool_registry, skill_manager, jarvis_agent, config_manager=None, learning_manager=None, session_reset_callback=None):
         """Set references to managers for command handlers."""
         self.agent_manager = agent_manager
         self.tool_registry = tool_registry
@@ -409,6 +433,7 @@ class CommandHandler:
         self.jarvis_agent = jarvis_agent
         self.config_manager = config_manager
         self.learning_manager = learning_manager
+        self.session_reset_callback = session_reset_callback
 
         # Register new commands that depend on these managers
         self._register_profile_command()

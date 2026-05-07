@@ -115,7 +115,7 @@ class DynamicLexer:
 class CLIInterface:
     """Modern CLI interface for JARVIS with rich display and modular architecture."""
 
-    def __init__(self, model: str, base_url: str | None, apikey: str | None, sdk: str, bypass: bool = True):
+    def __init__(self, model: str, base_url: str | None, apikey: str | None, sdk: str, bypass: bool = True, resume_session: str | None = None):
         self.model = model
         self.base_url = base_url
         self.apikey = apikey
@@ -123,6 +123,16 @@ class CLIInterface:
         self.bypass = bypass
         self.tool_registry = AsyncToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
+        self.resume_session = resume_session
+
+        # Initialize conversation history
+        from core.history import ConversationHistory
+        if resume_session:
+            # Resume existing session
+            self.history = ConversationHistory(session_id=resume_session)
+        else:
+            # Create new session
+            self.history = ConversationHistory()
         self._current_provider = None
         self.learning_manager: LearningManager | None = None
         self.connector_manager: ConnectorManager | None = None
@@ -299,6 +309,18 @@ class CLIInterface:
         if self.jarvis_agent.heartbeat_scheduler:
             asyncio.create_task(self.jarvis_agent.start_heartbeat())
 
+        # Load history into agent memory if resuming a session
+        if self.resume_session:
+            messages = self.history.get_messages()
+            for msg in messages:
+                entry = {"role": msg.role, "content": msg.content or ""}
+                # Add tool calls if present
+                if msg.tool_calls:
+                    entry["tool_calls"] = msg.tool_calls
+                if msg.tool_call_id:
+                    entry["tool_call_id"] = msg.tool_call_id
+                self.jarvis_agent.add_to_memory(entry)
+
         # Initialize learning manager
         self.learning_manager = LearningManager(LearningConfig(enabled=True))
 
@@ -449,6 +471,23 @@ class CLIInterface:
         finally:
             self.display_manager.stop_streaming()
 
+    async def reset_session(self) -> None:
+        """Reset the session by creating a new history and clearing agent memory."""
+        old_session_id = self.history.session_id
+        
+        # Create new conversation history (new session)
+        self.history = ConversationHistory()
+        
+        # Clear agent memory
+        if self.jarvis_agent:
+            self.jarvis_agent.clear_memory()
+            self.jarvis_agent.rebuild_system_prompt()
+        
+        # Update session_id in command handler
+        self.command_handler._current_session_id = self.history.session_id
+        
+        return old_session_id
+
     async def run(self):
         """Start the CLI loop using prompt_toolkit."""
         self.display_manager.clear_screen()
@@ -488,13 +527,13 @@ class CLIInterface:
                 self.display_manager.show_error(f"Fatal Error: {e}")
 
 
-async def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = True):
+async def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = True, resume_session: str | None = None):
     """Main CLI entry point."""
     if not launch_cli:
         print("Error: CLI mode not enabled. Use --cli flag.")
         sys.exit(1)
 
-    cli = CLIInterface(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass)
+    cli = CLIInterface(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session)
     await cli.run()
 
 

@@ -243,47 +243,6 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 return (fp, content, None, start_idx + 1, end_idx - start_idx)
             except Exception as e:
                 return (None, None, f"File {index + 1}: {str(e)}", None, None)
-            try:
-                # Validate file_obj is a dict
-                if not isinstance(file_obj, dict):
-                    return (None, None, f"File {index + 1}: Invalid format - expected a dict with file_path/filePath, offset, and limit, got {type(file_obj).__name__}", None, None)
-
-                # Support camelCase
-                fp = file_obj.get("filePath")
-                off = file_obj.get("offset")
-                lim = file_obj.get("limit")
-
-                if not isinstance(fp, str) or not fp:
-                    return (None, None, f"File {index + 1}: Missing or invalid filePath", None, None)
-
-                if not os.path.exists(fp):
-                    return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
-
-                async with aiofiles.open(fp, encoding=encoding) as f:
-                    lines = await f.readlines()
-                total_lines = len(lines)
-
-                # Apply offset (default 1) and limit
-                start_idx = (off - 1) if off is not None and isinstance(off, int) and off > 0 else 0
-                if lim is not None:
-                    if not isinstance(lim, int) or lim < 1:
-                        lim = 10
-                    end_idx = start_idx + lim
-                else:
-                    end_idx = total_lines
-
-                # Cap at 1000 lines to prevent abuse
-                if end_idx - start_idx > 1000:
-                    end_idx = start_idx + 1000
-
-                start_idx = max(0, min(start_idx, total_lines))
-                end_idx = max(0, min(end_idx, total_lines))
-
-                content = "".join(lines[start_idx:end_idx])
-
-                return (fp, content, None, start_idx + 1, end_idx - start_idx)
-            except Exception as e:
-                return (None, None, f"File {index + 1}: {str(e)}", None, None)
 
         # Run all reads in parallel
         results = await asyncio.gather(*[read_single_file(f, i) for i, f in enumerate(files)])
