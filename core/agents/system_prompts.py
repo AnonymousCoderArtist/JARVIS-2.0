@@ -1,4 +1,9 @@
-"""System prompts for JARVIS agent"""
+"""System prompts manager for JARVIS agent
+
+This module manages agent system prompts by importing them from their respective
+builtin agent modules. It provides a registry and utility functions for
+prompt management.
+"""
 
 import os
 import platform
@@ -9,7 +14,13 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 # Fork detection marker
-FORK_PROMPT_MARKER = " FORK:"  # Marker to detect if prompt is a fork of another agent
+FORK_PROMPT_MARKER = " FORK:"
+
+
+def get_system_context() -> str:
+    """Get system context for the main agent."""
+    cwd = os.getcwd()
+    return f"## System Information\n- **Working Directory**: {cwd}\n"
 
 
 @dataclass
@@ -22,18 +33,12 @@ class AgentPromptMetadata:
 
 
 def enhanceSystemPromptWithEnvDetails(prompt: str, agent_name: str = "jarvis", emoji: str = "🤖") -> str:
-    """Enhance system prompt with environment details for agent identification.
-    
-    Adds:
-    - Absolute paths for key directories (cwd, project root)
-    - Platform information (OS, Python version)
-    - Emoji prefix for agent identification in logs
-    """
+    """Enhance system prompt with environment details for agent identification."""
     cwd = Path.cwd()
     project_root = cwd
     while project_root.parent != project_root and not (project_root / ".git").exists():
         project_root = project_root.parent
-    
+
     context_lines = [
         f"\n\n---\n",
         f"# Agent Environment Details",
@@ -46,118 +51,71 @@ def enhanceSystemPromptWithEnvDetails(prompt: str, agent_name: str = "jarvis", e
         f"- **Platform**: {platform.machine()}",
         f"---\n",
     ]
-    
     return prompt + "\n".join(context_lines)
 
 
-def get_system_context() -> str:
-    """Get system context information for the agent."""
-    cwd = os.getcwd()
-    return f"""## System Information
- 
- - **Working Directory**: {cwd}
-"""
+# ==============================================================================
+# AGENT PROMPTS REGISTRY
+# ==============================================================================
+
+def get_jarvis_v2_tools() -> str:
+    """Get the list of available tools."""
+    return """Available tools:
+- read: Read file contents (always read before editing)
+- write: Create new or overwrite files
+- edit: Make precise text replacements
+- ls: List directory contents
+- find: Search for files using glob patterns
+- grep: Search file contents using ripgrep
+- bash: Execute shell commands
+- web_search: Search the internet
+- fetch_webpage: Fetch webpage content
+- agents: Delegate tasks to subagents"""
 
 
-def discover_context_files() -> List[str]:
-    """Scan the project for context files (AGENTS.md, .jarvis/SYSTEM.md, .claude/rules/*)."""
-    import glob
-    from pathlib import Path
-
-    cwd = Path.cwd()
-    discovered: list[str] = []
-
-    # Check for AGENTS.md at project root
-    agents_md = cwd / "AGENTS.md"
-    if agents_md.exists():
-        discovered.append("AGENTS.md")
-
-    # Check for .jarvis/SYSTEM.md
-    jarvis_system = cwd / ".jarvis" / "SYSTEM.md"
-    if jarvis_system.exists():
-        discovered.append(".jarvis/SYSTEM.md")
-
-    # Check for .claude/rules/*.md
-    rules_glob = str(cwd / ".claude" / "rules" / "*.md")
-    for rule_file in glob.glob(rules_glob):
-        discovered.append(rule_file)
-
-    return discovered
+def get_jarvis_v2_guidelines() -> str:
+    """Get the guidelines."""
+    return """Guidelines:
+1. Be agentic — use tools to act, not just describe
+2. Read before you edit
+3. Use edit for surgical changes, write for new files
+4. Be concise
+5. Run tests after code changes"""
 
 
-def get_jarvis_v2_context(
-    context_files: Optional[List[str]] = None,
-    skills: Optional[List[str]] = None,
-) -> str:
-    """Get v2 context for JARVIS — date, working directory, optional context files and skills."""
+def get_jarvis_v2_context(context_files: Optional[List[str]] = None, skills: Optional[List[str]] = None) -> str:
+    """Get v2 context for JARVIS."""
     date = datetime.now().strftime("%Y-%m-%d")
     cwd = os.getcwd()
-    parts = [
-        f"Current date: {date}",
-        f"Current working directory: {cwd}",
-    ]
+    parts = [f"Current date: {date}", f"Current working directory: {cwd}"]
 
     if context_files:
-        parts.append("\n# Project context files (preloaded):")
+        parts.append("\n# Project context files:")
         for p in context_files:
             parts.append(f"- {p}")
 
     if skills:
-        parts.append("\n# Available skills (descriptions are in the system prompt):")
+        parts.append("\n# Available skills:")
         for s in skills:
             parts.append(f"- {s}")
 
     return "\n".join(parts)
 
 
-def get_jarvis_v2_tools() -> str:
-    """Get the list of available tools and short usage notes for the v2 prompt."""
-    return """Available tools and short usage notes:
-- read: Read file contents from local filesystem. Supports multiple files at once via `files` array. **Always use `offset` and `limit` (max 1000 lines) when reading files** — do not read entire files at once. **Mandatory step before any editing.**
-- write: Create a **NEW** file or **OVERWRITE** an entire existing file. Use only for creation or total replacement. For partial updates to existing code, use `edit`.
-- edit: Make precise, minimal text replacements in existing files. Uses exact literal string matching. **Always preserve exact whitespace and indentation** from the `read` output. Supports multiple replacements in one call.
-- ls: List directory contents. Returns file/directory names (directories suffixed with `/`). Use this to explore the project structure and discover where to look.
-- find: Search for files using glob patterns (e.g., `**/*.py`). Essential for locating files across the repository when you only know a name or extension pattern.
-- grep: Search for text or regex patterns across the entire codebase. Uses `ripgrep` for speed. **Best for finding where functions are defined or used.**
-- bash (shell): Execute shell commands (bash/PowerShell). Use for git, complex pipelines, or system utilities. Always explain the command and its safety before running.
-- run_tests: Execute the project's test suite (pytest/unittest). **Crucial for verifying changes** and ensuring no regressions were introduced.
-- repl: Open an interactive Python REPL. Ideal for testing small code snippets, mathematical logic, or data processing before implementing.
-- web_search: Search the internet for latest technical information, documentation, or solutions. Cite authoritative sources.
-- fetch_webpage: Retrieve raw text content from specific URLs. Best used after identifying relevant links with `web_search`.
-- agents: Delegate complex, multi-step tasks to specialized subagents like `explore` (for codebase analysis) or `plan` (for task decomposition).
-- agent_status: Monitor the progress of active background subagent tasks. **Do NOT check immediately after starting an agent.**
-- activate_skill: Enable specialized domain expertise (skills) for complex, high-level technical tasks.
-- list_background_processes: View active and recently completed background tasks started with the `bash` tool.
-- read_background_output: Capture recent stdout/stderr lines from a specific background process using its PID.
-- save_memory: Persist critical user preferences, project facts, or architectural decisions to long-term memory for future recall.
-- read_memory: Retrieve previously stored context and preferences to provide personalized and consistent assistance.
+def discover_context_files() -> List[str]:
+    """Scan for context files."""
+    import glob
+    cwd = Path.cwd()
+    discovered = []
 
-Provider / model compatibility notes:
-- Some providers require developer role vs system role; follow provider-specific compat quirks.
-- For providers using Anthropic-style prompt caching, include cache_control markers as required.
-- When tools return structured tool results, include their `name` field if provider requires it."""
+    if (cwd / "AGENTS.md").exists():
+        discovered.append("AGENTS.md")
+    if (cwd / ".jarvis" / "SYSTEM.md").exists():
+        discovered.append(".jarvis/SYSTEM.md")
 
-
-def get_jarvis_v2_guidelines() -> str:
-    """Get the minimal set of guidelines used in the jarvis v2 system prompt."""
-    return """Behavior rules:
-1. Be agentic — use tools to act, not just to describe. If a task needs file reads, edits, or commands, execute them immediately.
-2. Read before you edit. Never modify a file you haven't read.
-3. Use `edit` for surgical changes, `write` only for new files or full replacements.
-4. Be concise. Avoid unnecessary preamble, repetition, and meta-commentary. Get to the point.
-5. After code changes, run tests when available and report results.
-6. Explain shell commands before running them. Never run destructive operations without explicit user consent.
-7. Do not expose secrets, API keys, or credentials.
-8. If you don't know or can't access something, say so clearly and suggest the next tool to use.
-9. When delegating to subagents, do meaningful work before checking their status.
-10. **DO NOT RE-READ FILES TO VERIFY EDITS.** If you read a file, then edit it, the edit either succeeded or failed. DO NOT read the file again just to "check" your work. Only re-read if you need to edit a DIFFERENT section of the same file.
-11. **MAXIMUM 2 READS PER FILE PER TASK.** Read it once before editing. If the edit fails, read the relevant section once more to fix it. That is it. No third read.
-12. **DO NOT RUN THE SAME CHECK REPEATEDLY.** One test run after changes is enough. One grep to confirm a pattern is enough. One ls to see a directory is enough. If it worked, stop checking.
-13. **IF AN EDIT SUCCEEDS, CHECK ONCE AND THEN MOVE ON IMMEDIATELY.** Do not re-verify if you have already verified it, do not re-read, do not run extra commands. The user's time is more valuable than your perfectionism.
-14. **SHORT ACKNOWLEDGMENTS ONLY.** If the user says "good job", "thanks", "nice", "ok", or any brief positive feedback, reply with 1-2 words (e.g. "You're welcome" or "Glad to help") and STOP. Do NOT re-read files, do NOT re-plan, do NOT start a new task.
-15. **REMEMBER TASK STATE.** If you just completed a task and the user replies with a short phrase, they are acknowledging completion. The conversation is over until they give a new explicit instruction.
-16. **MEMORY FIRST.** At the start of each session, read your memories to recall the user's preferences and past context. Use save_memory to store important facts the user shares about their workflow or preferences.
-17. **URL GENERATION RESTRICTION.** You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files."""
+    for f in glob.glob(str(cwd / ".claude" / "rules" / "*.md")):
+        discovered.append(f)
+    return discovered
 
 
 def build_jarvis_v2_system_prompt(
@@ -166,246 +124,248 @@ def build_jarvis_v2_system_prompt(
     append_text: Optional[str] = None,
     auto_discover: bool = True,
 ) -> str:
-    """Construct the full JARVIS v2 system prompt including tools, guidelines, and context."""
-    header = "You are an interactive agent that helps users with software engineering tasks according to the Output Style configuration (if any)."
-    tools_section = get_jarvis_v2_tools()
+    """Construct the JARVIS v2 system prompt."""
+    header = "You are JARVIS, an interactive agent helping with software engineering tasks."
+    tools = get_jarvis_v2_tools()
     guidelines = get_jarvis_v2_guidelines()
 
-    # Auto-discover context files if requested
     if context_files is None and auto_discover:
         context_files = discover_context_files()
     elif context_files is None:
         context_files = []
 
-    context = get_jarvis_v2_context(context_files=context_files, skills=skills)
+    context = get_jarvis_v2_context(context_files, skills)
     append = f"\n\n{append_text}" if append_text else ""
 
-    full_prompt = f"""{header}
+    return f"""{header}
 
-{tools_section}
+{tools}
 
 {guidelines}
 
-# Project context
+# Context
 {context}{append}
 
-# Operational notes (do not output these to user):
-- When performing file reads or edits, include the exact tool calls you will use (e.g., `read(path='/src/foo.ts')`, or `edit(path='/src/foo.ts', patch='...')`).
-- If you call the `bash` tool, first explain the command and its safety implications.
-- If you use skills, reference them by name and call `read` to load the full SKILL.md when needed.
-- When summarization or compaction is requested, follow the repository's summarization templates and system prompts.
-
 End of system prompt."""
-    return full_prompt
 
 
-# ==============================================================================
-# DEFAULT JARVIS V2 PROMPT - auto-discovery enabled
-# ==============================================================================
 JARVIS_V2_SYSTEM_PROMPT = build_jarvis_v2_system_prompt(auto_discover=True)
 
+# Build prompts directly in this file (avoids circular imports with builtin modules)
+# Prompts are kept here to maintain the manager-only role of this module
 
-# ==============================================================================
-# EXPLORE SUBAGENT SYSTEM PROMPT
-# ==============================================================================
-
-
-def get_explore_context() -> str:
-    """Get context information for the explore agent."""
+def _build_explore_prompt() -> str:
+    """Build the explore agent prompt."""
+    from datetime import datetime
     date = datetime.now().strftime("%Y-%m-%d")
     cwd = os.getcwd()
-    return f"""Current date: {date}
-Current working directory: {cwd}"""
+    return f"""You are the Explore Agent, a specialized subagent for codebase exploration and analysis.
+
+Available tools:
+- read: Read file contents
+- ls: List directory contents  
+- find: Find files by pattern
+- grep: Search file contents
+- bash: Execute shell commands
+- web_search: Search the internet
+
+Guidelines:
+- Use tools proactively to inspect the repository
+- Be systematic: start broad, then narrow, then deep dive
+- Focus on actionable insights
+
+Current date: {date}
+Current working directory: {cwd}
+"""
 
 
-def get_explore_tools() -> str:
-    """Get the list of available tools for exploration."""
-    return """Available tools:
-- read: Read file contents. Use to load files before analyzing or searching patterns.
-- ls: List directory contents. Use to discover files and understand structure.
-- find: Find files by pattern. Use to locate candidate files.
-- grep: Search file contents by regex or substring. Use to find code patterns, functions, or classes.
-- bash: Execute shell commands. Use for git operations, running scripts, or system commands.
-- web_search: Perform a web search for documentation or external references.
-- fetch_webpage: Fetch webpage content for additional context."""
-
-
-def get_explore_guidelines() -> str:
-    """Get guidelines for the explore agent."""
-    return """Guidelines:
-- You are the Explore Agent, specialized in codebase exploration and analysis.
-- Use tools proactively to inspect the repository rather than guessing or assuming structure.
-- Be systematic: start broad (ls/find), then narrow (grep), then deep dive (read).
-- Provide structured output: overview, structure, key components, relationships, entry points, dependencies, patterns.
-- Focus on actionable insights over exhaustive detail.
-- When finding specific functionality: search keywords -> identify files -> read implementations -> trace dependencies -> summarize.
-- When analyzing architecture: examine structure -> identify modules -> analyze dependencies -> identify patterns -> document findings.
-- Trace code flow: find entry points -> trace function calls -> understand data flow -> map execution paths.
-- Identify project type (library, app, framework), main entry points, and key configuration.
-- Be honest about limitations - if you cannot find something, say so and suggest where to look."""
-
-
-def build_explore_system_prompt(
-    append_text: Optional[str] = None,
-) -> str:
-    """Build the explore agent system prompt."""
-    header = "You are the Explore Agent, a specialized subagent for comprehensive codebase exploration and analysis. Your expertise lies in understanding project structure, architecture, and code relationships."
-    tools_section = get_explore_tools()
-    guidelines = get_explore_guidelines()
-    context = get_explore_context()
-
-    append = f"\n\n{append_text}" if append_text else ""
-
-    full_prompt = f"""{header}
-
-{tools_section}
-
-{guidelines}
-
-# Context
-{context}{append}
-
-End of system prompt."""
-    return full_prompt
-
-
-# ==============================================================================
-# DEFAULT EXPLORE SYSTEM PROMPT
-# ==============================================================================
-EXPLORE_SYSTEM_PROMPT = build_explore_system_prompt()
-
-
-# ==============================================================================
-# PLAN SUBAGENT SYSTEM PROMPT
-# ==============================================================================
-
-
-def get_plan_context() -> str:
-    """Get context information for the plan agent."""
+def _build_plan_prompt() -> str:
+    """Build the plan agent prompt."""
+    from datetime import datetime
     date = datetime.now().strftime("%Y-%m-%d")
     cwd = os.getcwd()
-    return f"""Current date: {date}
-Current working directory: {cwd}"""
+    return f"""You are the Plan Agent, specialized in task decomposition and planning.
+
+Available tools:
+- read, ls, find, grep, web_search, fetch_webpage
+- save_memory, read_memory
+
+Guidelines:
+- Break down complex tasks into clear steps
+- Provide structured plans with phases and dependencies
+- Identify risks and verification methods
+
+Current date: {date}
+Current working directory: {cwd}
+"""
 
 
-def get_plan_tools() -> str:
-    """Get the list of available tools for planning."""
-    return """Available tools:
-- read: Read file contents. Use to load files before analyzing or planning.
-- ls: List directory contents. Use to discover files and understand structure.
-- find: Find files by pattern. Use to locate candidate files.
-- grep: Search file contents by regex or substring. Use to find code patterns or requirements.
-- web_search: Perform a web search for documentation or best practices.
-- fetch_webpage: Fetch webpage content for additional context.
-- save_memory: Persist plan details or decisions to memory for later recall.
-- read_memory: Retrieve previously stored plans or context."""
+def _build_jarvis_help_prompt() -> str:
+    """Build the JARVIS help agent prompt."""
+    from datetime import datetime
+    date = datetime.now().strftime("%Y-%m-%d")
+    cwd = os.getcwd()
+    return f"""You are the JARVIS Help Agent, helping users understand JARVIS features, tools, and configuration.
+
+JARVIS Features & Tools:
+- TUI/CLI Interface, Agent Profiles, MCP Integration, Heartbeat System
+- Tools: read, write, edit, ls, find, grep, bash, web_search, fetch_webpage, agents
+
+Guidelines:
+- Focus on helping users understand the codebase and JARVIS features
+- Provide clear, actionable guidance
+- Reference JARVIS-specific resources
+
+Current date: {date}
+Current working directory: {cwd}
+"""
 
 
-def get_plan_guidelines() -> str:
-    """Get guidelines for the plan agent."""
-    return """Guidelines:
-- You are the Plan Agent, specialized in task decomposition and planning.
-- Focus on breaking down complex tasks into clear, actionable steps.
-- Use tools to understand the codebase before creating a plan.
-- Provide structured plans with clear phases, steps, and dependencies.
-- Identify potential risks, edge cases, and verification methods.
-- Be concise but thorough - include what's needed to execute the plan.
-- When planning code changes: identify files, understand current state, plan modifications, consider testing.
-- For feature development: break into design, implementation, testing, and verification phases.
-- For bug fixes: analyze root cause, plan fix, plan test, plan verification.
-- Include estimated complexity and potential challenges in plans.
-- Ask clarifying questions if requirements are unclear.
-- Be honest about limitations - if you need more information, say so."""
+def _build_statusline_prompt() -> str:
+    """Build the statusline setup agent prompt."""
+    from datetime import datetime
+    date = datetime.now().strftime("%Y-%m-%d")
+    cwd = os.getcwd()
+    return f"""You are a statusline customization specialist for shell prompts.
+
+Frameworks: Oh My Zsh, Starship, Bash-it, Oh My Posh, PowerShell
+
+Guidelines:
+- Provide guidance only, don't modify files
+- Include PowerShell support
+- Focus on the user's specific shell and use case
+
+Current date: {date}
+Current working directory: {cwd}
+"""
 
 
-def build_plan_system_prompt(
-    append_text: Optional[str] = None,
-) -> str:
-    """Build the plan agent system prompt."""
-    header = "You are the Plan Agent, a specialized subagent for task decomposition and planning. Your expertise lies in breaking down complex tasks into clear, actionable steps and creating comprehensive execution plans."
-    tools_section = get_plan_tools()
-    guidelines = get_plan_guidelines()
-    context = get_plan_context()
+def _build_verification_prompt() -> str:
+    """Build the verification agent prompt."""
+    from datetime import datetime
+    date = datetime.now().strftime("%Y-%m-%d")
+    cwd = os.getcwd()
+    return f"""You are the Verification Agent for post-implementation testing.
 
-    append = f"\n\n{append_text}" if append_text else ""
+Methodology:
+1. Build verification
+2. Test execution
+3. Adversarial testing
+4. Edge case analysis
+5. Verification report
 
-    full_prompt = f"""{header}
+Guidelines:
+- Be thorough to find issues before production
+- Document findings with specific examples
 
-{tools_section}
-
-{guidelines}
-
-# Context
-{context}{append}
-
-End of system prompt."""
-    return full_prompt
+Current date: {date}
+Current working directory: {cwd}
+"""
 
 
-# ==============================================================================
-# DEFAULT PLAN SYSTEM PROMPT
-# ==============================================================================
-PLAN_SYSTEM_PROMPT = build_plan_system_prompt()
+def _build_general_purpose_prompt() -> str:
+    """Build the general-purpose agent prompt."""
+    from datetime import datetime
+    date = datetime.now().strftime("%Y-%m-%d")
+    cwd = os.getcwd()
+    return f"""You are a General Purpose Agent with full tool capabilities.
+
+Available tools: read, write, edit, ls, find, grep, bash, web_search, fetch_webpage, agents
+
+Guidelines:
+- Handle complex multi-step tasks
+- Use tools proactively
+- Be thorough and methodical
+
+Current date: {date}
+Current working directory: {cwd}
+"""
+
+
+def _build_fork_prompt() -> str:
+    """Build the fork agent prompt."""
+    from datetime import datetime
+    date = datetime.now().strftime("%Y-%m-%d")
+    cwd = os.getcwd()
+    return f"""You are a Fork Agent for parallel task execution.
+
+Purpose: Execute independent sub-tasks in parallel without blocking the main agent.
+
+Guidelines:
+- Work independently without main context
+- Return results for main agent to review
+- Good for research, exploration, background analysis
+
+Current date: {date}
+Current working directory: {cwd}
+"""
+
+
+# Build prompts
+EXPLORE_SYSTEM_PROMPT = _build_explore_prompt()
+PLAN_SYSTEM_PROMPT = _build_plan_prompt()
+JARVIS_HELP_SYSTEM_PROMPT = _build_jarvis_help_prompt()
+STATUSLINE_SETUP_SYSTEM_PROMPT = _build_statusline_prompt()
+VERIFICATION_SYSTEM_PROMPT = _build_verification_prompt()
+GENERAL_PURPOSE_SYSTEM_PROMPT = _build_general_purpose_prompt()
+FORK_SYSTEM_PROMPT = _build_fork_prompt()
 
 
 # ==============================================================================
 # AGENT PROMPTS REGISTRY
 # ==============================================================================
 
-# Registry mapping agent names to (prompt, metadata) tuples
 AGENT_PROMPTS: dict[str, Tuple[str, AgentPromptMetadata]] = {
     "jarvis": (
         JARVIS_V2_SYSTEM_PROMPT,
-        AgentPromptMetadata(
-            agent_type="main",
-            when_to_use="Use for general coding, research, and documentation tasks. Default agent for user interaction.",
-            model="gpt-4o",
-            max_turns=100,
-        ),
+        AgentPromptMetadata(agent_type="main", when_to_use="Use for general coding tasks.", model="inherit", max_turns=100),
     ),
     "explore": (
         EXPLORE_SYSTEM_PROMPT,
-        AgentPromptMetadata(
-            agent_type="subagent",
-            when_to_use="Use for codebase exploration and analysis. Read-only specialized agent that understands structure, finds files/patterns.",
-            model="default",
-            max_turns=50,
-        ),
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for codebase exploration.", model="default", max_turns=50),
     ),
     "plan": (
         PLAN_SYSTEM_PROMPT,
-        AgentPromptMetadata(
-            agent_type="subagent",
-            when_to_use="Use for task decomposition and planning. Read-only agent that creates structured plans with phases and steps.",
-            model="default",
-            max_turns=50,
-        ),
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for task planning.", model="default", max_turns=50),
+    ),
+    "jarvis-help": (
+        JARVIS_HELP_SYSTEM_PROMPT,
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for JARVIS help.", model="inherit", max_turns=50),
+    ),
+    "statusline-setup": (
+        STATUSLINE_SETUP_SYSTEM_PROMPT,
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for prompt setup.", model="inherit", max_turns=50),
+    ),
+    "verification": (
+        VERIFICATION_SYSTEM_PROMPT,
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for verification.", model="inherit", max_turns=10),
+    ),
+    "general-purpose": (
+        GENERAL_PURPOSE_SYSTEM_PROMPT,
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for complex multi-step tasks.", model="inherit", max_turns=100),
+    ),
+    "fork": (
+        FORK_SYSTEM_PROMPT,
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for parallel task execution.", model="inherit", max_turns=50),
     ),
 }
 
 
 def get_agent_prompt(agent_name: str) -> str:
-    """Get the system prompt for a named agent from the registry."""
+    """Get the system prompt for a named agent."""
     return AGENT_PROMPTS.get(agent_name, (AGENT_PROMPTS["jarvis"][0],))[0]
 
 
 def get_agent_metadata(agent_name: str) -> Optional[AgentPromptMetadata]:
-    """Get the metadata for a named agent from the registry."""
+    """Get the metadata for a named agent."""
     return AGENT_PROMPTS.get(agent_name, (None, None))[1] if agent_name in AGENT_PROMPTS else None
 
 
 def get_enhanced_prompt(agent_name: str, emoji: Optional[str] = None) -> str:
-    """Get an enhanced system prompt with environment details for a named agent."""
+    """Get an enhanced system prompt with environment details."""
     prompt = get_agent_prompt(agent_name)
-    metadata = get_agent_metadata(agent_name)
-    
-    # Default emoji mapping
     emoji_map = {
-        "jarvis": "🤖",
-        "explore": "🔍",
-        "plan": "📋",
+        "jarvis": "🤖", "explore": "🔍", "plan": "📋", "jarvis-help": "❓",
+        "statusline-setup": "💻", "verification": "✅", "general-purpose": "⚡", "fork": "🍴",
     }
-    agent_emoji = emoji or emoji_map.get(agent_name, "🤖")
-    
-    return enhanceSystemPromptWithEnvDetails(prompt, agent_name, agent_emoji)
-
+    return enhanceSystemPromptWithEnvDetails(prompt, agent_name, emoji or emoji_map.get(agent_name, "🤖"))

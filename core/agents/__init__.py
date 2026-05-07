@@ -4,6 +4,16 @@ from .base import BaseAgent
 from .coding_agent import CodingAgent
 from .explore_agent import ExploreAgent
 from .plan_agent import PlanAgent
+from .builtin.jarvis_help_agent import JarvisHelpAgent, JARVIS_HELP_AGENT
+from .builtin.verification_agent import VerificationAgent, VERIFICATION_AGENT
+from .builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
+
+# Note: Agent classes (JarvisHelpAgent, VerificationAgent) are imported separately
+# Agent definitions (JARVIS_HELP_AGENT, VERIFICATION_AGENT, STATUSLINE_SETUP_AGENT)
+# are imported by builtin_agents.py via the builtin/__init__.py module
+
+# Agent definition export
+from .agent_definition import AgentDefinition
 
 # Agent profile system
 from .builtin_profiles import (
@@ -23,6 +33,14 @@ __all__ = [
     "CodingAgent",
     "ExploreAgent",
     "PlanAgent",
+    "JarvisHelpAgent",
+    "VerificationAgent",
+    # Agent definitions
+    "JARVIS_HELP_AGENT",
+    "VERIFICATION_AGENT",
+    "STATUSLINE_SETUP_AGENT",
+    # Agent definition class
+    "AgentDefinition",
     # Profile system
     "AgentProfile",
     "AgentSafety",

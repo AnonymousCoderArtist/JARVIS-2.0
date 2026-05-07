@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from .base import BaseAgent
-from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT
+from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, EXPLORE_SYSTEM_PROMPT, PLAN_SYSTEM_PROMPT, JARVIS_HELP_SYSTEM_PROMPT, VERIFICATION_SYSTEM_PROMPT, STATUSLINE_SETUP_SYSTEM_PROMPT, GENERAL_PURPOSE_SYSTEM_PROMPT, FORK_SYSTEM_PROMPT
 from .heartbeat_scheduler import HeartbeatScheduler
 from core.connectors import ConnectorManager
 from core.learn import LearningManager, LearningConfig
@@ -22,6 +22,11 @@ SYSTEM_PROMPT_MAP = {
     "jarvis": JARVIS_V2_SYSTEM_PROMPT,
     "explore": EXPLORE_SYSTEM_PROMPT,
     "plan": PLAN_SYSTEM_PROMPT,
+    "jarvis-help": JARVIS_HELP_SYSTEM_PROMPT,
+    "statusline-setup": STATUSLINE_SETUP_SYSTEM_PROMPT,
+    "verification": VERIFICATION_SYSTEM_PROMPT,
+    "general-purpose": GENERAL_PURPOSE_SYSTEM_PROMPT,
+    "fork": FORK_SYSTEM_PROMPT,
 }
 
 
