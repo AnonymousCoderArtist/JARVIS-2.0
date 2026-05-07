@@ -134,8 +134,8 @@ class Settings:
         """Save configuration to JSON file"""
         try:
             # Ensure parent directory exists
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_path, "w", encoding="utf-8") as f:
+            self._config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config.model_dump(), f, indent=4)
         except Exception as e:
             print(f"Warning: Failed to save config: {e}")

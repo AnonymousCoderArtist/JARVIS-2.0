@@ -147,6 +147,13 @@ class AgentTool(BaseTool):
             elif action == "list":
                 # List is an alias for status with taskId='list'
                 return await self._handle_status("list")
+            else:
+                # This should never happen due to validation above, but type checker needs it
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Internal error: unhandled action type"
+                )
 
         except ImportError as e:
             return ToolOutput(
@@ -609,6 +616,13 @@ class AgentTool(BaseTool):
                     success=True,
                     result=f"Cleared {cleared_count} completed background agent(s).",
                     metadata={"cleared_count": cleared_count}
+                )
+            else:
+                # This should never happen due to validation above, but type checker needs it
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Internal error: unhandled results action type"
                 )
 
         except Exception as e:

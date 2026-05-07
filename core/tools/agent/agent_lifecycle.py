@@ -20,6 +20,7 @@ from .constants import (
     DEFAULT_MAX_TOKENS,
     EXPLORE_ALLOWED_TOOLS,
     JARVIS_HELP_ALLOWED_TOOLS,
+    PLAN_ALLOWED_TOOLS,
     STATUSLINE_SETUP_ALLOWED_TOOLS,
     VERIFICATION_ALLOWED_TOOLS,
 )
@@ -76,7 +77,7 @@ async def _run_agent_in_background(
                     _background_agents[task_id].current_activity = f"{tool_name}"
         asyncio.create_task(_update())
     
-    def _on_tool_result(tool_name: str, result: Any) -> None:
+    def _on_tool_result(tool_name: str, tool_args: dict[str, Any], result: Any) -> None:
         """Clear current activity after tool completes"""
         import asyncio
         async def _update():
@@ -344,7 +345,7 @@ async def _run_forked_agent(
                     _background_agents[task_id].current_activity = f"{tool_name}"
         asyncio.create_task(_update())
 
-    def _on_tool_result(tool_name: str, result: Any) -> None:
+    def _on_tool_result(tool_name: str, tool_args: dict[str, Any], result: Any) -> None:
         """Clear current activity after tool completes"""
         async def _update():
             async with _background_lock:

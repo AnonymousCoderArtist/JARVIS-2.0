@@ -291,7 +291,7 @@ def get_agent_prompt(agent_name: str) -> str:
         'general-purpose': GENERAL_PURPOSE_SYSTEM_PROMPT,
         'fork': FORK_SYSTEM_PROMPT,
     }
-    return prompts.get(agent_name, JARVIS_V2_SYSTEM_PROMPT)
+    return prompts.get(agent_name) or JARVIS_V2_SYSTEM_PROMPT
 
 
 def get_agent_metadata(agent_name: str) -> Optional[AgentPromptMetadata]:

@@ -269,8 +269,14 @@ class JarvisV2(BaseAgent):
     @classmethod
     def get_system_prompt_for_profile(cls, system_prompt_id: str | None) -> str:
         """Get the appropriate system prompt for a profile's system_prompt_id."""
+        from typing import Callable, cast
         if system_prompt_id and system_prompt_id in SYSTEM_PROMPT_MAP:
-            return SYSTEM_PROMPT_MAP[system_prompt_id]
+            value = SYSTEM_PROMPT_MAP[system_prompt_id]
+            # Handle both string and lazy-loaded lambda values
+            if callable(value):
+                # Cast to tell type checker this callable returns str
+                return cast(Callable[[], str], value)()
+            return value
         return cls.SYSTEM_PROMPT  # Default to JARVIS_V2_SYSTEM_PROMPT
 
     async def process(self, input: str, context: dict | None = None) -> str:
