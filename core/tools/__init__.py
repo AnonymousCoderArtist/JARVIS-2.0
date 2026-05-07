@@ -1,7 +1,7 @@
 """Tools Package"""
 
 # Agent and Skill tools
-from .consolidated_agent_tool import AgentTool
+from .agent_tool import AgentTool
 
 # Permission system
 from .permissions import (

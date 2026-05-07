@@ -576,7 +576,7 @@ class AsyncAgentManager:
         try:
             from core.agents.explore_agent import ExploreAgent
             from core.agents.plan_agent import PlanAgent
-            from core.agents.coding_agent import CodingAgent
+            from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
         except ImportError as e:
             logger.error(f"Failed to import agent classes: {e}")
             return None

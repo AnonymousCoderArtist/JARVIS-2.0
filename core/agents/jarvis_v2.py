@@ -1,4 +1,4 @@
-"""Coding Agent - Claude Code style"""
+"""Jarvis V2 Agent - Main agent for all tasks"""
 
 import asyncio
 import time
@@ -35,8 +35,8 @@ SYSTEM_PROMPT_MAP = {
 }
 
 
-class CodingAgent(BaseAgent):
-    """JARVIS - Single agent for all tasks"""
+class JarvisV2(BaseAgent):
+    """JARVIS V2 - Single agent for all tasks"""
 
     SYSTEM_PROMPT = JARVIS_V2_SYSTEM_PROMPT
 

@@ -103,7 +103,7 @@ def _get_agent():
         return _agent
     
     # Import here to avoid circular imports
-    from core.agents.coding_agent import CodingAgent
+    from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
     from core.llm.sdk_adapter import SDKAdapter
     from core.llm_sdk.openai.sdk import OpenAISDK
     from core.llm_sdk.anthropic.sdk import AnthropicSDK

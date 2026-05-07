@@ -1,12 +1,15 @@
 """Agents Package"""
 
 from .base import BaseAgent
-from .coding_agent import CodingAgent
+from .jarvis_v2 import JarvisV2
 from .explore_agent import ExploreAgent
 from .plan_agent import PlanAgent
 from .builtin.jarvis_help_agent import JarvisHelpAgent, JARVIS_HELP_AGENT
 from .builtin.verification_agent import VerificationAgent, VERIFICATION_AGENT
 from .builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
+
+# Backwards compatibility alias
+CodingAgent = JarvisV2
 
 # Note: Agent classes (JarvisHelpAgent, VerificationAgent) are imported separately
 # Agent definitions (JARVIS_HELP_AGENT, VERIFICATION_AGENT, STATUSLINE_SETUP_AGENT)
@@ -30,7 +33,8 @@ from .profiles import AgentProfile, AgentSafety, AgentType
 
 __all__ = [
     "BaseAgent",
-    "CodingAgent",
+    "JarvisV2",
+    "CodingAgent",  # Backwards compatibility alias
     "ExploreAgent",
     "PlanAgent",
     "JarvisHelpAgent",

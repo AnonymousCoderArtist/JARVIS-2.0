@@ -13,7 +13,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, TypeAlias, cast
 
-from core.agents.coding_agent import CodingAgent
+from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.manager import AgentManager
 from core.agents.profiles import AgentProfile as CoreAgentProfile
 from core.config.settings import Settings
@@ -697,7 +697,7 @@ Create a comprehensive summary that captures:
         # Update system prompt based on profile's system_prompt_id
         system_prompt_id = self.agent_profile.overrides.get("system_prompt_id")
         if system_prompt_id:
-            from core.agents.coding_agent import CodingAgent
+            from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
             new_system_prompt = CodingAgent.get_system_prompt_for_profile(system_prompt_id)
             self.agent.set_system_prompt(new_system_prompt)
 
@@ -807,7 +807,7 @@ Create a comprehensive summary that captures:
             try:
                 import json
                 return json.loads(arguments)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError:  # ty:ignore[possibly-unresolved-reference]
                 logger.warning(f"Failed to parse arguments as JSON: {arguments[:100]}")
                 return {}
         return arguments if isinstance(arguments, dict) else {}

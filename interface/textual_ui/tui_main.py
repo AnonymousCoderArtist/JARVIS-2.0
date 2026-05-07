@@ -11,12 +11,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from core.agents.coding_agent import CodingAgent
+from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
-from core.tools.consolidated_agent_tool import AgentsTool, AgentStatusTool
+from core.tools.agent_tool import AgentsTool, AgentStatusTool
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
