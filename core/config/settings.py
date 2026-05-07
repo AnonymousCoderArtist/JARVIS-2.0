@@ -198,6 +198,10 @@ class Settings:
         return self._config.disabled_agents
 
     @property
+    def vibe_code_enabled(self) -> bool:
+        return self._config.vibe_code_enabled
+
+    @property
     def max_concurrent_agents(self) -> int:
         return self._config.async_settings.max_concurrent_agents
 

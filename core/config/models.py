@@ -106,3 +106,4 @@ class JarvisSettings(BaseModel):
     agent_paths: list[str] = Field(default_factory=list)
     enabled_agents: list[str] = Field(default_factory=list)
     disabled_agents: list[str] = Field(default_factory=list)
+    vibe_code_enabled: bool = False

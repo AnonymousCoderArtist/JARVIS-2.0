@@ -48,6 +48,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | ✅ Fork Subagent | Ready |
 | ✅ CLI Interface | Stable |
 | ✅ TUI Interface | Complete (Default) |
+| ⚠️ WebUI | Work in Progress (Use CLI or TUI instead) |
 | ✅ WebUI Interface | Complete |
 | ✅ Permission System | Complete |
 | ✅ MCP Integration | Complete |
@@ -233,6 +234,8 @@ jarvis --cli -m gpt-4o --apikey YOUR_KEY
 ```
 
 ### WebUI Mode
+
+> ⚠️ **Note:** WebUI is currently **Work in Progress**. For a stable experience, please use **CLI** or **TUI** instead.
 
 ```bash
 # Launch WebUI interface (default: http://127.0.0.1:5173)

@@ -32,6 +32,7 @@ from textual.theme import Theme
 from textual.widget import Widget
 from textual.widgets import Static
 
+from core.agents.base import ApprovalResponse
 from core.llm_sdk.context_length_manager import context_length_manager
 from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.cli_adapters import (
@@ -111,7 +112,6 @@ from interface.textual_ui.remote import RemoteSessionManager, is_progress_event
 from interface.textual_ui.session_exit import print_session_resume_message
 from interface.textual_ui.types import (
     AgentStats,
-    ApprovalResponse,
     BaseEvent,
     ContextTooLongError,
     LLMMessage,
@@ -438,7 +438,7 @@ class VibeApp(App):  # noqa: PLR0904
         opts = startup or StartupOptions()
         self._initial_prompt = opts.initial_prompt
         self._teleport_on_start = (
-            opts.teleport_on_start and self.agent_loop.base_config.vibe_code_enabled
+            opts.teleport_on_start and self.agent_loop.base_config.vibe_code_enabled  # ty:ignore[unresolved-attribute]
         )
         self._show_resume_picker = opts.show_resume_picker
         self._last_escape_time: float | None = None
@@ -470,7 +470,7 @@ class VibeApp(App):  # noqa: PLR0904
 
     def _get_command_availability_context(self) -> CommandAvailabilityContext:
         return CommandAvailabilityContext(
-            vibe_code_enabled=self.agent_loop.base_config.vibe_code_enabled,
+            vibe_code_enabled=self.agent_loop.base_config.vibe_code_enabled,  # ty:ignore[unresolved-attribute]
             is_active_model_mistral=False,  # Not supported in core Settings
             plan_info=self._plan_info,
         )

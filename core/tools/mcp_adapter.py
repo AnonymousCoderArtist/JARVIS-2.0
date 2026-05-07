@@ -96,6 +96,10 @@ class MCPClient:
         self._stop_event: asyncio.Event | None = None
         self._ready_event: asyncio.Event | None = None
         self._connect_error: Exception | None = None
+        # Status tracking
+        self._connect_time: float = 0.0
+        self._last_error: str | None = None
+        self._last_tool_call: float = 0.0
 
     async def _reset_client(self) -> None:
         """Reset the client state when event loop changes"""
@@ -118,6 +122,7 @@ class MCPClient:
         self._initialized = False
         self._event_loop = None
         self._connect_error = None
+        self._last_error = None
 
     async def _ensure_active_loop(self) -> None:
         """Reset state if this client was initialized on another event loop."""
@@ -216,6 +221,10 @@ class MCPClient:
 
                 logger.info(f"MCP transport initialized for {self.config.name}")
 
+                # Record connection time
+                import time
+                self._connect_time = time.time()
+
                 # Signal ready
                 if self._ready_event:
                     self._ready_event.set()
@@ -226,6 +235,7 @@ class MCPClient:
 
         except Exception as e:
             self._connect_error = e
+            self._last_error = str(e)
             if self._ready_event and not self._ready_event.is_set():
                 self._ready_event.set()
             logger.debug(f"MCP client task for {self.config.name} ended with exception: {e}")
@@ -317,6 +327,24 @@ class MCPClient:
     def tool_count(self) -> int:
         """Get the number of available tools"""
         return len(self._tools)
+
+    @property
+    def uptime_seconds(self) -> float:
+        """Get connection uptime in seconds"""
+        if not self._initialized or self._connect_time == 0:
+            return 0.0
+        import time
+        return time.time() - self._connect_time
+
+    @property
+    def last_error(self) -> str | None:
+        """Get the last connection error"""
+        return self._last_error
+
+    @property
+    def transport_type(self) -> str:
+        """Get the transport type"""
+        return self.config.transport
 
 
 # ============================================================================
