@@ -28,7 +28,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | **🔌 MCP Integration** | Connect to external MCP servers (stdio/HTTP transports) |
 | **🌐 WebUI** | Full-featured browser-based interface with FastAPI backend |
 | **💡 Learning System** | Pattern detection, skill creation, and self-evaluation |
-| **💾 Semantic Memory** | RAG-powered knowledge retrieval and memory management |
+| **💾 Semantic Memory** | Memory management for knowledge retrieval |
 | **💻 Dual Interfaces** | Rich CLI, modern TUI (Textual), and WebUI |
 | **🔒 Safety First** | Granular permission system with 5 agent profiles |
 | **🔧 20+ Tools** | Comprehensive tools for file ops, code execution, web, and more |
@@ -74,7 +74,7 @@ graph TB
     end
 
     subgraph "Supporting Systems"
-        E[Memory<br/>Semantic + RAG]
+        E[Memory]
         F[Skills<br/>SkillManager]
         G[Safety<br/>Permissions, Profiles]
         H[Learn<br/>LearningManager]
@@ -144,7 +144,7 @@ JARVIS/
 │   │   └── filesystem.py  # Filesystem connector
 │   ├── memory/         # Memory system
 │   ├── skills/         # Skill management
-│   ├── safety/         # Safety manager
+│   ├── learn/          # Learning system
 │   └── web/            # Web server
 ├── interface/
 │   ├── cli/            # Rich CLI interface
@@ -311,7 +311,7 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 | Tool | Description |
 |------|-------------|
 | `save_memory` | Save information to semantic memory |
-| `read_memory` | Read from memory with RAG |
+| `read_memory` | Read from memory |
 | `learn_from_interaction` | Learn from interactions |
 
 ### Agents & Skills
@@ -521,29 +521,17 @@ JARVIS_HEARTBEAT_SHOW_OK=false
     "selected_provider_id": "openai",
     "config_file": "providers.json"
   },
-  "memory": {
-    "max_entries": 1000,
-    "importance_threshold": 0.7,
-    "max_conversation_history": 100
-  },
-  "rag": {
+  "learning": {
     "enabled": true,
-    "max_results": 5,
-    "similarity_threshold": 0.7
-  },
-  "safety": {
-    "require_confirmation": true,
-    "auto_checkpoint": true,
-    "max_checkpoints": 5
+    "skill_creation_threshold": 5,
+    "self_evaluation_interval": 15,
+    "memory_dir": "~/.jarvis/memory",
+    "skills_dir": "~/.jarvis/skills"
   },
   "tools": {
     "enable_code_execution": true,
     "enable_file_operations": true,
     "enable_git_operations": true
-  },
-  "interface": {
-    "cli_prompt": ">>> ",
-    "vibe_code_enabled": true
   },
   "async": {
     "max_concurrent_agents": 5,
@@ -566,6 +554,7 @@ JARVIS_HEARTBEAT_SHOW_OK=false
     "skill_creation_threshold": 5,
     "self_evaluation_interval": 15
   }
+}
 ```
 
 ---

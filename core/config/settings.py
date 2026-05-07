@@ -130,6 +130,10 @@ class Settings:
         elif hasattr(section_obj, "__dict__"):
             setattr(section_obj, key, value)
 
+    def model_dump(self) -> dict[str, Any]:
+        """Convert config to dictionary for agent lifecycle."""
+        return self._config.model_dump()
+
     def save(self) -> None:
         """Save configuration to JSON file"""
         try:
@@ -160,62 +164,6 @@ class Settings:
     @property
     def provider_config_file(self) -> str:
         return self._config.provider.config_file
-
-    @property
-    def max_memory_entries(self) -> int:
-        return self._config.memory.max_entries
-
-    @property
-    def memory_importance_threshold(self) -> float:
-        return self._config.memory.importance_threshold
-
-    @property
-    def max_conversation_history(self) -> int:
-        return self._config.memory.max_conversation_history
-
-    @property
-    def rag_enabled(self) -> bool:
-        return self._config.rag.enabled
-
-    @property
-    def max_rag_results(self) -> int:
-        return self._config.rag.max_results
-
-    @property
-    def rag_similarity_threshold(self) -> float:
-        return self._config.rag.similarity_threshold
-
-    @property
-    def require_confirmation(self) -> bool:
-        return self._config.safety.require_confirmation
-
-    @property
-    def auto_checkpoint(self) -> bool:
-        return self._config.safety.auto_checkpoint
-
-    @property
-    def max_checkpoints(self) -> int:
-        return self._config.safety.max_checkpoints
-
-    @property
-    def enable_code_execution(self) -> bool:
-        return self._config.tools.enable_code_execution
-
-    @property
-    def enable_file_operations(self) -> bool:
-        return self._config.tools.enable_file_operations
-
-    @property
-    def enable_git_operations(self) -> bool:
-        return self._config.tools.enable_git_operations
-
-    @property
-    def cli_prompt(self) -> str:
-        return self._config.interface.cli_prompt
-
-    @property
-    def vibe_code_enabled(self) -> bool:
-        return self._config.interface.vibe_code_enabled
 
     @property
     def installed_agents(self) -> list[str]:
@@ -342,15 +290,3 @@ class Settings:
     @property
     def skills_dir(self) -> Path:
         return Path(self._config.learning.skills_dir).expanduser()
-
-    @property
-    def max_memory_chars(self) -> int:
-        return self._config.learning.max_memory_chars
-
-    @property
-    def max_user_chars(self) -> int:
-        return self._config.learning.max_user_chars
-
-    def model_dump(self) -> dict[str, Any]:
-        """Return configuration as dictionary"""
-        return self._config.model_dump()

@@ -32,8 +32,6 @@ class LearningSettings(BaseModel):
     self_evaluation_interval: int = 15  # Self-eval checkpoint every N tool calls
     memory_dir: str = "~/.jarvis/memory"
     skills_dir: str = "~/.jarvis/skills"
-    max_memory_chars: int = 2200
-    max_user_chars: int = 1375
 
 
 class AppSettings(BaseModel):
@@ -42,27 +40,15 @@ class AppSettings(BaseModel):
     debug: bool = False
     installed_agents: list[str] = Field(default_factory=list)
 
+
 class ProviderSettings(BaseModel):
     config_file: str = "providers.json"
     selected_provider_id: str | None = None
 
-class MemorySettings(BaseModel):
-    max_entries: int = 1000
-    importance_threshold: float = 0.5
-    max_conversation_history: int = 50
-
-class RagSettings(BaseModel):
-    enabled: bool = True
-    max_results: int = 5
-    similarity_threshold: float = 0.7
-
-class SafetySettings(BaseModel):
-    require_confirmation: bool = True
-    auto_checkpoint: bool = True
-    max_checkpoints: int = 10
 
 class ToolPermissions(BaseModel):
     permission: str = "ask"
+
 
 class ToolSettings(BaseModel):
     enable_code_execution: bool = True
@@ -96,9 +82,6 @@ class ToolSettings(BaseModel):
     sensitive_patterns: list[str] = Field(default_factory=lambda: ["*secret*", "*password*", "*credential*", "*token*", "*api_key*", "*private_key*", "*.env", "*.env.*", "config/production*", "config/prod*"])
     connectors: list[Any] = Field(default_factory=list)
 
-class InterfaceSettings(BaseModel):
-    cli_prompt: str = "JARVIS > "
-    vibe_code_enabled: bool = False
 
 class AsyncSettings(BaseModel):
     max_concurrent_agents: int = 5
@@ -108,14 +91,11 @@ class AsyncSettings(BaseModel):
     resource_monitoring: bool = True
     progress_updates: bool = True
 
+
 class JarvisSettings(BaseModel):
     app: AppSettings = Field(default_factory=AppSettings)
     provider: ProviderSettings = Field(default_factory=ProviderSettings)
-    memory: MemorySettings = Field(default_factory=MemorySettings)
-    rag: RagSettings = Field(default_factory=RagSettings)
-    safety: SafetySettings = Field(default_factory=SafetySettings)
     tools: ToolSettings = Field(default_factory=ToolSettings)
-    interface: InterfaceSettings = Field(default_factory=InterfaceSettings)
     async_settings: AsyncSettings = Field(default_factory=AsyncSettings, alias="async")
     heartbeat: HeartbeatSettings = Field(default_factory=HeartbeatSettings)
     learning: LearningSettings = Field(default_factory=LearningSettings)
