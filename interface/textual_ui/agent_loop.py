@@ -274,11 +274,13 @@ class AgentLoop:
         tool_registry: ToolRegistry,
         agent_manager: AgentManager | None = None,
         disabled_tools: list[str] | None = None,
+        resume_session: str | None = None,
     ):
         self.agent: CodingAgent = agent
         self.config: Settings = config
         self.base_config: Settings = config
         self.tool_registry: ToolRegistry = tool_registry
+        self.resume_session = resume_session
         # Initialize event queue first
         self._event_queue: asyncio.Queue[Event] = asyncio.Queue()
         # Set event queue on tool registry for tools that need to emit events
@@ -369,8 +371,31 @@ class AgentLoop:
         # ====================================================================
         # Conversation History System
         # ====================================================================
-        self.history = ConversationHistory()
+        if resume_session:
+            # Resume existing session
+            self.history = ConversationHistory(session_id=resume_session)
+        else:
+            # Create new session
+            self.history = ConversationHistory()
         self.session_id = self.history.session_id
+        
+        # Load history into agent memory if resuming a session
+        if resume_session:
+            messages = self.history.get_messages()
+            for msg in messages:
+                entry: dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
+                # Add OpenAI tool calls if present
+                if msg.tool_calls:
+                    entry["tool_calls"] = msg.tool_calls
+                if msg.tool_call_id:
+                    entry["tool_call_id"] = msg.tool_call_id
+                # Add Anthropic tool_use if present
+                if msg.tool_use:
+                    entry["tool_use"] = msg.tool_use
+                # Add Anthropic tool_result if present
+                if msg.tool_result:
+                    entry["tool_result"] = msg.tool_result
+                self.agent.add_to_memory(entry)
 
     @property
     def messages(self) -> list[LLMMessage]:

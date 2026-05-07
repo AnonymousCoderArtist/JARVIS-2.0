@@ -204,6 +204,14 @@ class CommandRegistry:
             handler="_copy_last_answer",
         )
 
+        # Clear command - start new session
+        self.commands["clear"] = Command(
+            aliases=("/clear",),
+            description="Start a new session with fresh history",
+            usage="",
+            handler="_start_new_session",
+        )
+
     def refresh(self, availability_context: CommandAvailabilityContext) -> None:
         """Refresh command availability based on context."""
         self.availability_context = availability_context

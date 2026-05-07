@@ -176,10 +176,10 @@ def main() -> None:
     if launch_tui:
         from interface.textual_ui.tui_main import main as tui_main
         # TUI needs to be run synchronously (Textual handles its own event loop)
-        tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass)
+        tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session)
     elif launch_webui:
         from interface.webui.webui_main import main as webui_main
-        webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port)
+        webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port, resume_session=resume_session)
     else:
         # CLI is now async
         import asyncio

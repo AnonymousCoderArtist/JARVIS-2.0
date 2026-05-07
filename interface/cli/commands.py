@@ -5,6 +5,7 @@ import shlex
 import sys
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
 from core.clipboard import copy_to_clipboard
 from core.history import ConversationHistory
@@ -39,7 +40,8 @@ class CommandRegistry:
     def _register_builtin_commands(self):
         """Register built-in CLI commands."""
         self.register(Command("help", "Show available commands", self._cmd_help))
-        self.register(Command("clear", "Clear the screen", self._cmd_clear))
+        self.register(Command("clear", "Start new session with fresh history", self._cmd_clear))
+        self.register(Command("clear-screen", "Clear the screen", self._cmd_clear_screen))
         self.register(Command("status", "Show system status", self._cmd_status))
         self.register(Command("rewind", "Rewind conversation to a previous message", self._cmd_rewind))
         self.register(Command("trust", "Trust a folder for this session and future runs", self._cmd_trust))
@@ -48,7 +50,6 @@ class CommandRegistry:
         self.register(Command("history", "Show conversation history", self._cmd_history))
         self.register(Command("clear-history", "Clear current session history", self._cmd_clear_history))
         self.register(Command("sessions", "List available sessions", self._cmd_sessions))
-        self.register(Command("new-session", "Start a new session with fresh history", self._cmd_new_session))
         self.register(Command("copy", "Copy the last assistant answer to clipboard", self._cmd_copy))
         self.register(Command("themes", "List and change UI themes", self._cmd_themes))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
@@ -56,7 +57,7 @@ class CommandRegistry:
 
         # Add aliases
         self.add_alias("h", "help")
-        self.add_alias("cls", "clear")
+        self.add_alias("cls", "clear-screen")
         self.add_alias("st", "status")
         self.add_alias("rw", "rewind")
         self.add_alias("th", "themes")
@@ -118,10 +119,47 @@ class CommandRegistry:
         self.display_manager.show_help()
 
     async def _cmd_clear(self, args: list[str]):
-        """Handle clear command."""
+        """Handle clear command - start new session with fresh history."""
+        try:
+            old_session = getattr(self, '_current_session_id', None)
+            new_session: str
+            
+            # Use callback if available (CLIInterface handles the actual reset)
+            if self.session_reset_callback is not None:  # type: ignore
+                old_session = await self.session_reset_callback()  # type: ignore
+                # Get the new session from the callback's instance
+                # The callback is a bound method, so __self__ is the CLIInterface instance
+                callback_instance = getattr(self.session_reset_callback, '__self__', None)  # type: ignore
+                if callback_instance is not None:
+                    new_session = callback_instance.history.session_id
+                else:
+                    new_session = old_session
+            else:
+                # Fallback: create new history locally (won't update CLIInterface)
+                history = ConversationHistory()
+                new_session = history.session_id
+                
+                # Clear agent memory if available
+                if self.jarvis_agent is not None:  # type: ignore
+                    self.jarvis_agent.clear_memory()  # type: ignore
+                    self.jarvis_agent.rebuild_system_prompt()  # type: ignore
+                
+            self._current_session_id = new_session
+            
+            # Also clear the screen
+            self.display_manager.clear_screen()
+            
+            self.display_manager.show_success(
+                f"Started new session: {new_session[:8]}...\n"
+                f"Previous session: {old_session[:8] if old_session else 'none'}...",
+                title="New Session Started"
+            )
+        except Exception as e:
+            self.display_manager.show_error(f"Failed to start new session: {e}")
+
+    async def _cmd_clear_screen(self, args: list[str]):
+        """Handle clear-screen command - just clear the terminal screen."""
         self.display_manager.clear_screen()
-        # Re-show banner and help after clear
-        # This will be handled by the main CLI
 
     async def _cmd_status(self, args: list[str]):
         """Handle status command."""
@@ -273,36 +311,6 @@ class CommandRegistry:
         except Exception as e:
             self.display_manager.show_error(f"Failed to clear history: {e}")
 
-    async def _cmd_new_session(self, args: list[str]):
-        """Start a new session with fresh history."""
-        try:
-            old_session = getattr(self, '_current_session_id', None)
-            
-            # Use callback if available (CLIInterface handles the actual reset)
-            if hasattr(self, 'session_reset_callback') and self.session_reset_callback:
-                old_session = await self.session_reset_callback()
-                self._current_session_id = self.session_reset_callback.__self__.history.session_id
-                new_session = self._current_session_id
-            else:
-                # Fallback: create new history locally (won't update CLIInterface)
-                history = ConversationHistory()
-                new_session = history.session_id
-                
-                # Clear agent memory if available
-                if hasattr(self, 'jarvis_agent') and self.jarvis_agent:
-                    self.jarvis_agent.clear_memory()
-                    self.jarvis_agent.rebuild_system_prompt()
-                
-                self._current_session_id = new_session
-            
-            self.display_manager.show_success(
-                f"Started new session: {new_session[:8]}...\n"
-                f"Previous session: {old_session[:8] if old_session else 'none'}...",
-                title="New Session Started"
-            )
-        except Exception as e:
-            self.display_manager.show_error(f"Failed to start new session: {e}")
-
     async def _cmd_sessions(self, args: list[str]):
         """List available sessions."""
         try:
@@ -395,6 +403,14 @@ class ShellCommand:
 class CommandHandler:
     """Main command handler that orchestrates command and shell execution."""
 
+    # Class-level attribute declarations for type checking
+    agent_manager: Any = None
+    tool_registry: Any = None
+    skill_manager: Any = None
+    jarvis_agent: Any = None
+    _current_session_id: str | None = None
+    session_reset_callback: Callable[[], Awaitable[str]] | None = None
+
     def __init__(self, display_manager: DisplayManager):
         self.display_manager = display_manager
         self.command_registry = CommandRegistry(display_manager)
@@ -404,6 +420,8 @@ class CommandHandler:
         self.tool_registry = None
         self.skill_manager = None
         self.jarvis_agent = None
+        self._current_session_id = None
+        self.session_reset_callback = None
 
     async def handle_input(self, user_input: str) -> bool:
         """Handle user input and route to appropriate handler."""

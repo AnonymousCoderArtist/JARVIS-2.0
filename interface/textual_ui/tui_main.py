@@ -267,7 +267,7 @@ def create_sdk_instance(sdk: str, api_key: str | None, base_url: str | None) -> 
         return OpenAISDK(api_key=api_key or "", base_url=base_url)
 
 
-def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = False) -> None:
+def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = False, resume_session: str | None = None) -> None:
     """Main TUI entry point with enhanced JARVIS core integration."""
     # Get environment config as fallback
     env_config = get_env_config()
@@ -364,7 +364,8 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         agent=jarvis_agent,
         config=settings,
         tool_registry=tool_registry,
-        agent_manager=agent_manager
+        agent_manager=agent_manager,
+        resume_session=resume_session
     )
 
     # Launch textual UI

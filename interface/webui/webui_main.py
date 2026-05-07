@@ -22,6 +22,7 @@ def main(
     host: str = "127.0.0.1",
     port: int = 5173,
     backend_port: int = 8765,
+    resume_session: str | None = None,
 ) -> None:
     """Launch the JARVIS Web UI.
 
@@ -34,6 +35,7 @@ def main(
         host: Host to bind the frontend server to (use 0.0.0.0 for all devices)
         port: Port for the frontend server
         backend_port: Port for the backend server
+        resume_session: Session ID to resume
     """
     # Set environment variables for the web server
     os.environ["JARVIS_MODEL"] = model
@@ -44,6 +46,8 @@ def main(
     os.environ["JARVIS_SDK"] = sdk
     if bypass:
         os.environ["JARVIS_BYPASS_PERMISSIONS"] = "1"
+    if resume_session:
+        os.environ["JARVIS_RESUME_SESSION"] = resume_session
 
     # Add project root to path
     project_root = Path(__file__).resolve().parent.parent.parent

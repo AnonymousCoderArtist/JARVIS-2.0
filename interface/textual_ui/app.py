@@ -2872,6 +2872,27 @@ class VibeApp(App):  # noqa: PLR0904
         except Exception as e:
             self.notify(f"Failed to copy: {e}", severity="error", timeout=2)
 
+    def _start_new_session(self, **kwargs: Any) -> None:
+        """Start a new session with fresh history."""
+        old_session = self.agent_loop.history.session_id
+        
+        # Create new conversation history (new session)
+        from core.history import ConversationHistory
+        self.agent_loop.history = ConversationHistory()
+        new_session = self.agent_loop.history.session_id
+        self.agent_loop.session_id = new_session
+        
+        # Clear agent memory
+        if self.agent_loop.agent:
+            self.agent_loop.agent.clear_memory()
+            self.agent_loop.agent.rebuild_system_prompt()
+        
+        self.notify(
+            f"Started new session: {new_session[:8]}...\nPrevious session: {old_session[:8]}...",
+            severity="information",
+            timeout=3
+        )
+
     def _refresh_profile_widgets(self) -> None:
         self._update_profile_widgets(self.agent_loop.agent_profile)
 

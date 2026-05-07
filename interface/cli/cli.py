@@ -21,6 +21,7 @@ from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
 from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.manager import AgentManager
 from core.config.settings import Settings
+from core.history import ConversationHistory
 from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
 from core.learn import LearningConfig, LearningManager
 from core.llm.sdk_adapter import SDKAdapter
@@ -313,7 +314,7 @@ class CLIInterface:
         if self.resume_session:
             messages = self.history.get_messages()
             for msg in messages:
-                entry = {"role": msg.role, "content": msg.content or ""}
+                entry: dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
                 # Add OpenAI tool calls if present
                 if msg.tool_calls:
                     entry["tool_calls"] = msg.tool_calls
@@ -473,6 +474,14 @@ class CLIInterface:
 
         try:
             await asyncio.wait_for(self.jarvis_agent.process(text), timeout=self.config_manager.config.behavior.timeout_seconds)
+            
+            # Save assistant response to history
+            from core.history import create_assistant_message
+            # Get the last assistant message from agent memory
+            for entry in reversed(self.jarvis_agent.memory):
+                if entry.get("role") == "assistant" and entry.get("content"):
+                    self.history.append_message(create_assistant_message(entry.get("content", "")))
+                    break
         except asyncio.TimeoutError:
             self.display_manager.stop_streaming()
             self.display_manager.show_error("Task timed out.")
@@ -482,7 +491,7 @@ class CLIInterface:
         finally:
             self.display_manager.stop_streaming()
 
-    async def reset_session(self) -> None:
+    async def reset_session(self) -> str:
         """Reset the session by creating a new history and clearing agent memory."""
         old_session_id = self.history.session_id
         
@@ -493,9 +502,6 @@ class CLIInterface:
         if self.jarvis_agent:
             self.jarvis_agent.clear_memory()
             self.jarvis_agent.rebuild_system_prompt()
-        
-        # Update session_id in command handler
-        self.command_handler._current_session_id = self.history.session_id
         
         return old_session_id
 
