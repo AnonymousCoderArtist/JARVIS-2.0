@@ -1554,7 +1554,8 @@ class Question:
 
 
 class AskUserQuestionArgs(BaseModel):
-    questions: list[Question] = field(default_factory=list)
+    """Arguments for asking the user questions."""
+    questions: list[Question] = Field(default_factory=list)
     cancelled: bool = False
     content_preview: str = ""
 
