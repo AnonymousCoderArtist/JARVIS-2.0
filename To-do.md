@@ -2,7 +2,7 @@
 
 - [ ] Add support for any ACP client as SDK providers
 - [ ] Implement connector system for external services
-- [ ] Add more built-in tools for common tasks
+- [X] Add AskUserTool for agents to ask users for input when needed
 - [x] TUI uses ansi-dark theme with transparent backgrounds
 - [ ] Enhance Web UI with better interface and user experience
 - [ ] Add support for custom themes in Web UI

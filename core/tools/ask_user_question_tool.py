@@ -16,15 +16,14 @@ from core.tools.permissions import PermissionContext, ToolPermission
 class QuestionOptionSchema(BaseModel):
     """Schema for a single option in a multiple choice question."""
     label: str = Field(
-        description="The display text for this option that the user will see and select. "
-                   "Should be concise (1-5 words) and clearly describe the choice. "
-                   "Example: 'Fix existing code', 'Build new feature', 'Research best practices'."
+        description="The display text for this option (1-5 words). MUST be unique within the question. "
+                   "Examples: 'Fix Bug', 'New Feature', 'Code Review', 'Documentation'"
     )
     description: str = Field(
-        description="Detailed explanation of what this option means, what will happen if chosen, "
-                   "and the trade-offs or implications. This helps users understand the impact of their choice. "
-                   "Example: 'I will analyze the existing codebase, identify the issue, and implement a fix. "
-                   "This is best when you have a specific bug or problem to solve.'"
+        description="Detailed explanation of what happens if this option is chosen, including "
+                   "implications and trade-offs. This helps users understand the impact. "
+                   "Example: 'I will analyze the codebase to identify the issue and implement a fix. "
+                   "Best for specific bugs.'"
     )
     preview: str | None = Field(
         default=None,
@@ -41,12 +40,15 @@ class QuestionSchema(BaseModel):
                    "Example: 'What type of task would you like me to work on?'"
     )
     header: str = Field(
-        description="Short label displayed as a chip/tag (ideally 1-8 chars). Keep it simple: use category words like 'Style', 'StyleLib', 'DB', 'Auth', 'Testing'. If longer, it will be truncated automatically for display.",
+        description="Short label displayed as a chip/tag (1-8 chars ideal). Use simple category words like 'Style', 'DB', 'Auth', 'Test'. "
+                   "CRITICAL: Always use 1-8 characters max for display clarity. Will be auto-truncated if longer.",
         max_length=20
     )
     options: list[QuestionOptionSchema] = Field(
-        description="The available choices for this question. Must have 2-4 options. "
-                   "Each option should be a distinct, mutually exclusive choice with clear labels and detailed descriptions explaining what happens if chosen and the trade-offs involved.",
+        description="REQUIRED: 2-4 options only. Each option must have unique label and detailed description. "
+                   "NEVER exceed 4 options - the tool will reject with validation error. "
+                   "If you need more choices, consolidate related options or ask multiple questions. "
+                   "Example valid structure: [{'label': 'Fix Bug', 'description': '...'}, {'label': 'New Feature', 'description': '...'}]",
         min_length=2,
         max_length=4
     )
@@ -140,7 +142,8 @@ Usage notes:
 - Users will always be able to select "Other" to provide custom text input
 - Use multiSelect: true to allow multiple answers to be selected for a question
 - If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label
-- For the header field: use simple 1-8 character category words like 'Style', 'StyleLib', 'DB', 'Auth', 'Testing'. Keep it short!
+- For the header field: use exactly 1-8 characters max. Examples: 'Style', 'DB', 'Auth', 'Test'. Shorter is better!
+- For the options field: you MUST have exactly 2-4 options. This is a hard limit - more will cause validation errors. If you need more choices, split into multiple questions.
 
 IMPORTANT: Do not reference "the plan" in your questions because the user cannot see the plan in the UI until you finalize it. Use appropriate tool for plan approval.
 """
@@ -185,33 +188,32 @@ class AskUserQuestionTool(BaseTool):
                         },
                         "header": {
                             "type": "string",
-                            "description": "Short label displayed as a chip/tag (ideally 1-8 chars). Keep it simple: use category words like 'Style', 'StyleLib', 'DB', 'Auth', 'Testing'. If longer, it will be truncated automatically."
+                            "description": "Short label displayed as chip/tag (1-8 chars ideal). Use simple category words like 'Style', 'DB', 'Auth', 'Test'. CRITICAL: Always use 1-8 characters max - will be auto-truncated if longer."
                         },
                         "options": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "label": {
-                                        "type": "string",
-                                        "description": "The display text for this option that the user will see "
-                                                    "and select. Should be concise (1-5 words)."
-                                    },
-                                    "description": {
-                                        "type": "string",
-                                        "description": "Explanation of what this option means or what will happen "
-                                                    "if chosen."
-                                    },
-                                    "preview": {
-                                        "type": "string",
-                                        "description": "Optional preview content for visual comparison."
-                                    }
-                                },
-                                "required": ["label", "description"]
-                            },
-                            "minItems": 2,
-                            "maxItems": 4
-                        },
+                             "type": "array",
+                             "minItems": 2,
+                             "maxItems": 4,
+                             "description": "CRITICAL: MUST have 2-4 options. NEVER exceed 4 - tool rejects with validation error. Each option needs unique label and description.",
+                             "items": {
+                                 "type": "object",
+                                 "properties": {
+                                     "label": {
+                                         "type": "string",
+                                         "description": "Display text for this option (1-5 words). MUST be unique within the question."
+                                     },
+                                     "description": {
+                                         "type": "string",
+                                         "description": "Detailed explanation of what happens if chosen, including implications and trade-offs. Example: 'I will analyze the codebase, identify the issue, and implement a fix. Good for specific bugs.'"
+                                     },
+                                     "preview": {
+                                         "type": "string",
+                                         "description": "Optional preview content (ASCII mockups, code snippets) for visual comparison."
+                                     }
+                                 },
+                                 "required": ["label", "description"]
+                             }
+                         },
                         "multiSelect": {
                             "type": "boolean",
                             "description": "Set to true to allow the user to select multiple options."
