@@ -35,7 +35,7 @@ def _load_env_config() -> dict[str, str]:
     }
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int]:
+def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int, str | None]:
     # Load .env configuration as defaults
     env_config = _load_env_config()
 
@@ -98,6 +98,14 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
         help="Bypass all tool permission checks (yolo mode)"
     )
 
+    parser.add_argument(
+        "--resume", "-r",
+        type=str,
+        default=None,
+        dest="resume_session",
+        help="Resume a previous session by session ID (use 'list' to show available sessions)"
+    )
+
     # WebUI specific arguments
     parser.add_argument(
         "--host", "-H",
@@ -122,12 +130,39 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
 
     args = parser.parse_args(argv)
 
-    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port
+    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port, args.resume_session
 
 
 def main() -> None:
     """Entry point for the jarvis command."""
-    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port = _parse_args(sys.argv[1:])
+    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port, resume_session = _parse_args(sys.argv[1:])
+
+    # Handle --resume list to show available sessions
+    if resume_session == "list":
+        from core.history import ConversationHistory
+        history_dir = ConversationHistory().history_dir
+        if history_dir.exists():
+            sessions = list(history_dir.glob("*.jsonl"))
+            if sessions:
+                print("Available sessions:")
+                for s in sorted(sessions, key=lambda p: p.stat().st_mtime, reverse=True):
+                    # Get first line to get session info
+                    with open(s) as f:
+                        first_line = f.readline()
+                        if first_line:
+                            import json
+                            try:
+                                msg = json.loads(first_line)
+                                print(f"  {s.stem} - {msg.get('timestamp', 'unknown')[:19]}")
+                            except:
+                                print(f"  {s.stem}")
+                        else:
+                            print(f"  {s.stem}")
+            else:
+                print("No sessions found.")
+        else:
+            print("No sessions found.")
+        return
 
     # Default to TUI if no mode specified
     if not launch_cli and not launch_tui and not launch_webui:
@@ -150,7 +185,7 @@ def main() -> None:
         import asyncio
 
         from interface.cli.cli import main as cli_main
-        asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
+        asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session))
 
 
 if __name__ == "__main__":

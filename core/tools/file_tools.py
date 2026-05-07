@@ -30,44 +30,27 @@ WHEN TO USE:
 - Checking file contents before editing
 - Examining configuration or documentation files
 
-SINGLE FILE MODE (use filePath):
-  {"filePath": "/absolute/path/file.py", "offset": 1, "limit": 50}
-  - filePath (required): Absolute path to file
-  - offset (optional, default 1): LINE number to start from (1 = first line, NOT byte offset!)
-  - limit (optional, default 10): Number of lines to read (max 1000)
-  WARNING: offset/limit are LINE numbers, NOT byte offsets!
+USAGE (use files array - single or multiple):
+  {"files": [{"filePath": "/absolute/path/file.py", "offset": 1, "limit": 50}]}
 
-MULTIPLE FILES MODE (use files array):
-  {"files": [{"filePath": "/path/a.py", "offset": 1, "limit": 50}]}
+  For a single file:
+  {"files": [{"filePath": "/path/to/file.py"}]}
+
+  For multiple files (parallel):
+  {"files": [{"filePath": "/path/a.py"}, {"filePath": "/path/b.py"}]}
+
+FILE OBJECT FIELDS:
   - filePath (required): Absolute path to file
-  - offset (optional, default 1): LINE number to start
-  - limit (optional, default 10): Number of lines to read
-  - All files in array are read in parallel
+  - offset (optional, default 1): LINE number to start (1 = first line, NOT byte offset!)
+  - limit (optional, default 10): Number of lines to read (max 1000)
+
+WARNING: offset/limit are LINE numbers, NOT byte offsets!
 
 TIPS: Use offset/limit to paginate through large files. Always read before edit."""
 
     input_schema = {
         "type": "object",
         "properties": {
-            # Single file mode parameters
-            "filePath": {
-                "type": "string",
-                "description": "Absolute path to the file to read (single file mode)"
-            },
-            "offset": {
-                "type": "integer",
-                "description": "LINE number to start reading from (1 = first line, NOT byte offset! Default: 1)",
-                "minimum": 1,
-                "default": 1
-            },
-            "limit": {
-                "type": "integer",
-                "description": "Number of lines to read starting from offset (default: 10, max: 1000)",
-                "minimum": 1,
-                "maximum": 1000,
-                "default": 10
-            },
-            # Multiple files mode parameters
             "files": {
                 "type": "array",
                 "items": {
@@ -94,7 +77,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                     "required": ["filePath"]
                 },
                 "minItems": 1,
-                "description": "Array of file objects with file_path, offset, and limit (multiple files mode)"
+                "description": "Array of file objects to read. Each file is read in parallel."
             },
             "encoding": {
                 "type": "string",
@@ -103,10 +86,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 "examples": ["utf-8", "latin-1", "ascii"]
             }
         },
-        "oneOf": [
-            {"required": ["filePath"]},
-            {"required": ["files"]}
-        ]
+        "required": ["files"]
     }
 
     def resolve_permission(self, args: dict) -> PermissionContext | None:
@@ -160,79 +140,36 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
             # Support both camelCase and snake_case parameter names
-            files = self._get_param(input_data, "files", "files")
+            files = self._get_param(input_data, "files")
             encoding = self._get_param(input_data, "encoding") or "utf-8"
 
             # Normalize encoding
             if not isinstance(encoding, str):
                 encoding = "utf-8"
 
-            # Check if using new files array format
-            if files is not None:
-                if not isinstance(files, list):
-                    return ToolOutput(
-                        success=False,
-                        result=None,
-                        error="Invalid files format: expected a list of file objects with file_path/filePath, offset, and limit fields"
-                    )
-
-                if len(files) == 0:
-                    return ToolOutput(
-                        success=False,
-                        result=None,
-                        error="No files provided. Use the 'files' array with at least one file object containing 'file_path'/'filePath', 'offset', and 'limit'."
-                    )
-
-                return await self._execute_files_array(files, encoding)
-
-            # Backward compatibility: check for single file parameters
-            file_path = self._get_param(input_data, "filePath", "file_path")
-
-            if file_path is None:
+            # Validate files array
+            if files is None:
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error="No file path provided. Use either 'filePath' for single file or 'files' array for multiple files."
+                    error="No files provided. Use the 'files' array with at least one file object containing 'filePath'."
                 )
 
-            # For single file mode, apply defaults for offset (1) and limit (10)
-            offset = self._get_param(input_data, "offset")
-            limit = self._get_param(input_data, "limit")
+            if not isinstance(files, list):
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="Invalid files format: expected a list of file objects"
+                )
 
-            # Apply defaults if not provided
-            if offset is None or not isinstance(offset, int) or offset < 1:
-                offset = 1
-            if limit is None or not isinstance(limit, int) or limit < 1:
-                limit = 10
+            if len(files) == 0:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error="No files provided. Use the 'files' array with at least one file object."
+                )
 
-            # Convert to files array format for processing
-            files_array = [{
-                "filePath": file_path,
-                "offset": offset,
-                "limit": limit
-            }]
-
-            # Execute and convert result to single file format
-            array_result = await self._execute_files_array(files_array, encoding)
-            if not array_result.success:
-                return array_result
-
-            # Convert to single file metadata format
-            result_content = array_result.result
-            if result_content and result_content.startswith(f"--- {file_path} ---\n"):
-                result_content = result_content[len(f"--- {file_path} ---\n"):]
-
-            metadata = {
-                "filePath": file_path,
-                "offset": offset,
-                "lines": len(result_content.split('\n')) if result_content else 0
-            }
-
-            return ToolOutput(
-                success=True,
-                result=result_content,
-                metadata=metadata
-            )
+            return await self._execute_files_array(files, encoding)
 
         except Exception as e:
             return ToolOutput(
