@@ -243,6 +243,10 @@ def create_tool_registry() -> AsyncToolRegistry:
     tool_registry.register(SaveMemoryTool())
     tool_registry.register(ReadMemoryTool())
 
+    # Register AskUserQuestion tool
+    from core.tools.ask_user_question_tool import AskUserQuestionTool
+    tool_registry.register(AskUserQuestionTool())
+
     # Register agent tools
     tool_registry.register(AgentsTool())
     tool_registry.register(AgentStatusTool())

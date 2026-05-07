@@ -144,6 +144,10 @@ def _get_agent():
     tool_registry.register(GrepSearchTool())
     tool_registry.register(WebFetchTool())
     
+    # Register AskUserQuestion tool
+    from core.tools.ask_user_question_tool import AskUserQuestionTool
+    tool_registry.register(AskUserQuestionTool())
+    
     # Try to register ExaWebSearchTool (optional - depends on external service)
     try:
         from core.tools.web_tools import ExaWebSearchTool

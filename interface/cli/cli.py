@@ -235,6 +235,8 @@ class CLIInterface:
         self.tool_registry.register(ExaWebSearchTool())
         self.tool_registry.register(SaveMemoryTool())
         self.tool_registry.register(ReadMemoryTool())
+        from core.tools import AskUserQuestionTool
+        self.tool_registry.register(AskUserQuestionTool())
         self.tool_registry.register(AgentsTool())
         self.tool_registry.register(AgentStatusTool())
         from core.tools import SkillTool

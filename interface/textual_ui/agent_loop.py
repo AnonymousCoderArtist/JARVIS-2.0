@@ -664,6 +664,7 @@ Create a comprehensive summary that captures:
     def set_user_input_callback(self, callback: Callable[[Any], Any]) -> None:
         """Set user input callback."""
         self._user_input_callback = callback
+        self.agent.set_user_input_callback(callback)
     
     def approve_always(self, tool_name: str, permissions: list[Any]) -> None:
         """Approve tool always (store in config or agent state)."""

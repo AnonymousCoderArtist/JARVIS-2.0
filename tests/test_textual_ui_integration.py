@@ -46,6 +46,9 @@ class FakeStreamingAgent:
     def set_approval_callback(self, callback) -> None:
         self._approval_callback = callback
 
+    def set_user_input_callback(self, callback) -> None:
+        self._user_input_callback = callback
+
     def set_system_prompt(self, prompt: str) -> None:
         self._system_prompt = prompt
 
