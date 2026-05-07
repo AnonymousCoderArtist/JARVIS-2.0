@@ -12,56 +12,56 @@ Usage:
 
 import os
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict
+from typing import Dict, Optional, Tuple
 
 # Import constants
 from .constants import (
-    FORK_PROMPT_MARKER,
     DEFAULT_EMOJI_MAP,
-    get_system_context,
+    FORK_PROMPT_MARKER,
     discover_context_files,
     enhance_prompt_with_env_details,
     get_base_context,
     get_platform_info,
-)
-
-# Import prompt utilities
-from .prompt_utils import (
-    build_context_section,
-    build_agent_header,
-    read_context_files,
-    format_tool_list,
-    get_project_root,
-)
-
-# Import JARVIS v2 prompts
-from .jarvis_v2 import (
-    get_jarvis_v2_tools,
-    get_jarvis_v2_guidelines,
-    build_jarvis_v2_system_prompt,
-    JARVIS_V2_SYSTEM_PROMPT,
-    get_jarvis_v2_metadata,
+    get_system_context,
 )
 
 # Import Explore agent prompts
 from .explore import (
-    get_explore_prompt,
     EXPLORE_SYSTEM_PROMPT,
     get_explore_metadata,
+    get_explore_prompt,
+)
+
+# Import JARVIS v2 prompts
+from .jarvis_v2 import (
+    JARVIS_V2_SYSTEM_PROMPT,
+    build_jarvis_v2_system_prompt,
+    get_jarvis_v2_guidelines,
+    get_jarvis_v2_metadata,
+    get_jarvis_v2_tools,
 )
 
 # Import Plan agent prompts
 from .plan import (
-    get_plan_prompt,
     PLAN_SYSTEM_PROMPT,
     get_plan_metadata,
+    get_plan_prompt,
+)
+
+# Import prompt utilities
+from .prompt_utils import (
+    build_agent_header,
+    build_context_section,
+    format_tool_list,
+    get_project_root,
+    read_context_files,
 )
 
 # Import Verification agent prompts
 from .verification import (
-    get_verification_prompt,
     VERIFICATION_SYSTEM_PROMPT,
     get_verification_metadata,
+    get_verification_prompt,
 )
 
 
@@ -126,7 +126,7 @@ FORK_SYSTEM_PROMPT = _build_fork_prompt()
 
 # Lazy-loaded prompts for builtin agents (initialized on first access)
 _BUILTIN_PROMPTS_LOADED = False
-_BUILTIN_PROMPTS: Dict[str, str] = {}
+_BUILTIN_PROMPTS: dict[str, str] = {}
 
 
 def _load_builtin_prompts() -> None:
@@ -235,7 +235,7 @@ def _init_prompts() -> None:
 
 
 # Agent prompts registry
-AGENT_PROMPTS: Dict[str, Tuple[str, AgentPromptMetadata]] = {
+AGENT_PROMPTS: dict[str, tuple[str, AgentPromptMetadata]] = {
     "jarvis": (
         JARVIS_V2_SYSTEM_PROMPT,
         AgentPromptMetadata(agent_type="main", when_to_use="Use for general coding tasks.", model="inherit", max_turns=100),
@@ -294,7 +294,7 @@ def get_agent_prompt(agent_name: str) -> str:
     return prompts.get(agent_name) or JARVIS_V2_SYSTEM_PROMPT
 
 
-def get_agent_metadata(agent_name: str) -> Optional[AgentPromptMetadata]:
+def get_agent_metadata(agent_name: str) -> AgentPromptMetadata | None:
     """Get the metadata for a named agent.
 
     Args:
@@ -306,7 +306,7 @@ def get_agent_metadata(agent_name: str) -> Optional[AgentPromptMetadata]:
     return AGENT_PROMPTS.get(agent_name, (None, None))[1] if agent_name in AGENT_PROMPTS else None
 
 
-def get_enhanced_prompt(agent_name: str, emoji: Optional[str] = None) -> str:
+def get_enhanced_prompt(agent_name: str, emoji: str | None = None) -> str:
     """Get an enhanced system prompt with environment details.
 
     Args:

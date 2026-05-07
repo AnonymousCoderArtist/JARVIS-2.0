@@ -9,7 +9,6 @@ import platform
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 # Fork detection marker
 FORK_PROMPT_MARKER = " FORK:"
@@ -48,7 +47,7 @@ def get_base_context() -> str:
     return f"Current date: {date}\nCurrent working directory: {cwd}"
 
 
-def discover_context_files() -> List[str]:
+def discover_context_files() -> list[str]:
     """Scan for context files in the working directory.
 
     Looks for AGENTS.md, .jarvis/SYSTEM.md, and .claude/rules/*.md files.

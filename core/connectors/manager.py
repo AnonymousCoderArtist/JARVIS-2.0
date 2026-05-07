@@ -3,7 +3,7 @@
 import asyncio
 from typing import Any
 
-from .base import BaseConnector, ConnectorConfig
+from .base import BaseConnector
 
 
 class ConnectorManager:

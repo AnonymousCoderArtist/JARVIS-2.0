@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
-from typing import Any
 
 from core.skills import (
-    SkillManager,
-    HermesSource,
-    OpenClawSource,
     GitHubSource,
+    HermesSource,
     LocalSource,
+    OpenClawSource,
+    SkillManager,
     SkillSource,
 )
 from core.skills.trace_collector import get_trace_collector
@@ -68,9 +66,9 @@ class SkillCommands:
             return
 
         self._show_message(f"Installing skill '{skill_id}' from {source_name}...")
-        
+
         success, message, metadata = source.install(skill_id, self.skill_dir)
-        
+
         if success:
             self._show_message(f"✓ {message}", "success")
         else:
@@ -89,7 +87,7 @@ class SkillCommands:
 
         source_name = args[0].lower()
         category = None
-        
+
         # Parse category flag
         for i, arg in enumerate(args[1:], 1):
             if arg == "--category" and i + 1 < len(args):
@@ -133,10 +131,10 @@ class SkillCommands:
                 skills_to_optimize.append(arg)
 
         self._show_message(f"Optimizing skills with {policy} policy (min {min_traces} traces)...")
-        
+
         collector = get_trace_collector()
         optimized_count = 0
-        
+
         if skills_to_optimize:
             for skill_name in skills_to_optimize:
                 traces = collector.get_traces(skill_name)
@@ -154,7 +152,7 @@ class SkillCommands:
                 if len(traces) >= min_traces:
                     self._show_message(f"  Optimizing '{skill_name}' ({len(traces)} traces)...", "dim")
                     optimized_count += 1
-        
+
         if optimized_count == 0:
             self._show_message("No skills have enough traces for optimization yet.", "dim")
             self._show_message("Run skills and collect traces to enable optimization.", "dim")
@@ -176,7 +174,7 @@ class SkillCommands:
                 seeds = int(args[i + 1])
 
         self._show_message(f"Benchmarking skills (max {max_samples} samples, seeds: {seeds})...")
-        
+
         # List available skills
         skills = self.skill_manager.get_all_available_skills()
         if not skills:
@@ -184,12 +182,12 @@ class SkillCommands:
             return
 
         collector = get_trace_collector()
-        
+
         self._show_message(f"Found {len(skills)} installed skills:")
         for name, profile in skills.items():
             trace_count = collector.get_trace_count(name)
             self._show_message(f"  - {profile.display_name or name} ({trace_count} traces)")
-        
+
         self._show_message("\nBenchmark results would show accuracy, latency, and cost metrics.", "dim")
 
     async def cmd_list(self, args: list[str]) -> None:

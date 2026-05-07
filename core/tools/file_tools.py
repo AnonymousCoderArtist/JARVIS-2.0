@@ -33,15 +33,16 @@ WHEN TO USE:
 SINGLE FILE MODE (use filePath):
   {"filePath": "/absolute/path/file.py", "offset": 1, "limit": 50}
   - filePath (required): Absolute path to file
-  - offset (REQUIRED, 1-indexed): Line number to start from (1 = first line)
-  - limit (REQUIRED): Number of lines to read (max 1000)
+  - offset (optional, default 1): LINE number to start from (1 = first line, NOT byte offset!)
+  - limit (optional, default 10): Number of lines to read (max 1000)
   WARNING: offset/limit are LINE numbers, NOT byte offsets!
 
 MULTIPLE FILES MODE (use files array):
   {"files": [{"filePath": "/path/a.py", "offset": 1, "limit": 50}]}
-  - filePath: Absolute path
-  - offset (REQUIRED): Line number to start
-  - limit (REQUIRED): Number of lines
+  - filePath (required): Absolute path to file
+  - offset (optional, default 1): LINE number to start
+  - limit (optional, default 10): Number of lines to read
+  - All files in array are read in parallel
 
 TIPS: Use offset/limit to paginate through large files. Always read before edit."""
 
@@ -90,7 +91,7 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                             "default": 10
                         }
                     },
-                    "required": ["offset", "limit"]
+                    "required": ["filePath"]
                 },
                 "minItems": 1,
                 "description": "Array of file objects with file_path, offset, and limit (multiple files mode)"
@@ -186,8 +187,6 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
 
             # Backward compatibility: check for single file parameters
             file_path = self._get_param(input_data, "filePath", "file_path")
-            offset = self._get_param(input_data, "offset")
-            limit = self._get_param(input_data, "limit")
 
             if file_path is None:
                 return ToolOutput(
@@ -196,20 +195,15 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                     error="No file path provided. Use either 'filePath' for single file or 'files' array for multiple files."
                 )
 
-            # For single file mode, offset and limit are required (not optional with defaults)
-            if offset is None:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Missing required parameter 'offset' for single file mode."
-                )
+            # For single file mode, apply defaults for offset (1) and limit (10)
+            offset = self._get_param(input_data, "offset")
+            limit = self._get_param(input_data, "limit")
 
-            if limit is None:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Missing required parameter 'limit' for single file mode."
-                )
+            # Apply defaults if not provided
+            if offset is None or not isinstance(offset, int) or offset < 1:
+                offset = 1
+            if limit is None or not isinstance(limit, int) or limit < 1:
+                limit = 10
 
             # Convert to files array format for processing
             files_array = [{

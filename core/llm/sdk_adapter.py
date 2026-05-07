@@ -9,17 +9,17 @@ from core.llm.base import BaseLLMProvider
 from core.llm_sdk.base.sdk import (
     BaseLLMSDK,
     GenerationConfig,
-    Message,
     GenerationResponse,
+    Message,
 )
 
 
 class TokenUsageTracker:
     """Helper class to track token usage from streaming responses"""
-    
+
     def __init__(self):
         self.usage: dict[str, int] | None = None
-    
+
     def update(self, chunk: dict[str, Any]) -> None:
         """Update usage from a chunk - usage is typically in the final chunk"""
         # Handle new format: {"type": "usage", "usage": {...}}
@@ -172,11 +172,11 @@ class SDKAdapter(BaseLLMProvider):
     def get_available_models(self) -> list[str]:
         """Get available models from SDK"""
         return self.sdk.get_available_models()
-    
+
     def get_and_clear_usage(self) -> dict[str, int] | None:
         """Get the last token usage and clear it (for use after streaming completes)"""
         usage = None
-        
+
         # Check if there's a usage tracker from streaming
         if hasattr(self, '_current_usage_tracker') and self._current_usage_tracker:
             tracker = self._current_usage_tracker
@@ -184,9 +184,9 @@ class SDKAdapter(BaseLLMProvider):
                 usage = tracker.usage
             # Clear the tracker
             self._current_usage_tracker = None
-        
+
         # Fall back to last_token_usage (from non-streaming)
         if not usage and self.last_token_usage:
             usage = self.last_token_usage
-            
+
         return usage

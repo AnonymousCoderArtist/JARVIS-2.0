@@ -2,22 +2,19 @@
 
 import sys
 import time
-from typing import Any, Optional, Union
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.live import Live
-from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
-from rich.tree import Tree
-from rich.columns import Columns
-from rich.text import Text
+from typing import Any
+
 from rich.align import Align
+from rich.box import MINIMAL, ROUNDED
+from rich.console import Console
+from rich.live import Live
+from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.rule import Rule
 from rich.syntax import Syntax
+from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme as RichTheme
-from rich.box import ROUNDED, MINIMAL, SIMPLE
-
 
 # Unicode icons for different message types (modern UI indicators)
 ICONS = {
@@ -240,7 +237,7 @@ class Theme:
 class DisplayManager:
     """Manages all display operations using rich console."""
 
-    def __init__(self, theme: str = "dark", width: Optional[int] = None, custom_themes: Optional[dict] = None):
+    def __init__(self, theme: str = "dark", width: int | None = None, custom_themes: dict | None = None):
         self.theme_name = theme
         self.custom_themes = custom_themes or {}
         self._current_colors = self._get_theme_colors(theme)
@@ -251,7 +248,7 @@ class DisplayManager:
             color_system="auto",
             file=sys.stdout
         )
-        self._live: Optional[Live] = None
+        self._live: Live | None = None
         self._streaming_content = ""
         self._streaming_reasoning = ""
         self._is_reasoning = False
@@ -313,15 +310,15 @@ class DisplayManager:
         self.theme_name = theme_name
         self._current_colors = self._get_theme_colors(theme_name)
         self.console.push_theme(RichTheme(self._current_colors))
-    
+
     def cprint(self, text: str, style: str = "", end: str = "\n"):
         """Print with style using rich console."""
         self.console.print(text, style=style, end=end)
-    
+
     def clear_screen(self):
         """Clear the terminal screen."""
         self.console.clear()
-    
+
     def show_banner(self, model: str, sdk: str, base_url: str, tool_count: int):
         """Display the welcome banner with rich formatting and ASCII art."""
         ascii_art = """
@@ -354,7 +351,7 @@ class DisplayManager:
         )
         self.console.print(Align.center(panel))
         self.console.print()
-    
+
     def show_help(self):
         """Display available commands using rich table with icons."""
         table = Table(
@@ -385,7 +382,7 @@ class DisplayManager:
 
         self.console.print(Panel(table, title="[primary]Available Commands[/]", border_style="secondary"))
         self.console.print("\n[dim]Tip: Just type your message and press Enter to chat with JARVIS.[/]\n")
-    
+
     def start_streaming(self):
         """Initialize live display for streaming."""
         self._streaming_content = ""
@@ -490,15 +487,15 @@ class DisplayManager:
             box=ROUNDED
         )
         self.console.print(panel)
-    
+
     def show_error(self, message: str, title: str = "Error"):
         """Display error message in a red panel."""
         self.console.print(Panel(message, title=title, border_style="error", padding=(0, 1)))
-    
+
     def show_success(self, message: str, title: str = "Success"):
         """Display success message in a green panel."""
         self.console.print(Panel(message, title=title, border_style="success", padding=(0, 1)))
-    
+
     def show_rule(self, title: str = "", style: str = "secondary"):
         """Display a horizontal rule."""
         self.console.print(Rule(title, style=style))
@@ -510,7 +507,7 @@ class DisplayManager:
         status_table.add_row("[secondary]SDK:[/]", sdk)
         status_table.add_row("[secondary]Base URL:[/]", base_url or "default")
         status_table.add_row("[secondary]Tools:[/]", str(tool_count))
-        
+
         self.console.print(Panel(status_table, title="System Status", border_style="info"))
 
     def show_profiles(self, profiles: list, current: str):

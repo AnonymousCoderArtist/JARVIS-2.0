@@ -6,8 +6,6 @@ API request prefixes for prompt cache sharing.
 
 from __future__ import annotations
 
-from .builtin_agents import FORK_AGENT
-
 FORK_BOILERPLATE_TAG = "\n\n--- FORK_CHILD ---\n\n"
 FORK_PLACEHOLDER_RESULT = "[FORK_PLACEHOLDER]"
 

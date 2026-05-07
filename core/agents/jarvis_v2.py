@@ -5,13 +5,19 @@ import time
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
-from .base import BaseAgent
-from .system_prompts import JARVIS_V2_SYSTEM_PROMPT, GENERAL_PURPOSE_SYSTEM_PROMPT, FORK_SYSTEM_PROMPT
-from .system_prompts import get_agent_prompt
-from .heartbeat_scheduler import HeartbeatScheduler
 from core.connectors import ConnectorManager
-from core.learn import LearningManager, LearningConfig
-from core.tools.skill_manage_tool import get_skill_dir, create_skill_markdown
+from core.learn import LearningConfig, LearningManager
+from core.tools.skill_manage_tool import create_skill_markdown, get_skill_dir
+
+from .base import BaseAgent
+from .heartbeat_scheduler import HeartbeatScheduler
+from .system_prompts import (
+    FORK_SYSTEM_PROMPT,
+    GENERAL_PURPOSE_SYSTEM_PROMPT,
+    JARVIS_V2_SYSTEM_PROMPT,
+    get_agent_prompt,
+)
+
 # from core.learn.prompt_optimizer import OptimizedPrompt
 
 if TYPE_CHECKING:
@@ -64,7 +70,7 @@ class JarvisV2(BaseAgent):
         self._interactions_since_learning: int = 0
         self._last_response_text: str = ""
         self.connector_manager = connector_manager
-        
+
         # Initialize heartbeat system (disabled by default, can be enabled via config)
         self._heartbeat_scheduler: HeartbeatScheduler | None = None
         self._tool_call_count: int = 0
@@ -94,11 +100,11 @@ class JarvisV2(BaseAgent):
         settings = config_getter() if config_getter else None
         if not settings:
             return
-        
+
         # Check if heartbeat is enabled in config
         if not settings.heartbeat_enabled:
             return
-        
+
         # Get heartbeat config from settings properties
         heartbeat_config = {
             "enabled": settings.heartbeat_enabled,
@@ -115,16 +121,16 @@ class JarvisV2(BaseAgent):
             "evaluator": evaluator,
             "notifier": notifier,
         }
-        
+
         # Create agent executor for heartbeat (Phase 1 decision)
         async def agent_executor(prompt: str) -> str:
             return await self.process(prompt, {"heartbeat": True})
-        
+
         self._heartbeat_scheduler = HeartbeatScheduler(
             agent_executor=agent_executor,
             config=heartbeat_config
         )
-        
+
         # Set skill creation and evaluation thresholds from learning config
         self._skill_creation_threshold = getattr(settings, 'skill_creation_threshold', 5)
         self._self_evaluation_interval = getattr(settings, 'self_evaluation_interval', 15)
@@ -269,7 +275,8 @@ class JarvisV2(BaseAgent):
     @classmethod
     def get_system_prompt_for_profile(cls, system_prompt_id: str | None) -> str:
         """Get the appropriate system prompt for a profile's system_prompt_id."""
-        from typing import Callable, cast
+        from collections.abc import Callable
+        from typing import cast
         if system_prompt_id and system_prompt_id in SYSTEM_PROMPT_MAP:
             value = SYSTEM_PROMPT_MAP[system_prompt_id]
             # Handle both string and lazy-loaded lambda values

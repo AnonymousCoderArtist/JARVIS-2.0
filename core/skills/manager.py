@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
 
-from .models import SkillProfile, BUILTIN_SKILLS
+from .models import BUILTIN_SKILLS, SkillProfile
 
 
 class SkillManager:
@@ -48,7 +47,7 @@ class SkillManager:
         skill_profile = self.get_skill_profile(skill_name)
         if skill_profile and skill_profile.file_path:
             try:
-                with open(skill_profile.file_path, 'r', encoding='utf-8') as f:
+                with open(skill_profile.file_path, encoding='utf-8') as f:
                     content = f.read()
                 self._skill_content[skill_name] = content
                 return content

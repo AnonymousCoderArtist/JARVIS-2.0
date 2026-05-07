@@ -1,24 +1,23 @@
 """Tests for the learning system"""
 
-import asyncio
 import json
 from pathlib import Path
 
 import pytest
 
+from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
+from core.evals import (
+    EvalConfig,
+    EvalMetrics,
+    QueryRouter,
+    ResponseEvaluator,
+    RewardConfig,
+    RewardFunction,
+)
 from core.learn import (
     LearningConfig,
     LearningManager,
     TraceAnalyzer,
-)
-from core.connectors import ConnectorConfig, FilesystemConnector, ConnectorManager
-from core.evals import (
-    EvalMetrics,
-    RewardFunction,
-    RewardConfig,
-    QueryRouter,
-    ResponseEvaluator,
-    EvalConfig,
 )
 
 
@@ -54,7 +53,6 @@ class TestPatternDetector:
 
     def test_detect_query_type(self):
         """Test query type detection via pattern matching"""
-        import re
         patterns = ["fix", "bug", "error"]
         query = "Can you fix this bug in the code?"
         assert any(p in query.lower() for p in patterns)

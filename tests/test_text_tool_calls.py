@@ -2,18 +2,19 @@
 Tests for text-embedded tool call handling.
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.llm_sdk.tool_parser import (
+    extract_text_and_tool_calls,
     extract_tool_calls_from_text,
     has_text_tool_calls,
     normalize_tool_calls,
-    extract_text_and_tool_calls,
 )
 
 
@@ -43,7 +44,7 @@ class TestExtractToolCallsFromText:
     def test_extract_single_tool_call(self):
         content = "I'll read that file for you.\n<function=read><parameter name=\"path\">/path/to/file.txt</parameter></function>"
         tool_calls = extract_tool_calls_from_text(content)
-        
+
         assert len(tool_calls) == 1
         assert tool_calls[0]["name"] == "read"
         assert tool_calls[0]["arguments"]["path"] == "/path/to/file.txt"
@@ -51,7 +52,7 @@ class TestExtractToolCallsFromText:
     def test_extract_with_function_name_format(self):
         content = '<function name="grep"><parameter name="query">def </parameter><parameter name="path">src/</parameter></function>'
         tool_calls = extract_tool_calls_from_text(content)
-        
+
         assert len(tool_calls) == 1
         assert tool_calls[0]["name"] == "grep"
         assert tool_calls[0]["arguments"]["query"] == "def "
@@ -64,7 +65,7 @@ class TestExtractToolCallsFromText:
         <function=read><parameter name="path">file2.txt</parameter></function>
         """
         tool_calls = extract_tool_calls_from_text(content)
-        
+
         assert len(tool_calls) == 2
         assert tool_calls[0]["arguments"]["path"] == "file1.txt"
         assert tool_calls[1]["arguments"]["path"] == "file2.txt"
@@ -72,7 +73,7 @@ class TestExtractToolCallsFromText:
     def test_extract_with_json_value(self):
         content = '<function=write><parameter name="path">test.txt</parameter><parameter name="content">{"key": "value"}</parameter></function>'
         tool_calls = extract_tool_calls_from_text(content)
-        
+
         assert len(tool_calls) == 1
         assert tool_calls[0]["name"] == "write"
         assert tool_calls[0]["arguments"]["path"] == "test.txt"
@@ -91,7 +92,7 @@ class TestExtractToolCallsFromText:
 </function>
 Let me do that..."""
         tool_calls = extract_tool_calls_from_text(content)
-        
+
         assert len(tool_calls) == 1
         assert tool_calls[0]["name"] == "read"
         assert tool_calls[0]["arguments"]["path"] == "/some/long/path/to/file.txt"
@@ -105,7 +106,7 @@ class TestNormalizeToolCalls:
             {"name": "read", "arguments": {"path": "test.txt"}}
         ]
         normalized = normalize_tool_calls(tool_calls)
-        
+
         assert len(normalized) == 1
         assert normalized[0]["name"] == "read"
         assert isinstance(normalized[0]["arguments"], str)
@@ -117,7 +118,7 @@ class TestNormalizeToolCalls:
             {"name": "grep", "arguments": {"query": "test"}}
         ]
         normalized = normalize_tool_calls(tool_calls)
-        
+
         assert len(normalized) == 2
         assert normalized[0]["name"] == "read"
         assert normalized[1]["name"] == "grep"
@@ -133,7 +134,7 @@ class TestExtractTextAndToolCalls:
 
 Let me do that..."""
         cleaned, tool_calls = extract_text_and_tool_calls(content)
-        
+
         assert "I'll read that file for you." in cleaned
         assert "Let me do that..." in cleaned
         assert "<function" not in cleaned
@@ -143,14 +144,14 @@ Let me do that..."""
     def test_no_tool_calls(self):
         content = "Just a regular text response."
         cleaned, tool_calls = extract_text_and_tool_calls(content)
-        
+
         assert cleaned == content
         assert len(tool_calls) == 0
 
     def test_only_tool_calls(self):
         content = "<function=read><parameter name=\"path\">test.txt</parameter></function>"
         cleaned, tool_calls = extract_text_and_tool_calls(content)
-        
+
         assert cleaned == ""
         assert len(tool_calls) == 1
 
@@ -169,13 +170,13 @@ class TestIntegrationWithMockResponse:
 Let me do that..."""
 
         assert has_text_tool_calls(mock_response) is True
-        
+
         cleaned, tool_calls = extract_text_and_tool_calls(mock_response)
         normalized = normalize_tool_calls(tool_calls)
-        
+
         assert len(normalized) == 1
         assert normalized[0]["name"] == "read"
-        
+
         # Verify the arguments can be parsed back to dict
         import json
         args = json.loads(normalized[0]["arguments"])

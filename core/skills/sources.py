@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -59,13 +56,13 @@ class HermesSource(SkillSource):
     def install(self, skill_id: str, dest_dir: Path) -> tuple[bool, str, dict[str, Any]]:
         """Install a skill from Hermes catalog."""
         index = self._fetch_index()
-        
+
         if skill_id not in index:
             return False, f"Skill '{skill_id}' not found in Hermes catalog", {}
 
         skill_info = index[skill_id]
         skill_file = skill_info.get("file", skill_id)
-        
+
         try:
             with httpx.Client(timeout=30.0) as client:
                 resp = client.get(f"{self.BASE_URL}/skills/{skill_file}.md")
@@ -153,7 +150,7 @@ class GitHubSource(SkillSource):
                 api_url = f"https://api.github.com/repos/{owner}/{repo}/contents"
                 if skill_path:
                     api_url += f"/{skill_path}"
-                
+
                 resp = client.get(api_url)
                 if resp.status_code == 404:
                     return False, f"Repository or path not found: {owner}/{repo}", {}
@@ -169,7 +166,7 @@ class GitHubSource(SkillSource):
                 skill_name = Path(skill_path).stem if skill_path else repo
                 dest_skill_dir = dest_dir / skill_name
                 dest_skill_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 # Download the file
                 download_url = contents.get("download_url") or contents.get("html_url")
                 if download_url:
@@ -210,7 +207,7 @@ class LocalSource(SkillSource):
     def install(self, skill_id: str, dest_dir: Path) -> tuple[bool, str, dict[str, Any]]:
         """Install a skill from a local path."""
         src_path = Path(skill_id).expanduser().resolve()
-        
+
         if not src_path.exists():
             return False, f"Local path not found: {skill_id}", {}
 
@@ -230,12 +227,12 @@ class LocalSource(SkillSource):
                 skill_name = src_path.name
                 dest_skill_dir = dest_dir / skill_name
                 dest_skill_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 import shutil
                 for item in src_path.iterdir():
                     if item.is_file():
                         shutil.copy2(item, dest_skill_dir / item.name)
-                
+
                 return True, f"Installed skill from {skill_id}", {
                     "source": "local",
                     "directory": str(dest_skill_dir),

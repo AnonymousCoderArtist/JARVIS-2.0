@@ -1,6 +1,5 @@
 """Evaluators for JARVIS responses"""
 
-import time
 from dataclasses import dataclass
 from typing import Any
 

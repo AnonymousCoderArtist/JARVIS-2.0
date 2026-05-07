@@ -3,16 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from jarvis import __version__
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Static
 
 from core.config.settings import Settings
+from interface.textual_ui.agent_loop import SkillManagerAdapter
 from interface.textual_ui.widgets.banner.petit_chat import PetitChat
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.agent_loop import SkillManagerAdapter
+from jarvis import __version__
 
 
 def _pluralize(count: int, singular: str) -> str:

@@ -10,8 +10,8 @@ from textual.message import Message
 from textual.widgets import TextArea
 
 from interface.textual_ui.cli_adapters import (
-    CompletionResult,
     CommandRegistry,
+    CompletionResult,
     RecordingStartError,
     TranscribeState,
     VoiceManagerPort,
@@ -416,9 +416,10 @@ class ChatTextArea(TextArea):
     def _read_image_from_clipboard(self) -> str | None:
         """Try to read an image from the clipboard."""
         try:
-            import tkinter as tk
-            from PIL import Image
             import io
+            import tkinter as tk
+
+            from PIL import Image
 
             root = tk.Tk()
             root.withdraw()

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import re
+
 from pygments.token import Token
 from textual.content import Content
 from textual.highlight import HighlightTheme, highlight

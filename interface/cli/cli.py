@@ -4,47 +4,44 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.styles import Style
-from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.output import DummyOutput
-from prompt_toolkit.application import get_app
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.output import DummyOutput
+from prompt_toolkit.styles import Style
+from pygments.lexers.markup import MarkdownLexer
 from pygments.lexers.python import PythonLexer
 from pygments.lexers.shell import BashLexer
-from pygments.lexers.markup import MarkdownLexer
-from rich.markdown import Markdown
 
+from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
 from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.manager import AgentManager
-from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.config.settings import Settings
-from core.connectors import ConnectorManager, ConnectorConfig, FilesystemConnector
-from core.learn import LearningManager, LearningConfig
+from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
+from core.learn import LearningConfig, LearningManager
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tool import AgentsTool, AgentStatusTool
+from core.tools.agent_tool import AgentStatusTool, AgentsTool
+from core.tools.async_registry import AsyncToolRegistry
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
 from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
-from core.tools.memory_tool import SaveMemoryTool, ReadMemoryTool
-from core.tools.registry import ToolRegistry
-from core.tools.async_registry import AsyncToolRegistry
+from core.tools.memory_tool import ReadMemoryTool, SaveMemoryTool
 from core.tools.repl_tool import REPLTool
-from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 from core.tools.worktree_tool import EnterWorktreeTool, ExitWorktreeTool
 
-from .display import DisplayManager, StreamingResponse
 from .commands import CommandHandler
-from .config import ConfigManager, load_config
+from .config import load_config
+from .display import DisplayManager
 from .keybindings import create_key_bindings
 
 
@@ -182,9 +179,8 @@ class CLIInterface:
         """Initialize MCP servers and register their tools asynchronously."""
         try:
             # Import MCP components
-            from core.tools.mcp_adapter import MCPRegistry, MCPTransportType
-            from pathlib import Path
-            import json
+
+            from core.tools.mcp_adapter import MCPRegistry
 
             # Load MCP server configurations
             mcp_configs = self._load_mcp_configs()
@@ -336,7 +332,6 @@ class CLIInterface:
     def _load_mcp_configs(self) -> list[dict]:
         """Load MCP server configurations from .mcp.json file."""
         from pathlib import Path
-        import json
 
         config_paths = [
             Path(".mcp.json"),
@@ -391,7 +386,7 @@ class CLIInterface:
             base_url=self.base_url or "",
             tool_count=len(self.tool_registry.list_tools())
         )
-    
+
     def _show_help(self):
         """Display available commands."""
         self.display_manager.show_help()

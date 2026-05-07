@@ -39,16 +39,16 @@ class CompletionPopup(VerticalScroll):
         items: list[_CompletionItem] = []
         for idx, (label, description, _) in enumerate(suggestions):
             is_selected = idx == selected
-            
+
             # Use Rich Text for better control
             text = Text()
             display_label = self._display_label(label)
-            
+
             if is_selected:
                 text.append(display_label, style="bold black on white")
             else:
                 text.append(display_label, style="bold white")
-                
+
             if description:
                 text.append("  ")
                 text.append(description, style="italic dim" if not is_selected else "italic black on white")
@@ -60,7 +60,7 @@ class CompletionPopup(VerticalScroll):
             else:
                 item.styles.background = None
                 item.styles.color = None
-                
+
             items.append(item)
 
         self.mount_all(items)

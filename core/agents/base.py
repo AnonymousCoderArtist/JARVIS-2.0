@@ -8,19 +8,18 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
 from typing import Any, TypeAlias, cast
 
 from core.agents.system_prompts import get_system_context
-from core.llm.base import BaseLLMProvider, MessageDict, ToolDefDict
+from core.config.settings import Settings
+from core.llm.base import BaseLLMProvider, MessageDict
 from core.llm_sdk.base.sdk import ToolCall
 from core.llm_sdk.tool_parser import (
-    extract_tool_calls_from_text,
+    extract_text_and_tool_calls,
     has_text_tool_calls,
     normalize_tool_calls,
-    extract_text_and_tool_calls,
 )
-from core.config.settings import Settings
 from core.tools.permissions import (
     ApprovedRule,
     PermissionContext,
@@ -116,8 +115,8 @@ class BaseAgent(ABC):
             # Rebuild the base system prompt at runtime with discovered context files
             # This must happen before _build_system_prompt() is called
             from core.agents.system_prompts import (
-                discover_context_files,
                 build_jarvis_v2_system_prompt,
+                discover_context_files,
             )
             context_files = discover_context_files()
             self.base_system_prompt = build_jarvis_v2_system_prompt(
@@ -129,7 +128,7 @@ class BaseAgent(ABC):
 
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
-    
+
     def _build_system_prompt(self) -> None:
         """Build the full system prompt with system context and active skills."""
         # Get system context
@@ -345,7 +344,7 @@ class BaseAgent(ABC):
         if tool_name == "AskUserQuestion" and self.user_input_callback:
             try:
                 user_input_result = await self.user_input_callback(tool_args)
-                
+
                 # Check if user cancelled
                 if hasattr(user_input_result, 'cancelled') and user_input_result.cancelled:
                     return ToolDecision(
@@ -353,12 +352,12 @@ class BaseAgent(ABC):
                         approval_type=ToolPermission.ASK,
                         feedback="User declined to answer questions",
                     )
-                
+
                 # Convert answers list to dict format expected by the tool
                 # The tool expects: dict[str, str] where key is question text and value is answer
                 answers_dict = {}
                 annotations_dict = {}
-                
+
                 if hasattr(user_input_result, 'answers') and user_input_result.answers:
                     for answer in user_input_result.answers:
                         if hasattr(answer, 'question') and hasattr(answer, 'answer'):
@@ -372,11 +371,11 @@ class BaseAgent(ABC):
                             a = answer.get('answer', '')
                             if q and a:
                                 answers_dict[q] = a
-                
+
                 # Update tool_args with the converted answers
                 tool_args = tool_args.copy()
                 tool_args['answers'] = answers_dict
-                
+
                 # Return decision to execute with updated args
                 return ToolDecision(
                     verdict="execute",
@@ -396,7 +395,7 @@ class BaseAgent(ABC):
         ctx = None
         if tool and hasattr(tool, "resolve_permission"):
             ctx = tool.resolve_permission(tool_args)
-        
+
         if ctx is None:
             # Default to ASK if tool doesn't implement permission checking or returns None
             ctx = PermissionContext(permission=ToolPermission.ASK)
@@ -515,7 +514,7 @@ class BaseAgent(ABC):
             result = await self.approval_callback(
                 tool_name, tool_args, tool_call_id, required_permissions
             )
-            
+
             if isinstance(result, tuple) and len(result) == 2:
                 response, feedback = result
             else:
@@ -579,7 +578,7 @@ class BaseAgent(ABC):
                     config_data["tools"] = {}
                 if tool_name not in config_data["tools"]:
                     config_data["tools"][tool_name] = {}
-                
+
                 config_data["tools"][tool_name]["permission"] = "always"
                 # Need to update config back - ideally Settings should have a better way
                 config.set("tools", tool_name, {"permission": "always"})
@@ -697,7 +696,7 @@ class BaseAgent(ABC):
                             use_concurrent=self.use_concurrent_tools
                         )
                         continue  # Loop again with updated messages
-                    
+
                     # Check for text-embedded tool calls in the response
                     if has_text_tool_calls(full_response):
                         cleaned_text, text_tool_calls = extract_text_and_tool_calls(full_response)
@@ -734,19 +733,19 @@ class BaseAgent(ABC):
                     e,
                 )
                 return await self._process_without_tools(updated_messages, stream=stream)
-            
+
             # Handle response
             response: MessageDict = cast(MessageDict, raw_response)
 
             content = str(response.get("content", ""))
             reasoning = str(response.get("reasoning_content", "") or response.get("reasoning", ""))
-            
+
             # Handle reasoning content in non-streaming mode
             if reasoning and reasoning.strip() and self.reasoning_callback:
                 self.reasoning_callback(reasoning)
             if self.reasoning_done_callback:
                 self.reasoning_done_callback()
-            
+
             # Always emit content via stream_callback if set, even in non-streaming mode
             if self.stream_callback and content:
                 self.stream_callback(content)
@@ -758,7 +757,7 @@ class BaseAgent(ABC):
                     use_concurrent=self.use_concurrent_tools
                 )
                 continue  # Loop again with updated messages
-            
+
             # Check for text-embedded tool calls in non-streaming response
             if has_text_tool_calls(content):
                 cleaned_text, text_tool_calls = extract_text_and_tool_calls(content)
@@ -860,7 +859,7 @@ class BaseAgent(ABC):
                 success = getattr(result, "success", False)
                 res_val = getattr(result, "result", None)
                 err_val = getattr(result, "error", None)
-                
+
                 # If error is None but there's a result with error info, use that
                 if not success and not err_val and res_val:
                     err_val = str(res_val)
@@ -960,7 +959,7 @@ class BaseAgent(ABC):
 
                 # Format error message
                 err_msg = output.error if output.error else "Unknown error"
-                
+
                 results.append({
                     "tool": tool_name,
                     "success": output.success,
@@ -1116,46 +1115,46 @@ class BaseAgent(ABC):
         """
         stages = ["Understanding", "Planning", "Execution", "Verification"]
         total_stages = len(stages)
-        
+
         if self.status_callback:
             self.status_callback("Starting processing...")
-        
+
         # Stage 1: Understanding
         if self.progress_callback:
             self.progress_callback(stages[0], 0.0)
         if self.status_callback:
             self.status_callback(f"Stage 1/{total_stages}: {stages[0]}")
         await asyncio.sleep(0)  # Yield control
-        
+
         # Stage 2: Planning
         if self.progress_callback:
             self.progress_callback(stages[1], 0.25)
         if self.status_callback:
             self.status_callback(f"Stage 2/{total_stages}: {stages[1]}")
         await asyncio.sleep(0)  # Yield control
-        
+
         # Stage 3: Execution (the actual processing)
         if self.progress_callback:
             self.progress_callback(stages[2], 0.5)
         if self.status_callback:
             self.status_callback(f"Stage 3/{total_stages}: {stages[2]}")
-        
+
         # Process normally
         result = await self.process(input, context)
-        
+
         # Stage 4: Verification
         if self.progress_callback:
             self.progress_callback(stages[3], 0.75)
         if self.status_callback:
             self.status_callback(f"Stage 4/{total_stages}: {stages[3]}")
         await asyncio.sleep(0)  # Yield control
-        
+
         # Complete
         if self.progress_callback:
             self.progress_callback("Complete", 1.0)
         if self.status_callback:
             self.status_callback("Processing complete")
-        
+
         return result
 
     def _get_background_task_manager(self):
@@ -1163,21 +1162,21 @@ class BaseAgent(ABC):
         if self._background_task_manager is None:
             from core.agents.background_task_manager import BackgroundTaskManager
             from core.config.settings import Settings
-            
+
             settings = self._config_getter() if self._config_getter else Settings()
-            
+
             self._background_task_manager = BackgroundTaskManager(
                 max_concurrent_tasks=settings.max_concurrent_agents,
                 result_cache_ttl=3600,
                 cleanup_interval=300
             )
-            
+
             # Set the tool executor
             async def tool_executor(tool_name: str, tool_args: dict) -> Any:
                 return await self.tools.execute_tool(tool_name, tool_args)
-            
+
             self._background_task_manager.set_tool_executor(tool_executor)
-        
+
         return self._background_task_manager
 
     async def delegate_to_background(
@@ -1202,14 +1201,14 @@ class BaseAgent(ABC):
         try:
             # Get or create background task manager
             bg_manager = self._get_background_task_manager()
-            
+
             # Submit task to background manager
             task_id = await bg_manager.submit_task(
                 tool_name=tool_name,
                 args=args,
                 timeout=timeout
             )
-            
+
             logger.info(f"Delegated task '{task}' to background with ID: {task_id}")
             return f"Task delegated to background. ID: {task_id}"
 

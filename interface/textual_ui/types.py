@@ -73,7 +73,6 @@ class RateLimitError(Exception):
     pass
 
 
-from core.agents.base import ApprovalResponse
 
 @dataclass
 class ToolApprovalResult:

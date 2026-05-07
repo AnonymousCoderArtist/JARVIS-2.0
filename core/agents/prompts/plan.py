@@ -4,9 +4,8 @@ This module contains the plan agent system prompt for task decomposition
 and planning tasks.
 """
 
-from datetime import datetime
 import os
-from typing import List
+from datetime import datetime
 
 
 def get_plan_prompt() -> str:

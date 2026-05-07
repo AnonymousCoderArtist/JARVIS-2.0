@@ -14,18 +14,18 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option, OptionDoesNotExist
 from textual.worker import Worker
 
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.cli_adapters import (
     ConnectorConfig,
     ConnectorRegistry,
-    connectors_enabled,
     MCPTool,
+    connectors_enabled,
     updated_tool_list,
 )
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 if TYPE_CHECKING:
-    from interface.textual_ui.cli_adapters import MCPServer, ToolManager
     from interface.textual_ui.agent_loop import ToolManagerAdapter
+    from interface.textual_ui.cli_adapters import MCPServer, ToolManager
 
 
 class MCPSourceKind(StrEnum):

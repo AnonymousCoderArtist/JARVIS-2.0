@@ -2,11 +2,11 @@
 
 import asyncio
 import logging
-import os
-import psutil
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +46,12 @@ class ResourceMonitor:
         self.limits = limits or ResourceLimits()
         self.update_interval = update_interval
         self.alert_callback = alert_callback
-        
+
         self._monitoring = False
         self._monitor_task: asyncio.Task | None = None
         self._snapshots: list[ResourceSnapshot] = []
         self._max_snapshots = 100  # Keep last 100 snapshots
-        
+
         # Track I/O counters for delta calculation
         self._last_disk_io = psutil.disk_io_counters()
         self._last_network_io = psutil.net_io_counters()
@@ -62,7 +62,7 @@ class ResourceMonitor:
         if self._monitoring:
             logger.warning("Resource monitoring already started")
             return
-        
+
         self._monitoring = True
         self._monitor_task = asyncio.create_task(self._monitor_loop())
         logger.info("Started resource monitoring")
@@ -71,7 +71,7 @@ class ResourceMonitor:
         """Stop resource monitoring"""
         if not self._monitoring:
             return
-        
+
         self._monitoring = False
         if self._monitor_task:
             self._monitor_task.cancel()
@@ -87,15 +87,15 @@ class ResourceMonitor:
             try:
                 snapshot = await self._take_snapshot()
                 self._add_snapshot(snapshot)
-                
+
                 # Check for resource alerts
                 if self._should_alert(snapshot):
                     if self.alert_callback:
                         self.alert_callback(snapshot)
                     logger.warning(f"Resource alert: CPU={snapshot.cpu_percent}%, Memory={snapshot.memory_percent}%")
-                
+
                 await asyncio.sleep(self.update_interval)
-                
+
             except Exception as e:
                 logger.error(f"Error in resource monitoring loop: {e}")
                 await asyncio.sleep(self.update_interval)
@@ -103,21 +103,21 @@ class ResourceMonitor:
     async def _take_snapshot(self) -> ResourceSnapshot:
         """Take a snapshot of current resource usage"""
         current_time = time.time()
-        
+
         # CPU usage
         cpu_percent = psutil.cpu_percent(interval=0.1)
-        
+
         # Memory usage
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
         memory_used_mb = memory.used / (1024 * 1024)
         memory_available_mb = memory.available / (1024 * 1024)
-        
+
         # Disk I/O (calculate delta)
         disk_io = psutil.disk_io_counters()
         disk_io_read_mb = 0.0
         disk_io_write_mb = 0.0
-        
+
         if self._last_disk_io and disk_io:
             time_delta = current_time - self._last_io_time
             if time_delta > 0:
@@ -125,14 +125,14 @@ class ResourceMonitor:
                 write_bytes = disk_io.write_bytes - self._last_disk_io.write_bytes
                 disk_io_read_mb = (read_bytes / (1024 * 1024)) / time_delta
                 disk_io_write_mb = (write_bytes / (1024 * 1024)) / time_delta
-        
+
         self._last_disk_io = disk_io
-        
+
         # Network I/O (calculate delta)
         network_io = psutil.net_io_counters()
         network_io_sent_mb = 0.0
         network_io_recv_mb = 0.0
-        
+
         if self._last_network_io and network_io:
             time_delta = current_time - self._last_io_time
             if time_delta > 0:
@@ -140,10 +140,10 @@ class ResourceMonitor:
                 recv_bytes = network_io.bytes_recv - self._last_network_io.bytes_recv
                 network_io_sent_mb = (sent_bytes / (1024 * 1024)) / time_delta
                 network_io_recv_mb = (recv_bytes / (1024 * 1024)) / time_delta
-        
+
         self._last_network_io = network_io
         self._last_io_time = current_time
-        
+
         return ResourceSnapshot(
             timestamp=current_time,
             cpu_percent=cpu_percent,
@@ -190,7 +190,7 @@ class ResourceMonitor:
             s for s in self._snapshots
             if current_time - s.timestamp <= duration_seconds
         ]
-        
+
         if not recent_snapshots:
             return {
                 "cpu_percent": 0.0,
@@ -199,7 +199,7 @@ class ResourceMonitor:
                 "disk_io_read_mb": 0.0,
                 "disk_io_write_mb": 0.0,
             }
-        
+
         return {
             "cpu_percent": sum(s.cpu_percent for s in recent_snapshots) / len(recent_snapshots),
             "memory_percent": sum(s.memory_percent for s in recent_snapshots) / len(recent_snapshots),
@@ -220,14 +220,14 @@ class ResourceMonitor:
         """
         if snapshot is None:
             snapshot = self.get_current_snapshot()
-        
+
         if snapshot is None:
             return {
                 "cpu_exceeded": False,
                 "memory_percent_exceeded": False,
                 "memory_mb_exceeded": False,
             }
-        
+
         return {
             "cpu_exceeded": snapshot.cpu_percent > self.limits.max_cpu_percent,
             "memory_percent_exceeded": snapshot.memory_percent > self.limits.max_memory_percent,

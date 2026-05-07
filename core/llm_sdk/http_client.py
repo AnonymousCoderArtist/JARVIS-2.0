@@ -4,7 +4,6 @@ from typing import Any
 
 import httpx
 from curl_cffi.requests import AsyncSession
-from curl_cffi.requests import Headers as CurlHeaders
 
 logger = logging.getLogger(__name__)
 

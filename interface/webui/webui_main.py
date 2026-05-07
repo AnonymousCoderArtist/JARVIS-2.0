@@ -6,10 +6,10 @@ import argparse
 import os
 import subprocess
 import sys
-import urllib.request
-import webbrowser
 import threading
 import time
+import urllib.request
+import webbrowser
 from pathlib import Path
 
 
@@ -55,7 +55,7 @@ def main(
     # For the frontend to connect to backend, we need to use the actual host
     # If host is 0.0.0.0, we use 127.0.0.1 for the browser connection
     backend_connect_host = "127.0.0.1" if host == "127.0.0.1" else host
-    
+
     # Get the webui directory
     webui_dir = Path(__file__).resolve().parent
 
@@ -64,8 +64,9 @@ def main(
         import traceback
         try:
             import uvicorn
+
             from core.web.server import app
-            
+
             print(f"Starting JARVIS backend on http://{backend_host}:{backend_port} (uvicorn + fastapi)")
             uvicorn.run(app, host=backend_host, port=backend_port, log_level="info")
         except ImportError as e:
@@ -79,7 +80,7 @@ def main(
 
     backend_thread = threading.Thread(target=start_backend, daemon=True)
     backend_thread.start()
-    
+
     # Give the backend a moment to fail early if there's an import error
     time.sleep(0.5)
     if not backend_thread.is_alive():
@@ -98,14 +99,14 @@ def main(
             with urllib.request.urlopen(req, timeout=2) as resp:
                 if resp.status == 200:
                     backend_ready = True
-                    print(f"Backend server is ready!")
+                    print("Backend server is ready!")
                     break
         except Exception as e:
             if i == 0:
                 # Log first failure for debugging
                 print(f"  Health check failed (attempt 1): {e}")
             time.sleep(retry_delay)
-    
+
     if not backend_ready:
         print(f"ERROR: Backend server failed to start or respond after {max_retries * retry_delay} seconds.")
         print(f"  Please check if port {backend_port} is available and the backend can start.")
@@ -115,15 +116,15 @@ def main(
     # Start the frontend dev server (npm run dev)
     # On Windows, we need to use npm.cmd instead of npm
     npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
-    
+
     # Check if node_modules exists
     node_modules = webui_dir / "node_modules"
     if not node_modules.exists():
         print("ERROR: node_modules not found. Please run 'npm install' in the webui directory first.")
         print(f"   cd {webui_dir}")
-        print(f"   npm install")
+        print("   npm install")
         return
-    
+
     # Check if npm is available
     try:
         subprocess.run([npm_cmd, "--version"], cwd=str(webui_dir), capture_output=True, check=True)
@@ -131,12 +132,12 @@ def main(
         print(f"ERROR: npm is not available: {e}")
         print("Please install Node.js and npm from https://nodejs.org/")
         return
-    
+
     # Set environment variables for the frontend to know where the backend is
     frontend_env = os.environ.copy()
     frontend_env["JARVIS_API_URL"] = f"http://{backend_connect_host}:{backend_port}"
-    
-    print(f"Starting JARVIS frontend dev server...")
+
+    print("Starting JARVIS frontend dev server...")
     npm_process = subprocess.Popen(
         [npm_cmd, "run", "dev", "--", "--host", host, "--port", str(port)],
         cwd=str(webui_dir),
@@ -145,13 +146,13 @@ def main(
         text=True,
         env=frontend_env
     )
-    
+
     # Read npm output in background to catch any errors
     def read_npm_output():
         if npm_process.stdout:
             for line in npm_process.stdout:
                 print(f"   [npm] {line.rstrip()}")
-    
+
     npm_output_thread = threading.Thread(target=read_npm_output, daemon=True)
     npm_output_thread.start()
 
@@ -162,12 +163,12 @@ def main(
         try:
             req = urllib.request.Request(f"http://{host}:{port}")
             urllib.request.urlopen(req, timeout=2)
-            print(f"Frontend dev server is ready!")
+            print("Frontend dev server is ready!")
             break
         except Exception:
             time.sleep(0.5)
     else:
-        print(f"WARNING: Frontend server may not be ready. Proceeding anyway...")
+        print("WARNING: Frontend server may not be ready. Proceeding anyway...")
 
     # Open browser to the frontend URL (use 127.0.0.1 for localhost even if binding to 0.0.0.0)
     frontend_url = f"http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}"
@@ -176,12 +177,12 @@ def main(
 
     # Determine display host for messages
     display_host = "localhost" if host in ("127.0.0.1", "localhost") else host
-    
-    print(f"\n+ JARVIS Web UI is running!")
+
+    print("\n+ JARVIS Web UI is running!")
     print(f"   Frontend: http://{display_host}:{port}")
     print(f"   Backend:  http://{display_host}:{backend_port}")
     if host == "0.0.0.0":
-        print(f"\n   [Network] Accessible from other devices on the network!")
+        print("\n   [Network] Accessible from other devices on the network!")
     print("\nPress Ctrl+C to stop all servers")
 
     try:
@@ -221,7 +222,7 @@ def _parse_args(argv: list[str]) -> tuple[str, int, int]:
         default=8765,
         help="Port for the backend server (default: 8765)"
     )
-    
+
     args, unknown = parser.parse_known_args(argv)
     return args.host, args.port, args.backend_port
 
@@ -229,7 +230,7 @@ def _parse_args(argv: list[str]) -> tuple[str, int, int]:
 if __name__ == "__main__":
     # Get the additional arguments for webui
     webui_host, webui_port, backend_port = _parse_args(sys.argv[1:])
-    
+
     # We need to filter out the webui-specific args before passing to main
     # The cli.py will call main() directly with model, base_url, etc.
     # So we'll just use the defaults and let cli.py handle the specific args

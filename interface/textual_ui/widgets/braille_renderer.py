@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 import math
+from collections.abc import Iterable
 
 # for more details on braille characters encoding, see: https://en.wikipedia.org/wiki/Braille_Patterns
 

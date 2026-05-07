@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shlex
 import subprocess
 import tempfile
+from pathlib import Path
 
 from interface.textual_ui.cli_adapters import read_safe
 

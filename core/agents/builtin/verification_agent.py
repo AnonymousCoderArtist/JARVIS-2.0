@@ -1,11 +1,11 @@
 """Verification Agent for post-implementation verification and testing"""
 
-from datetime import datetime
 import os
+from datetime import datetime
 from typing import Any
 
-from core.agents.base import BaseAgent
 from core.agents.agent_definition import AgentDefinition
+from core.agents.base import BaseAgent
 
 
 def GetVerificationPrompt() -> str:
@@ -16,7 +16,7 @@ def GetVerificationPrompt() -> str:
     """
     date = datetime.now().strftime("%Y-%m-%d")
     cwd = os.getcwd()
-    
+
     return f"""You are the Verification Agent, a specialized subagent for post-implementation verification and testing. Your expertise lies in:
 
 ## Your Purpose

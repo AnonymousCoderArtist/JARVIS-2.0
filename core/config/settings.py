@@ -23,7 +23,7 @@ def _get_default_config_paths() -> list[Path]:
 def _load_env_config() -> dict[str, Any]:
     """Load configuration from environment variables."""
     env_config: dict[str, Any] = {}
-    
+
     # Heartbeat settings from environment
     heartbeat_env = {}
     if os.getenv("JARVIS_HEARTBEAT_ENABLED"):
@@ -38,10 +38,10 @@ def _load_env_config() -> dict[str, Any]:
         heartbeat_env["skip_when_busy"] = os.getenv("JARVIS_HEARTBEAT_SKIP_WHEN_BUSY", "false").lower() in ("true", "1", "yes")
     if os.getenv("JARVIS_HEARTBEAT_SHOW_OK"):
         heartbeat_env["show_ok"] = os.getenv("JARVIS_HEARTBEAT_SHOW_OK", "true").lower() in ("true", "1", "yes")
-    
+
     if heartbeat_env:
         env_config["heartbeat"] = heartbeat_env
-    
+
     return env_config
 
 
@@ -66,28 +66,28 @@ class Settings:
             config_paths = _get_default_config_paths()
             # Use the highest priority path (last one) as the config_path for save()
             self._config_path = config_paths[-1] if config_paths else Path(".jarvis") / "settings.json"
-        
+
         # Load JSON configs in order (lowest to highest priority)
         json_config: dict[str, Any] = {}
         for path in config_paths:
             if path.exists():
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         loaded = json.load(f)
                         json_config = self._deep_merge(json_config, loaded)
                 except Exception as e:
                     print(f"Warning: Failed to load config from {path}: {e}")
-        
+
         # Override with environment config
         env_config = _load_env_config()
-        
+
         # Merge: start with json, then env, then initial_config
         merged_config = self._deep_merge(json_config, env_config)
         if initial_config:
             merged_config = self._deep_merge(merged_config, initial_config)
-        
+
         self._config: JarvisSettings = JarvisSettings(**(merged_config or {}))
-    
+
     @staticmethod
     def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
         """Deep merge two dictionaries, with override taking precedence."""
@@ -103,7 +103,7 @@ class Settings:
         """Get a configuration value."""
         if key is None:
             return getattr(self._config, section, default)
-        
+
         section_data = getattr(self._config, section, None)
         if isinstance(section_data, dict):
             return section_data.get(key, default)

@@ -5,7 +5,6 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from ...llm_sdk.context_length_manager import context_length_manager
 from ..base.sdk import (
     BaseLLMSDK,
     GenerationConfig,
@@ -80,13 +79,13 @@ class AnthropicSDK(BaseLLMSDK):
                 content = response_data["content"]
                 result_content = ""
                 reasoning_content = ""
-                
+
                 for block in content:
                     if block["type"] == "text":
                         result_content += block["text"]
                     elif block["type"] == "thinking":
                         reasoning_content += block.get("thinking", "")
-                
+
                 response = GenerationResponse(
                     content=result_content,
                     model=response_data["model"],
@@ -96,11 +95,11 @@ class AnthropicSDK(BaseLLMSDK):
                         "output_tokens": response_data["usage"]["output_tokens"],
                     },
                 )
-                
+
                 # Add reasoning content if present
                 if reasoning_content:
                     response.reasoning_content = reasoning_content
-                
+
                 return response
 
         except Exception as e:
@@ -132,7 +131,6 @@ class AnthropicSDK(BaseLLMSDK):
 
     async def _stream_response_with_tools(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from Anthropic API with tool calling support"""
-        import time
         try:
             content_buffer = ""
             tool_calls = []
@@ -266,11 +264,11 @@ class AnthropicSDK(BaseLLMSDK):
                         "output_tokens": response_data["usage"]["output_tokens"],
                     },
                 )
-                
+
                 # Add reasoning content if present
                 if reasoning_content:
                     response.reasoning_content = reasoning_content
-                
+
                 return response
 
         except Exception as e:

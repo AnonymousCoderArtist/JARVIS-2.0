@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import gc
+import os
+import signal
+import time
+import webbrowser
 from collections.abc import AsyncGenerator
 from contextlib import aclosing
 from dataclasses import dataclass
-from enum import Enum, auto
-import gc
-import os
+from enum import Enum
 from pathlib import Path
-import signal
-import time
-from typing import Any, ClassVar, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 from weakref import WeakKeyDictionary
-import webbrowser
 
 if TYPE_CHECKING:
     from typing_extensions import assert_never
@@ -25,41 +25,81 @@ from pydantic import BaseModel
 from rich import print as rprint
 from textual.app import WINDOWS, App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.theme import Theme
 from textual.containers import Horizontal, VerticalGroup, VerticalScroll
 from textual.driver import Driver
 from textual.events import AppBlur, AppFocus, MouseUp
+from textual.theme import Theme
 from textual.widget import Widget
 from textual.widgets import Static
 
-from interface.textual_ui.constants import CORE_VERSION
+from core.llm_sdk.context_length_manager import context_length_manager
+from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.cli_adapters import (
-    copy_selection_to_clipboard,
-    copy_text_to_clipboard,
+    DATA_RETENTION_MESSAGE,
+    HISTORY_FILE,
+    THINKING_LEVELS,
+    AgentSafety,
+    AskUserQuestionArgs,
+    AskUserQuestionResult,
+    AudioPlayer,
+    AudioRecorder,
+    Choice,
     CommandAvailabilityContext,
     CommandRegistry,
-    ALT_KEY,
-    CompletionResult,
-    HistoryManager,
+    ConnectorRegistry,
+    FileSystemUpdateCacheRepository,
+    HookStartEvent,
+    HttpWhoAmIGateway,
+    LogReader,
+    MCPServer,
     NarratorManager,
     NarratorManagerPort,
     NarratorState,
-    NarratorManagerListener,
-    RecordingStartError,
-    VoiceManagerListener,
-    HttpWhoAmIGateway,
     PlanInfo,
-    decide_plan_offer,
-    plan_offer_cta,
-    plan_title,
-    resolve_api_key_for_plan,
+    PyPIUpdateGateway,
+    Question,
+    RequiredPermission,
+    ResumeSessionInfo,
+    RewindError,
+    SessionLoader,
+    SkillManager,
+    TeleportAuthCompleteEvent,
+    TeleportAuthRequiredEvent,
+    TeleportCheckingGitEvent,
+    TeleportCompleteEvent,
+    TeleportError,
+    TeleportFetchingUrlEvent,
+    TeleportPushingEvent,
+    TeleportPushRequiredEvent,
+    TeleportPushResponseEvent,
+    TeleportStartingWorkflowEvent,
+    TeleportWaitingForGitHubEvent,
+    TranscribeState,
+    UpdateCacheRepository,
+    UpdateError,
+    UpdateGateway,
+    VibeConfig,
+    VoiceManager,
+    VoiceManagerPort,
     WhoAmIGateway,
     WhoAmIPlanType,
-    read_cache,
-    write_cache,
-    CACHE_FILE,
-    AgentSafety,
+    connectors_enabled,
+    copy_selection_to_clipboard,
+    copy_text_to_clipboard,
+    do_update,
+    get_update_if_available,
+    list_remote_resume_sessions,
+    load_whats_new_content,
+    logger,
+    mark_version_as_seen,
+    persist_mcp_toggle,
+    plan_offer_cta,
+    render_path_prompt,
+    short_session_id,
+    should_show_whats_new,
+    stderr_guard,
 )
+from interface.textual_ui.constants import CORE_VERSION
 from interface.textual_ui.handlers.event_handler import EventHandler
 from interface.textual_ui.notifications import (
     NotificationContext,
@@ -69,6 +109,21 @@ from interface.textual_ui.notifications import (
 from interface.textual_ui.quit_manager import QuitManager
 from interface.textual_ui.remote import RemoteSessionManager, is_progress_event
 from interface.textual_ui.session_exit import print_session_resume_message
+from interface.textual_ui.types import (
+    AgentStats,
+    ApprovalResponse,
+    BaseEvent,
+    ContextTooLongError,
+    LLMMessage,
+    RateLimitError,
+    Role,
+    WaitingForInputEvent,
+)
+from interface.textual_ui.utils import (
+    CancellationReason,
+    get_user_cancellation_message,
+    is_dangerous_directory,
+)
 from interface.textual_ui.widgets.approval_app import ApprovalApp
 from interface.textual_ui.widgets.banner.banner import Banner
 from interface.textual_ui.widgets.chat_input import ChatInputContainer
@@ -77,7 +132,6 @@ from interface.textual_ui.widgets.compact import CompactMessage
 from interface.textual_ui.widgets.config_app import ConfigApp
 from interface.textual_ui.widgets.connector_auth_app import ConnectorAuthApp
 from interface.textual_ui.widgets.context_progress import ContextProgress, TokenState
-from core.llm_sdk.context_length_manager import context_length_manager
 from interface.textual_ui.widgets.debug_console import DebugConsole
 from interface.textual_ui.widgets.feedback_bar import FeedbackBar
 from interface.textual_ui.widgets.feedback_bar_manager import FeedbackBarManager
@@ -110,6 +164,7 @@ from interface.textual_ui.widgets.session_picker import SessionPickerApp
 from interface.textual_ui.widgets.teleport_message import TeleportMessage
 from interface.textual_ui.widgets.thinking_picker import ThinkingPickerApp
 from interface.textual_ui.widgets.tools import ToolResultMessage
+
 # from interface.textual_ui.widgets.voice_app import VoiceApp  # Not supported in core Settings
 from interface.textual_ui.windowing import (
     HISTORY_RESUME_TAIL_MESSAGES,
@@ -122,86 +177,6 @@ from interface.textual_ui.windowing import (
     should_resume_history,
     sync_backfill_state,
 )
-from interface.textual_ui.cli_adapters import (
-    FileSystemUpdateCacheRepository,
-    PyPIUpdateGateway,
-    UpdateCacheRepository,
-    UpdateError,
-    UpdateGateway,
-    get_update_if_available,
-    load_whats_new_content,
-    mark_version_as_seen,
-    should_show_whats_new,
-    do_update,
-    VoiceManager,
-    VoiceManagerPort,
-    TranscribeState,
-    TeleportError,
-    AgentProfile,
-    AudioPlayer,
-    AudioRecorder,
-    render_path_prompt,
-    VibeConfig,
-    ConnectorConfig,
-    MCPServer,
-    ThinkingLevel,
-    THINKING_LEVELS,
-    DATA_RETENTION_MESSAGE,
-    HookStartEvent,
-    HookMessageSeverity,
-    LogReader,
-    LogEntry,
-    decode_log_message,
-    logger,
-    HISTORY_FILE,
-    RewindError,
-    ResumeSessionInfo,
-    ResumeSessionSource,
-    list_local_resume_sessions,
-    list_remote_resume_sessions,
-    short_session_id,
-    SessionLoader,
-    SkillManager,
-    MCPRegistry,
-    TeleportAuthCompleteEvent,
-    TeleportAuthRequiredEvent,
-    TeleportCheckingGitEvent,
-    TeleportCompleteEvent,
-    TeleportFetchingUrlEvent,
-    TeleportPushingEvent,
-    TeleportPushRequiredEvent,
-    TeleportPushResponseEvent,
-    TeleportStartingWorkflowEvent,
-    TeleportWaitingForGitHubEvent,
-    AskUserQuestionArgs,
-    AskUserQuestionResult,
-    Choice,
-    Question,
-    ConnectorRegistry,
-    connectors_enabled,
-    persist_mcp_toggle,
-    MCPTool,
-    updated_tool_list,
-    RequiredPermission,
-    make_transcribe_client,
-    stderr_guard,
-)
-from interface.textual_ui.agent_loop import AgentLoop
-from interface.textual_ui.types import (
-    AgentStats,
-    ApprovalResponse,
-    BaseEvent,
-    ContextTooLongError,
-    LLMMessage,
-    RateLimitError,
-    Role,
-    WaitingForInputEvent,
-)
-from interface.textual_ui.utils import (
-    CancellationReason,
-    get_user_cancellation_message,
-    is_dangerous_directory,
-)
 
 
 def _compute_connectors_count(
@@ -212,21 +187,21 @@ def _compute_connectors_count(
     This replaces the old connector counting logic which always returned 0
     because the ConnectorRegistry is not used. Now counts actual MCP servers.
     """
-    from pathlib import Path
     import json
-    
+    from pathlib import Path
+
     # Look for MCP config in same locations as tui_main.py
     config_path = Path(".mcp.json")
     if not config_path.exists():
         config_path = Path.home() / ".jarvis" / "mcp_servers.json"
-    
+
     if not config_path.exists():
         return 0
-    
+
     try:
         with open(config_path) as f:
             data = json.load(f)
-        
+
         # Handle Claude MCP format: {"mcpServers": {"name": {...}}}
         if "mcpServers" in data:
             servers = list(data["mcpServers"].keys())
@@ -235,13 +210,13 @@ def _compute_connectors_count(
             servers = [s.get("name", "") for s in data if s.get("name")]
         else:
             servers = []
-        
+
         # Get disabled MCP servers from config
         disabled_names = {c.name for c in config.connectors if c.disabled} if hasattr(config, 'connectors') else set()
-        
+
         # Count enabled (non-disabled) MCP servers
         enabled_count = sum(1 for s in servers if s not in disabled_names)
-        
+
         return enabled_count
     except Exception:
         return 0
@@ -569,10 +544,10 @@ class VibeApp(App):  # noqa: PLR0904
             model_name = getattr(self.agent_loop.agent, 'model', 'gpt-4o')
             limits = context_length_manager.get_token_limits(model_name)
             max_tokens = limits.total_context_tokens
-            
+
             # Use cumulative context tokens (total in context window)
             current_tokens = stats.context_tokens
-            
+
             context_progress.tokens = TokenState(
                 max_tokens=max_tokens,
                 current_tokens=current_tokens,
@@ -583,10 +558,10 @@ class VibeApp(App):  # noqa: PLR0904
 
         self.agent_loop.set_approval_callback(self._approval_callback)
         self.agent_loop.set_user_input_callback(self._user_input_callback)
-        
+
         # Start heartbeat if enabled (needs to be called after event loop is running)
         await self.agent_loop.start_heartbeat_if_enabled()
-        
+
         self._refresh_profile_widgets()
 
         chat_input_container = self.query_one(ChatInputContainer)
@@ -1433,12 +1408,12 @@ class VibeApp(App):  # noqa: PLR0904
             rendered_prompt = render_path_prompt(prompt, base_dir=Path.cwd())
             self._narrator_manager.cancel()
             self._narrator_manager.on_turn_start(rendered_prompt)
-            
+
             # DEBUG: Verify agent_loop.act is being called
             import logging
             logger = logging.getLogger(__name__)
             logger.info(f"[DEBUG] _handle_agent_loop_turn called with prompt: {prompt[:50]}")
-            
+
             async with aclosing(self.agent_loop.act(rendered_prompt)) as events:
                 await self._handle_agent_loop_events(events)
         except asyncio.CancelledError:
@@ -1765,11 +1740,11 @@ class VibeApp(App):  # noqa: PLR0904
 
         # Always show MCP app when requested, even if already current
         # This ensures the app is properly visible and refreshed
-        
+
         # Debug logging
         print(f"[DEBUG] MCP: Found {len(mcp_servers)} servers, connectors: {has_connectors}")
         print(f"[DEBUG] MCP: Current bottom app: {self._current_bottom_app}")
-        
+
         name = cmd_args.strip()
         connector_names = (
             connector_registry.get_connector_names() if connector_registry else []
@@ -1790,7 +1765,7 @@ class VibeApp(App):  # noqa: PLR0904
             )
             return
         await self._mount_and_scroll(UserCommandMessage("MCP servers opened..."))
-        
+
         # Debug logging before app creation
         print(f"[DEBUG] MCP: Creating MCPApp with {len(mcp_servers)} servers")
         mcp_app = MCPApp(
@@ -1801,10 +1776,10 @@ class VibeApp(App):  # noqa: PLR0904
             get_connector_configs=lambda: self.agent_loop.config.connectors,
             refresh_callback=self._refresh_mcp_browser,
         )
-        print(f"[DEBUG] MCP: Created MCPApp, mounting now...")
-        
+        print("[DEBUG] MCP: Created MCPApp, mounting now...")
+
         await self._switch_from_input(mcp_app)
-        print(f"[DEBUG] MCP: MCPApp mounting complete")
+        print("[DEBUG] MCP: MCPApp mounting complete")
 
     async def _show_status(self, **kwargs: Any) -> None:
         stats = self.agent_loop.stats
@@ -1856,9 +1831,8 @@ class VibeApp(App):  # noqa: PLR0904
 
     def _get_mcp_servers(self) -> list[Any]:
         """Get list of configured MCP servers."""
-        from pathlib import Path
         import json
-        from interface.textual_ui.cli_adapters import MCPServer
+        from pathlib import Path
 
         # Look for MCP config in same locations as tui_main.py
         config_path = Path(".mcp.json")
@@ -2323,10 +2297,10 @@ class VibeApp(App):  # noqa: PLR0904
         app_type = BottomApp[type(widget).__name__.removesuffix("App")]
         print(f"[DEBUG] _switch_from_input: Setting bottom app to {app_type}")
         self._current_bottom_app = app_type
-        
-        print(f"[DEBUG] _switch_from_input: Mounting widget to container...")
+
+        print("[DEBUG] _switch_from_input: Mounting widget to container...")
         await bottom_container.mount(widget)
-        print(f"[DEBUG] _switch_from_input: Widget mounted successfully")
+        print("[DEBUG] _switch_from_input: Widget mounted successfully")
 
         self.call_after_refresh(widget.focus)
         if should_scroll:
@@ -2357,7 +2331,6 @@ class VibeApp(App):  # noqa: PLR0904
         if self._current_bottom_app == BottomApp.ThinkingPicker:
             return
 
-        from interface.textual_ui.cli_adapters import THINKING_LEVELS
 
         # Thinking picker not supported in core Settings
         await self._switch_from_input(
@@ -3180,8 +3153,8 @@ class VibeApp(App):  # noqa: PLR0904
     def action_copy_selection(self) -> None:
         copied_text = copy_selection_to_clipboard(self, show_toast=False)
         if copied_text:
-            # We don't have the original content easily here, but telemetry 
-            # usually wants the copied text if available. 
+            # We don't have the original content easily here, but telemetry
+            # usually wants the copied text if available.
             # For now, just pass a placeholder or get it if possible.
             self.agent_loop.telemetry_client.send_user_copied_text("selection")
 
@@ -3227,8 +3200,7 @@ class VibeApp(App):  # noqa: PLR0904
 def run_textual_ui(
     agent_loop: AgentLoop, startup: StartupOptions | None = None
 ) -> None:
-    from interface.textual_ui.cli_adapters import stderr_guard
-    
+
     update_notifier = PyPIUpdateGateway(project_name="jarvis")
     update_cache_repository = FileSystemUpdateCacheRepository()
     plan_offer_gateway = HttpWhoAmIGateway()

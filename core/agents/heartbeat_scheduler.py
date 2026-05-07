@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def parse_interval(interval_str: str) -> timedelta:
     match = re.match(r"^(\d+)([smh])$", interval_str.lower())
     if not match:
         raise ValueError(f"Invalid interval format: {interval_str}")
-    
+
     value, unit = int(match.group(1)), match.group(2)
     if unit == "s":
         return timedelta(seconds=value)
@@ -93,23 +93,23 @@ def is_within_active_hours(start: str, end: str, timezone: str = "America/New_Yo
         # Fallback: use naive datetime if timezone fails
         now = datetime.now()
         current_time = now.strftime("%H:%M")
-    
+
     return start <= current_time <= end
 
 
 def get_heartbeat_file() -> Path | None:
     """Get the HEARTBEAT.md file path from .jarvis directory"""
     cwd = Path.cwd()
-    
+
     for parent in [cwd] + list(cwd.parents):
         heartbeat_file = parent / ".jarvis" / "HEARTBEAT.md"
         if heartbeat_file.exists():
             return heartbeat_file
-    
+
     home_heartbeat = Path.home() / ".jarvis" / "HEARTBEAT.md"
     if home_heartbeat.exists():
         return home_heartbeat
-    
+
     return None
 
 
@@ -119,17 +119,17 @@ def parse_heartbeat_file(content: str) -> dict[str, Any]:
     current_task: dict[str, Any] = {}
     in_tasks_block = False
     in_checklist_mode = True
-    
+
     lines = content.split("\n")
     for line in lines:
         stripped_line = line.strip()
-        
+
         # Check for tasks block (YAML format)
         if stripped_line.startswith("tasks:"):
             in_tasks_block = True
             in_checklist_mode = False
             continue
-        
+
         if in_tasks_block:
             # Check for new task entry first
             if stripped_line.startswith("- name:"):
@@ -158,7 +158,7 @@ def parse_heartbeat_file(content: str) -> dict[str, Any]:
                             "prompt": task_text,
                             "type": "checklist"
                         })
-        
+
         # Check for checklist mode (markdown checkbox)
         if stripped_line.startswith("- [") or stripped_line.startswith("- [ ]"):
             in_checklist_mode = True
@@ -170,11 +170,11 @@ def parse_heartbeat_file(content: str) -> dict[str, Any]:
                     "prompt": task_text,
                     "type": "checklist"
                 })
-    
+
     # Don't forget the last task
     if current_task and current_task not in tasks:
         tasks.append(current_task)
-    
+
     return {
         "tasks": tasks,
         "mode": "checklist" if in_checklist_mode else "tasks_block"
@@ -195,15 +195,15 @@ def save_heartbeat_result(result: str, status: str = "completed") -> Path:
         results_dir = heartbeat_file.parent
     else:
         results_dir = Path.cwd() / ".jarvis"
-    
+
     results_dir.mkdir(parents=True, exist_ok=True)
     results_file = results_dir / "HEARTBEAT_RESULTS.md"
-    
+
     timestamp = datetime.now().isoformat()
-    
+
     # Format the result entry
     entry = f"\n## {timestamp} ({status})\n\n{result}\n"
-    
+
     # Read existing content or create new
     if results_file.exists():
         existing = results_file.read_text(encoding="utf-8")
@@ -211,10 +211,10 @@ def save_heartbeat_result(result: str, status: str = "completed") -> Path:
         content = entry + existing
     else:
         content = f"# Heartbeat Results\n\n{entry}"
-    
+
     # Write the file
     results_file.write_text(content, encoding="utf-8")
-    
+
     return results_file
 
 
@@ -227,11 +227,11 @@ def is_deliverable(response: str) -> bool:
     2. Leaked internal reasoning - model meta-commentary instead of user-facing report
     """
     text = response.lower()
-    
+
     # Runner finalization fallback
     if "couldn't produce a final answer" in text:
         return False
-    
+
     # Leaked internal reasoning patterns
     leaked_patterns = [
         "heartbeat.md",
@@ -245,7 +245,7 @@ def is_deliverable(response: str) -> bool:
     ]
     if any(pattern in text for pattern in leaked_patterns):
         return False
-    
+
     return True
 
 
@@ -261,7 +261,7 @@ class HeartbeatScheduler:
     on_execute callback runs the task through the full agent loop and
     returns the result to deliver.
     """
-    
+
     def __init__(
         self,
         agent_executor: Callable[[str], Any],
@@ -269,7 +269,7 @@ class HeartbeatScheduler:
     ):
         self.agent_executor = agent_executor
         self.config = config or {}
-        
+
         # Configuration with defaults
         self.enabled = self.config.get("enabled", False)
         self.interval_str = self.config.get("every", "30m")
@@ -285,13 +285,13 @@ class HeartbeatScheduler:
         self.show_ok = self.config.get("show_ok", True)
         self.show_alerts = self.config.get("show_alerts", True)
         self.use_indicator = self.config.get("use_indicator", True)
-        
+
         # Active hours
         active_hours = self.config.get("active_hours", {})
         self.active_start = active_hours.get("start", "08:00")
         self.active_end = active_hours.get("end", "22:00")
         self.active_timezone = active_hours.get("timezone", "America/New_York")
-        
+
         # State
         self._running = False
         self._task: asyncio.Task | None = None
@@ -299,13 +299,13 @@ class HeartbeatScheduler:
         self._last_result: str | None = None
         self._busy = False
         self._manual_wake = False
-        
+
         # Evaluation callback (for post-run filtering)
         self._evaluator = self.config.get("evaluator")
-        
+
         # Notification callback
         self._notifier = self.config.get("notifier")
-        
+
         # Parse interval
         try:
             self.interval = parse_interval(self.interval_str)
@@ -328,12 +328,12 @@ class HeartbeatScheduler:
         self.use_indicator = config.get("use_indicator", self.use_indicator)
         self._evaluator = config.get("evaluator", self._evaluator)
         self._notifier = config.get("notifier", self._notifier)
-        
+
         active_hours = config.get("active_hours", {})
         self.active_start = active_hours.get("start", self.active_start)
         self.active_end = active_hours.get("end", self.active_end)
         self.active_timezone = active_hours.get("timezone", self.active_timezone)
-        
+
         try:
             self.interval = parse_interval(self.interval_str)
         except ValueError:
@@ -343,11 +343,11 @@ class HeartbeatScheduler:
         if self._running:
             logger.warning("Heartbeat scheduler already running")
             return
-        
+
         if not self.enabled:
             logger.info("Heartbeat scheduler disabled")
             return
-        
+
         self._running = True
         self._task = asyncio.create_task(self._run_loop())
         logger.info(f"Heartbeat scheduler started with interval: {self.interval_str}")
@@ -388,24 +388,24 @@ class HeartbeatScheduler:
     async def _decide(self, content: str) -> tuple[str, str]:
         """Phase 1: Ask LLM to decide skip/run via virtual tool call."""
         current_time = datetime.now().isoformat()
-        
+
         # Build decision prompt
         decision_prompt = (
             f"Current Time: {current_time}\n\n"
             "Review the following HEARTBEAT.md and decide whether there are active tasks.\n\n"
             f"{content}"
         )
-        
+
         try:
             response = await self.agent_executor(decision_prompt)
-            
+
             # Handle response - check for tool_calls in response dict
             if isinstance(response, dict) and "tool_calls" in response:
                 tool_calls = response.get("tool_calls", [])
                 if tool_calls:
                     args = tool_calls[0].get("arguments", {})
                     return args.get("action", "skip"), args.get("tasks", "")
-            
+
             # Fallback: parse response text for decision
             if isinstance(response, str):
                 response_lower = response.lower()
@@ -421,7 +421,7 @@ class HeartbeatScheduler:
                 task_indicators = ["task:", "todo:", "need to", "should", "must"]
                 if any(ind in response.lower() for ind in task_indicators):
                     return "run", response
-            
+
             return "skip", ""
         except Exception as e:
             logger.error(f"Heartbeat decision failed: {e}")
@@ -434,16 +434,16 @@ class HeartbeatScheduler:
             if not is_within_active_hours(self.active_start, self.active_end, self.active_timezone):
                 logger.debug("Outside active hours, skipping heartbeat")
                 return "skipped: outside active hours"
-        
+
         # Check busy state
         if self.skip_when_busy and self._busy:
             logger.debug("Agent busy, skipping heartbeat")
             return "skipped: agent busy"
-        
+
         # Read HEARTBEAT.md if exists
         heartbeat_file = get_heartbeat_file()
         heartbeat_content = ""
-        
+
         if heartbeat_file:
             try:
                 with open(heartbeat_file, encoding="utf-8") as f:
@@ -451,38 +451,38 @@ class HeartbeatScheduler:
                 logger.info(f"Heartbeat: Found HEARTBEAT.md at {heartbeat_file}")
             except Exception as e:
                 logger.warning(f"Failed to read HEARTBEAT.md: {e}")
-        
+
         if not heartbeat_content:
             logger.debug("Heartbeat: no HEARTBEAT.md found")
             return "skipped: no heartbeat file"
-        
+
         # Phase 1: Decision
         try:
             logger.info("Heartbeat: checking for tasks...")
             action, tasks = await self._decide(heartbeat_content)
-            
+
             if action != "run":
                 if self.show_ok:
                     logger.info("Heartbeat: OK (nothing to report)")
                 return "HEARTBEAT_OK"
-            
+
             logger.info("Heartbeat: tasks found, executing...")
-            
+
             # Phase 2: Execution (only if decision was "run")
             if not self._notifier:
                 logger.debug("Heartbeat: no notifier set, skipping execution")
                 return "skipped: no notifier"
-            
+
             response = await self.agent_executor(tasks)
-            
+
             if not response:
                 logger.info("Heartbeat: no response from execution")
                 return "skipped: no response"
-            
+
             if not is_deliverable(response):
                 logger.info("Heartbeat: suppressed non-deliverable response")
                 return "skipped: non-deliverable response"
-            
+
             # Apply evaluator if available
             should_notify = True
             if self._evaluator:
@@ -490,23 +490,23 @@ class HeartbeatScheduler:
                     should_notify = await self._evaluator(response, tasks)
                 except Exception as e:
                     logger.warning(f"Evaluator failed: {e}")
-            
+
             if should_notify and self._notifier:
                 logger.info("Heartbeat: completed, delivering response")
                 await self._notifier(response)
-                
+
                 # Save result to file
                 try:
                     result_file = save_heartbeat_result(response, "completed")
                     logger.info(f"Heartbeat result saved to {result_file}")
                 except Exception as e:
                     logger.warning(f"Failed to save heartbeat result: {e}")
-                
+
                 return format_heartbeat_result(response, self.ack_max_chars)
             else:
                 logger.info("Heartbeat: silenced by post-run evaluation")
                 return "HEARTBEAT_OK"
-                
+
         except Exception as e:
             logger.error(f"Heartbeat execution failed: {e}")
             return f"heartbeat_error: {str(e)}"

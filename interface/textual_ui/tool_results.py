@@ -1,7 +1,7 @@
 """Tool result models for TUI."""
 
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class BashResult(BaseModel):

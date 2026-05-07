@@ -12,11 +12,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from core.history import ConversationHistory, create_user_message, create_assistant_message
+
+from core.history import ConversationHistory, create_assistant_message, create_user_message
 
 app = FastAPI()
 
@@ -72,7 +73,7 @@ def _load_session(chat_id: str) -> dict | None:
     """Load session data from disk."""
     session_file = _SESSIONS_DIR / f"{chat_id}.json"
     if session_file.exists():
-        with open(session_file, "r") as f:
+        with open(session_file) as f:
             return json.load(f)
     return None
 
@@ -82,10 +83,10 @@ def _list_sessions() -> list[dict]:
     sessions = []
     for session_file in _SESSIONS_DIR.glob("*.json"):
         try:
-            with open(session_file, "r") as f:
+            with open(session_file) as f:
                 data = json.load(f)
                 sessions.append(data)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             continue
     return sessions
 
@@ -98,41 +99,41 @@ def generate_token() -> str:
 def _get_agent():
     """Get or create the JARVIS agent instance."""
     global _agent
-    
+
     if _agent is not None:
         return _agent
-    
+
     # Import here to avoid circular imports
     from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
-    from core.llm.sdk_adapter import SDKAdapter
-    from core.llm_sdk.openai.sdk import OpenAISDK
-    from core.llm_sdk.anthropic.sdk import AnthropicSDK
-    from core.tools.registry import ToolRegistry
-    from core.config.settings import Settings
     from core.agents.system_prompts import get_system_context
-    
+    from core.config.settings import Settings
+    from core.llm.sdk_adapter import SDKAdapter
+    from core.llm_sdk.anthropic.sdk import AnthropicSDK
+    from core.llm_sdk.openai.sdk import OpenAISDK
+    from core.tools.code_tools import BashTool, RunTestsTool
+
     # Import core tools
     from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
-    from core.tools.code_tools import BashTool, RunTestsTool
     from core.tools.grep_tool import GrepSearchTool
+    from core.tools.registry import ToolRegistry
     from core.tools.web_tools import WebFetchTool
-    
+
     # Get configuration from environment
     model = os.getenv("JARVIS_MODEL", "gpt-4o")
     base_url = os.getenv("JARVIS_BASE_URL", "")
     apikey = os.getenv("JARVIS_API_KEY", "")
     sdk = os.getenv("JARVIS_SDK", "openai")
     bypass = os.getenv("JARVIS_BYPASS_PERMISSIONS", "") == "1"
-    
+
     # Create SDK instance based on configuration
     if sdk == "anthropic":
         sdk_instance = AnthropicSDK(api_key=apikey or "", base_url=base_url if base_url else None)
     else:
         sdk_instance = OpenAISDK(api_key=apikey or "", base_url=base_url if base_url else None)
-    
+
     # Create LLM provider
     provider = SDKAdapter(sdk_instance, "webui-provider")
-    
+
     # Create tool registry and register core tools
     tool_registry = ToolRegistry()
     tool_registry.register(FileReadTool())
@@ -143,11 +144,11 @@ def _get_agent():
     tool_registry.register(RunTestsTool())
     tool_registry.register(GrepSearchTool())
     tool_registry.register(WebFetchTool())
-    
+
     # Register AskUserQuestion tool
     from core.tools.ask_user_question_tool import AskUserQuestionTool
     tool_registry.register(AskUserQuestionTool())
-    
+
     # Try to register ExaWebSearchTool (optional - depends on external service)
     try:
         from core.tools.web_tools import ExaWebSearchTool
@@ -155,11 +156,11 @@ def _get_agent():
         print("INFO: ExaWebSearchTool registered successfully", file=sys.stderr)
     except Exception as e:
         print(f"WARNING: Failed to register ExaWebSearchTool (search will be unavailable): {e}", file=sys.stderr)
-    
+
     # Simple config getter that returns default settings
     def get_settings() -> Settings:
         return Settings()
-    
+
     # Create the agent
     system_prompt = get_system_context()
     _agent = CodingAgent(
@@ -171,7 +172,7 @@ def _get_agent():
         bypass_tool_permissions=bypass,
         use_concurrent_tools=True
     )
-    
+
     # Set up approval callback for webui
     # When bypass is enabled, auto-approve. Otherwise, queue the approval request
     # and wait for user response from the frontend.
@@ -219,7 +220,7 @@ def _get_agent():
             return ("no", str(e))
 
     _agent.set_approval_callback(approval_callback)
-    
+
     print(f"JARVIS agent initialized with model: {model}, bypass_tool_permissions: {bypass}")
     return _agent
 
@@ -299,7 +300,7 @@ async def ws_endpoint(websocket: WebSocket):
 
     try:
         await websocket.accept()
-        print(f"DEBUG: WebSocket accepted successfully", file=sys.stderr)
+        print("DEBUG: WebSocket accepted successfully", file=sys.stderr)
     except Exception as e:
         print(f"ERROR accepting websocket: {e}", file=sys.stderr)
         return
@@ -317,20 +318,20 @@ async def ws_endpoint(websocket: WebSocket):
             "chat_id": None,
             "session_id": str(uuid.uuid4())
         }
-        
+
         # Track active connections to prevent duplicates
         if not hasattr(app.state, 'active_connections'):
             app.state.active_connections = {}
-        
+
         print(f"DEBUG: New WebSocket session {_connection_info['session_id']}", file=sys.stderr)
-        
+
         # Send initial ready event to let frontend know we're connected
         await websocket.send_json({
             "event": "ready",
             "chat_id": f"temp_{uuid.uuid4().hex[:8]}",
             "client_id": uuid.uuid4().hex[:8]
         })
-        print(f"DEBUG: WebSocket ready, waiting for authentication", file=sys.stderr)
+        print("DEBUG: WebSocket ready, waiting for authentication", file=sys.stderr)
 
         # Start background task to process approval requests
         async def process_approval_requests():
@@ -358,7 +359,7 @@ async def ws_endpoint(websocket: WebSocket):
         async def handle_agent_message(content: str, chat_id: str):
             # Get or create the agent
             agent = _get_agent()
-            
+
             async with agent_lock:
                 # Run agent processing with streaming
                 # Initialize original_callbacks before try block for type checking
@@ -384,7 +385,7 @@ async def ws_endpoint(websocket: WebSocket):
                     # Check if agent has reasoning_callback
                     has_reasoning = hasattr(agent, 'reasoning_callback') and agent.reasoning_callback is not None
                     print(f"[DEBUG] Agent has reasoning_callback: {has_reasoning}")
-                    
+
                     # Set up reasoning callback to send reasoning events
 
                     def reasoning_callback(text: str):
@@ -448,7 +449,7 @@ async def ws_endpoint(websocket: WebSocket):
                             "required_permissions": required_permissions,
                             "tool_call_id": tool_call_id,
                         })
-                        
+
                         future = asyncio.Future()
                         _pending_approvals[tool_call_id] = {"future": future}
                         result = await future
@@ -464,7 +465,7 @@ async def ws_endpoint(websocket: WebSocket):
                         "user_input_callback": agent.user_input_callback if hasattr(agent, 'user_input_callback') else None,
                         "approval_callback": agent.approval_callback if hasattr(agent, 'approval_callback') else None,
                     }
-                    
+
                     # Set up the callbacks
                     agent.stream_callback = stream_callback
                     if hasattr(agent, 'reasoning_callback'):
@@ -546,7 +547,7 @@ async def ws_endpoint(websocket: WebSocket):
                             agent.user_input_callback = original_callbacks.get("user_input_callback")
                         if hasattr(agent, 'approval_callback'):
                             agent.approval_callback = original_callbacks.get("approval_callback")
-                    
+
                     try:
                         await websocket.send_json({
                             "event": "error",
@@ -562,7 +563,7 @@ async def ws_endpoint(websocket: WebSocket):
                 try:
                     data = await websocket.receive_text()
                 except WebSocketDisconnect:
-                    print(f"DEBUG: WebSocket disconnected (client closed)", file=sys.stderr)
+                    print("DEBUG: WebSocket disconnected (client closed)", file=sys.stderr)
                     break
                 except Exception as e:
                     print(f"DEBUG: Error receiving message: {e}", file=sys.stderr)
@@ -670,7 +671,7 @@ async def ws_endpoint(websocket: WebSocket):
                     chat_id = msg.get("chat_id", _connection_info.get("chat_id"))
 
                     if not chat_id:
-                        print(f"DEBUG: No chat_id available for message", file=sys.stderr)
+                        print("DEBUG: No chat_id available for message", file=sys.stderr)
                         continue
 
                     # Start processing in a separate task
@@ -688,7 +689,7 @@ async def ws_endpoint(websocket: WebSocket):
                 pass
 
     except WebSocketDisconnect:
-        print(f"DEBUG: WebSocket disconnected (outer)", file=sys.stderr)
+        print("DEBUG: WebSocket disconnected (outer)", file=sys.stderr)
     except Exception as e:
         print(f"DEBUG: Error in websocket handler: {e}", file=sys.stderr)
         try:

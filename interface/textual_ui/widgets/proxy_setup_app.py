@@ -9,14 +9,14 @@ from textual.containers import Container, Vertical
 from textual.message import Message
 from textual.widgets import Input, Static
 
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.widgets.vscode_compat import VscodeCompatInput
 from interface.textual_ui.cli_adapters import (
     SUPPORTED_PROXY_VARS,
     get_current_proxy_settings,
     set_proxy_var,
     unset_proxy_var,
 )
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.vscode_compat import VscodeCompatInput
 
 
 class ProxySetupApp(Container):

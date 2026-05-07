@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Coroutine
-from typing import Any, TYPE_CHECKING
-
-from textual.widget import Widget
+from typing import TYPE_CHECKING, Any
 
 from interface.textual_ui.cli_adapters import (
     HookEndEvent,
@@ -194,7 +192,7 @@ class EventHandler:
         call_widget = (
             self.tool_calls.get(event.tool_call_id) if event.tool_call_id else None
         )
-        
+
         # Fallback to last tool call if ID is missing or mismatched
         if not call_widget:
             call_widget = self.last_tool_call
@@ -212,7 +210,7 @@ class EventHandler:
     ) -> ToolCallMessage | None:
         # Create a ToolCallMessage for the agent (like regular tools)
         task_id = event.task_id
-        
+
         # Create a proper ToolCallEvent so the adapter can format it nicely
         agent_event = ToolCallEvent(
             tool_name="agents",
@@ -220,36 +218,36 @@ class EventHandler:
             tool_call_id=task_id,
             tool_class="agents",
         )
-        
+
         # Create ToolCallMessage with the event so it gets formatted properly
         tool_call = ToolCallMessage(event=agent_event)
-        
+
         # Store in tool_calls keyed by task_id
         if task_id:
             self.tool_calls[task_id] = tool_call
         self.last_tool_call = tool_call
         await self.mount_callback(tool_call)
-        
+
         # Show initial info
         tool_call.set_stream_message(event.prompt[:50] + "..." if len(event.prompt) > 50 else event.prompt)
-        
+
         if loading_widget:
             loading_widget.set_status(f"Running agent {event.agent_name}")
-        
+
         return tool_call
 
     async def _handle_agent_tool_result(self, event: AgentToolResultEvent) -> None:
         task_id = event.task_id
-        
+
         # Find the tool call message
         call_widget = self.tool_calls.get(task_id) if task_id else None
-        
+
         # Stop spinning on the call widget
         if call_widget:
             call_widget.stop_spinning(success=(event.status == "completed"))
-        
+
         tools_collapsed = self.get_tools_collapsed()
-        
+
         # Create a ToolResultMessage for the agent result
         tool_result = ToolResultMessage(
             event=None,  # No event, we'll provide content
@@ -258,12 +256,12 @@ class EventHandler:
             tool_name="Agent",
             content=event.result if event.result else (f"Error: {event.error}" if event.error else "Completed"),
         )
-        
+
         if call_widget:
             await self.mount_callback(tool_result, after=call_widget)
         else:
             await self.mount_callback(tool_result)
-        
+
         # Clean up from tool_calls
         if task_id and task_id in self.tool_calls:
             del self.tool_calls[task_id]

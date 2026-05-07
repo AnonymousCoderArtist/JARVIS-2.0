@@ -1,24 +1,24 @@
 """Real implementations for CLI adapter classes using JARVIS core components."""
 
+import json
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-import json
 from logging import getLogger
 from pathlib import Path
-from pydantic import BaseModel, Field, AliasChoices, model_validator
-import re
-from typing import Any, Optional
+from typing import Any
 
-logger = getLogger(__name__)
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
-# Import core types
 from core.agents.profiles import AgentSafety as CoreAgentSafety
+from core.skills.manager import SkillManager as CoreSkillManager
 from core.tools.permissions import RequiredPermission as CoreRequiredPermission
 
 # Use core types
 AgentSafety = CoreAgentSafety
 RequiredPermission = CoreRequiredPermission
+
+logger = getLogger(__name__)
 
 # Try to import Completion for completers
 try:
@@ -224,7 +224,7 @@ class CommandRegistry:
     def parse_command(self, user_input: str) -> tuple[str, Command, str] | None:
         """Parse command from user input."""
         user_input = user_input.strip()
-        
+
         # Direct check for /rewind and /rw commands
         if user_input == '/rewind' or user_input.startswith('/rewind '):
             if 'rewind' in self.commands:
@@ -236,7 +236,7 @@ class CommandRegistry:
                 cmd = self.commands['rewind']
                 args = user_input[len('/rw'):].strip()
                 return ('rewind', cmd, args)
-        
+
         # Normal processing for other commands
         for cmd_name, cmd in self.commands.items():
             for alias in cmd.aliases:
@@ -357,14 +357,14 @@ class PathCompletionController:
         if not parts:
             self.reset()
             return
-            
+
         word = parts[-1]
-        
+
         # Get suggestions from completer
         self._suggestions = self.completer.get_completions(word, self.parent) if hasattr(self.completer, 'get_completions') else []
         self._selected_index = 0
         self._popup_visible = bool(self._suggestions)
-        
+
         if self._suggestions and self.parent:
             self.parent.render_completion_suggestions(self._suggestions, 0)
         elif self.parent:
@@ -1046,7 +1046,7 @@ class PathCompleter:
         if text.startswith('@'):
             # Use ProjectIndexer for project-wide search
             return self.indexer.search(text)
-        
+
         if text.startswith('/') or text.startswith('~') or text.startswith('.'):
             import os
             base_path = text
@@ -1061,7 +1061,7 @@ class PathCompleter:
             else:
                 base_path = './'
                 prefix = text
-            
+
             suggestions = []
             try:
                 # Expand user for ~ paths
@@ -1078,7 +1078,7 @@ class PathCompleter:
             except (FileNotFoundError, PermissionError):
                 pass
             return suggestions
-        
+
         return []
 
 
@@ -1381,9 +1381,6 @@ class SessionLoader:
 # SKILL MANAGER (REAL IMPLEMENTATION)
 # ============================================================================
 
-from core.skills.manager import SkillManager as CoreSkillManager
-
-
 class SkillManager:
     """Manager for skills using JARVIS core."""
 
@@ -1485,9 +1482,9 @@ class BashArgs(BaseModel):
 class GrepArgs(BaseModel):
     query: str = Field(validation_alias=AliasChoices("query", "pattern"))
     path: str = "."
-    max_matches: Optional[int] = Field(None, validation_alias=AliasChoices("max_matches", "maxMatches"))
-    is_regexp: Optional[bool] = Field(False, validation_alias=AliasChoices("is_regexp", "isRegexp"))
-    include_pattern: Optional[str] = Field(None, validation_alias=AliasChoices("include_pattern", "includePattern"))
+    max_matches: int | None = Field(None, validation_alias=AliasChoices("max_matches", "maxMatches"))
+    is_regexp: bool | None = Field(False, validation_alias=AliasChoices("is_regexp", "isRegexp"))
+    include_pattern: str | None = Field(None, validation_alias=AliasChoices("include_pattern", "includePattern"))
 
 
 class LSArgs(BaseModel):
@@ -1497,7 +1494,7 @@ class LSArgs(BaseModel):
 class FindArgs(BaseModel):
     pattern: str
     path: str = ""
-    max_results: Optional[int] = Field(None, validation_alias=AliasChoices("max_results", "maxResults"))
+    max_results: int | None = Field(None, validation_alias=AliasChoices("max_results", "maxResults"))
 
 
 class ReadFileArgs(BaseModel):
@@ -1698,20 +1695,20 @@ class ToolUIDataAdapter:
 
         tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
         args = getattr(event, "tool_args", {}) or {}
-        
+
         # Specialized summaries for better UX
         if tool_name == "grep":
             query = args.get("query", args.get("pattern", ""))
             path = args.get("path", args.get("includePattern", "."))
             path_suffix = f" in {path}" if path != "." else ""
             return Display(summary=f"Grep \"{query}\"{path_suffix}")
-        
+
         if tool_name == "agents":
             agent_name = args.get("agentName", "agent")
             prompt = args.get("prompt", "")
             prompt_preview = prompt[:30] + "..." if len(prompt) > 30 else prompt
             return Display(summary=f"Agent {agent_name}: {prompt_preview}")
-        
+
         if tool_name in ("read", "read_file"):
             def get_rel_path(p_str):
                 if not p_str: return "unknown"
@@ -1740,13 +1737,13 @@ class ToolUIDataAdapter:
                         params.append(f"offset={offset}")
                     if limit is not None:
                         params.append(f"limit={limit}")
-                    
+
                     param_str = f" ({', '.join(params)})" if params else ""
                     summary = f"Read {path}{param_str}"
                     if len(paths) > 1:
                         summary += f" (+{len(paths)-1} more files)"
                     return Display(summary=summary)
-            
+
             # Single file mode
             raw_path = args.get("filePath") or args.get("path") or args.get("file_path")
             if raw_path:
@@ -1758,10 +1755,10 @@ class ToolUIDataAdapter:
                     params.append(f"offset={offset}")
                 if limit is not None:
                     params.append(f"limit={limit}")
-                
+
                 param_str = f" ({', '.join(params)})" if params else ""
                 return Display(summary=f"Read {path}{param_str}")
-                
+
             return Display(summary="Read unknown")
 
         if tool_name in ("write", "write_file"):
@@ -1778,7 +1775,7 @@ class ToolUIDataAdapter:
                     return p_str
                 except Exception:
                     return p_str
-            
+
             raw_path = args.get("path", args.get("filePath", args.get("file_path", "unknown")))
             path = get_rel_path(raw_path)
             return Display(summary=f"{tool_name.capitalize()} {path}")
@@ -1869,11 +1866,11 @@ class ToolUIDataAdapter:
             warnings: list[Any] | None = None
 
         tool_name = getattr(event, "tool_name", "") or self.tool_class or "tool"
-        
+
         # Check for explicit error in event
         if hasattr(event, 'error') and event.error:
             return Display(success=False, message=f"{tool_name}: error", warnings=[])
-        
+
         # Check for skipped or cancelled
         if getattr(event, "skipped", False) or getattr(event, "cancelled", False):
             return Display(success=False, message=f"{tool_name}: interrupted", warnings=[])
@@ -1881,7 +1878,7 @@ class ToolUIDataAdapter:
         # Check the result object for success indicators
         result = getattr(event, "result", None)
         success = True
-        
+
         if result is not None:
             # Bash tool: check returncode
             if hasattr(result, "returncode"):

@@ -97,7 +97,7 @@ class AgentManager:
     def config(self) -> Settings:
         """Get configuration with active profile applied"""
         from core.config.settings import Settings
-        
+
         if self._cached_config is None:
             merged_dict = self.active_profile.apply_to_config(
                 self._config.model_dump()

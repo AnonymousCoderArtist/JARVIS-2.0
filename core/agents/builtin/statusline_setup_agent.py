@@ -3,8 +3,8 @@
 This module provides guidance for statusline customization in shell environments.
 """
 
-from datetime import datetime
 import os
+from datetime import datetime
 
 from core.agents.agent_definition import AgentDefinition
 

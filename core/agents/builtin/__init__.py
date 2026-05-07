@@ -1,8 +1,8 @@
 """Built-in agent modules"""
 
-from .jarvis_help_agent import JarvisHelpAgent, GetJarvisHelpPrompt, JARVIS_HELP_AGENT
-from .statusline_setup_agent import GetStatuslineSetupPrompt, STATUSLINE_SETUP_AGENT
-from .verification_agent import VerificationAgent, GetVerificationPrompt, VERIFICATION_AGENT
+from .jarvis_help_agent import JARVIS_HELP_AGENT, GetJarvisHelpPrompt, JarvisHelpAgent
+from .statusline_setup_agent import STATUSLINE_SETUP_AGENT, GetStatuslineSetupPrompt
+from .verification_agent import VERIFICATION_AGENT, GetVerificationPrompt, VerificationAgent
 
 __all__ = [
     "JarvisHelpAgent",

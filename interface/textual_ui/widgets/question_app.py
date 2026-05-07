@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 from textual import events
 from textual.app import ComposeResult
@@ -12,15 +12,14 @@ from textual.reactive import reactive
 from textual.widgets import Input
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
-from interface.textual_ui.widgets.vscode_compat import VscodeCompatInput
-
 from interface.textual_ui.cli_adapters import (
     Answer,
     AskUserQuestionArgs,
     Choice,
     Question,
 )
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from interface.textual_ui.widgets.vscode_compat import VscodeCompatInput
 
 
 class QuestionApp(Container):

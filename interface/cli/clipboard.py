@@ -1,7 +1,7 @@
 """Clipboard utilities for JARVIS CLI."""
 
+
 import pyperclip
-from typing import Any
 
 
 def copy_to_clipboard(text: str) -> None:

@@ -128,8 +128,8 @@ class CopilotSDK(BaseLLMSDK):
     async def _send(self, messages: list[Message], config: GenerationConfig, tools: list[dict[str, Any]] | None = None) -> str:
         copilot_module = importlib.import_module("copilot")
         session_module = importlib.import_module("copilot.session")
-        CopilotClient = getattr(copilot_module, "CopilotClient")
-        PermissionHandler = getattr(session_module, "PermissionHandler")
+        CopilotClient = copilot_module.CopilotClient
+        PermissionHandler = session_module.PermissionHandler
 
         prompt = self._build_prompt(messages, config, tools)
         async with CopilotClient(**self._client_kwargs()) as client:
@@ -144,10 +144,10 @@ class CopilotSDK(BaseLLMSDK):
         copilot_module = importlib.import_module("copilot")
         events_module = importlib.import_module("copilot.generated.session_events")
         session_module = importlib.import_module("copilot.session")
-        CopilotClient = getattr(copilot_module, "CopilotClient")
-        AssistantMessageDeltaData = getattr(events_module, "AssistantMessageDeltaData")
-        SessionIdleData = getattr(events_module, "SessionIdleData")
-        PermissionHandler = getattr(session_module, "PermissionHandler")
+        CopilotClient = copilot_module.CopilotClient
+        AssistantMessageDeltaData = events_module.AssistantMessageDeltaData
+        SessionIdleData = events_module.SessionIdleData
+        PermissionHandler = session_module.PermissionHandler
 
         prompt = self._build_prompt(messages, config, tools)
         queue: asyncio.Queue[str] = asyncio.Queue()

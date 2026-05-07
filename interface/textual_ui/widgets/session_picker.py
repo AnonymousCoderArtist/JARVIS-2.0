@@ -11,12 +11,12 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.cli_adapters import (
     ResumeSessionInfo,
     ResumeSessionSource,
     short_session_id,
 )
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 _SECONDS_PER_MINUTE = 60
 _SECONDS_PER_HOUR = 3600

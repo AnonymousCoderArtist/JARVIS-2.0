@@ -12,7 +12,6 @@ from .builtin.jarvis_help_agent import JARVIS_HELP_AGENT
 from .builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
 from .builtin.verification_agent import VERIFICATION_AGENT
 
-
 # Explore Agent - for codebase exploration and analysis
 EXPLORE_AGENT = AgentDefinition(
     agent_type='explore',

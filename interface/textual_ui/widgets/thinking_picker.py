@@ -10,8 +10,8 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.cli_adapters import ThinkingLevel
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 # Type alias for OptionList highlight type
 HighlightType: Any = None

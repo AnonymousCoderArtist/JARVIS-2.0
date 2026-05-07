@@ -14,7 +14,6 @@ from interface.textual_ui.cli_adapters import (
     SlashCommandController,
     ToolUIDataAdapter,
 )
-from interface.textual_ui.widgets.chat_input.container import ChatInputContainer
 from interface.textual_ui.tui_main import Config, create_tool_registry
 from interface.textual_ui.types import (
     AssistantEvent,
@@ -23,6 +22,7 @@ from interface.textual_ui.types import (
     ToolResultEvent,
     UserMessageEvent,
 )
+from interface.textual_ui.widgets.chat_input.container import ChatInputContainer
 from interface.textual_ui.widgets.messages import AssistantMessage, ErrorMessage, UserMessage
 from jarvis.cli import _parse_args
 

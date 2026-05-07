@@ -146,9 +146,10 @@ def main() -> None:
         from interface.webui.webui_main import main as webui_main
         webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port)
     else:
-        from interface.cli.cli import main as cli_main
         # CLI is now async
         import asyncio
+
+        from interface.cli.cli import main as cli_main
         asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
 
 

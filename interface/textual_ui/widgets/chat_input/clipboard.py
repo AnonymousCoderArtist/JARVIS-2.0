@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
-from typing import Any
 
 
 def image_to_data_url(file_path: Path) -> str:
@@ -62,9 +61,10 @@ def read_image_from_clipboard() -> str | None:
 def _read_image_from_clipboard_tk() -> str | None:
     """Read image from clipboard using tkinter (cross-platform)."""
     try:
-        import tkinter as tk
-        from PIL import Image
         import io
+        import tkinter as tk
+
+        from PIL import Image
     except ImportError:
         return None
 

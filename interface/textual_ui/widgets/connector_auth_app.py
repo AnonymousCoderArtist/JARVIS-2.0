@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import webbrowser
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING, ClassVar
-import webbrowser
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -14,12 +14,12 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 from textual.worker import Worker
 
-from interface.textual_ui.cli_adapters import copy_text_to_clipboard, ConnectorRegistry
+from interface.textual_ui.cli_adapters import ConnectorRegistry, copy_text_to_clipboard
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 if TYPE_CHECKING:
-    from interface.textual_ui.cli_adapters import ToolManager
     from interface.textual_ui.agent_loop import ToolManagerAdapter
+    from interface.textual_ui.cli_adapters import ToolManager
 
 _HELP = "Backspace Back"
 _OPTION_PADDING = "  "

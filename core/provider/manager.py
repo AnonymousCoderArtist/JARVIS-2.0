@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-from typing import Any
 
 from .models import ProviderConfig, SdkMode
 
@@ -34,7 +32,7 @@ class ProviderManager:
     def _load_providers(self):
         """Load providers from configuration file"""
         config_path = self._config_path or self._get_default_config_path()
-        
+
         if not os.path.exists(config_path):
             # Create default config file
             self._config_path = config_path
@@ -42,7 +40,7 @@ class ProviderManager:
             return
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, encoding='utf-8') as f:
                 data = json.load(f)
 
             for provider_id, provider_data in data.items():
@@ -55,7 +53,7 @@ class ProviderManager:
         """Save providers to configuration file"""
         if not self._config_path:
             self._config_path = self._get_default_config_path()
-            
+
         try:
             # Ensure directory exists
             config_dir = os.path.dirname(self._config_path)

@@ -3,10 +3,10 @@
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable
-from collections.abc import Awaitable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +56,12 @@ class BackgroundTaskManager:
         self.max_concurrent_tasks = max_concurrent_tasks
         self.result_cache_ttl = result_cache_ttl
         self.cleanup_interval = cleanup_interval
-        
+
         self.task_queue: asyncio.Queue[BackgroundTask] = asyncio.Queue()
         self.running_tasks: dict[str, BackgroundTask] = {}
         self.completed_tasks: dict[str, BackgroundTask] = {}
         self.result_cache: dict[str, TaskResult] = {}
-        
+
         self.semaphore = asyncio.Semaphore(max_concurrent_tasks)
         self._task_counter = 0
         self._background_tasks: set[asyncio.Task] = set()
@@ -96,24 +96,24 @@ class BackgroundTaskManager:
         """
         if not self._tool_executor:
             raise RuntimeError("Tool executor not set. Call set_tool_executor() first.")
-        
+
         self._task_counter += 1
         task_id = f"bg_task_{self._task_counter}"
-        
+
         task = BackgroundTask(
             task_id=task_id,
             tool_name=tool_name,
             args=args,
             timeout=timeout
         )
-        
+
         await self.task_queue.put(task)
         logger.info(f"Submitted background task {task_id} for tool {tool_name}")
-        
+
         # Start processing if not already running
         if not self._processing:
             asyncio.create_task(self._start_processing())
-        
+
         return task_id
 
     async def get_task_status(self, task_id: str) -> dict[str, Any]:
@@ -139,7 +139,7 @@ class BackgroundTaskManager:
                 "started_at": task.started_at,
                 "completed_at": None,
             }
-        
+
         # Check completed tasks
         if task_id in self.completed_tasks:
             task = self.completed_tasks[task_id]
@@ -153,7 +153,7 @@ class BackgroundTaskManager:
                 "started_at": task.started_at,
                 "completed_at": task.completed_at,
             }
-        
+
         # Check result cache
         if task_id in self.result_cache:
             cached = self.result_cache[task_id]
@@ -167,7 +167,7 @@ class BackgroundTaskManager:
                 "started_at": cached.timestamp,
                 "completed_at": cached.timestamp,
             }
-        
+
         return {
             "task_id": task_id,
             "state": "NOT_FOUND",
@@ -194,7 +194,7 @@ class BackgroundTaskManager:
         # Check result cache first
         if task_id in self.result_cache:
             return self.result_cache[task_id].result
-        
+
         # Check completed tasks
         if task_id in self.completed_tasks:
             task = self.completed_tasks[task_id]
@@ -202,7 +202,7 @@ class BackgroundTaskManager:
                 return task.result
             elif task.state == TaskState.FAILED:
                 raise RuntimeError(f"Task failed: {task.error}")
-        
+
         # If waiting, poll for completion
         if wait:
             start_time = time.time()
@@ -215,7 +215,7 @@ class BackgroundTaskManager:
                         raise RuntimeError(f"Task failed: {task.error}")
                 await asyncio.sleep(0.1)
             raise TimeoutError(f"Task {task_id} did not complete within {timeout}s")
-        
+
         return None
 
     async def cancel_task(self, task_id: str) -> bool:
@@ -242,15 +242,15 @@ class BackgroundTaskManager:
         """Start the background task processing loop"""
         if self._processing:
             return
-        
+
         self._processing = True
         logger.info("Starting background task processing")
-        
+
         # Start cleanup task
         cleanup_task = asyncio.create_task(self._cleanup_loop())
         self._background_tasks.add(cleanup_task)
         cleanup_task.add_done_callback(self._background_tasks.discard)
-        
+
         # Start processing tasks
         while self._processing:
             try:
@@ -258,12 +258,12 @@ class BackgroundTaskManager:
                     self.task_queue.get(),
                     timeout=1.0
                 )
-                
+
                 # Create background task for execution
                 exec_task = asyncio.create_task(self._execute_task(task))
                 self._background_tasks.add(exec_task)
                 exec_task.add_done_callback(self._background_tasks.discard)
-                
+
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
@@ -273,14 +273,14 @@ class BackgroundTaskManager:
         """Stop processing tasks and cleanup"""
         self._processing = False
         logger.info("Stopping background task processing")
-        
+
         # Cancel all background tasks
         for task in self._background_tasks:
             task.cancel()
-        
+
         if self._background_tasks:
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
-        
+
         self._background_tasks.clear()
 
     async def _execute_task(self, task: BackgroundTask) -> None:
@@ -294,23 +294,23 @@ class BackgroundTaskManager:
             task.state = TaskState.RUNNING
             task.started_at = time.time()
             self.running_tasks[task.task_id] = task
-            
+
             try:
                 logger.info(f"Executing background task {task.task_id}")
-                
+
                 # Execute the tool with timeout
                 if self._tool_executor is None:
                     raise RuntimeError("Tool executor not set")
-                
+
                 result = await asyncio.wait_for(
                     self._tool_executor(task.tool_name, task.args),
                     timeout=task.timeout
                 )
-                
+
                 task.result = result
                 task.state = TaskState.COMPLETED
                 task.completed_at = time.time()
-                
+
                 # Cache the result
                 self.result_cache[task.task_id] = TaskResult(
                     task_id=task.task_id,
@@ -318,21 +318,21 @@ class BackgroundTaskManager:
                     timestamp=time.time(),
                     ttl=self.result_cache_ttl
                 )
-                
+
                 logger.info(f"Background task {task.task_id} completed successfully")
-                
+
             except asyncio.TimeoutError:
                 task.error = f"Task timed out after {task.timeout}s"
                 task.state = TaskState.FAILED
                 task.completed_at = time.time()
                 logger.error(f"Background task {task.task_id} timed out")
-                
+
             except Exception as e:
                 task.error = str(e)
                 task.state = TaskState.FAILED
                 task.completed_at = time.time()
                 logger.error(f"Background task {task.task_id} failed: {e}")
-                
+
             finally:
                 # Move to completed
                 self.completed_tasks[task.task_id] = task
@@ -350,7 +350,7 @@ class BackgroundTaskManager:
     async def _cleanup(self) -> None:
         """Clean up old tasks and cached results"""
         current_time = time.time()
-        
+
         # Clean up old completed tasks (keep last 100)
         if len(self.completed_tasks) > 100:
             # Sort by completion time and keep newest
@@ -360,7 +360,7 @@ class BackgroundTaskManager:
                 reverse=True
             )
             self.completed_tasks = dict(sorted_tasks[:100])
-        
+
         # Clean up expired cached results
         expired_keys = [
             task_id for task_id, cached in self.result_cache.items()
@@ -368,7 +368,7 @@ class BackgroundTaskManager:
         ]
         for key in expired_keys:
             del self.result_cache[key]
-        
+
         if expired_keys:
             logger.info(f"Cleaned up {len(expired_keys)} expired cached results")
 

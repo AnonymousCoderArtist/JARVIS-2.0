@@ -1,7 +1,7 @@
 """Pattern detector for identifying user preferences and behaviors"""
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 

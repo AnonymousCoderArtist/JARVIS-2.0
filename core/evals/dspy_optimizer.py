@@ -1,7 +1,7 @@
 """DSPy-style optimizer for JARVIS prompts"""
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -94,7 +94,7 @@ class DSPyOptimizer:
         if not path.exists():
             return
 
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
             self.optimized_prompts = data.get("prompts", {})
             self.optimized_policies = data.get("policies", {})

@@ -14,13 +14,12 @@ See: https://docs.anthropic.com/en/docs/reference/messages_post
 """
 
 import json
-import uuid
 import os
-from dataclasses import dataclass, field, asdict
+import uuid
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Any, Union, List
 
 
 # Role types used by both OpenAI and Anthropic SDKs
@@ -37,7 +36,7 @@ class ToolCall:
     """Represents a tool call in OpenAI format."""
     id: str
     type: str = "function"
-    function: Optional[dict] = None
+    function: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -80,26 +79,26 @@ class HistoryMessage:
     - Anthropic: {"role": "assistant", "content": [{"type": "tool_use", ...}]}, {"role": "user", "content": [{"type": "tool_result", ...}]}
     """
     role: str  # "user", "assistant", "system", or "tool"
-    content: Union[str, list, None] = None
+    content: str | list | None = None
     uuid: str = field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     # OpenAI-specific: tool calls from assistant
-    tool_calls: Optional[List[dict]] = None
+    tool_calls: list[dict] | None = None
 
     # OpenAI-specific: tool call ID for tool role
-    tool_call_id: Optional[str] = None
+    tool_call_id: str | None = None
 
     # Anthropic-specific: tool use in content array
-    tool_use: Optional[dict] = None
+    tool_use: dict | None = None
 
     # Anthropic-specific: tool result in content array
-    tool_result: Optional[dict] = None
+    tool_result: dict | None = None
 
     # Optional metadata
-    name: Optional[str] = None
-    refusal: Optional[bool] = None
+    name: str | None = None
+    refusal: bool | None = None
     additional_kwargs: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -130,7 +129,7 @@ class ConversationHistory:
     Uses JSONL format matching OpenAI/Anthropic SDK message format.
     """
 
-    def __init__(self, session_id: Optional[str] = None, history_dir: Optional[Path] = None):
+    def __init__(self, session_id: str | None = None, history_dir: Path | None = None):
         """
         Initialize conversation history.
 
@@ -168,7 +167,7 @@ class ConversationHistory:
         with open(self._history_file(), "a") as f:
             f.write(json.dumps(message.to_dict()) + "\n")
 
-    def get_messages(self, limit: Optional[int] = None) -> list[HistoryMessage]:
+    def get_messages(self, limit: int | None = None) -> list[HistoryMessage]:
         """
         Retrieve messages from history.
 
@@ -183,7 +182,7 @@ class ConversationHistory:
             return []
 
         messages = []
-        with open(history_file, "r") as f:
+        with open(history_file) as f:
             for line in f:
                 line = line.strip()
                 if line:
@@ -223,7 +222,7 @@ def create_user_message(content: str | list | None, **kwargs) -> HistoryMessage:
     return HistoryMessage(role=Role.USER.value, content=content, **kwargs)
 
 
-def create_assistant_message(content: Union[str, list, None], **kwargs) -> HistoryMessage:
+def create_assistant_message(content: str | list | None, **kwargs) -> HistoryMessage:
     """Create an assistant message in SDK format."""
     return HistoryMessage(role=Role.ASSISTANT.value, content=content, **kwargs)
 

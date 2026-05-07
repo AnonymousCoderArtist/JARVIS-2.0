@@ -3,13 +3,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Protocol
 
-from interface.textual_ui.widgets.loading import DEFAULT_LOADING_STATUS
 from interface.textual_ui.cli_adapters import (
-    VibeConfig,
-    RemoteEventsSource,
     AskUserQuestionArgs,
     Choice,
     Question,
+    RemoteEventsSource,
+    VibeConfig,
 )
 from interface.textual_ui.types import (
     AssistantEvent,
@@ -20,6 +19,7 @@ from interface.textual_ui.types import (
     UserMessageEvent,
     WaitingForInputEvent,
 )
+from interface.textual_ui.widgets.loading import DEFAULT_LOADING_STATUS
 
 _MIN_QUESTION_OPTIONS = 2
 _MAX_QUESTION_OPTIONS = 4

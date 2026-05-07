@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+
 @dataclass
 class TraceMetrics:
     """Metrics extracted from trace data"""
@@ -21,7 +22,7 @@ class TraceAnalyzer:
         """Analyze recent trace files and extract metrics"""
         if not self.sessions_dir.exists():
             return TraceMetrics()
-            
+
         trace_files = sorted(
             self.sessions_dir.glob("*.jsonl"),
             key=lambda p: p.stat().st_mtime,
@@ -32,7 +33,7 @@ class TraceAnalyzer:
         success = 0
 
         for f_path in trace_files:
-            with open(f_path, 'r') as f:
+            with open(f_path) as f:
                 for line in f:
                     try:
                         data = json.loads(line)
@@ -41,7 +42,7 @@ class TraceAnalyzer:
                             success += 1
                     except json.JSONDecodeError:
                         pass
-                        
+
         return TraceMetrics(total_interactions=total, successful_traces=success)
 
     async def extract_successful_tool_patterns(self) -> list[dict[str, Any]]:
@@ -61,10 +62,10 @@ class TraceAnalyzer:
         """Retrieve only the successful M1 traces for M2 dataset generation"""
         if not self.sessions_dir.exists():
             return []
-            
+
         successful_traces = []
         for f_path in self.sessions_dir.glob("*.jsonl"):
-            with open(f_path, 'r') as f:
+            with open(f_path) as f:
                 for line in f:
                     try:
                         data = json.loads(line)
