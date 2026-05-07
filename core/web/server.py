@@ -117,6 +117,7 @@ def _get_agent():
     from core.tools.grep_tool import GrepSearchTool
     from core.tools.registry import ToolRegistry
     from core.tools.web_tools import WebFetchTool
+    from core.tools.tool_search_tool import ToolSearchTool
 
     # Get configuration from environment
     model = os.getenv("JARVIS_MODEL", "gpt-4o")
@@ -156,6 +157,9 @@ def _get_agent():
         print("INFO: ExaWebSearchTool registered successfully", file=sys.stderr)
     except Exception as e:
         print(f"WARNING: Failed to register ExaWebSearchTool (search will be unavailable): {e}", file=sys.stderr)
+
+    # Register ToolSearchTool
+    tool_registry.register(ToolSearchTool())
 
     # Simple config getter that returns default settings
     def get_settings() -> Settings:

@@ -39,6 +39,7 @@ from core.tools.memory_tool import ReadMemoryTool, SaveMemoryTool
 from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 from core.tools.worktree_tool import EnterWorktreeTool, ExitWorktreeTool
+from core.tools.tool_search_tool import ToolSearchTool
 
 from .commands import CommandHandler
 from .config import load_config
@@ -252,6 +253,8 @@ class CLIInterface:
         # Register worktree tools
         self.tool_registry.register(EnterWorktreeTool())
         self.tool_registry.register(ExitWorktreeTool())
+        # Register tool search tool
+        self.tool_registry.register(ToolSearchTool())
 
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
