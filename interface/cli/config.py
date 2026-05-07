@@ -65,7 +65,7 @@ class CLIConfig:
         "dark": ThemeConfig("dark"),
         "light": ThemeConfig("light", {
             "primary": "#ff6600",
-            "secondary": "#888888", 
+            "secondary": "#888888",
             "success": "#00aa00",
             "error": "#cc0000",
             "warning": "#cc9900",
@@ -73,15 +73,45 @@ class CLIConfig:
             "prompt": "#ff6600",
             "arrow": "#888888",
         }),
-        "mistral": ThemeConfig("mistral", {
-            "primary": "#ff8700",  # Mistral orange
-            "secondary": "#666666",
-            "success": "#00ff00",
-            "error": "#e10500",  # Mistral red
-            "warning": "#ffd800",  # Mistral yellow
-            "info": "#00ffff",
-            "prompt": "#ff8700",
-            "arrow": "#666666",
+        "nord": ThemeConfig("nord", {
+            "primary": "#81a1c1",
+            "secondary": "#4c566a",
+            "success": "#a3be8c",
+            "error": "#bf616a",
+            "warning": "#ebcb8b",
+            "info": "#88c0d0",
+            "prompt": "#81a1c1",
+            "arrow": "#4c566a",
+        }),
+        "dracula": ThemeConfig("dracula", {
+            "primary": "#bd93f9",
+            "secondary": "#6272a4",
+            "success": "#50fa7b",
+            "error": "#ff5555",
+            "warning": "#f1fa8c",
+            "info": "#8be9fd",
+            "prompt": "#bd93f9",
+            "arrow": "#6272a4",
+        }),
+        "gruvbox": ThemeConfig("gruvbox", {
+            "primary": "#fabd2f",
+            "secondary": "#928374",
+            "success": "#b8bb26",
+            "error": "#fb4934",
+            "warning": "#fabd2f",
+            "info": "#83a598",
+            "prompt": "#fabd2f",
+            "arrow": "#928374",
+        }),
+        "catppuccin": ThemeConfig("catppuccin", {
+            "primary": "#f5e0dc",
+            "secondary": "#585b70",
+            "success": "#a6e3a1",
+            "error": "#f38ba8",
+            "warning": "#f9e2af",
+            "info": "#89dceb",
+            "prompt": "#f5e0dc",
+            "arrow": "#585b70",
         }),
     })
 

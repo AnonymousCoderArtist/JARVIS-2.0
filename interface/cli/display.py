@@ -16,11 +16,129 @@ from rich.align import Align
 from rich.rule import Rule
 from rich.syntax import Syntax
 from rich.theme import Theme as RichTheme
+from rich.box import ROUNDED, MINIMAL, SIMPLE
+
+
+# Unicode icons for different message types (modern UI indicators)
+ICONS = {
+    "user": "👤",
+    "assistant": "🤖",
+    "tool_call": "🔧",
+    "tool_result": "📋",
+    "reasoning": "💭",
+    "error": "❌",
+    "success": "✅",
+    "warning": "⚠️",
+    "info": "ℹ️",
+    "prompt": "➤",
+    "arrow": "▶",
+    "loader": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",  # Animated spinner frames
+}
+
+# Modern theme definitions
+THEME_PRESETS = {
+    "dark": {
+        "primary": "#ff8700",
+        "secondary": "#666666",
+        "success": "#00ff00",
+        "error": "#ff0000",
+        "warning": "#ffff00",
+        "info": "#00ffff",
+        "prompt": "#ff8700",
+        "user": "#5fafff",
+        "jarvis": "#ff8700",
+        "reasoning": "#888888",
+        "tool_call": "#00afff",
+        "tool_args": "#87d7ff",
+        "tool_result": "#bcbcbc",
+        "arrow": "#666666",
+    },
+    "light": {
+        "primary": "#ff6600",
+        "secondary": "#888888",
+        "success": "#00aa00",
+        "error": "#cc0000",
+        "warning": "#cc9900",
+        "info": "#0099cc",
+        "prompt": "#ff6600",
+        "user": "#005fdf",
+        "jarvis": "#ff6600",
+        "reasoning": "#666666",
+        "tool_call": "#0087af",
+        "tool_args": "#005f87",
+        "tool_result": "#444444",
+        "arrow": "#888888",
+    },
+    "nord": {
+        "primary": "#81a1c1",
+        "secondary": "#4c566a",
+        "success": "#a3be8c",
+        "error": "#bf616a",
+        "warning": "#ebcb8b",
+        "info": "#88c0d0",
+        "prompt": "#81a1c1",
+        "user": "#5e81ac",
+        "jarvis": "#81a1c1",
+        "reasoning": "#d8dee9",
+        "tool_call": "#8fbcbb",
+        "tool_args": "#8fbcbb",
+        "tool_result": "#eceff4",
+        "arrow": "#4c566a",
+    },
+    "dracula": {
+        "primary": "#bd93f9",
+        "secondary": "#6272a4",
+        "success": "#50fa7b",
+        "error": "#ff5555",
+        "warning": "#f1fa8c",
+        "info": "#8be9fd",
+        "prompt": "#bd93f9",
+        "user": "#50fa7b",
+        "jarvis": "#bd93f9",
+        "reasoning": "#f8f8f2",
+        "tool_call": "#ff79c6",
+        "tool_args": "#8be9fd",
+        "tool_result": "#f8f8f2",
+        "arrow": "#6272a4",
+    },
+    "gruvbox": {
+        "primary": "#fabd2f",
+        "secondary": "#928374",
+        "success": "#b8bb26",
+        "error": "#fb4934",
+        "warning": "#fabd2f",
+        "info": "#83a598",
+        "prompt": "#fabd2f",
+        "user": "#83a598",
+        "jarvis": "#fabd2f",
+        "reasoning": "#ebdbb2",
+        "tool_call": "#fe8019",
+        "tool_args": "#8ec07c",
+        "tool_result": "#ebdbb2",
+        "arrow": "#928374",
+    },
+    "catppuccin": {
+        "primary": "#f5e0dc",
+        "secondary": "#585b70",
+        "success": "#a6e3a1",
+        "error": "#f38ba8",
+        "warning": "#f9e2af",
+        "info": "#89dceb",
+        "prompt": "#f5e0dc",
+        "user": "#b4befe",
+        "jarvis": "#f5e0dc",
+        "reasoning": "#cdd6f4",
+        "tool_call": "#f5c2e7",
+        "tool_args": "#b4befe",
+        "tool_result": "#cdd6f4",
+        "arrow": "#585b70",
+    },
+}
 
 
 class Theme:
     """Color theme definitions for the CLI."""
-    
+
     DARK_THEME = RichTheme({
         "primary": "bold #ff8700",
         "secondary": "#666666",
@@ -36,7 +154,7 @@ class Theme:
         "tool_args": "#87d7ff",
         "tool_result": "#bcbcbc",
     })
-    
+
     LIGHT_THEME = RichTheme({
         "primary": "bold #ff6600",
         "secondary": "#888888",
@@ -51,6 +169,71 @@ class Theme:
         "tool_call": "bold #0087af",
         "tool_args": "#005f87",
         "tool_result": "#444444",
+    })
+
+    # New modern themes
+    NORD_THEME = RichTheme({
+        "primary": "bold #81a1c1",
+        "secondary": "#4c566a",
+        "success": "bold #a3be8c",
+        "error": "bold #bf616a",
+        "warning": "bold #ebcb8b",
+        "info": "bold #88c0d0",
+        "prompt": "bold #81a1c1",
+        "user": "bold #5e81ac",
+        "jarvis": "bold #81a1c1",
+        "reasoning": "italic #d8dee9",
+        "tool_call": "bold #8fbcbb",
+        "tool_args": "#8fbcbb",
+        "tool_result": "#eceff4",
+    })
+
+    DRACULA_THEME = RichTheme({
+        "primary": "bold #bd93f9",
+        "secondary": "#6272a4",
+        "success": "bold #50fa7b",
+        "error": "bold #ff5555",
+        "warning": "bold #f1fa8c",
+        "info": "bold #8be9fd",
+        "prompt": "bold #bd93f9",
+        "user": "bold #50fa7b",
+        "jarvis": "bold #bd93f9",
+        "reasoning": "italic #f8f8f2",
+        "tool_call": "bold #ff79c6",
+        "tool_args": "#8be9fd",
+        "tool_result": "#f8f8f2",
+    })
+
+    GRUVBIX_THEME = RichTheme({
+        "primary": "bold #fabd2f",
+        "secondary": "#928374",
+        "success": "bold #b8bb26",
+        "error": "bold #fb4934",
+        "warning": "bold #fabd2f",
+        "info": "bold #83a598",
+        "prompt": "bold #fabd2f",
+        "user": "bold #83a598",
+        "jarvis": "bold #fabd2f",
+        "reasoning": "italic #ebdbb2",
+        "tool_call": "bold #fe8019",
+        "tool_args": "#8ec07c",
+        "tool_result": "#ebdbb2",
+    })
+
+    CATPPUCCIN_THEME = RichTheme({
+        "primary": "bold #f5e0dc",
+        "secondary": "#585b70",
+        "success": "bold #a6e3a1",
+        "error": "bold #f38ba8",
+        "warning": "bold #f9e2af",
+        "info": "bold #89dceb",
+        "prompt": "bold #f5e0dc",
+        "user": "bold #b4befe",
+        "jarvis": "bold #f5e0dc",
+        "reasoning": "italic #cdd6f4",
+        "tool_call": "bold #f5c2e7",
+        "tool_args": "#b4befe",
+        "tool_result": "#cdd6f4",
     })
 
 
@@ -81,22 +264,35 @@ class DisplayManager:
 
     def _get_theme_colors(self, theme_name: str) -> dict[str, str]:
         """Calculate color definitions for a theme."""
-        # Start with base theme colors
+        # Map theme names to their presets
+        theme_map = {
+            "dark": THEME_PRESETS["dark"],
+            "light": THEME_PRESETS["light"],
+            "nord": THEME_PRESETS["nord"],
+            "dracula": THEME_PRESETS["dracula"],
+            "gruvbox": THEME_PRESETS["gruvbox"],
+            "catppuccin": THEME_PRESETS["catppuccin"],
+        }
+
+        # Get base colors from preset or use dark as fallback
+        base_colors = theme_map.get(theme_name, theme_map["dark"])
+
+        # Add formatting (bold/italic) for specific styles
         colors = {
-            "primary": "bold #ff8700",
-            "secondary": "#666666",
-            "success": "bold #00ff00",
-            "error": "bold #ff0000",
-            "warning": "bold #ffff00",
-            "info": "bold #00ffff",
-            "prompt": "bold #ff8700",
-            "user": "bold #5fafff",
-            "jarvis": "bold #ff8700",
-            "reasoning": "italic dim #888888",
-            "tool_call": "bold #00afff",
-            "tool_args": "#87d7ff",
-            "tool_result": "#bcbcbc",
-            "arrow": "#666666",
+            "primary": f"bold {base_colors['primary']}",
+            "secondary": base_colors['secondary'],
+            "success": f"bold {base_colors['success']}",
+            "error": f"bold {base_colors['error']}",
+            "warning": f"bold {base_colors['warning']}",
+            "info": f"bold {base_colors['info']}",
+            "prompt": f"bold {base_colors['prompt']}",
+            "user": f"bold {base_colors['user']}",
+            "jarvis": f"bold {base_colors['jarvis']}",
+            "reasoning": f"italic dim {base_colors['reasoning']}",
+            "tool_call": f"bold {base_colors['tool_call']}",
+            "tool_args": base_colors['tool_args'],
+            "tool_result": base_colors['tool_result'],
+            "arrow": base_colors['arrow'],
         }
 
         # Override with custom theme if available
@@ -127,44 +323,61 @@ class DisplayManager:
         self.console.clear()
     
     def show_banner(self, model: str, sdk: str, base_url: str, tool_count: int):
-        """Display the welcome banner with rich formatting."""
-        self.show_rule("JARVIS 2.0", style="primary")
-        
-        banner_table = Table.grid(padding=(0, 2))
-        banner_table.add_column(style="secondary", justify="right")
-        banner_table.add_column(style="info")
-        
-        banner_table.add_row("Model", model)
-        banner_table.add_row("SDK", sdk)
-        banner_table.add_row("Base URL", base_url or "default")
-        banner_table.add_row("Tools", str(tool_count))
-        
-        self.console.print(Align.center(banner_table))
+        """Display the welcome banner with rich formatting and ASCII art."""
+        ascii_art = """
+     ▄▄▄▄▄     ▄▄▄▄▄    ▄▄▄▄▄    ▄▄▄▄▄    ▄▄▄▄▄
+    ██░░░░▀▀▄▀▀░░░░██  ██░░░░▀▀▄▀▀░░░░██  ██░░░░▀▀▄
+    ██░░▄▄▄░░░░▄▄▄██  ██░░▄▄▄░░░░▄▄▄██  ██░░▄▄▄░░░░
+    ██░░▐▌▐▌░░▐▌▐▌██  ██░░▐▌▐▌░░▐▌▐▌██  ██░░▐▌▐▌░░
+    ██░░░░░░░░░░░░██  ██░░░░░░░░░░░░██  ██░░░░░░░░
+    ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀
+        """
+        self.console.print(f"\n[primary]{ascii_art}[/]")
         self.show_rule(style="secondary")
+
+        # Modern card-style info display
+        info_grid = Table.grid(padding=(0, 4))
+        info_grid.add_column(style="secondary", justify="right")
+        info_grid.add_column(style="info")
+
+        info_grid.add_row("Model", f"[jarvis]{model}[/]")
+        info_grid.add_row("SDK", f"[info]{sdk}[/]")
+        info_grid.add_row("Base URL", f"[secondary]{base_url or 'default'}[/]")
+        info_grid.add_row("Tools", f"[success]{tool_count}[/]")
+
+        panel = Panel(
+            info_grid,
+            title="[primary]JARVIS 2.0[/]",
+            border_style="primary",
+            box=ROUNDED,
+            padding=(1, 2)
+        )
+        self.console.print(Align.center(panel))
         self.console.print()
     
     def show_help(self):
-        """Display available commands using rich table."""
+        """Display available commands using rich table with icons."""
         table = Table(
-            show_header=True, 
-            header_style="primary", 
+            show_header=True,
+            header_style="primary",
             border_style="secondary",
-            box=None,
+            box=ROUNDED,
             padding=(0, 2)
         )
         table.add_column("Command", style="info")
         table.add_column("Description", style="white")
 
         commands = [
-            ("/help", "Show this help"),
-            ("/status", "Show system status"),
-            ("/profile", "Switch or list agent profiles"),
-            ("/tools", "List available tools"),
-            ("/skills", "List and manage skills"),
-            ("/learn", "View learning system status"),
-            ("/clear", "Clear the screen"),
-            ("/exit", "Exit JARVIS"),
-            ("! <cmd>", "Run shell command"),
+            ("/help", "❓ Show this help message"),
+            ("/status", "📊 Show system status"),
+            ("/profile", "👤 Switch or list agent profiles"),
+            ("/tools", "🔧 List available tools"),
+            ("/skills", "🎯 List and manage skills"),
+            ("/learn", "📚 View learning system status"),
+            ("/themes", "🎨 List and change themes"),
+            ("/clear", "🧹 Clear the screen"),
+            ("/exit", "🚪 Exit JARVIS"),
+            ("! <cmd>", "💻 Run shell command"),
         ]
 
         for cmd, desc in commands:
@@ -188,10 +401,10 @@ class DisplayManager:
         self._live.start()
 
     def update_streaming(self, chunk: str, is_reasoning: bool = False):
-        """Update the live display with a new chunk."""
+        """Update the live display with a new chunk with smooth animation."""
         if not self._live:
             self.start_streaming()
-        
+
         if is_reasoning:
             self._streaming_reasoning += chunk
             self._is_reasoning = True
@@ -199,18 +412,23 @@ class DisplayManager:
             self._streaming_content += chunk
             self._is_reasoning = False
 
-        # Build the display object
+        # Build the display object with improved styling
         parts = []
         if self._streaming_reasoning:
             reasoning_text = Text(self._streaming_reasoning, style="reasoning")
-            parts.append(Panel(reasoning_text, title="Reasoning", border_style="secondary", padding=(0, 1)))
-        
+            parts.append(Panel(
+                reasoning_text,
+                title=f"{ICONS['reasoning']} Reasoning",
+                border_style="secondary",
+                padding=(0, 1),
+                box=MINIMAL
+            ))
+
         if self._streaming_content:
             parts.append(Markdown(self._streaming_content))
-        
+
         if parts and self._live:
             if len(parts) > 1:
-                # Combine reasoning panel and content
                 from rich.console import Group
                 self._live.update(Group(*parts))
             else:
@@ -224,19 +442,20 @@ class DisplayManager:
         self.console.print()
 
     def show_tool_call(self, tool_name: str, tool_args: dict[str, Any]):
-        """Display tool call with rich formatting."""
+        """Display tool call with rich formatting and icons."""
         import json
         args_str = json.dumps(tool_args, indent=2)
-        
+
         panel = Panel(
             Syntax(args_str, "json", theme="monokai", background_color="default"),
-            title=f"Tool Call: [tool_call]{tool_name}[/]",
+            title=f"{ICONS['tool_call']} Tool Call: [tool_call]{tool_name}[/]",
             title_align="left",
             border_style="tool_call",
-            padding=(0, 1)
+            padding=(0, 1),
+            box=ROUNDED
         )
         self.console.print(panel)
-    
+
     def show_tool_result(self, result: Any, max_length: int = 2500):
         """Display tool result with truncation and syntax highlighting if needed."""
         if result and hasattr(result, 'success'):
@@ -245,13 +464,13 @@ class DisplayManager:
         else:
             res_str = str(result)
             style = "tool_result"
-        
+
         if not res_str or res_str == "[]" or res_str == "{}":
             res_str = "(no content)"
-        
+
         if len(res_str) > max_length:
             res_str = res_str[:max_length] + f"\n... (large output truncated, {len(res_str)} total chars)"
-        
+
         # Try to detect if it's JSON or other code
         content_renderable = res_str
         if res_str.strip().startswith(("{", "[")):
@@ -261,13 +480,14 @@ class DisplayManager:
                 content_renderable = Syntax(json.dumps(parsed, indent=2), "json", theme="monokai", background_color="default")
             except:
                 pass
-        
+
         panel = Panel(
             content_renderable,
-            title="Tool Result",
+            title=f"{ICONS['tool_result']} Tool Result",
             title_align="left",
             border_style=style,
-            padding=(0, 1)
+            padding=(0, 1),
+            box=ROUNDED
         )
         self.console.print(panel)
     

@@ -2,7 +2,6 @@
 
 import platform
 import os
-from typing import Any
 
 
 def get_system_context() -> str:
@@ -654,7 +653,8 @@ def get_jarvis_v2_guidelines() -> str:
 13. **IF AN EDIT SUCCEEDS, CHECK ONCE AND THEN MOVE ON IMMEDIATELY.** Do not re-verify if you have already verified it, do not re-read, do not run extra commands. The user's time is more valuable than your perfectionism.
 14. **SHORT ACKNOWLEDGMENTS ONLY.** If the user says "good job", "thanks", "nice", "ok", or any brief positive feedback, reply with 1-2 words (e.g. "You're welcome" or "Glad to help") and STOP. Do NOT re-read files, do NOT re-plan, do NOT start a new task.
 15. **REMEMBER TASK STATE.** If you just completed a task and the user replies with a short phrase, they are acknowledging completion. The conversation is over until they give a new explicit instruction.
-16. **MEMORY FIRST.** At the start of each session, read your memories to recall the user's preferences and past context. Use save_memory to store important facts the user shares about their workflow or preferences."""
+16. **MEMORY FIRST.** At the start of each session, read your memories to recall the user's preferences and past context. Use save_memory to store important facts the user shares about their workflow or preferences.
+17. **URL GENERATION RESTRICTION.** You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files."""
 
 
 def build_jarvis_v2_system_prompt(
@@ -664,7 +664,7 @@ def build_jarvis_v2_system_prompt(
     auto_discover: bool = True,
 ) -> str:
     """Construct the full JARVIS v2 system prompt including tools, guidelines, and context."""
-    header = "You are JARVIS, an expert AI coding assistant integrated with the `jarvis` CLI and TUI. Your primary goal is to help developers read, modify, test, and explain code in repositories while using tools to inspect and change the project safely and reproducibly."
+    header = "You are an interactive agent that helps users with software engineering tasks according to the Output Style configuration (if any)."
     tools_section = get_jarvis_v2_tools()
     guidelines = get_jarvis_v2_guidelines()
 

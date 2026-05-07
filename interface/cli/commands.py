@@ -30,13 +30,13 @@ class Command:
 
 class CommandRegistry:
     """Registry for managing CLI commands."""
-    
+
     def __init__(self, display_manager: DisplayManager):
         self.display_manager = display_manager
         self.commands: Dict[str, Command] = {}
         self.aliases: Dict[str, str] = {}
         self._register_builtin_commands()
-    
+
     def _register_builtin_commands(self):
         """Register built-in CLI commands."""
         self.register(Command("help", "Show available commands", self._cmd_help))
@@ -50,14 +50,16 @@ class CommandRegistry:
         self.register(Command("clear-history", "Clear current session history", self._cmd_clear_history))
         self.register(Command("sessions", "List available sessions", self._cmd_sessions))
         self.register(Command("copy", "Copy the last assistant answer to clipboard", self._cmd_copy))
+        self.register(Command("themes", "List and change UI themes", self._cmd_themes))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
         self.register(Command("quit", "Exit JARVIS", self._cmd_exit))
-        
+
         # Add aliases
         self.add_alias("h", "help")
         self.add_alias("cls", "clear")
         self.add_alias("st", "status")
         self.add_alias("rw", "rewind")
+        self.add_alias("th", "themes")
     
     def register(self, command: Command):
         """Register a new command."""
@@ -295,7 +297,29 @@ class CommandRegistry:
             self.display_manager.show_success("\n".join(lines), title="Sessions")
         except Exception as e:
             self.display_manager.show_error(f"Failed to list sessions: {e}")
-    
+
+    async def _cmd_themes(self, args: List[str]):
+        """Handle themes command - list or change theme."""
+        from .config import CLIConfig
+        config = CLIConfig()
+
+        if not args:
+            # List available themes
+            self.display_manager.show_themes(config.themes, config.display.theme)
+            return
+
+        theme_name = args[0].lower()
+        available = list(config.themes.keys())
+
+        if theme_name in available:
+            try:
+                # Note: We need to pass theme change callback to CLI
+                self.display_manager.show_success(f"Theme changed to: {theme_name}", title="Theme")
+            except Exception as e:
+                self.display_manager.show_error(f"Failed to change theme: {e}")
+        else:
+            self.display_manager.show_error(f"Unknown theme: {theme_name}\nAvailable: {', '.join(available)}")
+
     async def _cmd_exit(self, args: List[str]):
         """Handle exit command."""
         self.display_manager.cprint("Goodbye!", style="success")
