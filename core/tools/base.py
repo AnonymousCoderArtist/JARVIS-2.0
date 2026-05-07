@@ -57,6 +57,8 @@ class BaseTool(ABC):
     name: str = ""
     description: str = ""
     input_schema: dict[str, Any] = {}
+    is_deferred: bool = False  # Mark tool as deferred/lazy-loadable
+    search_hint: str | None = None  # Curated hint for search matching
 
     def __init__(
         self,

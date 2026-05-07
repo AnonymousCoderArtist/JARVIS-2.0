@@ -345,6 +345,11 @@ class MCPToolAdapter(BaseTool):
         self.description = tool_spec.description or f"MCP tool: {tool_spec.name}"
         self.input_schema = input_schema
 
+        # MCP tool markers
+        self.is_mcp = True
+        self.mcp_server_name = tool_spec.server_name
+        self.mcp_status = "connected"
+
         # Initialize base class
         super().__init__(
             tool_registry=tool_registry,

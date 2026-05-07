@@ -256,6 +256,10 @@ def create_tool_registry() -> AsyncToolRegistry:
     tool_registry.register(EnterWorktreeTool())
     tool_registry.register(ExitWorktreeTool())
 
+    # Register ToolSearch tool
+    from core.tools.tool_search_tool import ToolSearchTool
+    tool_registry.register(ToolSearchTool())
+
     return tool_registry
 
 
