@@ -225,7 +225,7 @@ The heartbeat scheduler integrates with the agent:
 
 1. Create tool in `core/tools/` directory
 2. Register in `ToolRegistry`
-3. Update `config.toml` if needed for permissions
+3. Update `.jarvis/settings.json` if needed for permissions
 
 ### Running Tests
 
