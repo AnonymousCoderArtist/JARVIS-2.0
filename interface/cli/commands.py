@@ -276,20 +276,27 @@ class CommandRegistry:
     async def _cmd_new_session(self, args: list[str]):
         """Start a new session with fresh history."""
         try:
-            # Create new conversation history (new session)
-            history = ConversationHistory()
             old_session = getattr(self, '_current_session_id', None)
             
-            # Clear agent memory if available
-            if hasattr(self, 'jarvis_agent') and self.jarvis_agent:
-                self.jarvis_agent.clear_memory()
-                self.jarvis_agent.rebuild_system_prompt()
-            
-            # Store new session info
-            self._current_session_id = history.session_id
+            # Use callback if available (CLIInterface handles the actual reset)
+            if hasattr(self, 'session_reset_callback') and self.session_reset_callback:
+                old_session = await self.session_reset_callback()
+                self._current_session_id = self.session_reset_callback.__self__.history.session_id
+                new_session = self._current_session_id
+            else:
+                # Fallback: create new history locally (won't update CLIInterface)
+                history = ConversationHistory()
+                new_session = history.session_id
+                
+                # Clear agent memory if available
+                if hasattr(self, 'jarvis_agent') and self.jarvis_agent:
+                    self.jarvis_agent.clear_memory()
+                    self.jarvis_agent.rebuild_system_prompt()
+                
+                self._current_session_id = new_session
             
             self.display_manager.show_success(
-                f"Started new session: {history.session_id[:8]}...\n"
+                f"Started new session: {new_session[:8]}...\n"
                 f"Previous session: {old_session[:8] if old_session else 'none'}...",
                 title="New Session Started"
             )

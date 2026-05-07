@@ -255,3 +255,7 @@ ty check .
 ## Rules for Agents
 - use rg (rip grep) instead of grep for file searching
 - use ty for type checking instead of mypy
+- use Ruff for linting instead of flake8
+- use pytest for testing instead of unittest
+- use Pydantic for configuration management instead of custom solutions
+- Use modern python syntax

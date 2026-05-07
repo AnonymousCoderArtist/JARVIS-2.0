@@ -314,11 +314,17 @@ class CLIInterface:
             messages = self.history.get_messages()
             for msg in messages:
                 entry = {"role": msg.role, "content": msg.content or ""}
-                # Add tool calls if present
+                # Add OpenAI tool calls if present
                 if msg.tool_calls:
                     entry["tool_calls"] = msg.tool_calls
                 if msg.tool_call_id:
                     entry["tool_call_id"] = msg.tool_call_id
+                # Add Anthropic tool_use if present
+                if msg.tool_use:
+                    entry["tool_use"] = msg.tool_use
+                # Add Anthropic tool_result if present (stored in content as array)
+                if msg.tool_result:
+                    entry["tool_result"] = msg.tool_result
                 self.jarvis_agent.add_to_memory(entry)
 
         # Initialize learning manager
@@ -340,7 +346,8 @@ class CLIInterface:
             skill_manager=self.skill_manager,
             jarvis_agent=self.jarvis_agent,
             config_manager=self.config_manager,
-            learning_manager=self.learning_manager
+            learning_manager=self.learning_manager,
+            session_reset_callback=self.reset_session
         )
 
         # Update command handler with current status info
@@ -422,6 +429,10 @@ class CLIInterface:
         if not self.jarvis_agent:
             self.display_manager.show_error("JARVIS agent not initialized.")
             return
+
+        # Save user message to history
+        from core.history import create_user_message
+        self.history.append_message(create_user_message(text))
 
         # State tracking for chat responses
         in_tool_call = [False]
