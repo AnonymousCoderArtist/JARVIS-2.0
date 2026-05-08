@@ -92,8 +92,10 @@ export async function fetchSessionMessages(
     media_urls?: SessionMediaUrl[];
   }>;
 }> {
+  // Extract the chatId from the key (remove "websocket:" prefix if present)
+  const chatId = key.includes(":") ? key.split(":")[1] : key;
   return request(
-    `${base}/api/sessions/${encodeURIComponent(key)}/messages`,
+    `${base}/api/sessions/${encodeURIComponent(chatId)}/messages`,
     token,
   );
 }

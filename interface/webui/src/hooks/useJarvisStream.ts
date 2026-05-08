@@ -129,15 +129,17 @@ export function useJarvisStream(
         return id;
       };
 
-      if (ev.event === "delta") {
-        const id = ensureAssistantMessage();
-        buffer.current!.parts.push(ev.text);
-        const combined = buffer.current!.parts.join("");
-        setMessages((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, content: combined } : m)),
-        );
-        return;
-      }
+if (ev.event === "delta") {
+         const id = ensureAssistantMessage();
+         if (buffer.current && buffer.current.messageId === id) {
+           buffer.current.parts.push(ev.text);
+           const combined = buffer.current!.parts.join("");
+           setMessages((prev) =>
+             prev.map((m) => (m.id === id ? { ...m, content: combined } : m)),
+           );
+         }
+         return;
+       }
 
       if (ev.event === "reasoning") {
         const id = ensureAssistantMessage();
@@ -318,7 +320,6 @@ export function useJarvisStream(
       if (!chatId || !pendingApproval) return;
       client.sendMessage(chatId, "", undefined, {
         type: "approval_response",
-        chat_id: chatId,
         tool_call_id: pendingApproval.toolCallId,
         approved,
         always_allow: alwaysAllow,

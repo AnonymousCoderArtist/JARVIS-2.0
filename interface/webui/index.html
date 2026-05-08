@@ -9,8 +9,8 @@
       content="jarvis web UI — chat with your jarvis workspace."
       data-i18n-meta="description"
     />
-    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#161618" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#050a14" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#050a14" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/jarvis_favicon_32.png" />
     <link rel="icon" type="image/png" sizes="73x75" href="/brand/jarvis_icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/brand/jarvis_apple_touch.png" />
@@ -23,9 +23,10 @@
 
       body {
         margin: 0;
-        background: #ffffff;
-        color: #0a0a0a;
+        background: #050a14;
+        color: #e0e8ff;
         font-family:
+          "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace,
           system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, "Noto Sans", "Noto Sans SC",
           "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
@@ -33,8 +34,8 @@
       }
 
       html.dark body {
-        background: #1a1a1a;
-        color: #fafafa;
+        background: #050a14;
+        color: #e0e8ff;
       }
 
       .boot-splash {
@@ -181,6 +182,7 @@
         </div>
       </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
