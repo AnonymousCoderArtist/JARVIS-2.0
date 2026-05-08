@@ -396,6 +396,7 @@ class VibeApp(App):  # noqa: PLR0904
         super().__init__(**kwargs)
         self.register_theme(ANSI_DARK)
         self.theme = "ansi-dark"
+        self.ansi_color = True
         self.scroll_sensitivity_y = 1.0
         self.agent_loop = agent_loop
         self._plan_info: PlanInfo | None = None
