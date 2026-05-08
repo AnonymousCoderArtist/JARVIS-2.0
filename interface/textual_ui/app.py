@@ -193,7 +193,7 @@ def _compute_connectors_count(
     # Look for MCP config in same locations as tui_main.py
     config_path = Path(".mcp.json")
     if not config_path.exists():
-        config_path = Path.home() / ".jarvis" / "mcp_servers.json"
+        config_path = Path.home() / ".jarvis" / "mcp.json"
 
     if not config_path.exists():
         return 0
@@ -341,10 +341,11 @@ ANSI_DARK = Theme(
     warning="ansi_yellow",
     error="ansi_red",
     success="ansi_green",
-    # Keep the app stable: Rich parses these theme colors directly.
-    # "transparent" isn't a valid Rich color, so we only use it in TCSS (Screen background).
-    background="black",
-    surface="black",
+    # Rich theme background values are used for parsing Rich markup; we avoid
+    # forcing a dark background here so Textual can render widget backgrounds
+    # transparently (via TCSS + Screen background set to transparent).
+    background="ansi_default",
+    surface="ansi_default",
     panel="ansi_bright_black",
     boost="ansi_bright_black",
 )
@@ -518,6 +519,9 @@ class VibeApp(App):  # noqa: PLR0904
 
     async def on_mount(self) -> None:
         self._terminal_notifier.restore()
+
+        # Set screen background to transparent to use terminal background
+        self.screen.styles.background = "transparent"
 
         self._cached_messages_area = self.query_one("#messages")
         self._cached_chat = self.query_one("#chat", ChatScroll)
@@ -1829,7 +1833,7 @@ class VibeApp(App):  # noqa: PLR0904
         # Look for MCP config in same locations as tui_main.py
         config_path = Path(".mcp.json")
         if not config_path.exists():
-            config_path = Path.home() / ".jarvis" / "mcp_servers.json"
+            config_path = Path.home() / ".jarvis" / "mcp.json"
 
         if not config_path.exists():
             return []
@@ -3228,4 +3232,3 @@ def run_textual_ui(
         )
         session_id = app.run()
 
-    print_session_resume_message(session_id, agent_loop.stats)

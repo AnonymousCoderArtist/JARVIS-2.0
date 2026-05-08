@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from textual.reactive import reactive
-
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
+from textual.widgets import Static
 
 
 @dataclass
@@ -15,7 +14,7 @@ class TokenState:
     status: str = "ok"  # "ok", "warning", "critical", "compaction_ready"
 
 
-class ContextProgress(NoMarkupStatic):
+class ContextProgress(Static):
     tokens = reactive(TokenState())
 
     def __init__(self, **kwargs: Any) -> None:
@@ -29,14 +28,16 @@ class ContextProgress(NoMarkupStatic):
         ratio = min(1, new_state.current_tokens / new_state.max_tokens)
         status = new_state.status
 
-        # Format with status indicator
+        # Color only the percentage based on status
         if status == "critical":
-            text = f"[red]{ratio:.0%}[/red] of {new_state.max_tokens // 1000}k tokens [red]⚠ CRITICAL[/red]"
+            color = "red"
         elif status == "warning":
-            text = f"[yellow]{ratio:.0%}[/yellow] of {new_state.max_tokens // 1000}k tokens [yellow]⚠ WARNING[/yellow]"
+            color = "yellow"
         elif status == "compaction_ready":
-            text = f"[cyan]{ratio:.0%}[/cyan] of {new_state.max_tokens // 1000}k tokens [cyan]⟳ READY[/cyan]"
+            color = "cyan"
         else:
-            text = f"{ratio:.0%} of {new_state.max_tokens // 1000}k tokens"
+            color = "green"
+
+        text = f"[{color}]{ratio:.0%}[/{color}] of {new_state.max_tokens // 1000}k tokens"
 
         self.update(text)

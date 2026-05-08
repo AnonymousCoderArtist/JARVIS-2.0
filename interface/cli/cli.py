@@ -368,7 +368,7 @@ class CLIInterface:
 
         config_paths = [
             Path(".mcp.json"),
-            Path.home() / ".jarvis" / "mcp_servers.json"
+            Path.home() / ".jarvis" / "mcp.json"
         ]
 
         for config_path in config_paths:
