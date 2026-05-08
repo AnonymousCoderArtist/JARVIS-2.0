@@ -1,14 +1,12 @@
 """Skill management tool - Hermes-style skill creation and management"""
 
 import os
-import re
-import yaml
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .base import BaseTool, ToolInput, ToolOutput
+import yaml
 
+from .base import BaseTool, ToolInput, ToolOutput
 
 # Default skill directories (matching SkillManager)
 DEFAULT_SKILL_DIRS = [
@@ -31,7 +29,7 @@ def parse_skill_file(content: str) -> dict[str, Any]:
     """Parse SKILL.md file and extract metadata and content"""
     frontmatter = {}
     body = content
-    
+
     # Parse YAML frontmatter
     if content.startswith("---"):
         parts = content.split("---", 2)
@@ -41,25 +39,25 @@ def parse_skill_file(content: str) -> dict[str, Any]:
             except yaml.YAMLError:
                 pass
             body = parts[2] if len(parts) > 2 else ""
-    
+
     return {
         "metadata": frontmatter,
         "content": body.strip()
     }
 
 
-def create_skill_markdown(name: str, description: str, when_to_use: str, 
-                         when_not_to_use: str, procedure: str, 
+def create_skill_markdown(name: str, description: str, when_to_use: str,
+                         when_not_to_use: str, procedure: str,
                          pitfalls: str = "", verification: str = "",
                          version: str = "1.0.0", platforms: list[str] | None = None,
                          category: str = "general", tags: list[str] | None = None,
                          requires_toolsets: list[str] | None = None) -> str:
     """Create SKILL.md content following agentskills.io standard"""
-    
+
     platforms = platforms if platforms is not None else ["macos", "linux", "windows"]
     tags = tags if tags is not None else []
     requires_toolsets = requires_toolsets if requires_toolsets is not None else []
-    
+
     # Build frontmatter
     frontmatter = {
         "name": name,
@@ -76,28 +74,28 @@ def create_skill_markdown(name: str, description: str, when_to_use: str,
         "when_to_use": when_to_use,
         "when_not_to_use": when_not_to_use
     }
-    
+
     # Build body
     body_parts = [f"# {name.title()}", ""]
-    
+
     if description:
         body_parts.extend(["## Description", description, ""])
-    
+
     if when_to_use:
         body_parts.extend(["## When to Use", when_to_use, ""])
-    
+
     if when_not_to_use:
         body_parts.extend(["## When NOT to Use", when_not_to_use, ""])
-    
+
     if procedure:
         body_parts.extend(["## Procedure", procedure, ""])
-    
+
     if pitfalls:
         body_parts.extend(["## Pitfalls", pitfalls, ""])
-    
+
     if verification:
         body_parts.extend(["## Verification", verification, ""])
-    
+
     # Combine frontmatter and body
     yaml_str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
     return f"---\n{yaml_str}---\n\n" + "\n".join(body_parts)
@@ -220,21 +218,21 @@ Follows agentskills.io standard with YAML frontmatter."""
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         action = getattr(input_data, "action", "list")
         name = getattr(input_data, "name", None)
-        
+
         try:
             if action == "list":
                 return await self._list_skills()
-            
+
             if not name:
                 return ToolOutput(
                     success=False,
                     result=None,
                     error="Skill name is required for this action"
                 )
-            
+
             skill_dir = get_skill_dir()
             skill_path = skill_dir / name
-            
+
             if action == "create":
                 description = getattr(input_data, "description", "")
                 whenToUse = getattr(input_data, "whenToUse", "")
@@ -246,16 +244,16 @@ Follows agentskills.io standard with YAML frontmatter."""
                 platforms = getattr(input_data, "platforms", ["macos", "linux", "windows"])
                 category = getattr(input_data, "category", "general")
                 tags = getattr(input_data, "tags", [])
-                
+
                 return await self._create_skill(
                     name, description, whenToUse, whenNotToUse,
                     procedure, pitfalls, verification, version, platforms,
                     category, tags
                 )
-            
+
             elif action == "read":
                 return await self._read_skill(name)
-            
+
             elif action == "patch":
                 field = getattr(input_data, "field", None)
                 newContent = getattr(input_data, "newContent", None)
@@ -266,7 +264,7 @@ Follows agentskills.io standard with YAML frontmatter."""
                         error="Field and newContent are required for patch action"
                     )
                 return await self._patch_skill(name, field, newContent)
-            
+
             elif action == "edit":
                 newContent = getattr(input_data, "newContent", None)
                 if not newContent:
@@ -276,20 +274,20 @@ Follows agentskills.io standard with YAML frontmatter."""
                         error="New content is required for edit action"
                     )
                 return await self._edit_skill(name, newContent)
-            
+
             elif action == "delete":
                 return await self._delete_skill(name)
-            
+
             elif action == "activate":
                 return await self._activate_skill(name)
-            
+
             else:
                 return ToolOutput(
                     success=False,
                     result=None,
                     error=f"Unknown action: {action}"
                 )
-                
+
         except Exception as e:
             return ToolOutput(
                 success=False,
@@ -301,12 +299,12 @@ Follows agentskills.io standard with YAML frontmatter."""
         """List all available skills"""
         skill_dir = get_skill_dir()
         skills = []
-        
+
         # Also check other skill directories
         for dir_path in DEFAULT_SKILL_DIRS:
             if not dir_path.exists():
                 continue
-            
+
             for skill_folder in dir_path.iterdir():
                 if skill_folder.is_dir():
                     skill_name = skill_folder.name
@@ -325,7 +323,7 @@ Follows agentskills.io standard with YAML frontmatter."""
                             })
                         except Exception:
                             continue
-        
+
         return ToolOutput(
             success=True,
             result=skills,
@@ -341,17 +339,17 @@ Follows agentskills.io standard with YAML frontmatter."""
         """Create a new skill"""
         skill_dir = get_skill_dir()
         skill_path = skill_dir / name
-        
+
         if skill_path.exists():
             return ToolOutput(
                 success=False,
                 result=None,
                 error=f"Skill '{name}' already exists"
             )
-        
+
         # Create skill directory
         skill_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Create SKILL.md content
         skill_content = create_skill_markdown(
             name=name,
@@ -366,12 +364,12 @@ Follows agentskills.io standard with YAML frontmatter."""
             category=category,
             tags=tags
         )
-        
+
         # Write skill file
         skill_file = skill_path / "SKILL.md"
         with open(skill_file, "w", encoding="utf-8") as f:
             f.write(skill_content)
-        
+
         return ToolOutput(
             success=True,
             result=f"Created skill '{name}' at {skill_file}",
@@ -384,14 +382,14 @@ Follows agentskills.io standard with YAML frontmatter."""
         for dir_path in DEFAULT_SKILL_DIRS:
             if not dir_path.exists():
                 continue
-            
+
             skill_path = dir_path / name
             skill_file = skill_path / "SKILL.md"
-            
+
             if skill_file.exists():
                 with open(skill_file, encoding="utf-8") as f:
                     content = f.read()
-                
+
                 parsed = parse_skill_file(content)
                 return ToolOutput(
                     success=True,
@@ -401,7 +399,7 @@ Follows agentskills.io standard with YAML frontmatter."""
                         "content": parsed["content"]
                     }
                 )
-        
+
         return ToolOutput(
             success=False,
             result=None,
@@ -414,33 +412,33 @@ Follows agentskills.io standard with YAML frontmatter."""
         for dir_path in DEFAULT_SKILL_DIRS:
             if not dir_path.exists():
                 continue
-            
+
             skill_path = dir_path / name
             skill_file = skill_path / "SKILL.md"
-            
+
             if skill_file.exists():
                 with open(skill_file, encoding="utf-8") as f:
                     content = f.read()
-                
+
                 parsed = parse_skill_file(content)
                 metadata = parsed["metadata"]
                 body = parsed["content"]
-                
+
                 # Update the field
-                # Fields that can be patched: description, when_to_use, when_not_to_use, 
+                # Fields that can be patched: description, when_to_use, when_not_to_use,
                 # procedure, pitfalls, verification, version, category, tags
                 valid_fields = [
                     "description", "when_to_use", "when_not_to_use",
                     "procedure", "pitfalls", "verification", "version", "category"
                 ]
-                
+
                 if field not in valid_fields:
                     return ToolOutput(
                         success=False,
                         result=None,
                         error=f"Invalid field '{field}'. Valid fields: {', '.join(valid_fields)}"
                     )
-                
+
                 # For nested fields in metadata
                 if field in ["description", "version"]:
                     metadata[field] = new_content
@@ -449,20 +447,20 @@ Follows agentskills.io standard with YAML frontmatter."""
                 else:
                     # These go in the body
                     body = self._update_body_field(body, field, new_content)
-                
+
                 # Rebuild the skill file
                 # Keep the original body structure and update only the specific field
                 new_skill_content = self._rebuild_skill_content(metadata, body)
-                
+
                 with open(skill_file, "w", encoding="utf-8") as f:
                     f.write(new_skill_content)
-                
+
                 return ToolOutput(
                     success=True,
                     result=f"Patched skill '{name}' field '{field}'",
                     metadata={"name": name, "field": field}
                 )
-        
+
         return ToolOutput(
             success=False,
             result=None,
@@ -476,9 +474,9 @@ Follows agentskills.io standard with YAML frontmatter."""
             "pitfalls": "## Pitfalls",
             "verification": "## Verification"
         }
-        
+
         header = field_headers.get(field, f"## {field.title()}")
-        
+
         # Check if header exists in body
         if header in body:
             # Replace content under the header
@@ -512,7 +510,7 @@ Follows agentskills.io standard with YAML frontmatter."""
             "when_to_use": metadata.get("when_to_use", ""),
             "when_not_to_use": metadata.get("when_not_to_use", "")
         }
-        
+
         yaml_str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
         return f"---\n{yaml_str}---\n\n{body}"
 
@@ -522,20 +520,20 @@ Follows agentskills.io standard with YAML frontmatter."""
         for dir_path in DEFAULT_SKILL_DIRS:
             if not dir_path.exists():
                 continue
-            
+
             skill_path = dir_path / name
             skill_file = skill_path / "SKILL.md"
-            
+
             if skill_file.exists():
                 with open(skill_file, "w", encoding="utf-8") as f:
                     f.write(new_content)
-                
+
                 return ToolOutput(
                     success=True,
                     result=f"Edited skill '{name}'",
                     metadata={"name": name}
                 )
-        
+
         return ToolOutput(
             success=False,
             result=None,
@@ -548,9 +546,9 @@ Follows agentskills.io standard with YAML frontmatter."""
         for dir_path in DEFAULT_SKILL_DIRS:
             if not dir_path.exists():
                 continue
-            
+
             skill_path = dir_path / name
-            
+
             if skill_path.exists() and skill_path.is_dir():
                 import shutil
                 shutil.rmtree(skill_path)
@@ -559,7 +557,7 @@ Follows agentskills.io standard with YAML frontmatter."""
                     result=f"Deleted skill '{name}'",
                     metadata={"name": name}
                 )
-        
+
         return ToolOutput(
             success=False,
             result=None,

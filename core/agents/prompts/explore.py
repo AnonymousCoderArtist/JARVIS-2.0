@@ -4,11 +4,8 @@ This module contains the explore agent system prompt for codebase exploration
 and analysis tasks.
 """
 
-from datetime import datetime
 import os
-from typing import List
-
-from .constants import DEFAULT_EMOJI_MAP
+from datetime import datetime
 
 
 def get_explore_prompt() -> str:

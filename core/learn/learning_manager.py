@@ -1,21 +1,20 @@
 """Learning manager - OpenJarvis Spec-Level Distillation Pipeline (M1 -> M2 -> M3)"""
 
-import asyncio
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from core.evals import DSPyOptimizer, DSPyConfig
 from .trace_analyzer import TraceAnalyzer
+
 
 @dataclass
 class LearningConfig:
     """Configuration for the OpenJarvis learning system"""
     enabled: bool = True
-    trace_dir: str = ".jarvis/traces"
-    dataset_dir: str = ".jarvis/datasets"
+    trace_dir: str = str(Path.home() / ".jarvis" / "traces")
+    dataset_dir: str = str(Path.home() / ".jarvis" / "datasets")
     min_traces_for_distillation: int = 50
     enable_dspy_optimization: bool = True
 
@@ -26,7 +25,7 @@ class LearningManager:
         self.config = config or LearningConfig()
         self.trace_analyzer = TraceAnalyzer(sessions_dir=self.config.trace_dir)
         self._running = False
-        
+
         # Ensure directories exist
         Path(self.config.trace_dir).mkdir(parents=True, exist_ok=True)
         Path(self.config.dataset_dir).mkdir(parents=True, exist_ok=True)
@@ -40,7 +39,7 @@ class LearningManager:
         """M1 Stage: Log high-quality traces from the teacher model (e.g., GPT-4)"""
         if not self.config.enabled:
             return
-            
+
         trace_file = Path(self.config.trace_dir) / f"trace_{datetime.now().strftime('%Y%m%d')}.jsonl"
         with open(trace_file, 'a') as f:
             json.dump({
@@ -54,7 +53,7 @@ class LearningManager:
         """Execute the M1 -> M2 -> M3 pipeline"""
         # 1. Analyze traces to see if we have enough high-quality data
         metrics = await self.trace_analyzer.analyze_sessions()
-        
+
         if metrics.total_interactions < self.config.min_traces_for_distillation:
             print(f"Not enough traces for distillation ({metrics.total_interactions}/{self.config.min_traces_for_distillation})")
             return
@@ -62,10 +61,10 @@ class LearningManager:
         # 2. DSPy Optimization: Optimize tool usage policies based on traces
         if self.config.enable_dspy_optimization:
             await self._run_dspy_optimization()
-            
+
         # 3. M2 Stage: Generate instruction-tuning dataset from M1 traces
         dataset_path = await self._generate_m2_dataset()
-        
+
         # 4. M3 Stage: Trigger local distillation/fine-tuning (placeholder for local trainer)
         await self._trigger_m3_distillation(dataset_path)
 
@@ -75,7 +74,7 @@ class LearningManager:
         # based on past successful vs failed tool traces.
         print("Running DSPy trace optimization...")
         patterns = await self.trace_analyzer.extract_successful_tool_patterns()
-        
+
         # Save optimized policies
         policy_path = Path(self.config.dataset_dir) / "optimized_policy.json"
         with open(policy_path, 'w') as f:
@@ -85,10 +84,10 @@ class LearningManager:
         """M2 Stage: Convert raw traces into an instruction-tuning dataset"""
         print("Generating M2 Instruction Dataset...")
         dataset_path = Path(self.config.dataset_dir) / "m2_instructions.jsonl"
-        
+
         # Filter for successful traces only
         successful_traces = await self.trace_analyzer.get_successful_traces()
-        
+
         with open(dataset_path, 'w') as f:
             for trace in successful_traces:
                 instruction_data = {
@@ -98,7 +97,7 @@ class LearningManager:
                 }
                 json.dump(instruction_data, f)
                 f.write('\n')
-                
+
         return dataset_path
 
     async def _trigger_m3_distillation(self, dataset_path: Path) -> None:
@@ -116,7 +115,7 @@ class LearningManager:
         """Load learned preferences from disk."""
         pref_file = Path(self.config.dataset_dir) / "preferences.json"
         if pref_file.exists():
-            with open(pref_file, 'r') as f:
+            with open(pref_file) as f:
                 return json.load(f)
         return {"preferred_output_format": "code_with_explanation", "preferred_tools": []}
 

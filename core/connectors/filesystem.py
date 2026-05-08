@@ -79,7 +79,7 @@ class FilesystemConnector(BaseConnector):
     def _read_file_preview(self, file_path: Path, max_lines: int = 50) -> str:
         """Read a preview of file content."""
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 lines = []
                 for i, line in enumerate(f):
                     if i >= max_lines:

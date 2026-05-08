@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from textual.message import Message
 
-from interface.textual_ui.widgets.status_message import StatusMessage
 from interface.textual_ui.utils import compact_reduction_display
+from interface.textual_ui.widgets.status_message import StatusMessage
 
 
 class CompactMessage(StatusMessage):

@@ -8,12 +8,9 @@ import os
 import platform
 import sys
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, List, Tuple
 
-from .constants import get_system_context, discover_context_files
+from .constants import discover_context_files
 from .prompt_utils import build_context_section
-
 
 # Agent Prompt Metadata
 AGENT_PROMPT_METADATA = {
@@ -61,9 +58,9 @@ def get_jarvis_v2_guidelines() -> str:
 
 
 def build_jarvis_v2_system_prompt(
-    context_files: Optional[List[str]] = None,
-    skills: Optional[List[str]] = None,
-    append_text: Optional[str] = None,
+    context_files: list[str] | None = None,
+    skills: list[str] | None = None,
+    append_text: str | None = None,
     auto_discover: bool = True,
 ) -> str:
     """Construct the JARVIS v2 system prompt with comprehensive structure.

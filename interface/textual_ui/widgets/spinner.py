@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import random
 from abc import ABC
 from collections.abc import Callable
 from enum import Enum, auto
-import random
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
 
 from textual.timer import Timer

@@ -3,11 +3,11 @@
 from .manager import SkillManager
 from .models import SkillProfile
 from .sources import (
-    SkillSource,
-    HermesSource,
-    OpenClawSource,
     GitHubSource,
+    HermesSource,
     LocalSource,
+    OpenClawSource,
+    SkillSource,
 )
 
 __all__ = [

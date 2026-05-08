@@ -35,7 +35,7 @@ def _load_env_config() -> dict[str, str]:
     }
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int]:
+def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int, str | None]:
     # Load .env configuration as defaults
     env_config = _load_env_config()
 
@@ -98,6 +98,15 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
         help="Bypass all tool permission checks (yolo mode)"
     )
 
+    parser.add_argument(
+        "--resume", "-r",
+        nargs='?',
+        const='latest',
+        default=None,
+        dest="resume_session",
+        help="Resume a session (default: most recent). Use 'list' to show available sessions."
+    )
+
     # WebUI specific arguments
     parser.add_argument(
         "--host", "-H",
@@ -122,12 +131,57 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
 
     args = parser.parse_args(argv)
 
-    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port
+    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port, args.resume_session
 
 
 def main() -> None:
     """Entry point for the jarvis command."""
-    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port = _parse_args(sys.argv[1:])
+    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port, resume_session = _parse_args(sys.argv[1:])
+
+    # Handle --resume list to show available sessions
+    if resume_session == "list":
+        from core.history import ConversationHistory
+        history_dir = ConversationHistory().history_dir
+        if history_dir.exists():
+            sessions = list(history_dir.glob("*.jsonl"))
+            if sessions:
+                print("Available sessions:")
+                for s in sorted(sessions, key=lambda p: p.stat().st_mtime, reverse=True):
+                    # Get first line to get session info
+                    with open(s) as f:
+                        first_line = f.readline()
+                        if first_line:
+                            import json
+                            try:
+                                msg = json.loads(first_line)
+                                print(f"  {s.stem} - {msg.get('timestamp', 'unknown')[:19]}")
+                            except:
+                                print(f"  {s.stem}")
+                        else:
+                            print(f"  {s.stem}")
+            else:
+                print("No sessions found.")
+        else:
+            print("No sessions found.")
+        return
+
+    # Auto-resume latest session if -r was used without argument
+    if resume_session == "latest":
+        from core.history import ConversationHistory
+        from pathlib import Path
+        history_dir = ConversationHistory().history_dir
+        if history_dir.exists():
+            sessions = list(history_dir.glob("*.jsonl"))
+            if sessions:
+                latest = max(sessions, key=lambda p: p.stat().st_mtime)
+                resume_session = latest.stem
+                print(f"[info]Resuming latest session: {resume_session}[/info]")
+            else:
+                print("No sessions to resume.")
+                resume_session = None
+        else:
+            print("No sessions to resume.")
+            resume_session = None
 
     # Default to TUI if no mode specified
     if not launch_cli and not launch_tui and not launch_webui:
@@ -141,15 +195,16 @@ def main() -> None:
     if launch_tui:
         from interface.textual_ui.tui_main import main as tui_main
         # TUI needs to be run synchronously (Textual handles its own event loop)
-        tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass)
+        tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session)
     elif launch_webui:
         from interface.webui.webui_main import main as webui_main
-        webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port)
+        webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port, resume_session=resume_session)
     else:
-        from interface.cli.cli import main as cli_main
         # CLI is now async
         import asyncio
-        asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
+
+        from interface.cli.cli import main as cli_main
+        asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session))
 
 
 if __name__ == "__main__":

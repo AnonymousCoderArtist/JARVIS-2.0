@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import tomllib
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Any
+
+import tomllib
 
 
 class AgentSafety(StrEnum):

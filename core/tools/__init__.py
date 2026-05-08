@@ -1,22 +1,14 @@
 """Tools Package"""
 
 # Agent and Skill tools
-from .agent_tool import AgentTool, AgentsTool, AgentStatusTool
+from .agent_tool import AgentStatusTool, AgentsTool, AgentTool
 
-# Permission system
-from .permissions import (
-    ApprovedRule,
-    PermissionContext,
-    PermissionScope,
-    RequiredPermission,
-    ToolPermission,
-)
-from .permission_manager import PermissionManager
+# Ask User Question tool
+from .ask_user_question_tool import AskUserQuestionTool
 
 # Background tools
 from .background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from .base import BaseTool, ToolInput, ToolOutput
-from .sandbox import wrap_command
 
 # Code tools
 from .code_tools import BashTool, RunTestsTool
@@ -29,18 +21,30 @@ from .file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from .grep_tool import GrepSearchTool
 
 # Memory tools
-from .memory_tool import SaveMemoryTool, ReadMemoryTool, get_memory_context
-from .registry import ToolRegistry
+from .memory_tool import ReadMemoryTool, SaveMemoryTool, get_memory_context
+from .permission_manager import PermissionManager
 
-# Ask User Question tool
-from .ask_user_question_tool import AskUserQuestionTool
+# Permission system
+from .permissions import (
+    ApprovedRule,
+    PermissionContext,
+    PermissionScope,
+    RequiredPermission,
+    ToolPermission,
+)
+from .registry import ToolRegistry
+from .repl_tool import REPLTool
+from .sandbox import wrap_command
 
 # Skill tool
 from .skill_manage_tool import SkillTool
-from .repl_tool import REPLTool
+from .web_tools import ExaWebSearchTool as ExaWebSearchTool
 
 # Web tools
-from .web_tools import WebFetchTool, ExaWebSearchTool as ExaWebSearchTool
+from .web_tools import WebFetchTool
+
+# Worktree tools
+from .worktree_tool import EnterWorktreeTool, ExitWorktreeTool
 
 __all__ = [
     "BaseTool",
@@ -76,4 +80,7 @@ __all__ = [
     "SkillTool",
     # Ask User Question tool
     "AskUserQuestionTool",
+    # Worktree tools
+    "EnterWorktreeTool",
+    "ExitWorktreeTool",
 ]

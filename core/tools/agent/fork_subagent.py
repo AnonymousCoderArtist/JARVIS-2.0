@@ -15,7 +15,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 import subprocess
 import uuid
 from dataclasses import dataclass, field
@@ -237,7 +236,6 @@ def create_fork_subagent(
     from core.agents import EXPLORE, PLAN, ExploreAgent, PlanAgent
     from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
     from core.agents.builtin.verification_agent import VerificationAgent
-    from core.agents.builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
     from core.config.settings import Settings
 
     # Create fork metadata

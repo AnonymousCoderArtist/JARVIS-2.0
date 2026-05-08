@@ -1,13 +1,10 @@
 """Memory management tool - OpenClaude style persistent memory"""
 
-import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from .base import BaseTool, ToolInput, ToolOutput
-
 
 # Memory type definitions (matching OpenClaude's memoryTypes.ts)
 MEMORY_TYPES = {
@@ -66,7 +63,7 @@ def get_memory_dir() -> Path:
 def get_project_name() -> str:
     """Get project name from directory structure or git"""
     cwd = Path.cwd()
-    
+
     # Try to get from git remote
     try:
         import subprocess
@@ -85,7 +82,7 @@ def get_project_name() -> str:
                 return project_name
     except Exception:
         pass
-    
+
     # Fallback to directory name
     return cwd.name
 
@@ -113,7 +110,7 @@ def generate_memory_filename(name: str, timestamp: datetime, memory_type: str = 
     slug = name.lower().replace(" ", "-").replace("/", "-")
     slug = "".join(c for c in slug if c.isalnum() or c == "-")
     timestamp_str = timestamp.strftime("%Y-%m-%d")
-    
+
     # Add type prefix for better organization
     type_prefix = memory_type[0].upper()  # First letter of memory type
     return f"{timestamp_str}-{type_prefix}-{slug}.md"
@@ -326,7 +323,7 @@ Memory types: user (preferences), feedback (corrections), project (initiatives),
                 memory_dir = get_global_memory_dir()
             else:
                 memory_dir = get_memory_dir()
-            
+
             scope_dir = get_scope_dir(memory_dir, scope)
             scope_dir.mkdir(parents=True, exist_ok=True)
 
@@ -349,7 +346,7 @@ Memory types: user (preferences), feedback (corrections), project (initiatives),
 
             # Create enhanced memory content with rich structure
             tags_str = ", ".join(tags) if tags else ""
-            
+
             frontmatter = f"""---
 name: {name}
 description: {fact[:100]}{'...' if len(fact) > 100 else ''}
@@ -370,19 +367,19 @@ created: {timestamp.isoformat()}
 
             # Add optional sections
             content_sections = []
-            
+
             if context:
                 content_sections.append(f"## Context\n{context}\n")
-            
+
             if reasoning:
                 content_sections.append(f"## Reasoning\n{reasoning}\n")
-            
+
             if application:
                 content_sections.append(f"## Application\n{application}\n")
-            
+
             # Add metadata section
             content_sections.append(f"## Metadata\n- **Type:** {memory_type}\n- **Scope:** {scope}\n- **Priority:** {priority}\n- **Tags:** {tags_str or 'None'}\n- **Project:** {projectName or 'N/A'}\n- **Created:** {timestamp.isoformat()}\n")
-            
+
             # Combine all content
             full_content = frontmatter + "\n".join(content_sections)
 
@@ -501,7 +498,7 @@ Returns: Matching memories with metadata (name, type, scope, priority, tags)."""
                     memory_dir = get_global_memory_dir()
                 else:
                     memory_dir = get_memory_dir()
-                
+
                 scope_dir = get_scope_dir(memory_dir, s)
                 if not scope_dir.exists():
                     continue
@@ -614,12 +611,12 @@ def check_memory_security(content: str) -> tuple[bool, str]:
     Returns (is_safe, warning_message)
     """
     import re
-    
+
     content_lower = content.lower()
     for pattern in SENSITIVE_PATTERNS:
         if re.search(pattern, content_lower, re.IGNORECASE):
             return False, f"Memory content contains sensitive pattern: {pattern}"
-    
+
     return True, ""
 
 
@@ -723,14 +720,14 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                         error="Match is required for remove action"
                     )
                 return await self._remove_memory(memory_file, match, memoryType)
-            
+
             else:
                 return ToolOutput(
                     success=False,
                     result=None,
                     error=f"Unknown action: {action}"
                 )
-                
+
         except Exception as e:
             return ToolOutput(
                 success=False,
@@ -750,10 +747,10 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                     "char_limit": HERMES_MEMORY_LIMITS.get(memory_type, 2200)
                 }
             )
-        
+
         with open(memory_file, encoding="utf-8") as f:
             memory_content = f.read()
-        
+
         return ToolOutput(
             success=True,
             result={
@@ -777,7 +774,7 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"Security check failed: {warning}"
             )
-        
+
         # Check character limit
         if len(content) > char_limit:
             return ToolOutput(
@@ -785,16 +782,16 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"Content exceeds {char_limit} char limit for {memory_type}"
             )
-        
+
         # Add timestamp
         timestamp = datetime.now().isoformat()
         full_content = f"""<!-- Last updated: {timestamp} -->
 {content}
 """
-        
+
         with open(memory_file, "w", encoding="utf-8") as f:
             f.write(full_content)
-        
+
         return ToolOutput(
             success=True,
             result=f"Added {memory_type} memory ({len(content)} chars)",
@@ -813,7 +810,7 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"Security check failed: {warning}"
             )
-        
+
         # Check character limit
         if len(new_content) > char_limit:
             return ToolOutput(
@@ -821,7 +818,7 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"New content exceeds {char_limit} char limit for {memory_type}"
             )
-        
+
         # Read current content
         if not memory_file.exists():
             return ToolOutput(
@@ -829,10 +826,10 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"No existing {memory_type} memory found"
             )
-        
+
         with open(memory_file, encoding="utf-8") as f:
             current_content = f.read()
-        
+
         # Find and replace using substring matching
         if match not in current_content:
             return ToolOutput(
@@ -840,19 +837,19 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"Match string not found in {memory_type} memory"
             )
-        
+
         # Replace only the matched portion, keeping the timestamp comment if exists
         timestamp = datetime.now().isoformat()
-        
+
         # Remove old timestamp comment and add new one
         current_content = re.sub(r"<!-- Last updated: .*? -->", "", current_content)
         current_content = current_content.strip()
-        
+
         new_full_content = f"<!-- Last updated: {timestamp} -->\n{new_content}"
-        
+
         with open(memory_file, "w", encoding="utf-8") as f:
             f.write(new_full_content)
-        
+
         return ToolOutput(
             success=True,
             result=f"Replaced content in {memory_type} memory",
@@ -867,10 +864,10 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"No existing {memory_type} memory found"
             )
-        
+
         with open(memory_file, encoding="utf-8") as f:
             current_content = f.read()
-        
+
         # Check if match exists
         if match not in current_content:
             return ToolOutput(
@@ -878,15 +875,15 @@ Memory files: ~/.hermes/memory/MEMORY.md and USER.md"""
                 result=None,
                 error=f"Match string not found in {memory_type} memory"
             )
-        
+
         # Remove the matched content
         # Since we're removing, we need to be careful - just clear the file
         timestamp = datetime.now().isoformat()
         new_content = f"<!-- Last updated: {timestamp} -->\n[Content removed]"
-        
+
         with open(memory_file, "w", encoding="utf-8") as f:
             f.write(new_content)
-        
+
         return ToolOutput(
             success=True,
             result=f"Removed content from {memory_type} memory",

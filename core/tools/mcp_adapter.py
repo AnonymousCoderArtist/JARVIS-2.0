@@ -13,21 +13,17 @@ Components:
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import mcp
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamable_http_client
 from mcp.client.streamable_http import streamable_http_client
 
 from .base import BaseTool, ToolInput, ToolOutput
 from .registry import ToolRegistry
-from .permissions import PermissionContext
 
 logger = logging.getLogger(__name__)
 
@@ -100,12 +96,16 @@ class MCPClient:
         self._stop_event: asyncio.Event | None = None
         self._ready_event: asyncio.Event | None = None
         self._connect_error: Exception | None = None
+        # Status tracking
+        self._connect_time: float = 0.0
+        self._last_error: str | None = None
+        self._last_tool_call: float = 0.0
 
     async def _reset_client(self) -> None:
         """Reset the client state when event loop changes"""
         if self._stop_event:
             self._stop_event.set()
-            
+
         if self._run_task and not self._run_task.done():
             try:
                 # Wait for the task to finish cleanup
@@ -113,7 +113,7 @@ class MCPClient:
             except Exception as e:
                 logger.warning(f"Error waiting for MCP client task shutdown: {e}")
                 self._run_task.cancel()
-        
+
         self._run_task = None
         self._stop_event = None
         self._ready_event = None
@@ -122,6 +122,7 @@ class MCPClient:
         self._initialized = False
         self._event_loop = None
         self._connect_error = None
+        self._last_error = None
 
     async def _ensure_active_loop(self) -> None:
         """Reset state if this client was initialized on another event loop."""
@@ -152,13 +153,13 @@ class MCPClient:
             self._stop_event = asyncio.Event()
             self._ready_event = asyncio.Event()
             self._connect_error = None
-            
+
             # Start background task to manage the context managers
             self._run_task = asyncio.create_task(self._run_client_task())
-            
+
             # Wait for it to be ready or fail
             await self._ready_event.wait()
-            
+
             if self._connect_error:
                 raise self._connect_error
 
@@ -199,7 +200,7 @@ class MCPClient:
                 elif self.config.transport in (MCPTransportType.HTTP, MCPTransportType.SSE):
                     if not self.config.url:
                         raise ValueError(f"No URL configured for HTTP MCP server '{self.config.name}'")
-                    
+
                     logger.info(f"Connecting to MCP server via HTTP: {self.config.url}")
                     ctx = streamable_http_client(self.config.url)
                     streams = await stack.enter_async_context(ctx)
@@ -214,22 +215,27 @@ class MCPClient:
                 # Create session
                 session_ctx = ClientSession(read_stream, write_stream)
                 self._session = await stack.enter_async_context(session_ctx)
-                
+
                 # Initialize the session
                 await self._session.initialize()
-                
+
                 logger.info(f"MCP transport initialized for {self.config.name}")
-                
+
+                # Record connection time
+                import time
+                self._connect_time = time.time()
+
                 # Signal ready
                 if self._ready_event:
                     self._ready_event.set()
-                
+
                 # Wait until stopped
                 if self._stop_event:
                     await self._stop_event.wait()
-                    
+
         except Exception as e:
             self._connect_error = e
+            self._last_error = str(e)
             if self._ready_event and not self._ready_event.is_set():
                 self._ready_event.set()
             logger.debug(f"MCP client task for {self.config.name} ended with exception: {e}")
@@ -322,6 +328,24 @@ class MCPClient:
         """Get the number of available tools"""
         return len(self._tools)
 
+    @property
+    def uptime_seconds(self) -> float:
+        """Get connection uptime in seconds"""
+        if not self._initialized or self._connect_time == 0:
+            return 0.0
+        import time
+        return time.time() - self._connect_time
+
+    @property
+    def last_error(self) -> str | None:
+        """Get the last connection error"""
+        return self._last_error
+
+    @property
+    def transport_type(self) -> str:
+        """Get the transport type"""
+        return self.config.transport
+
 
 # ============================================================================
 # MCP TOOL ADAPTER
@@ -348,6 +372,11 @@ class MCPToolAdapter(BaseTool):
         self.name = f"mcp_{tool_spec.server_name}_{tool_spec.name}"
         self.description = tool_spec.description or f"MCP tool: {tool_spec.name}"
         self.input_schema = input_schema
+
+        # MCP tool markers
+        self.is_mcp = True
+        self.mcp_server_name = tool_spec.server_name
+        self.mcp_status = "connected"
 
         # Initialize base class
         super().__init__(

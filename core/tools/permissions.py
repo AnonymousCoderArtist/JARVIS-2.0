@@ -297,29 +297,29 @@ def resolve_permission(
     Returns:
         PermissionContext if the tool should be blocked, None otherwise
     """
-    
+
     disallowed_list = disallowed_tools or []
-    
+
     # Check disallowed list first - deny takes precedence
     if is_tool_disallowed(tool_name, disallowed_list):
         return PermissionContext(
             permission=ToolPermission.NEVER,
             reason=f"Tool '{tool_name}' is explicitly disallowed"
         )
-    
+
     # If allowed_tools is None, inherit from parent (return None for default behavior)
     if allowed_tools is None:
         return None
-    
+
     # Check if all tools are allowed via wildcard
     if "*" in allowed_tools:
         return None
-    
+
     # Check if tool is in allowed list
     for pattern in allowed_tools:
         if wildcard_match(tool_name, pattern):
             return None
-    
+
     # Tool is not in allowed list - requires permission
     return PermissionContext(
         permission=ToolPermission.ASK,
@@ -344,30 +344,30 @@ def resolve_agent_permission(
     Returns:
         PermissionContext if the tool should be blocked, None otherwise
     """
-    
+
     if agent_def is None:
         return None
-    
+
     # Check disallowed tools first - deny takes precedence
     if agent_def.disallowed_tools and is_tool_disallowed(tool_name, agent_def.disallowed_tools):
         return PermissionContext(
             permission=ToolPermission.NEVER,
             reason=f"Tool '{tool_name}' is explicitly disallowed for this agent"
         )
-    
+
     # If allowed_tools is not specified, inherit parent's rules (return None)
     if agent_def.tools is None:
         return None
-    
+
     # Check if all tools are allowed via wildcard
     if "*" in agent_def.tools:
         return None
-    
+
     # Check if tool is in allowed list
     for pattern in agent_def.tools:
         if wildcard_match(tool_name, pattern):
             return None
-    
+
     # Tool is not in allowed list - requires permission
     return PermissionContext(
         permission=ToolPermission.ASK,

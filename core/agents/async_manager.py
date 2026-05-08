@@ -11,8 +11,8 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
@@ -20,9 +20,9 @@ from core.agents.base import BaseAgent
 from core.agents.builtin_agents import AgentDefinition, get_builtin_agents
 
 if TYPE_CHECKING:
+    from core.config.settings import Settings
     from core.llm.base import BaseLLMProvider
     from core.tools.registry import ToolRegistry
-    from core.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -112,25 +112,25 @@ class AsyncAgentManager:
         self.llm_provider = llm_provider
         self.tool_registry = tool_registry
         self.config_getter = config_getter
-        
+
         # Task queue and management
         self.task_queue: asyncio.PriorityQueue[tuple[int, AgentTask]] = asyncio.PriorityQueue()
         self.running_agents: dict[str, BaseAgent] = {}
         self.semaphore = asyncio.Semaphore(self.config.max_concurrent_agents)
         self.tool_semaphore = asyncio.Semaphore(self.config.max_concurrent_tools)
-        
+
         # Agent registry - tracks active spawned agents
         self.active_agents: dict[str, ActiveAgentInfo] = {}
-        
+
         # Notification handlers
         self._notification_handlers: list[Callable[[dict[str, Any]], None]] = []
-        
+
         # Background tasks management
         self._processing = False
         self._task_counter = 0
         self._agent_counter = 0
         self._background_tasks: set[asyncio.Task] = set()
-        
+
         # Task registry for status queries
         self._task_registry: dict[str, AgentTask] = {}
 
@@ -393,10 +393,10 @@ class AsyncAgentManager:
             "message": message,
             "timestamp": time.time(),
         }
-        
+
         # Notify registered handlers
         self.notify_handlers(event)
-        
+
         # Call task-specific callback
         if agent_task.on_progress:
             try:
@@ -413,10 +413,10 @@ class AsyncAgentManager:
             "result": agent_task.result,
             "timestamp": agent_task.completed_at or time.time(),
         }
-        
+
         # Notify registered handlers
         self.notify_handlers(event)
-        
+
         # Call task-specific callback
         if agent_task.on_complete:
             try:
@@ -433,10 +433,10 @@ class AsyncAgentManager:
             "error": agent_task.error,
             "timestamp": agent_task.completed_at or time.time(),
         }
-        
+
         # Notify registered handlers
         self.notify_handlers(event)
-        
+
         # Call task-specific callback
         if agent_task.on_error:
             try:
@@ -575,8 +575,8 @@ class AsyncAgentManager:
         # Import agent classes here to avoid circular imports
         try:
             from core.agents.explore_agent import ExploreAgent
-            from core.agents.plan_agent import PlanAgent
             from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
+            from core.agents.plan_agent import PlanAgent
         except ImportError as e:
             logger.error(f"Failed to import agent classes: {e}")
             return None
@@ -587,7 +587,7 @@ class AsyncAgentManager:
 
         try:
             agent_type = agent_definition.agent_type
-            
+
             if agent_type == 'explore':
                 return ExploreAgent(
                     llm_provider=self.llm_provider,
@@ -629,7 +629,7 @@ class AsyncAgentManager:
 
         agent_info.status = ProgressStage.FAILED
         agent_info.error = "Cancelled by user"
-        
+
         # Find and cancel associated task
         for task_id, task in self._task_registry.items():
             if agent_id in task.task:

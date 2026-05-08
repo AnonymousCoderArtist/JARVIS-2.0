@@ -9,10 +9,10 @@ if TYPE_CHECKING:
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
+from textual.timer import Timer
 from textual.widgets import Static
 from textual.widgets._markdown import MarkdownStream
-from textual.timer import Timer
-from textual.reactive import reactive
 
 from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic

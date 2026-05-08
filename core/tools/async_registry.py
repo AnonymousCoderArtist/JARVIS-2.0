@@ -2,9 +2,8 @@
 
 import asyncio
 import logging
-from typing import Any
 
-from .base import BaseTool, ToolInput, ToolOutput
+from .base import ToolInput, ToolOutput
 from .registry import ToolRegistry
 
 logger = logging.getLogger(__name__)

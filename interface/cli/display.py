@@ -2,37 +2,33 @@
 
 import sys
 import time
-from typing import Any, Optional, Union
+from typing import Any
+
+from rich.box import MINIMAL, ROUNDED
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.live import Live
+from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
-from rich.tree import Tree
-from rich.columns import Columns
-from rich.text import Text
-from rich.align import Align
 from rich.rule import Rule
 from rich.syntax import Syntax
+from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme as RichTheme
-from rich.box import ROUNDED, MINIMAL, SIMPLE
 
-
-# Unicode icons for different message types (modern UI indicators)
+# Text icons for different message types (modern UI indicators)
 ICONS = {
-    "user": "👤",
-    "assistant": "🤖",
-    "tool_call": "🔧",
-    "tool_result": "📋",
-    "reasoning": "💭",
-    "error": "❌",
-    "success": "✅",
-    "warning": "⚠️",
-    "info": "ℹ️",
-    "prompt": "➤",
-    "arrow": "▶",
-    "loader": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",  # Animated spinner frames
+    "user": "[user]",
+    "assistant": "[jarvis]",
+    "tool_call": "[tool]",
+    "tool_result": "[result]",
+    "reasoning": "[reasoning]",
+    "error": "[error]",
+    "success": "[success]",
+    "warning": "[warning]",
+    "info": "[info]",
+    "prompt": ">",
+    "arrow": "->",
+    "loader": "-/|\\",  # Animated spinner frames
 }
 
 # Modern theme definitions
@@ -240,7 +236,7 @@ class Theme:
 class DisplayManager:
     """Manages all display operations using rich console."""
 
-    def __init__(self, theme: str = "dark", width: Optional[int] = None, custom_themes: Optional[dict] = None):
+    def __init__(self, theme: str = "dark", width: int | None = None, custom_themes: dict | None = None):
         self.theme_name = theme
         self.custom_themes = custom_themes or {}
         self._current_colors = self._get_theme_colors(theme)
@@ -251,7 +247,7 @@ class DisplayManager:
             color_system="auto",
             file=sys.stdout
         )
-        self._live: Optional[Live] = None
+        self._live: Live | None = None
         self._streaming_content = ""
         self._streaming_reasoning = ""
         self._is_reasoning = False
@@ -313,48 +309,44 @@ class DisplayManager:
         self.theme_name = theme_name
         self._current_colors = self._get_theme_colors(theme_name)
         self.console.push_theme(RichTheme(self._current_colors))
-    
+
     def cprint(self, text: str, style: str = "", end: str = "\n"):
         """Print with style using rich console."""
         self.console.print(text, style=style, end=end)
-    
+
     def clear_screen(self):
         """Clear the terminal screen."""
         self.console.clear()
-    
+
     def show_banner(self, model: str, sdk: str, base_url: str, tool_count: int):
-        """Display the welcome banner with rich formatting and ASCII art."""
-        ascii_art = """
-     ▄▄▄▄▄     ▄▄▄▄▄    ▄▄▄▄▄    ▄▄▄▄▄    ▄▄▄▄▄
-    ██░░░░▀▀▄▀▀░░░░██  ██░░░░▀▀▄▀▀░░░░██  ██░░░░▀▀▄
-    ██░░▄▄▄░░░░▄▄▄██  ██░░▄▄▄░░░░▄▄▄██  ██░░▄▄▄░░░░
-    ██░░▐▌▐▌░░▐▌▐▌██  ██░░▐▌▐▌░░▐▌▐▌██  ██░░▐▌▐▌░░
-    ██░░░░░░░░░░░░██  ██░░░░░░░░░░░░██  ██░░░░░░░░
-    ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀
-        """
-        self.console.print(f"\n[primary]{ascii_art}[/]")
-        self.show_rule(style="secondary")
-
-        # Modern card-style info display
-        info_grid = Table.grid(padding=(0, 4))
-        info_grid.add_column(style="secondary", justify="right")
-        info_grid.add_column(style="info")
-
-        info_grid.add_row("Model", f"[jarvis]{model}[/]")
-        info_grid.add_row("SDK", f"[info]{sdk}[/]")
-        info_grid.add_row("Base URL", f"[secondary]{base_url or 'default'}[/]")
-        info_grid.add_row("Tools", f"[success]{tool_count}[/]")
-
-        panel = Panel(
-            info_grid,
-            title="[primary]JARVIS 2.0[/]",
-            border_style="primary",
-            box=ROUNDED,
-            padding=(1, 2)
-        )
-        self.console.print(Align.center(panel))
+        """Display the welcome banner with rich formatting and box-drawing characters."""
         self.console.print()
-    
+        self.console.print(
+            "╭─────────────────── J A R V I S  2 . 0 ────────────────────╮"
+        )
+        self.console.print(
+            "│                                                           │"
+        )
+        self.console.print(
+            f"│     Model    {model:<45}│"
+        )
+        self.console.print(
+            f"│       SDK    {sdk:<45}│"
+        )
+        self.console.print(
+            f"│  Base URL    {(base_url or 'default'):<45}│"
+        )
+        self.console.print(
+            f"│     Tools    {tool_count:<45}│"
+        )
+        self.console.print(
+            "│                                                           │"
+        )
+        self.console.print(
+            "╰───────────────────────────────────────────────────────────╯"
+        )
+        self.console.print()
+
     def show_help(self):
         """Display available commands using rich table with icons."""
         table = Table(
@@ -368,16 +360,16 @@ class DisplayManager:
         table.add_column("Description", style="white")
 
         commands = [
-            ("/help", "❓ Show this help message"),
-            ("/status", "📊 Show system status"),
-            ("/profile", "👤 Switch or list agent profiles"),
-            ("/tools", "🔧 List available tools"),
-            ("/skills", "🎯 List and manage skills"),
-            ("/learn", "📚 View learning system status"),
-            ("/themes", "🎨 List and change themes"),
-            ("/clear", "🧹 Clear the screen"),
-            ("/exit", "🚪 Exit JARVIS"),
-            ("! <cmd>", "💻 Run shell command"),
+            ("/help", "Show this help message"),
+            ("/status", "Show system status"),
+            ("/profile", "Switch or list agent profiles"),
+            ("/tools", "List available tools"),
+            ("/skills", "List and manage skills"),
+            ("/learn", "View learning system status"),
+            ("/themes", "List and change themes"),
+            ("/clear", "Clear the screen"),
+            ("/exit", "Exit JARVIS"),
+            ("! <cmd>", "Run shell command"),
         ]
 
         for cmd, desc in commands:
@@ -385,7 +377,7 @@ class DisplayManager:
 
         self.console.print(Panel(table, title="[primary]Available Commands[/]", border_style="secondary"))
         self.console.print("\n[dim]Tip: Just type your message and press Enter to chat with JARVIS.[/]\n")
-    
+
     def start_streaming(self):
         """Initialize live display for streaming."""
         self._streaming_content = ""
@@ -490,15 +482,15 @@ class DisplayManager:
             box=ROUNDED
         )
         self.console.print(panel)
-    
+
     def show_error(self, message: str, title: str = "Error"):
         """Display error message in a red panel."""
         self.console.print(Panel(message, title=title, border_style="error", padding=(0, 1)))
-    
+
     def show_success(self, message: str, title: str = "Success"):
         """Display success message in a green panel."""
         self.console.print(Panel(message, title=title, border_style="success", padding=(0, 1)))
-    
+
     def show_rule(self, title: str = "", style: str = "secondary"):
         """Display a horizontal rule."""
         self.console.print(Rule(title, style=style))
@@ -510,7 +502,7 @@ class DisplayManager:
         status_table.add_row("[secondary]SDK:[/]", sdk)
         status_table.add_row("[secondary]Base URL:[/]", base_url or "default")
         status_table.add_row("[secondary]Tools:[/]", str(tool_count))
-        
+
         self.console.print(Panel(status_table, title="System Status", border_style="info"))
 
     def show_profiles(self, profiles: list, current: str):
@@ -577,22 +569,18 @@ class DisplayManager:
 
     def show_learned_preferences(self, preferences):
         """Display learned preferences from the learning system."""
-        try:
-            from core.learn import LearningManager
-            if isinstance(preferences, dict):
-                table = Table(show_header=True, header_style="primary", box=None)
-                table.add_column("Setting", style="info")
-                table.add_column("Value")
+        if isinstance(preferences, dict):
+            table = Table(show_header=True, header_style="primary", box=None)
+            table.add_column("Setting", style="info")
+            table.add_column("Value")
 
-                table.add_row("Output Format", preferences.get("output_format", ""))
-                table.add_row("Preferred Tools", ", ".join(preferences.get("preferred_tools", [])) or "none")
-                table.add_row("Query Routing", str(len(preferences.get("query_routing", []))) + " rules")
-                table.add_row("Last Updated", str(preferences.get("last_updated", ""))[:19])
+            table.add_row("Output Format", preferences.get("output_format", ""))
+            table.add_row("Preferred Tools", ", ".join(preferences.get("preferred_tools", [])) or "none")
+            table.add_row("Query Routing", str(len(preferences.get("query_routing", []))) + " rules")
+            table.add_row("Last Updated", str(preferences.get("last_updated", ""))[:19])
 
-                self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
-            else:
-                self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
-        except ImportError:
+            self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
+        else:
             self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
 
     def show_learning_metrics(self, metrics):

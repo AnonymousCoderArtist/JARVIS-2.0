@@ -3,13 +3,12 @@
 This module provides utility functions for building and managing agent system prompts.
 """
 
-from datetime import datetime
 import os
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
-def build_context_section(context_files: Optional[List[str]] = None, skills: Optional[List[str]] = None) -> str:
+def build_context_section(context_files: list[str] | None = None, skills: list[str] | None = None) -> str:
     """Build the context section for agent prompts.
 
     Args:
@@ -50,7 +49,7 @@ def build_agent_header(agent_name: str, role: str, emoji: str = "🤖") -> str:
     return f"{emoji} **{agent_name}** - {role}"
 
 
-def read_context_files(file_paths: List[str]) -> Dict[str, str]:
+def read_context_files(file_paths: list[str]) -> dict[str, str]:
     """Read content from specified context files.
 
     Args:
@@ -70,7 +69,7 @@ def read_context_files(file_paths: List[str]) -> Dict[str, str]:
     return contents
 
 
-def format_tool_list(tools: List[str]) -> str:
+def format_tool_list(tools: list[str]) -> str:
     """Format a list of tools for display in prompts.
 
     Args:

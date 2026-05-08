@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, TypeAlias, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from pydantic import BaseModel, ConfigDict
 
 from core.tools.permissions import PermissionContext
 
 if TYPE_CHECKING:
-    from core.tools.registry import ToolRegistry
     from core.llm.base import BaseLLMProvider
+    from core.tools.registry import ToolRegistry
 
 # Type aliases
 MetadataDict: TypeAlias = dict[str, Any]
@@ -34,7 +34,7 @@ class ToolInput(BaseModel):
     exclude: list[str] | None = None
     use_default_excludes: bool = True
     file_filtering_options: dict[str, Any] | None = None
-    
+
     # Common tool fields
     command: str | None = None
     query: str | None = None
@@ -57,6 +57,8 @@ class BaseTool(ABC):
     name: str = ""
     description: str = ""
     input_schema: dict[str, Any] = {}
+    is_deferred: bool = False  # Mark tool as deferred/lazy-loadable
+    search_hint: str | None = None  # Curated hint for search matching
 
     def __init__(
         self,

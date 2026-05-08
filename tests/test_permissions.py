@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import MagicMock
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 
+import core.tools.permissions as permissions_module
 from core.agents.base import BaseAgent
 from core.config.settings import Settings
 from core.tools.agent_tool import AgentsTool
@@ -20,7 +21,6 @@ from core.tools.permissions import (
     ToolPermission,
     resolve_file_tool_permission,
 )
-import core.tools.permissions as permissions_module
 
 
 def test_file_permission_allows_trusted_folders(monkeypatch, tmp_path: Path) -> None:

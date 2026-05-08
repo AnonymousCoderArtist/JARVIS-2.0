@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 import math
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -10,13 +10,13 @@ from textual.containers import Vertical
 from textual.message import Message
 
 from interface.textual_ui.cli_adapters import (
-    PathCompletionController,
-    SlashCommandController,
-    CommandRegistry,
-    VoiceManagerPort,
     AgentSafety,
     CommandCompleter,
+    CommandRegistry,
     PathCompleter,
+    PathCompletionController,
+    SlashCommandController,
+    VoiceManagerPort,
 )
 from interface.textual_ui.widgets.chat_input.body import ChatInputBody
 from interface.textual_ui.widgets.chat_input.completion_manager import (

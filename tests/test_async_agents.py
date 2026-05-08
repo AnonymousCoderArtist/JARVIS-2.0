@@ -1,32 +1,32 @@
 """Tests for async agent functionality"""
 
 import asyncio
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from core.agents.async_manager import (
-    AsyncAgentManager,
     AsyncAgentConfig,
-    AgentState,
-    AgentTask,
+    AsyncAgentManager,
 )
 from core.agents.background_task_manager import (
     BackgroundTaskManager,
-    BackgroundTask,
-    TaskState,
+)
+from core.agents.base import BaseAgent
+from core.agents.resource_monitor import (
+    ResourceLimits as MonitorResourceLimits,
 )
 from core.agents.resource_monitor import (
     ResourceMonitor,
-    ResourceSnapshot,
-    ResourceLimits as MonitorResourceLimits,
 )
-from core.agents.base import BaseAgent
 from core.tools.async_registry import AsyncToolRegistry
+from core.tools.base import BaseTool, ToolInput, ToolOutput
 from core.tools.concurrent_executor import (
     ConcurrentToolExecutor,
+)
+from core.tools.concurrent_executor import (
     ExecutorResourceLimits as ToolResourceLimits,
 )
-from core.tools.base import BaseTool, ToolInput, ToolOutput
 
 
 class MockTool(BaseTool):
@@ -341,32 +341,32 @@ async def test_tool_execute_async_with_timeout():
 async def test_background_task_manager():
     """Test BackgroundTaskManager"""
     manager = BackgroundTaskManager(max_concurrent_tasks=2)
-    
+
     # Set up mock tool executor
     async def mock_executor(tool_name: str, args: dict) -> str:
         await asyncio.sleep(0.1)
         return f"Result for {tool_name}"
-    
+
     manager.set_tool_executor(mock_executor)
-    
+
     # Submit a task
     task_id = await manager.submit_task("test_tool", {"arg": "value"}, timeout=30)
-    
+
     assert task_id.startswith("bg_task_")
     assert manager.get_queue_size() == 1
-    
+
     # Get task status
     status = await manager.get_task_status(task_id)
     assert status["task_id"] == task_id
     assert status["state"] in ["PENDING", "RUNNING", "COMPLETED"]
-    
+
     # Wait for task to complete
     await asyncio.sleep(0.3)
-    
+
     # Get result
     result = await manager.get_task_result(task_id, wait=True, timeout=5.0)
     assert result == "Result for test_tool"
-    
+
     # Stop processing
     await manager.stop_processing()
 
@@ -375,31 +375,31 @@ async def test_background_task_manager():
 async def test_background_task_manager_concurrent():
     """Test BackgroundTaskManager with concurrent tasks"""
     manager = BackgroundTaskManager(max_concurrent_tasks=3)
-    
+
     async def mock_executor(tool_name: str, args: dict) -> str:
         await asyncio.sleep(0.1)
         return f"Result for {tool_name}"
-    
+
     manager.set_tool_executor(mock_executor)
-    
+
     # Submit multiple tasks
     task_ids = []
     for i in range(3):
         task_id = await manager.submit_task(f"tool_{i}", {"index": i}, timeout=30)
         task_ids.append(task_id)
-    
+
     # Wait for all to complete
     await asyncio.sleep(0.5)
-    
+
     # Get all results
     results = []
     for task_id in task_ids:
         result = await manager.get_task_result(task_id, wait=True, timeout=5.0)
         results.append(result)
-    
+
     assert len(results) == 3
     assert all("Result for" in r for r in results)
-    
+
     await manager.stop_processing()
 
 
@@ -411,32 +411,32 @@ async def test_resource_monitor():
         max_memory_percent=80.0,
         max_memory_mb=512.0
     )
-    
+
     monitor = ResourceMonitor(limits=limits, update_interval=0.5)
-    
+
     # Start monitoring
     await monitor.start_monitoring()
-    
+
     # Wait for some snapshots
     await asyncio.sleep(1.5)
-    
+
     # Get current snapshot
     snapshot = monitor.get_current_snapshot()
     assert snapshot is not None
     assert snapshot.cpu_percent >= 0
     assert snapshot.memory_percent >= 0
-    
+
     # Check limits
     limit_check = monitor.check_limits(snapshot)
     assert isinstance(limit_check, dict)
     assert "cpu_exceeded" in limit_check
     assert "memory_percent_exceeded" in limit_check
-    
+
     # Get average usage
     avg_usage = monitor.get_average_usage(duration_seconds=1.0)
     assert "cpu_percent" in avg_usage
     assert "memory_percent" in avg_usage
-    
+
     # Stop monitoring
     await monitor.stop_monitoring()
 
@@ -449,20 +449,20 @@ async def test_concurrent_tool_executor_resource_limits():
     registry = AsyncToolRegistry()
     tool = MockTool()
     registry.register(tool)
-    
+
     # Set very low resource limits
     limits = ToolResourceLimits(
         max_memory_mb=1,  # Very low limit
         max_cpu_percent=1.0,  # Very low limit
         timeout_seconds=10.0
     )
-    
+
     executor = ConcurrentToolExecutor(registry, max_workers=5, resource_limits=limits)
-    
+
     # Try to execute - may fail due to resource limits
     tool_calls = [("mock_tool", {})]
     results = await executor.execute_concurrent(tool_calls)
-    
+
     # Either succeeds (if resources are low) or fails with resource limit error
     assert len(results) == 1
     if not results[0].success:

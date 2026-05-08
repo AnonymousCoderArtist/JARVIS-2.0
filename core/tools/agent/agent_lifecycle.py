@@ -12,12 +12,10 @@ from datetime import datetime
 from typing import Any
 
 from .background_task import (
-    BackgroundAgentTask,
     _background_agents,
     _background_lock,
 )
 from .constants import (
-    DEFAULT_MAX_TOKENS,
     EXPLORE_ALLOWED_TOOLS,
     JARVIS_HELP_ALLOWED_TOOLS,
     PLAN_ALLOWED_TOOLS,
@@ -26,12 +24,10 @@ from .constants import (
 )
 from .filtered_registry import _FilteredToolRegistry
 from .fork_subagent import (
-    create_fork_subagent,
-    detect_fork_marker,
-    snapshot_memory,
-    track_fork,
-    complete_fork,
     ForkMetadata,
+    complete_fork,
+    create_fork_subagent,
+    track_fork,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,11 +56,9 @@ async def _run_agent_in_background(
         event_queue: Optional event queue for UI updates
     """
     from core.agents import EXPLORE, PLAN, ExploreAgent, PlanAgent
-    from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent, JARVIS_HELP_AGENT
-    from core.agents.builtin.verification_agent import VerificationAgent, VERIFICATION_AGENT
-    from core.agents.builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
+    from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
+    from core.agents.builtin.verification_agent import VerificationAgent
     from core.config.settings import Settings
-    from core.agents.base import BaseAgent
 
     # Define callback to track tool usage
     def _on_tool_call(tool_name: str, tool_args: dict) -> None:
@@ -76,7 +70,7 @@ async def _run_agent_in_background(
                     _background_agents[task_id].tool_uses += 1
                     _background_agents[task_id].current_activity = f"{tool_name}"
         asyncio.create_task(_update())
-    
+
     def _on_tool_result(tool_name: str, tool_args: dict[str, Any], result: Any) -> None:
         """Clear current activity after tool completes"""
         import asyncio
@@ -123,7 +117,7 @@ async def _run_agent_in_background(
 
             # Execute the task
             result = await subagent.process(prompt)
-            
+
             # Try to capture token usage from result if available
             token_usage = 0
             if isinstance(result, dict) and "usage" in result:
@@ -171,7 +165,7 @@ async def _run_agent_in_background(
 
             # Execute the task
             result = await subagent.process(prompt)
-            
+
             # Try to capture token usage from result if available
             token_usage = 0
             if isinstance(result, dict) and "usage" in result:
@@ -269,7 +263,7 @@ async def _run_agent_in_background(
 
             # statusline-setup is a read-only guidance agent (no edit/bash tools)
             result = "I can help with statusline customization for bash, zsh, PowerShell, and other shells. " + prompt
-            
+
             async with _background_lock:
                 if task_id in _background_agents:
                     _background_agents[task_id].status = "completed"
@@ -323,15 +317,10 @@ async def _run_forked_agent(
         inherit_memory: Optional memory to inherit from parent agent
         fork_config: Optional configuration from fork marker in prompt
     """
-    from core.config.settings import Settings
-    from core.agents import EXPLORE, PLAN
-    from core.agents import ExploreAgent, PlanAgent
-    from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
-    from core.agents.builtin.verification_agent import VerificationAgent
     from core.tools.agent.constants import (
         EXPLORE_ALLOWED_TOOLS,
-        PLAN_ALLOWED_TOOLS,
         JARVIS_HELP_ALLOWED_TOOLS,
+        PLAN_ALLOWED_TOOLS,
         VERIFICATION_ALLOWED_TOOLS,
     )
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 
 def copy_to_clipboard(text: str) -> None:
     """Copy text to the system clipboard.

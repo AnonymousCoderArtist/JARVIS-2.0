@@ -8,29 +8,26 @@ import uuid
 from typing import Any
 
 from core.tools.base import BaseTool, ToolInput, ToolOutput
+
+from .agent_lifecycle import _run_agent_in_background
 from .background_task import (
     BackgroundAgentTask,
     _background_agents,
     _background_lock,
-    get_background_agent,
-    list_background_agents,
-    get_completed_background_agents,
     clear_completed_background_agents,
+    get_background_agent,
+    get_completed_background_agents,
+    list_background_agents,
 )
-from .agent_lifecycle import _run_agent_in_background
-from .agent_memory import SubagentActivity, add_subagent_activity
 from .constants import (
-    AGENT_TOOL_NAME,
     DEFAULT_MAX_TOKENS,
     EXPLORE_ALLOWED_TOOLS,
-    PLAN_ALLOWED_TOOLS,
     JARVIS_HELP_ALLOWED_TOOLS,
+    PLAN_ALLOWED_TOOLS,
     VERIFICATION_ALLOWED_TOOLS,
-    STATUSLINE_SETUP_ALLOWED_TOOLS,
 )
 from .filtered_registry import _FilteredToolRegistry
 from .utils import get_agent_param
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +267,7 @@ class AgentTool(BaseTool):
             )
         else:
             # Run synchronously (blocking) - for backwards compatibility
-            from core.agents import EXPLORE, ExploreAgent, PLAN, PlanAgent
+            from core.agents import EXPLORE, PLAN, ExploreAgent, PlanAgent
             from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
             from core.agents.builtin.verification_agent import VerificationAgent
             from core.config.settings import Settings
@@ -689,4 +686,3 @@ class AgentStatusTool(AgentTool):
         return await super().execute(input_data)
 
 
-import asyncio  # Required for create_task

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any
+
 import httpx
 
 API_URL = "https://models.dev/api.json"

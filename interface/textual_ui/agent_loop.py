@@ -17,10 +17,18 @@ from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.manager import AgentManager
 from core.agents.profiles import AgentProfile as CoreAgentProfile
 from core.config.settings import Settings
+from core.history import ConversationHistory, create_assistant_message, create_user_message
+from core.rewind import RewindManager
+from core.skills.manager import SkillManager as CoreSkillManager
 from core.tools.registry import ToolRegistry
-from core.rewind import RewindManager, RewindError
-from core.history import ConversationHistory, create_user_message, create_assistant_message
-
+from interface.textual_ui.tool_results import (
+    BashResult,
+    GrepMatch,
+    GrepResult,
+    ReadFileResult,
+    SearchReplaceResult,
+    WriteFileResult,
+)
 from interface.textual_ui.types import (
     AgentStats,
     AssistantEvent,
@@ -32,15 +40,6 @@ from interface.textual_ui.types import (
     ToolResultEvent,
     UserMessageEvent,
 )
-from interface.textual_ui.tool_results import (
-    BashResult,
-    GrepMatch,
-    GrepResult,
-    ReadFileResult,
-    SearchReplaceResult,
-    WriteFileResult,
-)
-
 
 # Use the core AgentProfile directly
 AgentProfile: TypeAlias = CoreAgentProfile
@@ -57,15 +56,15 @@ class TelemetryClient:
     def send_telemetry_event(self, event: str, data: dict[str, Any] | None = None, **kwargs: Any) -> None:
         """Send telemetry event."""
         pass
-    
+
     def send_user_rating_feedback(self, rating: int = 0, comment: str | None = None, **kwargs: Any) -> None:
         """Send user rating feedback."""
         pass
-    
+
     def send_slash_command_used(self, command: str = "", command_type: str = "", **kwargs: Any) -> None:
         """Send slash command used."""
         pass
-    
+
     def is_active(self) -> bool:
         """Check if telemetry is active."""
         return False
@@ -196,13 +195,13 @@ class Stats(AgentStats):
     session_cost: float = 0.0
     context_tokens: int = 0  # Current context window size
     _listeners: dict[str, list[Callable[[Stats], None]]] = field(default_factory=dict)
-    
+
     def add_listener(self, metric: str, callback: Callable[[Stats], None]) -> None:
         """Add listener for metric changes."""
         if metric not in self._listeners:
             self._listeners[metric] = []
         self._listeners[metric].append(callback)
-    
+
     def trigger_listeners(self) -> None:
         """Trigger all listeners."""
         for callbacks in self._listeners.values():
@@ -211,7 +210,7 @@ class Stats(AgentStats):
                     callback(self)
                 except Exception:
                     pass
-    
+
     def update_from_agent(self, agent: CodingAgent) -> None:
         """Update stats from agent using actual token counts from LLM provider."""
         p_tokens = 0
@@ -275,11 +274,13 @@ class AgentLoop:
         tool_registry: ToolRegistry,
         agent_manager: AgentManager | None = None,
         disabled_tools: list[str] | None = None,
+        resume_session: str | None = None,
     ):
         self.agent: CodingAgent = agent
         self.config: Settings = config
         self.base_config: Settings = config
         self.tool_registry: ToolRegistry = tool_registry
+        self.resume_session = resume_session
         # Initialize event queue first
         self._event_queue: asyncio.Queue[Event] = asyncio.Queue()
         # Set event queue on tool registry for tools that need to emit events
@@ -354,24 +355,47 @@ class AgentLoop:
         self._tool_call_ids: dict[str, str] = {}  # Track tool call IDs
         self._disabled_tools: list[str] = []  # Track disabled tools
         self._heartbeat_running = False  # Track heartbeat subagent status
-        
+
         # Set up tool call/result callbacks for event tracking
         self.agent.tool_call_callback = self._on_tool_call
         self.agent.tool_result_callback = self._on_tool_result
         # Set up reasoning callback to capture reasoning content
         self.agent.reasoning_callback = self._on_reasoning
-        
+
         # Initialize heartbeat system
         self._setup_heartbeat()
-        
+
         # Note: Heartbeat will be started when the TUI app is mounted
         # (via start_heartbeat_if_enabled method) to ensure event loop is running
-        
+
         # ====================================================================
         # Conversation History System
         # ====================================================================
-        self.history = ConversationHistory()
+        if resume_session:
+            # Resume existing session
+            self.history = ConversationHistory(session_id=resume_session)
+        else:
+            # Create new session
+            self.history = ConversationHistory()
         self.session_id = self.history.session_id
+        
+        # Load history into agent memory if resuming a session
+        if resume_session:
+            messages = self.history.get_messages()
+            for msg in messages:
+                entry: dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
+                # Add OpenAI tool calls if present
+                if msg.tool_calls:
+                    entry["tool_calls"] = msg.tool_calls
+                if msg.tool_call_id:
+                    entry["tool_call_id"] = msg.tool_call_id
+                # Add Anthropic tool_use if present
+                if msg.tool_use:
+                    entry["tool_use"] = msg.tool_use
+                # Add Anthropic tool_result if present
+                if msg.tool_result:
+                    entry["tool_result"] = msg.tool_result
+                self.agent.add_to_memory(entry)
 
     @property
     def messages(self) -> list[LLMMessage]:
@@ -655,37 +679,37 @@ Create a comprehensive summary that captures:
         """Wait until agent is ready."""
         # JARVIS agent is ready immediately after initialization
         await asyncio.sleep(0)
-    
+
     def set_approval_callback(self, callback: Callable[[str, Any, str, list[Any] | None], Any]) -> None:
         """Set approval callback for tool execution."""
         self._approval_callback = callback
         self.agent.set_approval_callback(callback)
-    
+
     def set_user_input_callback(self, callback: Callable[[Any], Any]) -> None:
         """Set user input callback."""
         self._user_input_callback = callback
         self.agent.set_user_input_callback(callback)
-    
+
     def approve_always(self, tool_name: str, permissions: list[Any]) -> None:
         """Approve tool always (store in config or agent state)."""
         self.agent.approve_always(tool_name, permissions)
-    
+
     def emit_new_session_telemetry(self) -> None:
         """Emit new session telemetry."""
         if self.telemetry_client.is_active():
             self.telemetry_client.send_telemetry_event("session_start", {
                 "model": self.agent.model,
             })
-    
+
     def refresh_config(self) -> None:
         """Refresh configuration."""
         # Reload config if needed
         pass
-    
+
     async def refresh_system_prompt(self) -> None:
         """Refresh system prompt with current tool descriptions."""
         self.agent.rebuild_system_prompt()
-    
+
     async def switch_agent(self, profile_name: str) -> None:
         """Switch to a different agent profile."""
         # Switch profile in agent manager
@@ -707,7 +731,7 @@ Create a comprehensive summary that captures:
 
         # Refresh system prompt if needed
         await self.refresh_system_prompt()
-    
+
     async def inject_user_context(self, context: str) -> None:
         """Inject user context into agent."""
         self.agent.update_context("user_context", context)
@@ -726,7 +750,7 @@ Create a comprehensive summary that captures:
                     ))
                 except Exception as e:
                     logger.debug(f"Failed to queue heartbeat event: {e}")
-        
+
         # Initialize heartbeat on the agent if enabled in config
         try:
             self.agent.initialize_heartbeat(
@@ -738,7 +762,7 @@ Create a comprehensive summary that captures:
             logger.info("Heartbeat system configured")
         except Exception as e:
             logger.warning(f"Failed to initialize heartbeat: {e}")
-    
+
     async def start_heartbeat_if_enabled(self) -> None:
         """Start heartbeat if configured (call after event loop is running)."""
         # Some test agents/mocks don't implement the full heartbeat surface.
@@ -761,7 +785,7 @@ Create a comprehensive summary that captures:
                 await start_heartbeat()
             finally:
                 self._heartbeat_running = False
-    
+
     @property
     def is_heartbeat_running(self) -> bool:
         """Check if heartbeat subagent is currently running."""
@@ -775,7 +799,7 @@ Create a comprehensive summary that captures:
                 queue.get_nowait()
             except Exception:
                 break
-    
+
     def _get_event_queue(self) -> asyncio.Queue[Event]:
         return self._event_queue
 
@@ -817,11 +841,11 @@ Create a comprehensive summary that captures:
         """Map raw tool output to structured result models for TUI."""
         # Normalize arguments to dict (might be JSON string from text-embedded tool calls)
         arguments = self._normalize_arguments(arguments)
-        
+
         # If result is a ToolOutput (from core), use its inner result
         raw_result = result
         if hasattr(result, 'result'):
-            raw_result = getattr(result, 'result')
+            raw_result = result.result
 
         # If result is already a string but we need an object, wrap it
         if isinstance(raw_result, str):
@@ -865,7 +889,7 @@ Create a comprehensive summary that captures:
         """Handle tool result event from agent."""
         # Normalize arguments to dict (might be JSON string from text-embedded tool calls)
         arguments = self._normalize_arguments(arguments)
-        
+
         # Queue tool result event for UI synchronously
         # Use the same tool_call_id as the tool call
         tool_call_id = self._tool_call_ids.get(tool_name, "")
@@ -880,9 +904,9 @@ Create a comprehensive summary that captures:
             error = str(e)
 
         # Determine if result indicates success or failure
-        if hasattr(result, 'success') and not getattr(result, 'success'):
+        if hasattr(result, 'success') and not result.success:
             if hasattr(result, 'error'):
-                error = str(getattr(result, 'error'))
+                error = str(result.error)
 
         # Track file changes for rewind snapshots
         self._track_file_snapshot(tool_name, arguments, result)
@@ -929,13 +953,13 @@ Create a comprehensive summary that captures:
             self._get_event_queue().put_nowait(ReasoningEvent(content=reasoning))
         # Also store in chunks for potential direct access
         self._reasoning_chunks.append(reasoning)
-    
+
     async def process_message(self, message: str) -> AsyncGenerator[str, None]:
         """Process a message and stream response using JARVIS agent."""
         if self._user_input_callback:
             yield message
             return
-        
+
         self._is_running = True
         self._stream_chunks = []
         self._reasoning_chunks = []
@@ -955,19 +979,19 @@ Create a comprehensive summary that captures:
         try:
             # Process message with JARVIS agent in a background task
             task = asyncio.create_task(self.agent.process(message))
-            
+
             while not task.done():
                 # Yield string chunks as they come in
                 while not string_queue.empty():
                     yield string_queue.get_nowait()
-                    
+
                 # We also need to yield reasoning events if any show up
                 # process_message yields strings, so we convert reasoning events
                 while not self._get_event_queue().empty():
                     event = self._get_event_queue().get_nowait()
                     if isinstance(event, ReasoningEvent):
                         yield f"<reasoning>{event.content}</reasoning>"
-                
+
                 await asyncio.sleep(0.05)
 
             # Check for exception
@@ -980,7 +1004,7 @@ Create a comprehensive summary that captures:
             # Yield any remaining stream chunks
             while not string_queue.empty():
                 yield string_queue.get_nowait()
-                
+
             # Yield any remaining reasoning
             while not self._get_event_queue().empty():
                 event = self._get_event_queue().get_nowait()
@@ -1050,10 +1074,10 @@ Create a comprehensive summary that captures:
             # Process message with JARVIS agent
             # We use a background task so we can yield events while it runs
             task = asyncio.create_task(self.agent.process(prompt))
-            
+
             # Add a timeout to prevent indefinite hanging (30 minutes default)
             timeout_task = asyncio.create_task(asyncio.sleep(1800))
-            
+
             # Yield events as they come in with a longer timeout
             while not task.done() and not timeout_task.done():
                 try:
@@ -1121,7 +1145,7 @@ Create a comprehensive summary that captures:
                     compaction_result = await self.maybe_auto_compact()
                     if compaction_result:
                         yield AssistantEvent(content=f"[Auto-compacted conversation: saved ~{self.compaction_stats.last_compaction_tokens_before - self.compaction_stats.last_compaction_tokens_after} tokens]")
-                except Exception as e:
+                except Exception:
                     # Log but don't fail the main task
                     self.compaction_stats.record_error()
 
@@ -1136,7 +1160,7 @@ Create a comprehensive summary that captures:
     async def run(self) -> None:
         """Run the agent loop (not used in TUI mode)."""
         pass
-    
+
     async def get_events(self) -> AsyncGenerator[Event, None]:
         """Get events from the event queue."""
         while self._is_running:
@@ -1175,24 +1199,22 @@ Create a comprehensive summary that captures:
             self.rewind_manager.add_snapshot(snapshot)
 
 
-from core.skills.manager import SkillManager as CoreSkillManager
-
 class SkillManagerAdapter:
     """Adapter for JARVIS SkillManager."""
-    
+
     def __init__(self) -> None:
         self._core_manager = CoreSkillManager()
-    
+
     @property
     def available_skills(self) -> dict[str, Any]:
         return cast(dict[str, Any], self._core_manager.get_all_available_skills())
-        
+
     @property
     def custom_skills_count(self) -> int:
         all_skills = self._core_manager.get_all_available_skills()
         builtin = self._core_manager.get_builtin_skills()
         return len(all_skills) - len(builtin)
-    
+
     def parse_skill_command(self, command: str) -> Any:
         """Parse skill command."""
         if command.startswith("/skill "):
@@ -1203,7 +1225,7 @@ class SkillManagerAdapter:
     def activate_skill(self, skill_name: str) -> tuple[bool, str, str | None]:
         """Activate a skill and return the core manager result."""
         return self._core_manager.activate_skill(skill_name)
-    
+
     @staticmethod
     def build_skill_prompt(user_input: str, skill: Any) -> str:
         """Build skill prompt."""
@@ -1214,7 +1236,7 @@ class SkillManagerAdapter:
 
 class MCPRegistryAdapter:
     """Adapter for MCP Registry (Currently unsupported in JARVIS core)."""
-    
+
     def count_loaded(self, servers: list[Any]) -> int:
         """Count loaded MCP servers."""
         return 0
@@ -1279,11 +1301,11 @@ class SessionLoggerAdapter:
 
 class RewindManagerAdapter:
     """Adapter for session rewinding."""
-    
+
     def has_file_changes_at(self, index: int) -> bool:
         """Check if there are file changes at a specific message index."""
         return False
-    
+
     async def rewind_to_message(self, index: int, restore_files: bool = False) -> tuple[str, list[Any]]:
         """Rewind the session to a specific message index."""
         return "Rewind successful (stub)", []

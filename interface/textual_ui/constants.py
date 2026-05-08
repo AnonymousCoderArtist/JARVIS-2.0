@@ -3,7 +3,11 @@ from __future__ import annotations
 from enum import StrEnum
 
 # Import version from jarvis package
-from jarvis import __version__ as CORE_VERSION
+try:
+    from jarvis._version import __version__
+    CORE_VERSION = __version__
+except ImportError:
+    CORE_VERSION = "2.0.0"
 
 
 class MistralColors(StrEnum):

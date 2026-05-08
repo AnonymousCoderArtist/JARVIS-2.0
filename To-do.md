@@ -8,7 +8,7 @@
 - [ ] Add support for custom themes in Web UI
 - [x] Update HEARTBEAT system to be 2-phased instead of 1
 - [X] Implement HEARTBEAT system for periodic tasks and monitoring
-- [ ] Make HEARTBEAT to run as a non blocking background subagent
+- [X] Make HEARTBEAT to run as a non blocking background subagent
 - [ ] Make the agent's memory more efficient and scalable
 - [ ] Make Skill system better and more flexible
 - [ ] Add support for multiple agents working together in a team
@@ -22,6 +22,7 @@
 - [X] Implement Model Info fetching and caching system
 - [X] /copy command to copy content to clipboard
 - [X] Make !bang commands to be non-blocking and run via async subprocess for better latency
-- [ ] Add more built-in agents for specific tasks (e.g. research, data analysis, etc.)
+- [X] Add more built-in agents for specific tasks (e.g. research, data analysis, etc.)
 - [ ] Implement better error handling and recovery mechanisms for agents
 - [ ] Add support for agent collaboration and communication
+- [X] Implement worktree tools for better code management in coding agents

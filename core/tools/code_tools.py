@@ -4,14 +4,18 @@ import asyncio
 import os
 import platform
 import re
-import shutil
-import sys
 from pathlib import Path
 from typing import Any
 
+from core.tools.permissions import (
+    PermissionContext,
+    PermissionScope,
+    RequiredPermission,
+    ToolPermission,
+)
+
 from .base import BaseTool, ToolInput, ToolOutput
 from .sandbox import wrap_command
-from core.tools.permissions import PermissionContext, PermissionScope, RequiredPermission, ToolPermission
 
 
 class BashTool(BaseTool):
@@ -75,7 +79,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
         """Resolve permission for bash command with dangerous pattern detection"""
         if bypass_mode:
             return None
-            
+
         command = args.get("command", "")
         if not command:
             return None
@@ -164,7 +168,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
 
             # Check if we should bypass safety checks
             bypass_mode = False  # This would be set based on configuration/settings
-            
+
             # Safety guard check
             guard_error = self._guard_command(command, bypass_mode)
             if guard_error:
@@ -243,7 +247,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
 
                 output = stdout.decode() if stdout else ""
                 stderr_output = stderr.decode() if stderr else ""
-                
+
                 # Set error field when command fails
                 error_msg = None
                 if process.returncode != 0:
@@ -266,7 +270,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                     error=f"Command execution timed out after {timeout} seconds"
                 )
 
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             shell_name = "PowerShell" if self.is_windows else "bash"
             return ToolOutput(
                 success=False,
@@ -284,7 +288,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
         """Best-effort safety guard for potentially destructive commands"""
         if bypass_mode:
             return None
-            
+
         cmd = command.strip()
         lower = cmd.lower()
 
@@ -292,7 +296,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
         explicitly_allowed = bool(self.allow_patterns) and any(
             re.search(p, lower) for p in self.allow_patterns
         )
-        
+
         if not explicitly_allowed:
             # Check deny patterns - these should always require approval
             for pattern in self.deny_patterns:
@@ -311,7 +315,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                 try:
                     expanded = os.path.expandvars(raw_path.strip())
                     p = Path(expanded).expanduser().resolve()
-                    
+
                     # Check if path is outside current working directory
                     cwd = Path.cwd()
                     if p.is_absolute() and cwd not in p.parents and p != cwd:

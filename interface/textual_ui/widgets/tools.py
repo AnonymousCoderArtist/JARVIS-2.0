@@ -11,7 +11,7 @@ from textual.widgets import Static
 
 from interface.textual_ui.cli_adapters import ToolUIDataAdapter
 from interface.textual_ui.types import ToolCallEvent, ToolResultEvent
-from interface.textual_ui.widgets.messages import ExpandingBorder, NonSelectableStatic
+from interface.textual_ui.widgets.messages import NonSelectableStatic
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tool_widgets import get_result_widget
 
@@ -85,7 +85,7 @@ class ToolCallMessage(Static):
                     self.MARKER, classes="tool-indicator"
                 )
                 yield self._indicator_widget
-                
+
                 summary = self.get_content()
                 self._tool_name_widget = NoMarkupStatic(
                     summary, classes="tool-name"
@@ -396,7 +396,7 @@ class DiffBlock(Static):
     def compose(self) -> ComposeResult:
         # Top border with marker at start
         yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
-        
+
         # Diff lines
         for line in self._lines:
             with Horizontal(classes="diff-line"):
@@ -412,7 +412,7 @@ class DiffBlock(Static):
                     line.content,
                     classes=self._get_line_class(prefix)
                 )
-        
+
         # Bottom border
         yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
 
@@ -443,9 +443,9 @@ class ToolStatsWidget(Static):
             parts.append(f"+{self._added}")
         if self._removed > 0:
             parts.append(f"-{self._removed}")
-        
+
         stats_str = " ".join(parts) if parts else ""
-        
+
         # Progress bar (8 chars max)
         total = self._added + self._removed
         if total > 0:
@@ -454,7 +454,7 @@ class ToolStatsWidget(Static):
             bar = "█" * filled + "─" * (bar_length - filled)
         else:
             bar = ""
-        
+
         with Horizontal(classes="tool-stats-container"):
             if stats_str:
                 yield NoMarkupStatic(stats_str, classes="tool-stats-numbers")

@@ -188,7 +188,7 @@ Returns: Matching lines with file path, line number, and content."""
                                     })
                                     if max_results and len(results) >= max_results:
                                         break
-                    except (OSError, IOError):
+                    except OSError:
                         continue
 
                     if max_results and len(results) >= max_results:

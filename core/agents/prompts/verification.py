@@ -4,8 +4,8 @@ This module contains the verification agent system prompt for post-implementatio
 testing and verification tasks.
 """
 
-from datetime import datetime
 import os
+from datetime import datetime
 
 
 def get_verification_prompt() -> str:

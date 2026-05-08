@@ -22,15 +22,16 @@ class SkillProfile:
     @classmethod
     def from_file(cls, path: Path) -> SkillProfile:
         """Load skill profile from a skill directory following agentskills.io standard"""
-        import yaml
         import re
+
+        import yaml
 
         # Try to read SKILL.md file
         skill_file = path / "SKILL.md"
         if not skill_file.exists():
             raise FileNotFoundError(f"Skill file not found: {skill_file}")
 
-        with open(skill_file, 'r', encoding='utf-8') as f:
+        with open(skill_file, encoding='utf-8') as f:
             content = f.read()
 
         # Parse YAML frontmatter

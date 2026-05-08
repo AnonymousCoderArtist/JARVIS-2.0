@@ -1,9 +1,10 @@
 """JARVIS Help Agent for JARVIS assistance and documentation"""
 
-from datetime import datetime
 import os
+from datetime import datetime
 from typing import Any
 
+from core.agents.agent_definition import AgentDefinition
 from core.agents.base import BaseAgent
 
 
@@ -106,8 +107,6 @@ class JarvisHelpAgent(BaseAgent):
 
 
 # Agent definition for builtin registration
-from core.agents.agent_definition import AgentDefinition
-
 JARVIS_HELP_AGENT = AgentDefinition(
     agent_type="jarvis-help",
     when_to_use="Use this agent when users need help understanding JARVIS features, tools, or configuration.",

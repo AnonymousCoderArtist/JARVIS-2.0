@@ -3,12 +3,11 @@ from __future__ import annotations
 import random
 import time
 
+from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.cli_adapters import (
     read_cache,
     write_cache,
-    CACHE_FILE,
 )
-from interface.textual_ui.agent_loop import AgentLoop
 from interface.textual_ui.types import Role
 
 FEEDBACK_PROBABILITY = 0.2
@@ -40,7 +39,7 @@ class FeedbackBarManager:
         cache_value = read_cache(_CACHE_SECTION, _LAST_SHOWN_KEY)
         if cache_value is None:
             return False
-        
+
         try:
             last_ts = int(cache_value)
         except (ValueError, TypeError):

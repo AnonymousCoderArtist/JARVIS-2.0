@@ -14,18 +14,18 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option, OptionDoesNotExist
 from textual.worker import Worker
 
-from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.cli_adapters import (
     ConnectorConfig,
     ConnectorRegistry,
-    connectors_enabled,
     MCPTool,
+    connectors_enabled,
     updated_tool_list,
 )
+from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 if TYPE_CHECKING:
-    from interface.textual_ui.cli_adapters import MCPServer, ToolManager
     from interface.textual_ui.agent_loop import ToolManagerAdapter
+    from interface.textual_ui.cli_adapters import MCPServer, ToolManager
 
 
 class MCPSourceKind(StrEnum):
@@ -520,8 +520,19 @@ class MCPApp(Container):
         self._viewing_kind = kind
         is_connector = kind == MCPSourceKind.CONNECTOR
         title_prefix = "Connector" if is_connector else "MCP Server"
+
+        # Build detailed title with status info
+        status_info = []
+        if not is_connector:
+            # Get server status from the tool manager if available
+            from interface.textual_ui.cli_adapters import MCPServer
+            servers = [s for s in self._mcp_servers if s.name == server_name]
+            if servers:
+                srv = servers[0]
+                status_info = self._build_server_status_info(srv)
+
         self.query_one("#mcp-title", NoMarkupStatic).update(
-            f"{title_prefix}: {server_name}"
+            f"{title_prefix}: {server_name}" + (f" | {status_info}" if status_info else "")
         )
         self._set_help_text(_DETAIL_VIEW_HELP)
         tools_source = index.connector_tools if is_connector else index.server_tools
@@ -562,6 +573,27 @@ class MCPApp(Container):
                 label.append("  (disabled)", style="dim italic")
             option_list.add_option(Option(label, id=f"tool:{tool_name}"))
         option_list.highlighted = 0
+
+    def _build_server_status_info(self, server: Any) -> str:
+        """Build status text for a server including connection status, tools, and uptime."""
+        parts = []
+
+        # Check connection status from the tool manager if available
+        is_connected = server.disabled is False
+        parts.append("● connected" if is_connected else "○ disconnected")
+
+        # Transport type (if available)
+        transport = getattr(server, "transport", None)
+        if transport:
+            parts.append(f"[{transport}]")
+
+        # Status (enabled/disabled)
+        if server.disabled:
+            parts.append("disabled")
+        else:
+            parts.append("enabled")
+
+        return " | ".join(parts)
 
 
 def _tool_count_text(enabled: int, total: int | None = None) -> str:

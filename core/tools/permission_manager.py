@@ -12,8 +12,8 @@ from core.tools.permissions import (
     RequiredPermission,
     ToolPermission,
     is_tool_disallowed,
-    resolve_path_permission,
     resolve_file_tool_permission,
+    resolve_path_permission,
 )
 from core.tools.utils import wildcard_match
 

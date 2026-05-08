@@ -39,7 +39,7 @@ def get_current_version() -> str:
     version_file = Path("jarvis/_version.py")
     if not version_file.exists():
         return CURRENT_VERSION
-    
+
     content = read_file(version_file)
     match = re.search(r'__version__ = "([^"]+)"', content)
     if match:
@@ -60,9 +60,9 @@ def bump_version(version: str, bump_type: str) -> str:
     parts = version.split(".")
     if len(parts) != 3:
         raise ValueError(f"Invalid version format: {version}")
-    
+
     major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
-    
+
     if bump_type == "major":
         major += 1
         minor = 0
@@ -74,7 +74,7 @@ def bump_version(version: str, bump_type: str) -> str:
         patch += 1
     else:
         raise ValueError(f"Invalid bump type: {bump_type}")
-    
+
     return f"{major}.{minor}.{patch}"
 
 
@@ -84,27 +84,27 @@ def update_file_version(file_path: str, old_version: str, new_version: str) -> b
     if not path.exists():
         print(f"  ⚠ File not found: {file_path}")
         return False
-    
+
     content = read_file(path)
     pattern = VERSION_FILES.get(file_path)
-    
+
     if not pattern:
         # Default pattern for other files
         pattern = r'version = "([^"]+)"'
-    
+
     new_content = re.sub(
         pattern,
         f'version = "{new_version}"' if "version = " in pattern else f'__version__ = "{new_version}"',
         content
     )
-    
+
     # Check if version was actually updated
     if old_version in content and old_version not in new_content:
         write_file(path, new_content)
         return True
     elif new_version in content:
         return True
-    
+
     return False
 
 
@@ -113,16 +113,16 @@ def update_version(new_version: str) -> None:
     current = get_current_version()
     print(f"Updating version: {current} → {new_version}")
     print()
-    
+
     updated_files = []
-    
+
     for file_path in VERSION_FILES.keys():
         if update_file_version(file_path, current, new_version):
             updated_files.append(file_path)
             print(f"  ✓ Updated {file_path}")
         else:
             print(f"  ✗ Failed to update {file_path}")
-    
+
     # Also check if jarvis/__init__.py needs to import from _version.py
     init_file = Path("jarvis/__init__.py")
     if init_file.exists():
@@ -135,8 +135,8 @@ def update_version(new_version: str) -> None:
                 content
             )
             write_file(init_file, new_content)
-            print(f"  ✓ Updated jarvis/__init__.py to import from _version.py")
-    
+            print("  ✓ Updated jarvis/__init__.py to import from _version.py")
+
     print()
     print(f"Successfully updated {len(updated_files)} file(s)!")
 
@@ -145,7 +145,7 @@ def show_version() -> None:
     """Show current version."""
     version = get_current_version()
     print(f"Current version: {version}")
-    
+
     # Show version info
     parts = version.split(".")
     print(f"  Major: {parts[0]}")
@@ -158,9 +158,9 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
-    
+
     command = sys.argv[1].lower()
-    
+
     if command == "show":
         show_version()
     elif command in ("major", "minor", "patch"):
@@ -171,7 +171,7 @@ def main():
         # Assume it's a version number
         new_version = command
         if not re.match(r'^\d+\.\d+\.\d+$', new_version):
-            print(f"Error: Invalid version format. Use semantic versioning (e.g., 2.0.2)")
+            print("Error: Invalid version format. Use semantic versioning (e.g., 2.0.2)")
             sys.exit(1)
         update_version(new_version)
 

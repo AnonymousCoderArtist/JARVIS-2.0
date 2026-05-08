@@ -1,10 +1,9 @@
 """File state tracking system for deduplication and modification detection"""
 
-import os
 import hashlib
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
 
 
 @dataclass
@@ -21,7 +20,7 @@ class FileStates:
     """Track file read/write operations for deduplication and safety checks"""
 
     def __init__(self):
-        self._state: Dict[str, FileReadState] = {}
+        self._state: dict[str, FileReadState] = {}
 
     def _hash_file(self, path: str) -> str:
         """Calculate hash of file content"""
@@ -67,11 +66,11 @@ class FileStates:
             can_dedup=False
         )
 
-    def check_read(self, path: str | Path) -> Optional[str]:
+    def check_read(self, path: str | Path) -> str | None:
         """Check if a file has been read and is fresh"""
         p = str(Path(path).resolve())
         entry = self._state.get(p)
-        
+
         if entry is None:
             return "Warning: file has not been read yet. Read it first to verify content before editing."
 
@@ -91,7 +90,7 @@ class FileStates:
 
         return None
 
-    def get(self, path: str | Path) -> Optional[FileReadState]:
+    def get(self, path: str | Path) -> FileReadState | None:
         """Get file state by path"""
         p = str(Path(path).resolve())
         return self._state.get(p)

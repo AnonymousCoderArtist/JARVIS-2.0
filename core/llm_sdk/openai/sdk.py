@@ -7,7 +7,6 @@ from collections.abc import AsyncGenerator
 from difflib import SequenceMatcher
 from typing import Any
 
-from ...llm_sdk.context_length_manager import context_length_manager
 from ..base.sdk import (
     BaseLLMSDK,
     GenerationConfig,
@@ -71,7 +70,7 @@ class OpenAISDK(BaseLLMSDK):
                 message = response_data["choices"][0]["message"]
                 content = message.get("content") or ""
                 reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
-                
+
                 response = GenerationResponse(
                     content=content,
                     model=response_data["model"],
@@ -82,11 +81,11 @@ class OpenAISDK(BaseLLMSDK):
                         "total_tokens": response_data["usage"]["total_tokens"],
                     },
                 )
-                
+
                 # Add reasoning content if present
                 if reasoning:
                     response.reasoning_content = reasoning
-                
+
                 return response
 
         except Exception as e:
@@ -107,10 +106,10 @@ class OpenAISDK(BaseLLMSDK):
                         # Check if this chunk has usage info (usually in final chunk)
                         if chunk.get("usage"):
                             yield {"type": "usage", "usage": chunk["usage"]}
-                        
+
                         if chunk.get("choices") and chunk["choices"][0].get("delta", {}):
                             delta = chunk["choices"][0]["delta"]
-                            
+
                             # Check for reasoning content (o1 models)
                             if delta.get("reasoning_content"):
                                 yield {"type": "reasoning", "content": delta["reasoning_content"]}
@@ -128,7 +127,6 @@ class OpenAISDK(BaseLLMSDK):
 
     async def _stream_response_with_tools(self, payload: dict[str, Any]) -> AsyncGenerator:
         """Stream response from OpenAI API with tool calling support"""
-        import time
         try:
             content_buffer = ""
             tool_calls = []
@@ -253,11 +251,11 @@ class OpenAISDK(BaseLLMSDK):
                         "total_tokens": response_data.get("usage", {}).get("total_tokens", 0),
                     },
                 )
-                
+
                 # Add reasoning content if present
                 if reasoning:
                     response.reasoning_content = reasoning
-                
+
                 return response
 
         except Exception as e:

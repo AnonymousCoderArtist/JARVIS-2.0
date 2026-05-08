@@ -1,4 +1,5 @@
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -54,7 +55,7 @@ class ToolSettings(BaseModel):
     enable_code_execution: bool = True
     enable_file_operations: bool = True
     enable_git_operations: bool = True
-    
+
     # Tool permissions
     read: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
     ls: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
@@ -63,7 +64,7 @@ class ToolSettings(BaseModel):
     glob: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
     grep: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
     read_memory: ToolPermissions = Field(default_factory=lambda: ToolPermissions(permission="always"))
-    
+
     # Sensitive operations
     write: ToolPermissions = Field(default_factory=ToolPermissions)
     edit: ToolPermissions = Field(default_factory=ToolPermissions)
@@ -76,7 +77,7 @@ class ToolSettings(BaseModel):
     fetch_webpage: ToolPermissions = Field(default_factory=ToolPermissions)
     agents: ToolPermissions = Field(default_factory=ToolPermissions)
     activate_skill: ToolPermissions = Field(default_factory=ToolPermissions)
-    
+
     allowlist: list[str] = Field(default_factory=lambda: ["*.md", "*.txt", "*.py", "*.js", "*.ts", "*.json", "*.yaml", "*.yml", "*.toml", "*.cfg", "*.ini"])
     denylist: list[str] = Field(default_factory=lambda: ["/etc/passwd", "/etc/shadow", "/etc/hosts", "~/.ssh/*", "~/.aws/*", "~/.kube/*", "*.key", "*.pem", "*.p12", "*.pfx"])
     sensitive_patterns: list[str] = Field(default_factory=lambda: ["*secret*", "*password*", "*credential*", "*token*", "*api_key*", "*private_key*", "*.env", "*.env.*", "config/production*", "config/prod*"])
@@ -99,9 +100,10 @@ class JarvisSettings(BaseModel):
     async_settings: AsyncSettings = Field(default_factory=AsyncSettings, alias="async")
     heartbeat: HeartbeatSettings = Field(default_factory=HeartbeatSettings)
     learning: LearningSettings = Field(default_factory=LearningSettings)
-    
+
     bypass_tool_permissions: bool = False
     disallowed_tools: list[str] = Field(default_factory=list)
     agent_paths: list[str] = Field(default_factory=list)
     enabled_agents: list[str] = Field(default_factory=list)
     disabled_agents: list[str] = Field(default_factory=list)
+    vibe_code_enabled: bool = False

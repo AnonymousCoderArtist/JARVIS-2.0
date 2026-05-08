@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, field_validator
 from core.tools.base import BaseTool, ToolInput, ToolOutput
 from core.tools.permissions import PermissionContext, ToolPermission
 
-
 # ============== Schemas ==============
 
 class QuestionOptionSchema(BaseModel):
@@ -265,7 +264,7 @@ class AskUserQuestionTool(BaseTool):
         """
         # Extract questions from input - handle both direct list and nested dict format
         raw_questions = getattr(input_data, "questions", None)
-        
+
         # Handle different input formats
         if raw_questions is None:
             # Try to get from dict-style input (when LLM passes as function arguments)
@@ -276,7 +275,7 @@ class AskUserQuestionTool(BaseTool):
                     result=None,
                     error="No questions provided"
                 )
-        
+
         # If questions is a dict with a 'questions' key, extract the list
         if isinstance(raw_questions, dict):
             if "questions" in raw_questions:
@@ -292,7 +291,7 @@ class AskUserQuestionTool(BaseTool):
                 result=None,
                 error="Invalid questions format"
             )
-        
+
         if not questions:
             return ToolOutput(
                 success=False,
@@ -309,7 +308,7 @@ class AskUserQuestionTool(BaseTool):
                     validated_questions.append(QuestionSchema(**q))
                 else:
                     validated_questions.append(q)
-            
+
             validated_input = AskUserInputSchema(questions=validated_questions)
         except Exception as e:
             return ToolOutput(
@@ -325,7 +324,7 @@ class AskUserQuestionTool(BaseTool):
             answers = raw_answers
         else:
             answers = {}
-        
+
         raw_annotations = getattr(input_data, "annotations", None)
         annotations = raw_annotations if isinstance(raw_annotations, dict) else None
 
@@ -334,7 +333,7 @@ class AskUserQuestionTool(BaseTool):
             # In a full implementation, this would integrate with TUI/CLI
             # For now, we'll return a message indicating user interaction is needed
             return await self._collect_user_answers(validated_input.questions)
-        
+
         # Return the result with answers
         return ToolOutput(
             success=True,
@@ -402,20 +401,20 @@ def validate_html_preview(preview: str | None) -> str | None:
     """
     if preview is None:
         return None
-    
+
     # Check for full document indicators
     import re
     if re.search(r'<\s*(html|body|!doctype)\b', preview, re.IGNORECASE):
         return 'preview must be an HTML fragment, not a full document (no <html>, <body>, or <!DOCTYPE>)'
-    
+
     # Check for script/style tags
     if re.search(r'<\s*(script|style)\b', preview, re.IGNORECASE):
         return 'preview must not contain <script> or <style> tags. Use inline style attributes instead.'
-    
+
     # Check that it contains HTML tags
     if not re.search(r'<\s*[a-z][^>]*>', preview, re.IGNORECASE):
         return 'preview must contain HTML. Wrap content in a tag like <div> or <pre>.'
-    
+
     return None
 
 
@@ -429,8 +428,8 @@ def build_question_response(
     for question in questions:
         answer = answers.get(question.question, "No answer")
         parts.append(f'"{question.question}" = "{answer}"')
-    
+
     response = "User has answered your questions: " + ", ".join(parts)
     response += ". You can now continue with the user's answers in mind."
-    
+
     return response

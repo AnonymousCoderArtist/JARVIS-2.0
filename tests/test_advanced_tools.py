@@ -1,15 +1,15 @@
 """Test advanced tool system features"""
 
-import os
 import tempfile
-import pytest
 from pathlib import Path
 
+import pytest
+
+from core.tools.base import ToolInput
+from core.tools.code_tools import BashTool
 from core.tools.file_state import current_file_states
 from core.tools.file_tools import FileReadTool, FileWriteTool
-from core.tools.code_tools import BashTool
 from core.tools.web_tools import ExaWebSearchTool
-from core.tools.base import ToolInput
 
 
 class TestFileState:
@@ -70,7 +70,7 @@ class TestFileTools:
             test_file.write_text("Line 1\nLine 2\nLine 3\nLine 4\nLine 5")
 
             tool = FileReadTool()
-            
+
             # First read
             input_data = ToolInput(
                 files=[{"filePath": str(test_file), "offset": 1, "limit": 3}]
@@ -110,13 +110,13 @@ class TestBashTool:
     async def test_command_guard(self):
         """Test that dangerous commands require approval"""
         tool = BashTool()
-        
+
         # Test dangerous command - use mkfs which should be caught by pattern matching
         input_data = ToolInput(command="mkfs.ext4 /dev/sda1")
-        
+
         # Test the permission resolution - should require approval
         permission_result = tool.resolve_permission({"command": "mkfs.ext4 /dev/sda1"})
-        
+
         # Should require ASK permission for dangerous commands
         assert permission_result is not None
         assert permission_result.permission == "ask"
@@ -127,7 +127,7 @@ class TestBashTool:
         """Test workspace restriction feature"""
         tool = BashTool()
         tool.restrict_to_workspace = True
-        
+
         # Test command with absolute path outside workspace
         input_data = ToolInput(command="cat /etc/passwd")
         result = await tool.execute(input_data)
@@ -137,7 +137,7 @@ class TestBashTool:
     async def test_safe_command(self):
         """Test that safe commands work"""
         tool = BashTool()
-        
+
         # Test safe command
         input_data = ToolInput(command="echo 'Hello, World!'")
         result = await tool.execute(input_data)
@@ -151,7 +151,7 @@ class TestWebSearchTool:
     async def test_query_validation(self):
         """Test query validation"""
         tool = ExaWebSearchTool()
-        
+
         # Test empty query
         input_data = ToolInput(query="")
         result = await tool.execute(input_data)

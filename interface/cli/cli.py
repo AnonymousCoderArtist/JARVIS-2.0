@@ -4,46 +4,46 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.styles import Style
-from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.output import DummyOutput
-from prompt_toolkit.application import get_app
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.output import DummyOutput
+from prompt_toolkit.styles import Style
+from pygments.lexers.markup import MarkdownLexer
 from pygments.lexers.python import PythonLexer
 from pygments.lexers.shell import BashLexer
-from pygments.lexers.markup import MarkdownLexer
-from rich.markdown import Markdown
 
+from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
 from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.manager import AgentManager
-from core.agents.async_manager import AsyncAgentManager, AsyncAgentConfig
 from core.config.settings import Settings
-from core.connectors import ConnectorManager, ConnectorConfig, FilesystemConnector
-from core.learn import LearningManager, LearningConfig
+from core.history import ConversationHistory
+from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
+from core.learn import LearningConfig, LearningManager
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tool import AgentsTool, AgentStatusTool
+from core.tools.agent_tool import AgentStatusTool, AgentsTool
+from core.tools.async_registry import AsyncToolRegistry
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
 from core.tools.file_edit_tool import EditTool
 from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
-from core.tools.memory_tool import SaveMemoryTool, ReadMemoryTool
-from core.tools.registry import ToolRegistry
-from core.tools.async_registry import AsyncToolRegistry
+from core.tools.memory_tool import ReadMemoryTool, SaveMemoryTool
 from core.tools.repl_tool import REPLTool
-from core.tools.web_tools import WebFetchTool, ExaWebSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
+from core.tools.worktree_tool import EnterWorktreeTool, ExitWorktreeTool
+from core.tools.tool_search_tool import ToolSearchTool
 
-from .display import DisplayManager, StreamingResponse
 from .commands import CommandHandler
-from .config import ConfigManager, load_config
+from .config import load_config
+from .display import DisplayManager
 from .keybindings import create_key_bindings
 
 
@@ -117,7 +117,7 @@ class DynamicLexer:
 class CLIInterface:
     """Modern CLI interface for JARVIS with rich display and modular architecture."""
 
-    def __init__(self, model: str, base_url: str | None, apikey: str | None, sdk: str, bypass: bool = True):
+    def __init__(self, model: str, base_url: str | None, apikey: str | None, sdk: str, bypass: bool = True, resume_session: str | None = None):
         self.model = model
         self.base_url = base_url
         self.apikey = apikey
@@ -125,6 +125,16 @@ class CLIInterface:
         self.bypass = bypass
         self.tool_registry = AsyncToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
+        self.resume_session = resume_session
+
+        # Initialize conversation history
+        from core.history import ConversationHistory
+        if resume_session:
+            # Resume existing session
+            self.history = ConversationHistory(session_id=resume_session)
+        else:
+            # Create new session
+            self.history = ConversationHistory()
         self._current_provider = None
         self.learning_manager: LearningManager | None = None
         self.connector_manager: ConnectorManager | None = None
@@ -181,9 +191,8 @@ class CLIInterface:
         """Initialize MCP servers and register their tools asynchronously."""
         try:
             # Import MCP components
-            from core.tools.mcp_adapter import MCPRegistry, MCPTransportType
-            from pathlib import Path
-            import json
+
+            from core.tools.mcp_adapter import MCPRegistry
 
             # Load MCP server configurations
             mcp_configs = self._load_mcp_configs()
@@ -241,6 +250,11 @@ class CLIInterface:
         self.tool_registry.register(AgentStatusTool())
         from core.tools import SkillTool
         self.tool_registry.register(SkillTool())
+        # Register worktree tools
+        self.tool_registry.register(EnterWorktreeTool())
+        self.tool_registry.register(ExitWorktreeTool())
+        # Register tool search tool
+        self.tool_registry.register(ToolSearchTool())
 
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
@@ -299,6 +313,24 @@ class CLIInterface:
         if self.jarvis_agent.heartbeat_scheduler:
             asyncio.create_task(self.jarvis_agent.start_heartbeat())
 
+        # Load history into agent memory if resuming a session
+        if self.resume_session:
+            messages = self.history.get_messages()
+            for msg in messages:
+                entry: dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
+                # Add OpenAI tool calls if present
+                if msg.tool_calls:
+                    entry["tool_calls"] = msg.tool_calls
+                if msg.tool_call_id:
+                    entry["tool_call_id"] = msg.tool_call_id
+                # Add Anthropic tool_use if present
+                if msg.tool_use:
+                    entry["tool_use"] = msg.tool_use
+                # Add Anthropic tool_result if present (stored in content as array)
+                if msg.tool_result:
+                    entry["tool_result"] = msg.tool_result
+                self.jarvis_agent.add_to_memory(entry)
+
         # Initialize learning manager
         self.learning_manager = LearningManager(LearningConfig(enabled=True))
 
@@ -318,7 +350,8 @@ class CLIInterface:
             skill_manager=self.skill_manager,
             jarvis_agent=self.jarvis_agent,
             config_manager=self.config_manager,
-            learning_manager=self.learning_manager
+            learning_manager=self.learning_manager,
+            session_reset_callback=self.reset_session
         )
 
         # Update command handler with current status info
@@ -332,7 +365,6 @@ class CLIInterface:
     def _load_mcp_configs(self) -> list[dict]:
         """Load MCP server configurations from .mcp.json file."""
         from pathlib import Path
-        import json
 
         config_paths = [
             Path(".mcp.json"),
@@ -379,15 +411,6 @@ class CLIInterface:
             disabled=config_dict.get("disabled", False),
         )
 
-    def _show_banner(self):
-        """Display the welcome banner."""
-        self.display_manager.show_banner(
-            model=self.model,
-            sdk=self.sdk,
-            base_url=self.base_url or "",
-            tool_count=len(self.tool_registry.list_tools())
-        )
-    
     def _show_help(self):
         """Display available commands."""
         self.display_manager.show_help()
@@ -401,6 +424,10 @@ class CLIInterface:
         if not self.jarvis_agent:
             self.display_manager.show_error("JARVIS agent not initialized.")
             return
+
+        # Save user message to history
+        from core.history import create_user_message
+        self.history.append_message(create_user_message(text))
 
         # State tracking for chat responses
         in_tool_call = [False]
@@ -441,6 +468,14 @@ class CLIInterface:
 
         try:
             await asyncio.wait_for(self.jarvis_agent.process(text), timeout=self.config_manager.config.behavior.timeout_seconds)
+            
+            # Save assistant response to history
+            from core.history import create_assistant_message
+            # Get the last assistant message from agent memory
+            for entry in reversed(self.jarvis_agent.memory):
+                if entry.get("role") == "assistant" and entry.get("content"):
+                    self.history.append_message(create_assistant_message(entry.get("content", "")))
+                    break
         except asyncio.TimeoutError:
             self.display_manager.stop_streaming()
             self.display_manager.show_error("Task timed out.")
@@ -450,10 +485,29 @@ class CLIInterface:
         finally:
             self.display_manager.stop_streaming()
 
+    async def reset_session(self) -> str:
+        """Reset the session by creating a new history and clearing agent memory."""
+        old_session_id = self.history.session_id
+        
+        # Create new conversation history (new session)
+        self.history = ConversationHistory()
+        
+        # Clear agent memory
+        if self.jarvis_agent:
+            self.jarvis_agent.clear_memory()
+            self.jarvis_agent.rebuild_system_prompt()
+        
+        return old_session_id
+
     async def run(self):
         """Start the CLI loop using prompt_toolkit."""
         self.display_manager.clear_screen()
-        self._show_banner()
+        self.display_manager.show_banner(
+            model=self.model,
+            sdk=self.sdk,
+            base_url=self.base_url or "",
+            tool_count=len(self.tool_registry.list_tools())
+        )
         self._show_help()
 
         # Initialize MCP servers asynchronously
@@ -463,8 +517,7 @@ class CLIInterface:
             try:
                 # Modern prompt styling
                 prompt_text = HTML(
-                    "<bold><style color='#5fafff'>YOU </style></bold>"
-                    "<bold><style color='#666666'>❯</style></bold> "
+                    "<bold><style color='#5fafff'>YOU > </style></bold>"
                 )
 
                 user_input = await self.session.prompt_async(
@@ -489,13 +542,13 @@ class CLIInterface:
                 self.display_manager.show_error(f"Fatal Error: {e}")
 
 
-async def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = True):
+async def main(launch_cli: bool = True, model: str = "gpt-4o", base_url: str | None = None, apikey: str | None = None, sdk: str = "openai", bypass: bool = True, resume_session: str | None = None):
     """Main CLI entry point."""
     if not launch_cli:
         print("Error: CLI mode not enabled. Use --cli flag.")
         sys.exit(1)
 
-    cli = CLIInterface(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass)
+    cli = CLIInterface(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session)
     await cli.run()
 
 

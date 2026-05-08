@@ -1,14 +1,10 @@
 """Tests for the multi-file read tool enhancement"""
 
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from core.tools.base import ToolInput
 from core.tools.file_tools import FileReadTool
-from core.tools.base import ToolInput, ToolOutput
 
 
 class TestFileReadToolSingleMode:

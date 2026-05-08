@@ -26,7 +26,7 @@ class TaggedText:
         return self.text
 
     @classmethod
-    def from_string(cls, text: str) -> "TaggedText":
+    def from_string(cls, text: str) -> TaggedText:
         """Create a TaggedText from a string"""
         return cls(text=text)
 
@@ -53,12 +53,12 @@ def is_dangerous_directory(path: Path | str) -> tuple[bool, str]:
         "C:\\Program Files",
         "C:\\Program Files (x86)",
     }
-    
+
     path_str = str(path)
     for dangerous in dangerous_paths:
         if path_str == dangerous or path_str.startswith(dangerous + "/") or path_str.startswith(dangerous + "\\"):
             return True, f"Running in system directory: {path_str}"
-    
+
     return False, ""
 
 
