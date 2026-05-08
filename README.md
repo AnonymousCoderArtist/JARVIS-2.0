@@ -1,6 +1,7 @@
 <div align="center">
 
 # JARVIS v2.0
+<img align="center" height="150" src="https://i.pinimg.com/originals/20/e0/83/20e0839cefb31bc03e058be16bacc26e.gif"  />
 
 <a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/github/v/release/OEvortex/JARVIS?label=version&style=for-the-badge&color=blue"></a>
 <a href="https://github.com/OEvortex/JARVIS/blob/main/LICENSE"><img src="https://img.shields.io/github/license/OEvortex/JARVIS?style=for-the-badge&color=green"></a>
@@ -613,7 +614,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - **Repository**: https://github.com/OEvortex/JARVIS
 - **Issues**: https://github.com/OEvortex/JARVIS/issues
-- **Authors**: [OEvortex](https://github.com/OEvortex) and [AnonymousCoderArtist](https://github.com/AnonymousCoderArtist)
+- **Authors**: [OEvortex](https://github.com/OEvortex) and [AnonymousCoderLokesh](https://github.com/AnonymousCoderArtist)
 
 ---
 
