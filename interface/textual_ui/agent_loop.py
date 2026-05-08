@@ -26,7 +26,6 @@ from interface.textual_ui.tool_results import (
     GrepMatch,
     GrepResult,
     ReadFileResult,
-    SearchReplaceResult,
     WriteFileResult,
 )
 from interface.textual_ui.types import (
@@ -866,11 +865,28 @@ Create a comprehensive summary that captures:
                 return ReadFileResult(path=path, content=raw_result)
             if tool_name in ("write", "write_file"):
                 path = str(arguments.get("path") or arguments.get("filePath", ""))
-                return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result))
+                # Extract diff from metadata if available
+                diff = ""
+                if hasattr(result, 'metadata') and result.metadata:
+                    diff = result.metadata.get('diff', '')
+                return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result), diff=diff)
             if tool_name == "edit":
-                # For edit, we might want to return the first diff or a summary
+                # For edit, return the diff showing changes
                 path = str(arguments.get("path") or arguments.get("filePath", ""))
-                return SearchReplaceResult(path=path, content=raw_result)
+                # Extract diff from metadata (can be at top level or in results array)
+                diff = ""
+                replacements = 0
+                if hasattr(result, 'metadata') and result.metadata:
+                    metadata = result.metadata
+                    # Check if diff is directly in metadata (for single replacements)
+                    diff = metadata.get('diff', '')
+                    replacements = metadata.get('successful', 0)
+                    # If not, check in results array (for multiple replacements)
+                    if not diff and 'results' in metadata and metadata['results']:
+                        first_result = metadata['results'][0]
+                        diff = first_result.get('diff', '')
+                        replacements = metadata.get('successful', 0)
+                return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result), diff=diff, replacements=replacements)
 
         # Special case for grep: list of dicts to GrepMatch objects
         if tool_name == "grep" and isinstance(raw_result, list):

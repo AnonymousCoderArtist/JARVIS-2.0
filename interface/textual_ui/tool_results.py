@@ -33,14 +33,8 @@ class WriteFileResult(BaseModel):
     path: str
     bytes_written: int = 0
     content: str = ""
-
-
-class SearchReplaceResult(BaseModel):
-    path: str = ""
-    old_str: str = ""
-    new_str: str = ""
-    replacements: int = 0
-    content: str = ""
+    diff: str = ""
+    replacements: int = 0  # For edit operations
 
 
 class LSResult(BaseModel):

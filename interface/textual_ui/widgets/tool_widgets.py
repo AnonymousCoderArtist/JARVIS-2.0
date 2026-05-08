@@ -190,20 +190,98 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
             yield from self._footer()
             return
 
-        # Result summary
-        summary_text = f"└─ {self.result.bytes_written} bytes written"
-        if self.collapsed:
-            summary_text += " • Ctrl+O to expand"
-        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+        # Check if it's an edit operation (replacements > 0) or a write operation
+        if self.result.replacements > 0:
+            # Edit operation
+            summary_text = f"└─ {self.result.replacements} replacement(s)"
+            if self.collapsed:
+                summary_text += " • Ctrl+O to expand"
+            yield NoMarkupStatic(summary_text, classes="tool-result-summary")
 
-        if not self.collapsed:
-            # Show content
-            ext = Path(self.result.path).suffix.lstrip(".") or "text"
-            content, truncation_info = _truncate_lines(self.result.content, 15)
-            yield Markdown(f"```{ext}\n{content}\n```")
-            yield from self._footer(truncation_info)
+            if not self.collapsed:
+                # Show diff if available
+                if self.result.diff:
+                    diff_lines = self._parse_diff(self.result.diff)
+                    if diff_lines:
+                        # Lazy import DiffBlock
+                        from interface.textual_ui.widgets.tools import DiffBlock
+                        yield DiffBlock(diff_lines, context_lines=3)
+                # Show new content
+                ext = Path(self.result.path).suffix.lstrip(".") or "text"
+                content, truncation_info = _truncate_lines(self.result.content, 15)
+                yield Markdown(f"```{ext}\n{content}\n```")
+                yield from self._footer(truncation_info)
+            else:
+                yield from self._footer()
         else:
-            yield from self._footer()
+            # Write operation
+            summary_text = f"└─ {self.result.bytes_written} bytes written"
+            if self.collapsed:
+                summary_text += " • Ctrl+O to expand"
+            yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+
+            if not self.collapsed:
+                # Show diff if available
+                if self.result.diff:
+                    diff_lines = self._parse_diff(self.result.diff)
+                    if diff_lines:
+                        # Lazy import DiffBlock
+                        from interface.textual_ui.widgets.tools import DiffBlock
+                        yield DiffBlock(diff_lines, context_lines=3)
+                # Show content
+                ext = Path(self.result.path).suffix.lstrip(".") or "text"
+                content, truncation_info = _truncate_lines(self.result.content, 15)
+                yield Markdown(f"```{ext}\n{content}\n```")
+                yield from self._footer(truncation_info)
+            else:
+                yield from self._footer()
+
+    def _parse_diff(self, diff_text: str) -> list:
+        """Parse unified diff text into DiffLine objects."""
+        # Lazy import to avoid circular dependency
+        from interface.textual_ui.widgets.tools import DiffLine, DiffBlock
+        # Store DiffBlock for use in compose method
+        self._DiffBlock = DiffBlock
+        return self._parse_diff_lines(diff_text)
+
+    def _parse_diff_lines(self, diff_text: str) -> list:
+        """Parse unified diff text into DiffLine objects."""
+        from interface.textual_ui.widgets.tools import DiffLine
+        
+        lines = []
+        line_num = None
+        
+        for line in diff_text.split('\n'):
+            if line.startswith('@@'):
+                # Parse hunk header to get line numbers
+                # Format: @@ -old_start,old_count +new_start,new_count @@
+                parts = line.split(' ')
+                if len(parts) >= 3:
+                    new_part = parts[2]
+                    if new_part.startswith('+'):
+                        try:
+                            line_num = int(new_part.split(',')[0][1:])
+                        except (ValueError, IndexError):
+                            line_num = None
+                lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+            elif line.startswith('+++') or line.startswith('---') or line.startswith('diff '):
+                # Skip file header lines
+                lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+            elif line.startswith('+'):
+                lines.append(DiffLine(line_number=line_num, content=line[1:], prefix="+"))
+                if line_num is not None:
+                    line_num += 1
+            elif line.startswith('-'):
+                lines.append(DiffLine(line_number=None, content=line[1:], prefix="-"))
+            elif line.startswith(' '):
+                lines.append(DiffLine(line_number=line_num, content=line[1:], prefix=" "))
+                if line_num is not None:
+                    line_num += 1
+            elif line:
+                # Any other line
+                lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+        
+        return lines
 
 
 class TodoApprovalWidget(ToolApprovalWidget[TodoArgs]):
@@ -453,6 +531,7 @@ RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
     "read_file": ReadFileResultWidget,
     "write": WriteFileResultWidget,
     "write_file": WriteFileResultWidget,
+    "edit": WriteFileResultWidget,  # Reuse WriteFileResultWidget for edit (shows diff)
     "grep": GrepResultWidget,
     "ls": LSResultWidget,
     "todo": TodoResultWidget,

@@ -1,5 +1,6 @@
 """File operation tools"""
 
+import difflib
 import os
 from typing import Any
 
@@ -17,6 +18,40 @@ from core.tools.permissions import (
 
 from .base import BaseTool, ToolInput, ToolOutput
 from .file_state import current_file_states
+
+
+def _generate_diff(original: str, new: str, filename: str) -> str:
+    """Generate unified diff between two strings."""
+    original_lines = original.splitlines(keepends=True) if original else []
+    new_lines = new.splitlines(keepends=True) if new else []
+
+    diff = difflib.unified_diff(
+        original_lines,
+        new_lines,
+        fromfile=f"a/{filename}",
+        tofile=f"b/{filename}",
+        lineterm="",
+    )
+
+    return "".join(diff)
+
+
+def _generate_new_file_diff(content: str, filename: str) -> str:
+    """Generate diff for a new file (shows all content as added)."""
+    lines = content.splitlines(keepends=True) if content else []
+    
+    diff_lines = []
+    diff_lines.append(f"--- a/{filename}\n")
+    diff_lines.append(f"+++ b/{filename}\n")
+    diff_lines.append(f"@@ -0,0 +{len(lines)} @@\n")
+    
+    for line in lines:
+        if line.endswith('\n'):
+            diff_lines.append(f"+{line}")
+        else:
+            diff_lines.append(f"+{line}\n")
+    
+    return "".join(diff_lines)
 
 
 class FileReadTool(BaseTool):
@@ -394,10 +429,13 @@ Returns success message with file path and size."""
             # Record the write operation
             current_file_states.record_write(file_path)
 
+            # Generate diff for the new file
+            diff = _generate_new_file_diff(content, file_path)
+
             return ToolOutput(
                 success=True,
                 result=f"Successfully created file: {file_path}",
-                metadata={"filePath": file_path, "size": len(content)}
+                metadata={"filePath": file_path, "size": len(content), "diff": diff}
             )
 
         except Exception as e:
