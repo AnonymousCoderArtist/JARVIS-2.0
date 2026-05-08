@@ -16,20 +16,20 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme as RichTheme
 
-# Unicode icons for different message types (modern UI indicators)
+# Text icons for different message types (modern UI indicators)
 ICONS = {
-    "user": "👤",
-    "assistant": "🤖",
-    "tool_call": "🔧",
-    "tool_result": "📋",
-    "reasoning": "💭",
-    "error": "❌",
-    "success": "✅",
-    "warning": "⚠️",
-    "info": "ℹ️",
-    "prompt": "➤",
-    "arrow": "▶",
-    "loader": "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏",  # Animated spinner frames
+    "user": "[user]",
+    "assistant": "[jarvis]",
+    "tool_call": "[tool]",
+    "tool_result": "[result]",
+    "reasoning": "[reasoning]",
+    "error": "[error]",
+    "success": "[success]",
+    "warning": "[warning]",
+    "info": "[info]",
+    "prompt": ">",
+    "arrow": "->",
+    "loader": "-/|\\",  # Animated spinner frames
 }
 
 # Modern theme definitions
@@ -322,12 +322,12 @@ class DisplayManager:
     def show_banner(self, model: str, sdk: str, base_url: str, tool_count: int):
         """Display the welcome banner with rich formatting and ASCII art."""
         ascii_art = """
-     ▄▄▄▄▄     ▄▄▄▄▄    ▄▄▄▄▄    ▄▄▄▄▄    ▄▄▄▄▄
-    ██░░░░▀▀▄▀▀░░░░██  ██░░░░▀▀▄▀▀░░░░██  ██░░░░▀▀▄
-    ██░░▄▄▄░░░░▄▄▄██  ██░░▄▄▄░░░░▄▄▄██  ██░░▄▄▄░░░░
-    ██░░▐▌▐▌░░▐▌▐▌██  ██░░▐▌▐▌░░▐▌▐▌██  ██░░▐▌▐▌░░
-    ██░░░░░░░░░░░░██  ██░░░░░░░░░░░░██  ██░░░░░░░░
-    ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀
+     =============================
+    |                            |
+    |        J A R V I S         |
+    |         v2.0.1             |
+    |                            |
+     =============================
         """
         self.console.print(f"\n[primary]{ascii_art}[/]")
         self.show_rule(style="secondary")
@@ -365,16 +365,16 @@ class DisplayManager:
         table.add_column("Description", style="white")
 
         commands = [
-            ("/help", "❓ Show this help message"),
-            ("/status", "📊 Show system status"),
-            ("/profile", "👤 Switch or list agent profiles"),
-            ("/tools", "🔧 List available tools"),
-            ("/skills", "🎯 List and manage skills"),
-            ("/learn", "📚 View learning system status"),
-            ("/themes", "🎨 List and change themes"),
-            ("/clear", "🧹 Clear the screen"),
-            ("/exit", "🚪 Exit JARVIS"),
-            ("! <cmd>", "💻 Run shell command"),
+            ("/help", "Show this help message"),
+            ("/status", "Show system status"),
+            ("/profile", "Switch or list agent profiles"),
+            ("/tools", "List available tools"),
+            ("/skills", "List and manage skills"),
+            ("/learn", "View learning system status"),
+            ("/themes", "List and change themes"),
+            ("/clear", "Clear the screen"),
+            ("/exit", "Exit JARVIS"),
+            ("! <cmd>", "Run shell command"),
         ]
 
         for cmd, desc in commands:

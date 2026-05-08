@@ -511,7 +511,6 @@ class CLIInterface:
     async def run(self):
         """Start the CLI loop using prompt_toolkit."""
         self.display_manager.clear_screen()
-        self._show_banner()
         self._show_help()
 
         # Initialize MCP servers asynchronously
@@ -521,8 +520,7 @@ class CLIInterface:
             try:
                 # Modern prompt styling
                 prompt_text = HTML(
-                    "<bold><style color='#5fafff'>YOU </style></bold>"
-                    "<bold><style color='#666666'>❯</style></bold> "
+                    "<bold><style color='#5fafff'>YOU > </style></bold>"
                 )
 
                 user_input = await self.session.prompt_async(

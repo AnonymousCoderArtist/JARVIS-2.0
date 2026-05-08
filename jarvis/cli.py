@@ -100,10 +100,11 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
 
     parser.add_argument(
         "--resume", "-r",
-        type=str,
+        nargs='?',
+        const='latest',
         default=None,
         dest="resume_session",
-        help="Resume a previous session by session ID (use 'list' to show available sessions)"
+        help="Resume a session (default: most recent). Use 'list' to show available sessions."
     )
 
     # WebUI specific arguments
@@ -163,6 +164,24 @@ def main() -> None:
         else:
             print("No sessions found.")
         return
+
+    # Auto-resume latest session if -r was used without argument
+    if resume_session == "latest":
+        from core.history import ConversationHistory
+        from pathlib import Path
+        history_dir = ConversationHistory().history_dir
+        if history_dir.exists():
+            sessions = list(history_dir.glob("*.jsonl"))
+            if sessions:
+                latest = max(sessions, key=lambda p: p.stat().st_mtime)
+                resume_session = latest.stem
+                print(f"[info]Resuming latest session: {resume_session}[/info]")
+            else:
+                print("No sessions to resume.")
+                resume_session = None
+        else:
+            print("No sessions to resume.")
+            resume_session = None
 
     # Default to TUI if no mode specified
     if not launch_cli and not launch_tui and not launch_webui:
