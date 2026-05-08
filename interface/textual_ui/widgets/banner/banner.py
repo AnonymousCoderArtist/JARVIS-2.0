@@ -76,7 +76,7 @@ class Banner(Static):
             self._format_meta_counts()
         )
         self.query_one("#banner-attribution", NoMarkupStatic).update(
-            "Made by @OEvortex"
+            "Made by @OEvortex and @AnonymousCoderArtist"
         )
 
     def freeze_animation(self) -> None:

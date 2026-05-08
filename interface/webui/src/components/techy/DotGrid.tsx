@@ -48,9 +48,9 @@ export function DotGrid({ offset, onOffsetChange }: DotGridProps) {
         ctx.stroke();
       }
 
-      // Draw dots — uniform brightness, no edge fade = infinite feel
-      for (let x = startX - spacing; x < canvas.width + spacing; x += spacing) {
-        for (let y = startY - spacing; y < canvas.height + spacing; y += spacing) {
+      // Draw dots — extended area for truly infinite feel
+      for (let x = startX - spacing * 2; x < canvas.width + spacing * 2; x += spacing) {
+        for (let y = startY - spacing * 2; y < canvas.height + spacing * 2; y += spacing) {
           const alpha = 0.45;
 
           ctx.beginPath();

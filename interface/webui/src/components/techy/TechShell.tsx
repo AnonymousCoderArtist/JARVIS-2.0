@@ -7,12 +7,14 @@ import { ChatInput } from "./ChatInput";
 import { ToolCallBox } from "./ToolCallBox";
 import { ChatHistory } from "./ChatHistory";
 import { SphereResponse } from "./SphereResponse";
+import { ToolApprovalPrompt } from "@/components/thread/ToolApprovalPrompt";
 import { useDraggable } from "./useDraggable";
 import { useSessions, useSessionHistory } from "@/hooks/useSessions";
 import { useJarvisStream } from "@/hooks/useJarvisStream";
 import type { UIMessage } from "@/lib/types";
 
 function extractToolCalls(messages: UIMessage[]) {
+  const seen = new Set<string>();
   const calls: {
     id: string;
     name: string;
@@ -23,17 +25,18 @@ function extractToolCalls(messages: UIMessage[]) {
   messages.forEach((msg) => {
     if (msg.toolCalls) {
       msg.toolCalls.forEach((tc) => {
-        const existing = calls.find((c) => c.name === tc.name && c.status === "running");
-        if (existing && tc.result !== undefined) {
-          existing.status = tc.success === false ? "error" : "completed";
-        } else {
-          calls.push({
-            id: crypto.randomUUID(),
-            name: tc.name,
-            status: tc.result !== undefined ? (tc.success === false ? "error" : "completed") : "running",
-            timestamp: Date.now(),
-          });
-        }
+        const key = `${msg.id}-${tc.name}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        
+        calls.push({
+          id: crypto.randomUUID(),
+          name: tc.name,
+          status: tc.result !== undefined 
+            ? (tc.success === false ? "error" : "completed") 
+            : "running",
+          timestamp: Date.now(),
+        });
       });
     }
   });
@@ -70,6 +73,8 @@ export function TechShell() {
     isStreaming,
     thinking,
     send,
+    pendingApproval,
+    sendApprovalResponse,
   } = useJarvisStream(chatId, historyMessages, hasPendingToolCalls);
 
   const toolCalls = useMemo(() => extractToolCalls(messages), [messages]);
@@ -105,13 +110,13 @@ export function TechShell() {
   // Sphere — fixed on screen, NOT attached to canvas
   const sphereDrag = useDraggable({ x: 40, y: window.innerHeight - 260 });
 
-  // Widget positions — relative to canvas container
+// Widget positions — relative to canvas container
   const [chatPanelPos, setChatPanelPos] = useState({
     x: typeof window !== "undefined" ? window.innerWidth / 2 - 240 : 100,
     y: 90,
   });
   const [toolBoxPos, setToolBoxPos] = useState({
-    x: typeof window !== "undefined" ? window.innerWidth - 300 : 500,
+    x: typeof window !== "undefined" ? window.innerWidth - 340 : 500,
     y: 90,
   });
   const [historyPos, setHistoryPos] = useState({
@@ -220,6 +225,20 @@ export function TechShell() {
 
       {/* Bottom Chat Input — floating, NOT draggable */}
       <ChatInput onSend={handleSend} disabled={isStreaming && !chatId} />
+      
+      {/* Tool Approval Prompt — fixed overlay when approval is pending */}
+      {pendingApproval && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <ToolApprovalPrompt
+            toolName={pendingApproval.toolName}
+            toolArgs={pendingApproval.toolArgs}
+            requiredPermissions={pendingApproval.requiredPermissions}
+            onResponse={(approved, alwaysAllow) => {
+              sendApprovalResponse(approved, alwaysAllow);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

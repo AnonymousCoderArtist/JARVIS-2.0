@@ -364,6 +364,18 @@ async def ws_endpoint(websocket: WebSocket):
                 tool_call_tasks: list = []
                 tool_result_tasks: list = []
                 response: str | None = None
+                
+                # Save original callbacks before modifying them
+                original_callbacks = {
+                    "stream_callback": agent.stream_callback,
+                    "reasoning_callback": agent.reasoning_callback,
+                    "reasoning_done_callback": agent.reasoning_done_callback,
+                    "tool_call_callback": agent.tool_call_callback,
+                    "tool_result_callback": agent.tool_result_callback,
+                    "user_input_callback": agent.user_input_callback if hasattr(agent, 'user_input_callback') else None,
+                    "approval_callback": agent.approval_callback if hasattr(agent, 'approval_callback') else None,
+                }
+                
                 try:
                     # Set up a stream callback to send delta events
                     # We use a list to capture the asyncio tasks so we can await them
@@ -377,12 +389,7 @@ async def ws_endpoint(websocket: WebSocket):
                         }))
                         delta_tasks.append(task)
 
-                    # Check if agent has reasoning_callback
-                    has_reasoning = hasattr(agent, 'reasoning_callback') and agent.reasoning_callback is not None
-                    print(f"[DEBUG] Agent has reasoning_callback: {has_reasoning}")
-                    
                     # Set up reasoning callback to send reasoning events
-
                     def reasoning_callback(text: str):
                         task = asyncio.create_task(websocket.send_json({
                             "event": "reasoning",
@@ -399,7 +406,6 @@ async def ws_endpoint(websocket: WebSocket):
                         reasoning_tasks.append(task)
 
                     # Set up tool call callback to send tool_call events
-
                     def tool_call_callback(tool_name: str, tool_args: dict[str, Any]):
                         task = asyncio.create_task(websocket.send_json({
                             "event": "tool_call",
@@ -410,7 +416,6 @@ async def ws_endpoint(websocket: WebSocket):
                         tool_call_tasks.append(task)
 
                     # Set up tool result callback to send tool_result events
-
                     def tool_result_callback(tool_name: str, result: Any, success: bool):
                         # Convert result to string to avoid serialization errors (e.g. ToolOutput objects)
                         serialized_result = str(result)
@@ -450,31 +455,17 @@ async def ws_endpoint(websocket: WebSocket):
                         result = await future
                         return result
 
-                    # Save original callbacks
-                    original_callbacks = {
-                        "stream_callback": agent.stream_callback,
-                        "reasoning_callback": agent.reasoning_callback if hasattr(agent, 'reasoning_callback') else None,
-                        "reasoning_done_callback": agent.reasoning_done_callback if hasattr(agent, 'reasoning_done_callback') else None,
-                        "tool_call_callback": agent.tool_call_callback if hasattr(agent, 'tool_call_callback') else None,
-                        "tool_result_callback": agent.tool_result_callback if hasattr(agent, 'tool_result_callback') else None,
-                        "user_input_callback": agent.user_input_callback if hasattr(agent, 'user_input_callback') else None,
-                        "approval_callback": agent.approval_callback if hasattr(agent, 'approval_callback') else None,
-                    }
-                    
-                    # Set up the callbacks
+                    # Set the callbacks on the agent
                     agent.stream_callback = stream_callback
-                    if hasattr(agent, 'reasoning_callback'):
-                        agent.reasoning_callback = reasoning_callback
-                    if hasattr(agent, 'reasoning_done_callback'):
-                        agent.reasoning_done_callback = reasoning_done_callback
-                    if hasattr(agent, 'tool_call_callback'):
-                        agent.tool_call_callback = tool_call_callback
-                    if hasattr(agent, 'tool_result_callback'):
-                        agent.tool_result_callback = tool_result_callback
-                    if hasattr(agent, 'user_input_callback'):
-                        agent.user_input_callback = user_input_callback
-                    if hasattr(agent, 'approval_callback'):
-                        agent.approval_callback = approval_callback
+                    agent.reasoning_callback = reasoning_callback
+                    agent.reasoning_done_callback = reasoning_done_callback
+                    agent.tool_call_callback = tool_call_callback
+                    agent.tool_result_callback = tool_result_callback
+                    agent.user_input_callback = user_input_callback
+                    agent.approval_callback = approval_callback
+                    
+                    # Debug: verify callbacks are set
+                    print(f"[DEBUG] Agent has reasoning_callback: {agent.reasoning_callback is not None}", file=sys.stderr)
 
                     # Process the message
                     if _connection_info.get("session_id"):

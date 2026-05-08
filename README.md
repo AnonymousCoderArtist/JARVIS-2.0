@@ -425,7 +425,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - **Repository**: https://github.com/OEvortex/JARVIS
 - **Issues**: https://github.com/OEvortex/JARVIS/issues
-- **Author**: [OEvortex](https://github.com/OEvortex)
+- **Authors**: [OEvortex](https://github.com/OEvortex) and [AnonymousCoderArtist](https://github.com/AnonymousCoderArtist)
 
 ---
 
