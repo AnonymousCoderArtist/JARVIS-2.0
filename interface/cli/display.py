@@ -4,7 +4,6 @@ import sys
 import time
 from typing import Any
 
-from rich.align import Align
 from rich.box import MINIMAL, ROUNDED
 from rich.console import Console
 from rich.live import Live
@@ -320,36 +319,32 @@ class DisplayManager:
         self.console.clear()
 
     def show_banner(self, model: str, sdk: str, base_url: str, tool_count: int):
-        """Display the welcome banner with rich formatting and ASCII art."""
-        ascii_art = """
-     =============================
-    |                            |
-    |        J A R V I S         |
-    |         v2.0.1             |
-    |                            |
-     =============================
-        """
-        self.console.print(f"\n[primary]{ascii_art}[/]")
-        self.show_rule(style="secondary")
-
-        # Modern card-style info display
-        info_grid = Table.grid(padding=(0, 4))
-        info_grid.add_column(style="secondary", justify="right")
-        info_grid.add_column(style="info")
-
-        info_grid.add_row("Model", f"[jarvis]{model}[/]")
-        info_grid.add_row("SDK", f"[info]{sdk}[/]")
-        info_grid.add_row("Base URL", f"[secondary]{base_url or 'default'}[/]")
-        info_grid.add_row("Tools", f"[success]{tool_count}[/]")
-
-        panel = Panel(
-            info_grid,
-            title="[primary]JARVIS 2.0[/]",
-            border_style="primary",
-            box=ROUNDED,
-            padding=(1, 2)
+        """Display the welcome banner with rich formatting and box-drawing characters."""
+        self.console.print()
+        self.console.print(
+            "╭─────────────────── J A R V I S  2 . 0 ────────────────────╮"
         )
-        self.console.print(Align.center(panel))
+        self.console.print(
+            "│                                                           │"
+        )
+        self.console.print(
+            f"│     Model    {model:<45}│"
+        )
+        self.console.print(
+            f"│       SDK    {sdk:<45}│"
+        )
+        self.console.print(
+            f"│  Base URL    {(base_url or 'default'):<45}│"
+        )
+        self.console.print(
+            f"│     Tools    {tool_count:<45}│"
+        )
+        self.console.print(
+            "│                                                           │"
+        )
+        self.console.print(
+            "╰───────────────────────────────────────────────────────────╯"
+        )
         self.console.print()
 
     def show_help(self):
@@ -574,22 +569,18 @@ class DisplayManager:
 
     def show_learned_preferences(self, preferences):
         """Display learned preferences from the learning system."""
-        try:
-            from core.learn import LearningManager
-            if isinstance(preferences, dict):
-                table = Table(show_header=True, header_style="primary", box=None)
-                table.add_column("Setting", style="info")
-                table.add_column("Value")
+        if isinstance(preferences, dict):
+            table = Table(show_header=True, header_style="primary", box=None)
+            table.add_column("Setting", style="info")
+            table.add_column("Value")
 
-                table.add_row("Output Format", preferences.get("output_format", ""))
-                table.add_row("Preferred Tools", ", ".join(preferences.get("preferred_tools", [])) or "none")
-                table.add_row("Query Routing", str(len(preferences.get("query_routing", []))) + " rules")
-                table.add_row("Last Updated", str(preferences.get("last_updated", ""))[:19])
+            table.add_row("Output Format", preferences.get("output_format", ""))
+            table.add_row("Preferred Tools", ", ".join(preferences.get("preferred_tools", [])) or "none")
+            table.add_row("Query Routing", str(len(preferences.get("query_routing", []))) + " rules")
+            table.add_row("Last Updated", str(preferences.get("last_updated", ""))[:19])
 
-                self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
-            else:
-                self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
-        except ImportError:
+            self.console.print(Panel(table, title="Learned Preferences", border_style="success"))
+        else:
             self.console.print(Panel(str(preferences), title="Learned Preferences", border_style="success"))
 
     def show_learning_metrics(self, metrics):

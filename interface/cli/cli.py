@@ -411,15 +411,6 @@ class CLIInterface:
             disabled=config_dict.get("disabled", False),
         )
 
-    def _show_banner(self):
-        """Display the welcome banner."""
-        self.display_manager.show_banner(
-            model=self.model,
-            sdk=self.sdk,
-            base_url=self.base_url or "",
-            tool_count=len(self.tool_registry.list_tools())
-        )
-
     def _show_help(self):
         """Display available commands."""
         self.display_manager.show_help()
@@ -511,6 +502,12 @@ class CLIInterface:
     async def run(self):
         """Start the CLI loop using prompt_toolkit."""
         self.display_manager.clear_screen()
+        self.display_manager.show_banner(
+            model=self.model,
+            sdk=self.sdk,
+            base_url=self.base_url or "",
+            tool_count=len(self.tool_registry.list_tools())
+        )
         self._show_help()
 
         # Initialize MCP servers asynchronously
