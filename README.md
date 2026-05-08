@@ -48,8 +48,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | ✅ Fork Subagent | Ready |
 | ✅ CLI Interface | Stable |
 | ✅ TUI Interface | Complete (Default) |
-| ⚠️ WebUI | Work in Progress (Use CLI or TUI instead) |
-| ✅ WebUI Interface | Complete |
+| ✅ WebUI | Complete |
 | ✅ Permission System | Complete |
 | ✅ MCP Integration | Complete |
 | ✅ Learning System | Complete |
