@@ -183,7 +183,7 @@ def _compute_connectors_count(
     config: VibeConfig, connector_registry: ConnectorRegistry | None
 ) -> int:
     """Compute the count of active MCP servers.
-    
+
     This replaces the old connector counting logic which always returned 0
     because the ConnectorRegistry is not used. Now counts actual MCP servers.
     """
@@ -438,7 +438,7 @@ class VibeApp(App):  # noqa: PLR0904
         opts = startup or StartupOptions()
         self._initial_prompt = opts.initial_prompt
         self._teleport_on_start = (
-            opts.teleport_on_start and self.agent_loop.base_config.vibe_code_enabled  # ty:ignore[unresolved-attribute]
+            opts.teleport_on_start and self.agent_loop.base_config.vibe_code_enabled
         )
         self._show_resume_picker = opts.show_resume_picker
         self._last_escape_time: float | None = None
@@ -470,7 +470,7 @@ class VibeApp(App):  # noqa: PLR0904
 
     def _get_command_availability_context(self) -> CommandAvailabilityContext:
         return CommandAvailabilityContext(
-            vibe_code_enabled=self.agent_loop.base_config.vibe_code_enabled,  # ty:ignore[unresolved-attribute]
+            vibe_code_enabled=self.agent_loop.base_config.vibe_code_enabled,
             is_active_model_mistral=False,  # Not supported in core Settings
             plan_info=self._plan_info,
         )
@@ -1741,15 +1741,10 @@ class VibeApp(App):  # noqa: PLR0904
         # Always show MCP app when requested, even if already current
         # This ensures the app is properly visible and refreshed
 
-        # Debug logging
-        print(f"[DEBUG] MCP: Found {len(mcp_servers)} servers, connectors: {has_connectors}")
-        print(f"[DEBUG] MCP: Current bottom app: {self._current_bottom_app}")
-
         name = cmd_args.strip()
         connector_names = (
             connector_registry.get_connector_names() if connector_registry else []
         )
-        print(f"[DEBUG] MCP: Connector names: {connector_names}")
         if (
             name
             and not any(s.name == name for s in mcp_servers)
@@ -1764,10 +1759,9 @@ class VibeApp(App):  # noqa: PLR0904
                 )
             )
             return
+
         await self._mount_and_scroll(UserCommandMessage("MCP servers opened..."))
 
-        # Debug logging before app creation
-        print(f"[DEBUG] MCP: Creating MCPApp with {len(mcp_servers)} servers")
         mcp_app = MCPApp(
             mcp_servers=mcp_servers,
             tool_manager=self.agent_loop.tool_manager,
@@ -1776,10 +1770,8 @@ class VibeApp(App):  # noqa: PLR0904
             get_connector_configs=lambda: self.agent_loop.config.connectors,
             refresh_callback=self._refresh_mcp_browser,
         )
-        print("[DEBUG] MCP: Created MCPApp, mounting now...")
 
         await self._switch_from_input(mcp_app)
-        print("[DEBUG] MCP: MCPApp mounting complete")
 
     async def _show_status(self, **kwargs: Any) -> None:
         stats = self.agent_loop.stats
