@@ -17,10 +17,13 @@ import logging
 import os
 import subprocess
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from core.config.settings import Settings
 
 from .filtered_registry import _FilteredToolRegistry
 from .utils import create_agent
@@ -209,7 +212,7 @@ def _make_fork_config_getter(
     base_config_getter: Any,
     profile: Any,
     fork_config: dict[str, Any] | None,
-) -> callable:
+) -> Callable[[], Settings]:  # type: ignore[misc]
     """Build a config getter that applies profile and fork-specific overrides.
 
     Args:

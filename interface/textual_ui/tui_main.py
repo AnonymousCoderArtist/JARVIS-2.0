@@ -260,6 +260,9 @@ def create_tool_registry() -> AsyncToolRegistry:
     from core.tools.tool_search_tool import ToolSearchTool
     tool_registry.register(ToolSearchTool())
 
+    # Discover and register custom tools from .jarvis/tools/
+    tool_registry.discover_and_register_plugins()
+
     return tool_registry
 
 

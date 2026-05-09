@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Any, Callable
 
+from core.agents.base import ToolCallCallback, ToolResultCallback
 from .filtered_registry import _FilteredToolRegistry
 
 from core.config.settings import Settings
@@ -120,7 +121,7 @@ def create_agent(
     model,
     config_getter,
     allowed_tools: tuple[str, ...],
-    callbacks: dict[str, Callable] | None = None,
+    callbacks: dict[str, Any] | None = None,
 ) -> Any:
     """Create and configure a subagent instance with a filtered tool registry.
 

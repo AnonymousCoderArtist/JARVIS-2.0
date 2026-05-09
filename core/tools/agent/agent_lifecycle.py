@@ -57,7 +57,7 @@ async def _run_agent_in_background(
     from core.agents import EXPLORE, PLAN
     from core.config.settings import Settings
 
-    from .utils import create_agent, extract_token_usage
+    from .utils import create_agent, extract_token_usage, make_config_getter
 
     # Define callback to track tool usage
     def _on_tool_call(tool_name: str, tool_args: dict) -> None:

@@ -256,6 +256,9 @@ class CLIInterface:
         # Register tool search tool
         self.tool_registry.register(ToolSearchTool())
 
+        # Discover and register custom tools from .jarvis/tools/
+        self.tool_registry.discover_and_register_plugins()
+
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
         if self.sdk == "anthropic":

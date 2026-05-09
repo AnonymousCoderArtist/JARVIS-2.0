@@ -10,6 +10,8 @@ sys.path.insert(0, ROOT)
 # Bypass circular imports: load training_data directly
 td_path = os.path.join(ROOT, "core", "learn", "Classification", "training_data.py")
 spec = importlib.util.spec_from_file_location("core.learn.Classification.training_data", td_path)
+if spec is None or spec.loader is None:
+    raise RuntimeError("Failed to load training_data module")
 td_module = importlib.util.module_from_spec(spec)
 sys.modules["core.learn.Classification.training_data"] = td_module
 spec.loader.exec_module(td_module)

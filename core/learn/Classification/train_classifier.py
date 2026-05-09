@@ -283,7 +283,9 @@ class TextClassifier(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-    def to(self, device):
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+        device = args[0] if args else kwargs.get('device', 'cpu')
         self.net = self.net.to(device)
         self._device = device
         return self
@@ -298,8 +300,8 @@ class TextClassifier(nn.Module):
     def eval_mode(self):
         self.net.eval()
 
-    def parameters(self):
-        return self.net.parameters()
+    def parameters(self, recurse: bool = True):
+        return self.net.parameters(recurse) if recurse else iter([p for m in self.net.modules() for p in m.parameters() if p.requires_grad])
 
     def save(self, path: Path):
         import torch
@@ -487,7 +489,7 @@ def train_model(texts: list[str], labels: list[str],
 
     # Restore best weights
     if best_state is not None:
-        model.model.load_state_dict(best_state)
+        model.net.load_state_dict(best_state)
 
     # Save artifacts
     vectorizer.save(VECTORIZER_PATH)
@@ -548,7 +550,7 @@ def _ensure_loaded():
     return True
 
 
-def load_model() -> Optional[Tuple[TextClassifier, SimpleTfidfVectorizer]]:
+def load_model() -> tuple[TextClassifier | None, SimpleTfidfVectorizer | None] | None:
     """Load trained model and vectorizer. Returns (model, vectorizer) or None."""
     ok = _ensure_loaded()
     if ok is None:

@@ -37,50 +37,6 @@ class ToolRegistry:
 
         self._tools[tool.name] = tool
 
-    def tool(
-        self,
-        name: str,
-        description: str,
-        parameters: dict[str, Any],
-        handler: Callable[..., Coroutine[Any, Any, ToolOutput]],
-        guidelines: list[str] | None = None,
-    ):
-        """
-        Register a custom tool with a simple API.
-
-        This is a convenience method that creates a CustomTool and registers it
-        in one step.
-
-        Args:
-            name: Unique tool name
-            description: Description shown to the LLM
-            parameters: JSON schema for tool parameters
-            handler: Async function that executes the tool
-            guidelines: Tool-specific bullets for Guidelines section
-
-        Returns:
-            The created CustomTool instance
-
-        Example:
-            registry.tool(
-                name="todo",
-                description="Manage project todo list",
-                parameters={"type": "object", "properties": {...}},
-                handler=my_async_function,
-                guidelines=["Use todo when user asks for a task list"],
-            )
-        """
-        from .custom_tool import CustomTool  # type: ignore[import]
-
-        tool = CustomTool(
-            name=name,
-            description=description,
-            parameters=parameters,
-            execute_func=handler,
-            prompt_guidelines=guidelines,
-        )
-        self.register(tool)
-        return tool
 
     def get_prompt_snippets(self) -> dict[str, str]:
         """
@@ -258,3 +214,34 @@ class ToolRegistry:
 
         except Exception as e:
             raise RuntimeError(f"Failed to load tool plugin {plugin_path}: {str(e)}") from e
+
+    def discover_and_register_plugins(self) -> int:
+        """
+        Discover and register tool plugins from .jarvis/tools/ directories.
+        
+        Returns:
+            Number of successfully registered plugins
+        """
+        search_paths = [
+            Path.home() / ".jarvis" / "tools",
+            Path.home() / ".jarvis" / "tool",
+            Path.cwd() / ".jarvis" / "tools",
+            Path.cwd() / ".jarvis" / "tool",
+        ]
+        
+        registered_count = 0
+        processed_files = set()
+        
+        for path in search_paths:
+            if path.exists() and path.is_dir():
+                for file in path.glob("*.py"):
+                    resolved_file = file.resolve()
+                    if resolved_file not in processed_files:
+                        processed_files.add(resolved_file)
+                        try:
+                            self.register_plugin(str(resolved_file))
+                            registered_count += 1
+                        except Exception as e:
+                            print(f"Error loading plugin from {resolved_file}: {e}")
+                            
+        return registered_count

@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from core.agents.agent_definition import AgentDefinition
+
 logger = logging.getLogger(__name__)
 
 
