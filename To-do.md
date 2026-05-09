@@ -42,3 +42,16 @@
     - [X] History Navigation - Load more historical messages
     - [X] Local Session Storage - Save and restore sessions
     - [X] Remote Sessions - Access sessions from remote instances
+- [ ] Rewind App - Navigate and restore previous conversation states
+- [ ] Config Menu - In-app settings and preferences UI
+- [ ] Approval Dialog - Enhanced tool approval popup
+- [ ] Question App - Ask user structured questions UI
+- [ ] Feedback Bar - User feedback collection
+- [ ] Debug Console - Developer debugging tools
+- [ ] Teleport - Git sync / teleport integration
+- [ ] Session Picker - Detailed session picker with filtering
+- [ ] Narrator Mode - AI narrator voice output UI
+- [ ] Proxy Setup - Proxy configuration UI
+- [ ] Connector Auth - External service authentication UI
+- [ ] Load More - Load more historical messages button
+- [ ] Context Progress - Token usage detailed display
