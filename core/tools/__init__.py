@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .ask_user_question_tool import AskUserQuestionTool
     from .background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
     from .code_tools import BashTool, RunTestsTool
+    from .custom_tool import CustomTool
     from .file_edit_tool import EditTool
     from .file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
     from .grep_tool import GrepSearchTool
@@ -46,6 +47,7 @@ __all__ = [
     "ToolInput",
     "ToolOutput",
     "ToolRegistry",
+    "CustomTool",
     # File tools
     "FileReadTool",  # read
     "FileWriteTool",  # write
@@ -84,6 +86,7 @@ __all__ = [
 _LAZY_IMPORTS: dict[str, str] = {
     # registry/base
     "ToolRegistry": "core.tools.registry:ToolRegistry",
+    "CustomTool": "core.tools.custom_tool:CustomTool",
     # File tools
     "FileReadTool": "core.tools.file_tools:FileReadTool",
     "FileWriteTool": "core.tools.file_tools:FileWriteTool",

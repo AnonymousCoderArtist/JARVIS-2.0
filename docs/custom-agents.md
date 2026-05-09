@@ -2,6 +2,28 @@
 
 JARVIS supports loading custom agents from `.jarvis/agents/`. This allows you to create specialized agents with custom system prompts and tool configurations.
 
+See also: [Custom Tools](custom-tools.md) for extending JARVIS with custom tool functionality.
+
+## Custom Tool Registration
+
+You can also register custom tools at runtime using the simplified API:
+
+```python
+from core.tools.registry import ToolRegistry
+from core.tools.base import ToolOutput
+
+async def my_tool(param: str) -> ToolOutput:
+    return ToolOutput(success=True, result="Done")
+
+tool_registry.tool(
+    name="my_tool",
+    description="Does something",
+    parameters={"type": "object", "properties": {"param": {"type": "string"}}},
+    handler=my_tool,
+    guidelines=["Use my_tool for custom operations"],
+)
+```
+
 ## Creating a Custom Agent
 
 1. Create `.jarvis/agents/my-agent.py`:
