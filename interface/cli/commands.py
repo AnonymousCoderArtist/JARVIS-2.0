@@ -621,7 +621,7 @@ class CommandHandler:
                 self.display_manager.show_learning_metrics(metrics)
             elif args[0] == "patterns":
                 # Show detected patterns
-                patterns = self.learning_manager.pattern_detector.detected_patterns
+                patterns = self.learning_manager.get_patterns()
                 self.display_manager.show_patterns(patterns)
             else:
                 self.display_manager.show_error("Usage: /learn [analyze|patterns]")

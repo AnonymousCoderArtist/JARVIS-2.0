@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from core.agents.builtin_profiles import AGENT_ORDER, BUILTIN_AGENTS
-from core.agents.profiles import AgentProfile, AgentType
+from core.agents.profiles import AgentProfile, AgentSafety, AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +162,7 @@ class AgentManager:
         """Discover built-in and custom agents"""
         agents: dict[str, AgentProfile] = dict(BUILTIN_AGENTS)
 
+        # Load TOML profiles
         for base in self._search_paths:
             if not base.is_dir():
                 continue
@@ -185,6 +186,25 @@ class AgentManager:
                         continue
 
                     agents[agent.name] = agent
+
+        # Load Python agents as both definitions AND profiles
+        from core.agents.custom_loader import discover_custom_agents
+        for definition in discover_custom_agents():
+            if definition.agent_type not in agents:
+                # Create a profile from the Python agent definition
+                # Use the definition's description or a default
+                description = getattr(definition, "when_to_use", None) or "Custom agent"
+                display_name = definition.agent_type.replace("-", " ").title()
+
+                profile = AgentProfile(
+                    name=definition.agent_type,
+                    display_name=display_name,
+                    description=description,
+                    safety=AgentSafety.NEUTRAL,
+                    agent_type=AgentType.SUBAGENT,
+                )
+                agents[profile.name] = profile
+                logger.info("Loaded custom Python agent: %s", profile.name)
 
         return agents
 
@@ -230,10 +250,11 @@ class AgentManager:
 
     def get_agent_order(self) -> list[str]:
         """Get ordered list of agents for cycling"""
+        # Include both AGENT and SUBAGENT types in cycling
         primary_agents = [
             name
             for name, agent in self.available_agents.items()
-            if agent.agent_type == AgentType.AGENT
+            if agent.agent_type in (AgentType.AGENT, AgentType.SUBAGENT)
         ]
 
         # Start with builtin order, then add custom agents

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from core.connectors import ConnectorManager
 from core.learn import LearningConfig, LearningManager
+from core.learn.skill_crystallizer import SkillCrystallizer
 from core.tools.skill_manage_tool import create_skill_markdown, get_skill_dir
 
 from .base import BaseAgent
@@ -55,7 +56,6 @@ class JarvisV2(BaseAgent):
         bypass_tool_permissions: bool = False,
         use_concurrent_tools: bool = True,
         system_prompt: str | None = None,
-        enable_learning: bool = True,
         connector_manager: ConnectorManager | None = None,
     ):
         # Use provided system_prompt or default to JARVIS_V2_SYSTEM_PROMPT
@@ -64,8 +64,7 @@ class JarvisV2(BaseAgent):
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()
 
-        # Initialize learning system
-        self.learning_enabled = enable_learning
+        # Initialize learning system (lazy, reads from settings)
         self._learning_manager: LearningManager | None = None
         self._interactions_since_learning: int = 0
         self._last_response_text: str = ""
@@ -76,12 +75,19 @@ class JarvisV2(BaseAgent):
         self._tool_call_count: int = 0
         self._skill_creation_threshold: int = 5
         self._self_evaluation_interval: int = 15
+        self._crystallizer = SkillCrystallizer()
+        self._auto_skill_min_steps: int = 3
+        self._auto_skill_trigger_tools: int = 5
 
     @property
     def learning_manager(self) -> LearningManager | None:
-        """Lazy initialization of learning manager"""
-        if self._learning_manager is None and self.learning_enabled:
-            self._learning_manager = LearningManager(LearningConfig(enabled=True))
+        """Lazy initialization of learning manager, reads enabled from settings."""
+        if self._learning_manager is None:
+            # Check if learning is enabled in settings
+            settings = self._config_getter() if self._config_getter else None
+            enabled = settings.learning_enabled if settings else False
+            if enabled:
+                self._learning_manager = LearningManager(LearningConfig(enabled=True))
         return self._learning_manager
 
     @property
@@ -297,6 +303,10 @@ class JarvisV2(BaseAgent):
         Returns:
             Agent response with results or next steps
         """
+        # Reset per-task trace buffer (self-evolving skills)
+        self.current_task_input = input
+        self.execution_trace = []
+
         # Build messages with proper roles using base class method
         user_content = self._build_prompt(input, context)
         messages = self._build_messages(user_content, include_memory=True)
@@ -320,6 +330,23 @@ class JarvisV2(BaseAgent):
             "response": response,
             "type": "coding_task"
         })
+
+        # Crystallize execution path into a reusable skill (GenericAgent-style)
+        try:
+            tool_steps = [s for s in self.execution_trace if s.get("tool")]
+            should_try = len(tool_steps) >= self._auto_skill_min_steps and len(tool_steps) >= self._auto_skill_trigger_tools
+            if should_try:
+                success = all(bool(s.get("success")) for s in tool_steps)
+                self._crystallizer.crystallize(
+                    user_input=input,
+                    final_response=response,
+                    execution_trace=tool_steps,
+                    success=success,
+                    min_steps=self._auto_skill_min_steps,
+                )
+        except Exception:
+            # Never break user flow due to self-evolution.
+            pass
 
         return response
 

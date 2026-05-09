@@ -331,8 +331,9 @@ class CLIInterface:
                     entry["tool_result"] = msg.tool_result
                 self.jarvis_agent.add_to_memory(entry)
 
-        # Initialize learning manager
-        self.learning_manager = LearningManager(LearningConfig(enabled=True))
+        # Initialize learning manager (only if enabled in settings)
+        settings = Settings()
+        self.learning_manager = LearningManager(LearningConfig(enabled=settings.learning_enabled)) if settings.learning_enabled else None
 
         # Initialize connector manager with filesystem connector
         self.connector_manager = ConnectorManager()
