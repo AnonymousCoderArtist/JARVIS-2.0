@@ -26,3 +26,19 @@
 - [ ] Implement better error handling and recovery mechanisms for agents
 - [ ] Add support for agent collaboration and communication
 - [X] Implement worktree tools for better code management in coding agents
+
+ ### WEBUI IMPLEMENTATION
+
+- [X]  Command System - Slash commands (WEBUI)
+- [ ]  Safety Profiles - 5 safety levels (Cycle with Shift+Tab)
+- [X]  Thinking Picker - Control AI reasoning detail level
+- [ ]  Model Picker - Switch between available LLM models
+- [X]  Tool Results Display - Rich display of tool outputs
+- [ ] MCP Integration - Model Context Protocol server support
+- [ ]  Voice Input - Voice recording capability (UI elements present)
+- [ ] Heartbeat System - Background task monitoring with notifications 
+- [X] Session & History: 
+    - [X] Session Management - Resume/load previous sessions
+    - [X] History Navigation - Load more historical messages
+    - [X] Local Session Storage - Save and restore sessions
+    - [X] Remote Sessions - Access sessions from remote instances

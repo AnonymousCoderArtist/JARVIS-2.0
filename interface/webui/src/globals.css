@@ -117,17 +117,39 @@
     --cjk-line-height: 1.625;
   }
 
-  /* Subtle scrollbar that doesn't fight the dark background. */
+  /* Subtle scrollbar with blue theme. */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+    scrollbar-color: rgba(26, 90, 255, 0.4) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground) / 0.4);
-    border-radius: 9999px;
+    background: rgba(26, 90, 255, 0.4);
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(26, 90, 255, 0.6);
+  }
+
+  /* All scrollbars use blue theme */
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(26, 90, 255, 0.3);
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(26, 90, 255, 0.5);
   }
 }

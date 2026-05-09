@@ -127,5 +127,27 @@ export async function updateSettings(
   const query = new URLSearchParams();
   if (update.model !== undefined) query.set("model", update.model);
   if (update.provider !== undefined) query.set("provider", update.provider);
+  if (update.thinking_level !== undefined) query.set("thinking_level", update.thinking_level);
   return request<SettingsPayload>(`${base}/api/settings/update?${query}`, token);
+}
+
+export interface RemoteSession {
+  key: string;
+  source: string;
+  title: string;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface RemoteSessionsResponse {
+  sessions: RemoteSession[];
+  error?: string;
+}
+
+export async function listRemoteSessions(
+  token: string,
+  base: string = "",
+): Promise<RemoteSessionsResponse> {
+  return request<RemoteSessionsResponse>(`${base}/api/sessions/remote`, token);
 }

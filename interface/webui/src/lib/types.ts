@@ -62,7 +62,7 @@ export interface UIMessage {
 }
 
 export interface ChatSummary {
-  /** Server-side session key, e.g. ``websocket:abcd-...``. */
+  /** Server-side session key, e.g. ``websocket:abcd-...`` or ``remote:abcd-...``. */
   key: string;
   /** Local channel + chat_id parts derived from ``key`` for convenience. */
   channel: string;
@@ -70,6 +70,12 @@ export interface ChatSummary {
   createdAt: string | null;
   updatedAt: string | null;
   preview: string;
+  /** Session source: "local" or "remote" */
+  source?: "local" | "remote";
+  /** Remote session status */
+  status?: string;
+  /** Session title (for remote sessions) */
+  title?: string;
 }
 
 export interface BootstrapResponse {
@@ -85,10 +91,16 @@ export interface SettingsPayload {
     provider: string;
     resolved_provider: string | null;
     has_api_key: boolean;
+    thinking_level?: string;
   };
   providers: Array<{
     name: string;
     label: string;
+  }>;
+  thinking_levels?: Array<{
+    name: string;
+    label: string;
+    description: string;
   }>;
   runtime: {
     config_path: string;
@@ -99,6 +111,7 @@ export interface SettingsPayload {
 export interface SettingsUpdate {
   model?: string;
   provider?: string;
+  thinking_level?: string;
 }
 
 export type ConnectionStatus =
@@ -190,6 +203,7 @@ export type Outbound =
       chat_id: string;
       content: string;
       media?: OutboundMedia[];
+      thinking_level?: string;
     }
   | {
       type: "approval_response";

@@ -145,6 +145,64 @@ A cohesive dark theme with a new color palette:
 
 ---
 
+## WebUI Improvements
+
+### Connection & Auto-Greeting
+- Added connection status indicator showing "Connecting to JARVIS..." when connecting
+- Auto-creates new chat session on WebSocket connect
+- Auto-sends "hi" message once connected so users see immediate activity (no waiting for connection)
+
+### Slash Commands System
+- Implemented slash command autocomplete in chat input
+- Commands: `/help`, `/status`, `/clear`, `/exit`, `/profile`, `/tools`, `/skills`, `/rewind`, `/config`, `/mcp`
+- Keyboard navigation: Arrow Up/Down to navigate, Enter/Tab to select, Escape to close
+- First Enter selects command, second Enter sends the message
+
+### Thinking Picker
+- Added thinking level selector (Low/Medium/High) in chat input
+- Persists thinking level with each message sent to backend
+- Dropdown UI with blue theme styling
+
+### Markdown Rendering
+- Tables: Custom styled UI tables with blue theme (not plain text)
+- Headings (h1/h2/h3): Properly styled with theme colors
+- Lists: Bulleted and numbered lists with proper styling
+- Bold/Italic: Theme-colored text
+
+### UI/UX Enhancements
+- **Infinite Dot Grid Canvas**: Truly infinite canvas with progressive dot expansion
+- **Blue Scrollbars**: All scrollbars styled with blue theme (`rgba(26, 90, 255, ...)`)
+- **Session Management**: Resume/load previous sessions, history navigation
+- **Local Session Storage**: Sessions saved to `~/.jarvis/sessions`
+- **Remote Sessions**: Connect to remote JARVIS instances via `JARVIS_REMOTE_URL` env variable
+
+### Backend API Updates
+- Added `thinking_level` to settings API (`/api/settings`)
+- Added `thinking_level` to message send API
+- Settings now includes available thinking levels for the frontend
+
+### Files Added
+- `interface/webui/src/components/techy/ThinkingPicker.tsx` — Thinking level dropdown
+- `interface/webui/src/components/techy/SlashCommands.tsx` — Command system
+- `interface/webui/src/components/techy/ChatInput.tsx` — Enhanced with commands & thinking
+
+### Files Modified
+- `core/web/server.py` — Added thinking_level to settings API, added remote sessions endpoint
+- `interface/webui/src/App.tsx` — Added connection status & auto-greeting
+- `interface/webui/src/components/techy/TechShell.tsx` — Connection handling, auto-hi
+- `interface/webui/src/components/techy/ChatInput.tsx` — Slash commands, thinking picker
+- `interface/webui/src/components/techy/DotGrid.tsx` — Infinite canvas
+- `interface/webui/src/components/techy/ChatHistory.tsx` — Remote sessions section with cyan theme
+- `interface/webui/src/components/MarkdownTextRenderer.tsx` — Tables, lists, headings
+- `interface/webui/src/globals.css` — Blue scrollbar styling
+- `interface/webui/src/lib/types.ts` — Added thinking_level, source, status to ChatSummary
+- `interface/webui/src/lib/api.ts` — Added thinking_level to updateSettings, added listRemoteSessions
+- `interface/webui/src/lib/jarvis-client.ts` — Added thinking_level to messages
+- `interface/webui/src/hooks/useSessions.ts` — Added remote sessions loading
+- `interface/webui/src/hooks/useJarvisStream.ts` — Added thinking_level to send
+
+---
+
 ## Files Modified
 
 | File | What Changed |

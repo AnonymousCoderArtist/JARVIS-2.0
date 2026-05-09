@@ -13,6 +13,55 @@ interface MarkdownTextRendererProps {
   className?: string;
 }
 
+function Table({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="my-4 overflow-x-auto rounded-lg border" style={{ borderColor: "rgba(26, 90, 255, 0.25)" }}>
+      <table
+        className="w-full border-collapse"
+      >
+        {children}
+      </table>
+    </div>
+  );
+}
+
+function TableHead({ children }: { children: React.ReactNode }) {
+  return (
+    <thead>
+      <tr style={{ background: "rgba(26, 90, 255, 0.15)" }}>
+        {children}
+      </tr>
+    </thead>
+  );
+}
+
+function TableBody({ children }: { children: React.ReactNode }) {
+  return <tbody>{children}</tbody>;
+}
+
+function TableRow({ children }: { children: React.ReactNode }) {
+  return (
+    <tr className="border-b" style={{ borderColor: "rgba(26, 90, 255, 0.1)" }}>
+      {children}
+    </tr>
+  );
+}
+
+function TableCell({ children, isHeader = false }: { children: React.ReactNode; isHeader?: boolean }) {
+  const Tag = isHeader ? "th" : "td";
+  return (
+    <Tag
+      className="px-3 py-2 text-sm"
+      style={{
+        color: isHeader ? "rgba(200, 220, 255, 0.95)" : "rgba(180, 200, 230, 0.85)",
+        fontWeight: isHeader ? 600 : 400,
+      }}
+    >
+      {children}
+    </Tag>
+  );
+}
+
 /**
  * Heavy markdown stack (GFM, math, KaTeX, syntax highlighting) kept in a
  * separate chunk so the app shell can paint sooner on refresh.
@@ -35,7 +84,6 @@ export default function MarkdownTextRenderer({
         "prose-hr:my-6",
         "prose-pre:my-0 prose-pre:bg-transparent prose-pre:p-0",
         "prose-code:before:content-none prose-code:after:content-none prose-code:font-normal",
-        "prose-table:my-3 prose-th:text-left prose-th:font-medium",
         className,
       )}
       style={{ lineHeight: "var(--cjk-line-height)" }}
@@ -76,6 +124,87 @@ export default function MarkdownTextRenderer({
               >
                 {markdownChildren}
               </a>
+            );
+          },
+          table({ children }) {
+            return <Table>{children}</Table>;
+          },
+          thead({ children }) {
+            return <TableHead>{children}</TableHead>;
+          },
+          tbody({ children }) {
+            return <TableBody>{children}</TableBody>;
+          },
+          tr({ children }) {
+            return <TableRow>{children}</TableRow>;
+          },
+          th({ children }) {
+            return <TableCell isHeader>{children}</TableCell>;
+          },
+          td({ children }) {
+            return <TableCell>{children}</TableCell>;
+          },
+          p({ children }) {
+            return (
+              <p className="my-2" style={{ color: "rgba(180, 200, 230, 0.9)" }}>
+                {children}
+              </p>
+            );
+          },
+          h1({ children }) {
+            return (
+              <h1 className="text-xl font-semibold mt-4 mb-2" style={{ color: "rgba(200, 220, 255, 0.95)" }}>
+                {children}
+              </h1>
+            );
+          },
+          h2({ children }) {
+            return (
+              <h2 className="text-lg font-semibold mt-4 mb-2" style={{ color: "rgba(200, 220, 255, 0.95)" }}>
+                {children}
+              </h2>
+            );
+          },
+          h3({ children }) {
+            return (
+              <h3 className="text-base font-semibold mt-3 mb-1" style={{ color: "rgba(200, 220, 255, 0.95)" }}>
+                {children}
+              </h3>
+            );
+          },
+          ul({ children }) {
+            return (
+              <ul className="my-2 ml-4 list-disc" style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+                {children}
+              </ul>
+            );
+          },
+          ol({ children }) {
+            return (
+              <ol className="my-2 ml-4 list-decimal" style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+                {children}
+              </ol>
+            );
+          },
+          li({ children }) {
+            return (
+              <li className="my-1" style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+                {children}
+              </li>
+            );
+          },
+          strong({ children }) {
+            return (
+              <strong style={{ color: "rgba(200, 220, 255, 0.95)", fontWeight: 600 }}>
+                {children}
+              </strong>
+            );
+          },
+          em({ children }) {
+            return (
+              <em style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+                {children}
+              </em>
             );
           },
         }}

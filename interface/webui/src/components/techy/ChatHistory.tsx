@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Cloud, CloudOff } from "lucide-react";
 import type { ChatSummary } from "@/lib/types";
 
 interface ChatHistoryProps {
@@ -105,16 +106,16 @@ export function ChatHistory({
         </button>
       </div>
 
-      {/* Session list */}
+      {/* Local sessions */}
       <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-        {sessions.length === 0 && (
+        {sessions.filter(s => s.source !== "remote").length === 0 && (
           <div className="flex h-full items-center justify-center">
             <span className="text-[10px] tracking-widest text-slate-700 uppercase">
-              NO CHATS
+              NO LOCAL CHATS
             </span>
           </div>
         )}
-        {sessions.map((s) => {
+        {sessions.filter(s => s.source !== "remote").map((s) => {
           const isActive = s.key === activeKey;
           return (
             <button
@@ -148,6 +149,79 @@ export function ChatHistory({
           );
         })}
       </div>
+
+      {/* Remote sessions section */}
+      {sessions.some(s => s.source === "remote") && (
+        <>
+          <div
+            className="flex items-center gap-2 px-5 py-2"
+            style={{ borderTop: "1px solid rgba(30, 80, 180, 0.15)" }}
+          >
+            <Cloud className="h-3 w-3 text-cyan-400" />
+            <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-cyan-400/80">
+              Remote Sessions
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 pb-4">
+            {sessions.filter(s => s.source === "remote").map((s) => {
+              const isActive = s.key === activeKey;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => onSelect(s.key)}
+                  className="w-full rounded-xl px-4 py-2.5 text-left transition-all duration-200"
+                  style={{
+                    background: isActive
+                      ? "linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(6, 182, 212, 0.05))"
+                      : "rgba(8, 30, 40, 0.4)",
+                    border: isActive
+                      ? "1px solid rgba(34, 211, 238, 0.35)"
+                      : "1px solid rgba(34, 211, 238, 0.08)",
+                    boxShadow: isActive
+                      ? "0 0 15px rgba(34, 211, 238, 0.1)"
+                      : "none",
+                  }}
+                >
+                  <span
+                    className="block text-xs leading-relaxed"
+                    style={{
+                      color: isActive ? "#67e8f9" : "#8899bb",
+                    }}
+                  >
+                    {s.title || s.preview || `Remote ${s.chatId.slice(0, 8)}`}
+                  </span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[9px] tracking-wider text-cyan-500/60 uppercase">
+                      {s.status || "remote"}
+                    </span>
+                    {s.updatedAt && (
+                      <span className="text-[9px] tracking-wider text-slate-600 uppercase">
+                        {new Date(s.updatedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* No remote sessions hint */}
+      {sessions.filter(s => s.source === "remote").length === 0 && (
+        <div
+          className="flex items-center gap-2 px-5 py-2"
+          style={{ borderTop: "1px solid rgba(30, 80, 180, 0.15)" }}
+        >
+          <CloudOff className="h-3 w-3 text-slate-600" />
+          <span className="text-[9px] tracking-wider text-slate-600 uppercase">
+            No remote sessions
+          </span>
+          <span className="text-[8px] text-slate-700">
+            (set JARVIS_REMOTE_URL)
+          </span>
+        </div>
+      )}
     </div>
   );
 }

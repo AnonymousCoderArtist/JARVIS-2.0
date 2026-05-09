@@ -28,12 +28,14 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | **🍴 Fork Subagent** | Fork conversation context for parallel exploration |
 | **🔌 MCP Integration** | Connect to external MCP servers (stdio/HTTP transports) |
 | **🌐 WebUI** | Full-featured browser-based interface with FastAPI backend |
+| **🎨 Techy WebUI** | Modern dark UI with infinite canvas, dot grid, slash commands, thinking picker |
 | **💡 Learning System** | Pattern detection, skill creation, and self-evaluation |
 | **💾 Semantic Memory** | Memory management for knowledge retrieval |
 | **💻 Dual Interfaces** | Rich CLI, modern TUI (Textual), and WebUI |
 | **🔒 Safety First** | Granular permission system with 5 agent profiles |
 | **🔧 20+ Tools** | Comprehensive tools for file ops, code execution, web, and more |
 | **🔌 Multi-LLM** | OpenAI, Anthropic, and custom SDK adapters |
+| **☁️ Remote Sessions** | Connect to remote JARVIS instances via JARVIS_REMOTE_URL |
 
 ---
 
@@ -49,12 +51,13 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | ✅ Fork Subagent | Ready |
 | ✅ CLI Interface | Stable |
 | ✅ TUI Interface | Complete (Default) |
-| ✅ WebUI | Complete |
+| ✅ WebUI | Complete (with slash commands, thinking picker, remote sessions) |
 | ✅ Permission System | Complete |
 | ✅ MCP Integration | Complete |
 | ✅ Learning System | Complete |
 | ✅ Heartbeat System | Complete |
 | ✅ Connectors System | Complete |
+| ✅ Session Management | Complete (local + remote) |
 
 ---
 
@@ -235,8 +238,6 @@ jarvis --cli -m gpt-4o --apikey YOUR_KEY
 
 ### WebUI Mode
 
-> ⚠️ **Note:** WebUI is currently **Work in Progress**. For a stable experience, please use **CLI** or **TUI** instead.
-
 ```bash
 # Launch WebUI interface (default: http://127.0.0.1:5173)
 jarvis --webui
@@ -246,6 +247,23 @@ jarvis --webui --port 8080 --backend-port 8765
 
 # Expose to network
 jarvis --webui --host 0.0.0.0 --port 5173
+```
+
+#### WebUI Features
+
+- **Slash Commands**: Type `/` for autocomplete (help, status, clear, exit, profile, tools, skills, rewind, config, mcp)
+- **Thinking Picker**: Select AI reasoning level (Low/Medium/High) for each message
+- **Infinite Canvas**: Draggable dot grid background that extends infinitely
+- **Remote Sessions**: Connect to remote JARVIS instances via `JARVIS_REMOTE_URL` env variable
+- **Markdown Rendering**: Beautiful tables, lists, headings with blue theme styling
+- **Session Management**: Resume/load previous sessions from local storage
+- **Auto-Greeting**: Sends "hi" on connect so users see immediate activity
+
+#### Environment Variables for WebUI
+
+```env
+# Remote sessions (optional)
+JARVIS_REMOTE_URL=https://your-remote-jarvis.com
 ```
 
 ### Available CLI Flags

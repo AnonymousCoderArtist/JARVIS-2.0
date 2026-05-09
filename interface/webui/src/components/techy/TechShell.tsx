@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { DotGrid } from "./DotGrid";
 import { TopMenu } from "./TopMenu";
 import { TechSphere } from "./TechSphere";
@@ -11,7 +11,8 @@ import { ToolApprovalPrompt } from "@/components/thread/ToolApprovalPrompt";
 import { useDraggable } from "./useDraggable";
 import { useSessions, useSessionHistory } from "@/hooks/useSessions";
 import { useJarvisStream } from "@/hooks/useJarvisStream";
-import type { UIMessage } from "@/lib/types";
+import { useClient } from "@/providers/ClientProvider";
+import type { UIMessage, ConnectionStatus } from "@/lib/types";
 
 function extractToolCalls(messages: UIMessage[]) {
   const seen = new Set<string>();
@@ -45,10 +46,31 @@ function extractToolCalls(messages: UIMessage[]) {
 }
 
 export function TechShell() {
+  const { client } = useClient();
   const { sessions, createChat } = useSessions();
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
+  const hasGreetedRef = useRef(false);
+  const isCreatingChatRef = useRef(false);
+
+  useEffect(() => {
+    const unsubscribe = client.onStatus((status) => {
+      setConnectionStatus(status);
+      if (status === "open" && sessions.length === 0 && !isCreatingChatRef.current) {
+        isCreatingChatRef.current = true;
+        void createChat().then((id) => {
+          if (id) {
+            const key = `websocket:${id}`;
+            setActiveKey(key);
+          }
+          isCreatingChatRef.current = false;
+        });
+      }
+    });
+    return unsubscribe;
+  }, [client, sessions.length, createChat]);
 
   useEffect(() => {
     if (!activeKey && sessions.length > 0) {
@@ -77,13 +99,22 @@ export function TechShell() {
     sendApprovalResponse,
   } = useJarvisStream(chatId, historyMessages, hasPendingToolCalls);
 
+  useEffect(() => {
+    if (connectionStatus === "open" && chatId && !hasGreetedRef.current) {
+      hasGreetedRef.current = true;
+      setTimeout(() => {
+        send("hi", undefined, "medium");
+      }, 150);
+    }
+  }, [connectionStatus, chatId, send]);
+
   const toolCalls = useMemo(() => extractToolCalls(messages), [messages]);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<{ content: string; thinkingLevel: string } | null>(null);
 
   const handleSend = useCallback(
-    (content: string) => {
+    (content: string, thinkingLevel?: string) => {
       if (!chatId) {
-        setPendingMessage(content);
+        setPendingMessage({ content, thinkingLevel: thinkingLevel || "medium" });
         void createChat().then((id) => {
           if (id) {
             const key = `websocket:${id}`;
@@ -92,14 +123,14 @@ export function TechShell() {
         });
         return;
       }
-      send(content);
+      send(content, undefined, thinkingLevel);
     },
     [chatId, createChat, send]
   );
 
   useEffect(() => {
     if (chatId && pendingMessage) {
-      send(pendingMessage);
+      send(pendingMessage.content, undefined, pendingMessage.thinkingLevel);
       setPendingMessage(null);
     }
   }, [chatId, pendingMessage, send]);
@@ -198,6 +229,36 @@ export function TechShell() {
           }
         }}
       />
+
+      {/* Connection Status Indicator */}
+      {connectionStatus !== "open" && (
+        <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2">
+          <div
+            className="flex items-center gap-3 rounded-full px-4 py-2"
+            style={{
+              background: "linear-gradient(180deg, rgba(10, 20, 45, 0.95) 0%, rgba(6, 12, 28, 0.95) 100%)",
+              border: "1px solid rgba(26, 90, 255, 0.3)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+            }}
+          >
+            <div className="relative flex h-3 w-3">
+              <span
+                className="absolute inline-flex h-full w-full animate-ping rounded-full"
+                style={{ background: connectionStatus === "connecting" ? "rgba(26, 90, 255, 0.5)" : "rgba(255, 100, 100, 0.5)" }}
+              />
+              <span
+                className="relative inline-flex h-3 w-3 rounded-full"
+                style={{ background: connectionStatus === "connecting" ? "rgba(26, 90, 255, 0.8)" : "rgba(255, 100, 100, 0.8)" }}
+              />
+            </div>
+            <span className="text-xs font-medium tracking-wide" style={{ color: "rgba(120, 160, 255, 0.9)" }}>
+              {connectionStatus === "connecting" ? "Connecting to JARVIS..." : 
+               connectionStatus === "reconnecting" ? "Reconnecting..." : 
+               connectionStatus === "closed" ? "Disconnected" : "Connecting..."}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Sphere response bubble — top-right of sphere (thinking → response) */}
       <SphereResponse

@@ -803,6 +803,7 @@ async def api_get_settings():
     provider = os.getenv("JARVIS_SDK", "openai")
     model = os.getenv("JARVIS_MODEL", "gpt-4o")
     has_api_key = bool(os.getenv("JARVIS_API_KEY"))
+    thinking_level = os.getenv("JARVIS_THINKING_LEVEL", "medium")
 
     if provider == "openai":
         resolved_provider = "openai"
@@ -817,11 +818,17 @@ async def api_get_settings():
             "provider": provider,
             "resolved_provider": resolved_provider,
             "has_api_key": has_api_key,
+            "thinking_level": thinking_level,
         },
         "providers": [
             {"name": "auto", "label": "Auto"},
             {"name": "openai", "label": "OpenAI"},
             {"name": "anthropic", "label": "Anthropic"},
+        ],
+        "thinking_levels": [
+            {"name": "low", "label": "Low", "description": "Minimal reasoning"},
+            {"name": "medium", "label": "Medium", "description": "Balanced reasoning"},
+            {"name": "high", "label": "High", "description": "Detailed reasoning"},
         ],
         "runtime": {
             "config_path": str(Path.home() / ".jarvis" / "config.json"),
@@ -835,6 +842,7 @@ async def api_update_settings(request: Request):
     """Update settings"""
     model = request.query_params.get("model", os.getenv("JARVIS_MODEL", "gpt-4o"))
     provider = request.query_params.get("provider", os.getenv("JARVIS_SDK", "openai"))
+    thinking_level = request.query_params.get("thinking_level", os.getenv("JARVIS_THINKING_LEVEL", "medium"))
 
     if provider == "openai":
         resolved_provider = "openai"
@@ -843,23 +851,68 @@ async def api_update_settings(request: Request):
     else:
         resolved_provider = "auto"
 
+    os.environ["JARVIS_THINKING_LEVEL"] = thinking_level
+
     return {
         "agent": {
             "model": model,
             "provider": provider,
             "resolved_provider": resolved_provider,
             "has_api_key": bool(os.getenv("JARVIS_API_KEY")),
+            "thinking_level": thinking_level,
         },
         "providers": [
             {"name": "auto", "label": "Auto"},
             {"name": "openai", "label": "OpenAI"},
             {"name": "anthropic", "label": "Anthropic"},
         ],
+        "thinking_levels": [
+            {"name": "low", "label": "Low", "description": "Minimal reasoning"},
+            {"name": "medium", "label": "Medium", "description": "Balanced reasoning"},
+            {"name": "high", "label": "High", "description": "Detailed reasoning"},
+        ],
         "runtime": {
             "config_path": str(Path.home() / ".jarvis" / "config.json"),
         },
         "requires_restart": False,
     }
+
+
+@app.get("/api/sessions/remote")
+async def api_list_remote_sessions():
+    """List remote sessions from cloud/remote instances.
+    
+    This endpoint allows connecting to remote JARVIS instances to list
+    and resume sessions stored in the cloud.
+    """
+    remote_url = os.getenv("JARVIS_REMOTE_URL", "")
+    
+    if not remote_url:
+        return {"sessions": [], "error": "No remote URL configured. Set JARVIS_REMOTE_URL to enable remote sessions."}
+    
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{remote_url}/api/sessions")
+            if response.status_code == 200:
+                data = response.json()
+                sessions = data.get("sessions", [])
+                return {
+                    "sessions": [
+                        {
+                            "key": f"remote:{s.get('key', s.get('session_id', ''))}",
+                            "source": "remote",
+                            "title": s.get("title", s.get("preview", "Remote Session")),
+                            "status": s.get("status", "active"),
+                            "created_at": s.get("created_at"),
+                            "updated_at": s.get("updated_at"),
+                        }
+                        for s in sessions
+                    ]
+                }
+            return {"sessions": [], "error": f"Failed to fetch remote sessions: {response.status_code}"}
+    except Exception as e:
+        return {"sessions": [], "error": f"Failed to connect to remote: {str(e)[:100]}"}
 
 
 @app.get("/")

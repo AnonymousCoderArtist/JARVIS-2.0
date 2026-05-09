@@ -7,6 +7,7 @@ import {
   deleteSession as apiDeleteSession,
   fetchSessionMessages,
   listSessions,
+  listRemoteSessions,
 } from "@/lib/api";
 import { deriveTitle } from "@/lib/format";
 import { toMediaAttachment } from "@/lib/media";
@@ -34,7 +35,31 @@ export function useSessions(): {
     try {
       setLoading(true);
       const rows = await listSessions(tokenRef.current);
-      setSessions(rows);
+      
+      const localSessions = rows.map(s => ({ ...s, source: "local" as const }));
+      
+      try {
+        const remoteData = await listRemoteSessions(tokenRef.current);
+        if (remoteData.sessions && remoteData.sessions.length > 0) {
+          const remoteSessions = remoteData.sessions.map(s => ({
+            key: s.key,
+            channel: s.key.split(":")[0] || "remote",
+            chatId: s.key.split(":")[1] || s.key,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            preview: s.title || "",
+            source: "remote" as const,
+            status: s.status,
+            title: s.title,
+          }));
+          setSessions([...localSessions, ...remoteSessions]);
+        } else {
+          setSessions(localSessions);
+        }
+      } catch {
+        setSessions(localSessions);
+      }
+      
       setError(null);
     } catch (e) {
       const msg =

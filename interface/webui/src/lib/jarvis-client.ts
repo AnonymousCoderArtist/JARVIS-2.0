@@ -188,7 +188,7 @@ export class JarvisClient {
     chatId: string,
     content: string,
     media?: OutboundMedia[],
-    options?: { type: "approval_response"; tool_call_id: string; approved: boolean; always_allow?: boolean },
+    options?: { type: "approval_response"; tool_call_id: string; approved: boolean; always_allow?: boolean } | { type: "message_options"; thinking_level?: string },
   ): void {
     this.knownChats.add(chatId);
     if (options && options.type === "approval_response") {
@@ -201,10 +201,11 @@ export class JarvisClient {
       });
       return;
     }
+    const thinkingLevel = options && options.type === "message_options" ? options.thinking_level : undefined;
     const frame: Outbound =
       media && media.length > 0
-        ? { type: "message", chat_id: chatId, content, media }
-        : { type: "message", chat_id: chatId, content };
+        ? { type: "message", chat_id: chatId, content, media, thinking_level: thinkingLevel }
+        : { type: "message", chat_id: chatId, content, thinking_level: thinkingLevel };
     this.queueSend(frame);
   }
 

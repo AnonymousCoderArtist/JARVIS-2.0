@@ -34,7 +34,7 @@ export function useJarvisStream(
   messages: UIMessage[];
   isStreaming: boolean;
   thinking: string;
-  send: (content: string, images?: SendImage[]) => void;
+  send: (content: string, images?: SendImage[], thinkingLevel?: string) => void;
   setMessages: React.Dispatch<React.SetStateAction<UIMessage[]>>;
   streamError: StreamError | null;
   dismissStreamError: () => void;
@@ -292,7 +292,7 @@ if (ev.event === "delta") {
   }, [chatId, client, messages.length]); // messages.length to re-bind closure if needed
 
   const send = useCallback(
-    (content: string, images?: SendImage[]) => {
+    (content: string, images?: SendImage[], thinkingLevel?: string) => {
       if (!chatId) return;
       const hasImages = !!images && images.length > 0;
       if (!hasImages && !content.trim()) return;
@@ -310,7 +310,7 @@ if (ev.event === "delta") {
       ]);
       setIsStreaming(true);
       const wireMedia = hasImages ? images!.map((i) => i.media) : undefined;
-      client.sendMessage(chatId, content, wireMedia);
+      client.sendMessage(chatId, content, wireMedia, { type: "message_options", thinking_level: thinkingLevel });
     },
     [chatId, client],
   );
