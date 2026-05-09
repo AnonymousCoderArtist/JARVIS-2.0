@@ -115,6 +115,7 @@ class ToolResultWidget(Generic[TResult], Static, can_focus=True):
         yield NoMarkupStatic(summary_text, classes="tool-result-summary")
 
         if not self.collapsed and self.result:
+            yielded = False
             # Handle both BaseModel and plain dict results
             if isinstance(self.result, BaseModel):
                 field_names = type(self.result).model_fields or {}
@@ -124,12 +125,18 @@ class ToolResultWidget(Generic[TResult], Static, can_focus=True):
                         yield NoMarkupStatic(
                             f"{field_name}: {value}", classes="tool-result-detail"
                         )
+                        yielded = True
             elif isinstance(self.result, dict):
                 for field_name, value in self.result.items():
                     if value is not None and value not in ("", []):
                         yield NoMarkupStatic(
                             f"{field_name}: {value}", classes="tool-result-detail"
                         )
+                        yielded = True
+            
+            if not yielded:
+                yield NoMarkupStatic(str(self.result), classes="tool-result-detail")
+                
         yield from self._footer()
 
     def on_click(self, event) -> None:
