@@ -63,22 +63,6 @@ class TestPatternDetector:
         assert prefs["preferred_output_format"] == "code_with_explanation"
 
 
-class TestPromptOptimizer:
-    """Tests for prompt optimization"""
-
-    def test_optimize_code_only(self):
-        """Test optimization adds code-only hint"""
-        prompt = "You are a helpful assistant."
-        optimized = prompt.rstrip() + "\n\nBe concise."
-        assert "be concise" in optimized.lower()
-
-    def test_no_optimization_needed(self):
-        """Test when no changes needed"""
-        prompt = "You are a helpful assistant."
-        # No changes when no patterns
-        assert prompt is not None
-
-
 class TestLearningManager:
     """Tests for learning manager"""
 

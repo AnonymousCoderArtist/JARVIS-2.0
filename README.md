@@ -142,7 +142,6 @@ JARVIS/
 │   ├── learn/          # Learning system
 │   │   ├── learning_manager.py  # Main learning
 │   │   ├── pattern_detector.py   # Pattern detection
-│   │   └── prompt_optimizer.py   # Prompt optimization
 │   ├── connectors/     # Connectors system
 │   │   ├── manager.py # ConnectorManager
 │   │   └── filesystem.py  # Filesystem connector

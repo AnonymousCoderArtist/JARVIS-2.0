@@ -603,15 +603,29 @@ class DisplayManager:
             self.console.print(Panel("No patterns detected yet.", title="Patterns", border_style="secondary"))
             return
 
-        table = Table(show_header=True, header_style="primary", box=None)
-        table.add_column("Pattern", style="info")
-        table.add_column("Type")
-        table.add_column("Confidence")
+        if isinstance(patterns[0], str):
+            # Simple string patterns from traces
+            table = Table(show_header=True, header_style="primary", box=None)
+            table.add_column("Recent User Inputs", style="info")
+            for p in patterns[:10]:
+                table.add_row(p[:80] + ("..." if len(p) > 80 else ""))
+            self.console.print(Panel(table, title="Recent Traces", border_style="secondary"))
+        else:
+            # Dict or object patterns with name/category/confidence
+            table = Table(show_header=True, header_style="primary", box=None)
+            table.add_column("Pattern", style="info")
+            table.add_column("Type")
+            table.add_column("Confidence")
+            table.add_column("Suggestion")
 
-        for p in patterns[:10]:  # Show top 10
-            table.add_row(p.name, p.category, f"{p.confidence:.0%}")
+            for p in patterns[:10]:  # Show top 10
+                name = p.get("name", p.name if hasattr(p, "name") else "unknown")
+                category = p.get("category", p.category if hasattr(p, "category") else "unknown")
+                confidence = p.get("confidence", p.confidence if hasattr(p, "confidence") else 0)
+                suggestion = p.get("suggestion", p.suggestion if hasattr(p, "suggestion") else "")
+                table.add_row(name, category, f"{confidence:.0%}", suggestion[:50] + ("..." if len(suggestion) > 50 else ""))
 
-        self.console.print(Panel(table, title="Detected Patterns", border_style="secondary"))
+            self.console.print(Panel(table, title="Detected Patterns", border_style="secondary"))
 
 
 class StreamingResponse:

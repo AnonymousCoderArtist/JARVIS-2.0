@@ -27,7 +27,7 @@ from .constants import (
     VERIFICATION_ALLOWED_TOOLS,
 )
 from .filtered_registry import _FilteredToolRegistry
-from .utils import get_agent_param
+from .utils import create_agent, get_agent_param, make_config_getter
 
 logger = logging.getLogger(__name__)
 
@@ -267,129 +267,30 @@ class AgentTool(BaseTool):
             )
         else:
             # Run synchronously (blocking) - for backwards compatibility
-            from core.agents import EXPLORE, PLAN, ExploreAgent, PlanAgent
-            from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
-            from core.agents.builtin.verification_agent import VerificationAgent
+            from core.agents import EXPLORE, PLAN
             from core.config.settings import Settings
 
-            if agent_name == "explore":
-                def explore_config_getter() -> Settings:
-                    if callable(config_getter):
-                        base_settings = config_getter()
-                    else:
-                        base_settings = Settings()
-                    merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
-                    return Settings(initial_config=merged_config)
+            _agent_allowed = {
+                "explore": EXPLORE_ALLOWED_TOOLS,
+                "plan": PLAN_ALLOWED_TOOLS,
+                "jarvis-help": JARVIS_HELP_ALLOWED_TOOLS,
+                "verification": VERIFICATION_ALLOWED_TOOLS,
+            }
 
-                explore_registry = _FilteredToolRegistry(
-                    tool_registry,
-                    allowed_tools=EXPLORE_ALLOWED_TOOLS,
+            if agent_name in _agent_allowed:
+                profile = {
+                    "explore": EXPLORE,
+                    "plan": PLAN,
+                }.get(agent_name)
+                conf_getter = make_config_getter(config_getter, profile)
+                subagent = create_agent(
+                    agent_name=agent_name,
                     llm_provider=llm_provider,
+                    tool_registry=tool_registry,
                     model=model,
-                    config_getter=explore_config_getter,
+                    config_getter=conf_getter,
+                    allowed_tools=_agent_allowed[agent_name],
                 )
-
-                subagent = ExploreAgent(
-                    llm_provider=llm_provider,
-                    tool_registry=explore_registry,
-                    model=model,
-                    config_getter=explore_config_getter,
-                )
-                subagent.rebuild_system_prompt()
-
-                result = await subagent.process(prompt)
-
-                return ToolOutput(
-                    success=True,
-                    result=result,
-                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
-                )
-
-            elif agent_name == "plan":
-                def plan_config_getter() -> Settings:
-                    if callable(config_getter):
-                        base_settings = config_getter()
-                    else:
-                        base_settings = Settings()
-                    merged_config = PLAN.apply_to_config(base_settings.model_dump())
-                    return Settings(initial_config=merged_config)
-
-                plan_registry = _FilteredToolRegistry(
-                    tool_registry,
-                    allowed_tools=PLAN_ALLOWED_TOOLS,
-                    llm_provider=llm_provider,
-                    model=model,
-                    config_getter=plan_config_getter,
-                )
-
-                subagent = PlanAgent(
-                    llm_provider=llm_provider,
-                    tool_registry=plan_registry,
-                    model=model,
-                    config_getter=plan_config_getter,
-                )
-                subagent.rebuild_system_prompt()
-
-                result = await subagent.process(prompt)
-
-                return ToolOutput(
-                    success=True,
-                    result=result,
-                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
-                )
-
-            elif agent_name == "jarvis-help":
-                def help_config_getter() -> Settings:
-                    if callable(config_getter):
-                        return config_getter()
-                    return Settings()
-
-                help_registry = _FilteredToolRegistry(
-                    tool_registry,
-                    allowed_tools=JARVIS_HELP_ALLOWED_TOOLS,
-                    llm_provider=llm_provider,
-                    model=model,
-                    config_getter=help_config_getter,
-                )
-
-                subagent = JarvisHelpAgent(
-                    llm_provider=llm_provider,
-                    tool_registry=help_registry,
-                    model=model,
-                    config_getter=help_config_getter,
-                )
-                subagent.rebuild_system_prompt()
-
-                result = await subagent.process(prompt)
-
-                return ToolOutput(
-                    success=True,
-                    result=result,
-                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
-                )
-
-            elif agent_name == "verification":
-                def verify_config_getter() -> Settings:
-                    if callable(config_getter):
-                        return config_getter()
-                    return Settings()
-
-                verify_registry = _FilteredToolRegistry(
-                    tool_registry,
-                    allowed_tools=VERIFICATION_ALLOWED_TOOLS,
-                    llm_provider=llm_provider,
-                    model=model,
-                    config_getter=verify_config_getter,
-                )
-
-                subagent = VerificationAgent(
-                    llm_provider=llm_provider,
-                    tool_registry=verify_registry,
-                    model=model,
-                    config_getter=verify_config_getter,
-                )
-                subagent.rebuild_system_prompt()
-
                 result = await subagent.process(prompt)
 
                 return ToolOutput(
@@ -407,11 +308,103 @@ class AgentTool(BaseTool):
                 )
 
             else:
+                # Try loading custom agents from .jarvis/agents/
+                from core.agents.custom_loader import discover_custom_agents
+                custom_agents = discover_custom_agents()
+                custom_agent = next((a for a in custom_agents if a.agent_type == agent_name), None)
+
+                if custom_agent:
+                    return await self._handle_custom_agent(
+                        custom_agent, prompt, llm_provider, tool_registry, model, config_getter
+                    )
+
+                # Build list of available agents
+                builtin_agents = ['explore', 'plan', 'jarvis-help', 'verification', 'statusline-setup']
+                custom_names = [a.agent_type for a in custom_agents]
+                all_agents = builtin_agents + custom_names
+
                 return ToolOutput(
                     success=False,
                     result=None,
-                    error=f"Unknown agent: {agent_name}. Available agents: 'explore', 'plan', 'jarvis-help', 'verification', 'statusline-setup'"
+                    error=f"Unknown agent: {agent_name}. Available agents: {', '.join(all_agents)}"
                 )
+
+    async def _handle_custom_agent(
+        self,
+        definition,
+        prompt: str,
+        llm_provider,
+        tool_registry,
+        model,
+        config_getter,
+    ) -> ToolOutput:
+        """Handle a custom agent loaded from .jarvis/agents/"""
+        from core.config.settings import Settings
+        from typing import Any
+
+        def custom_config_getter() -> Any:
+            if callable(config_getter):
+                return config_getter()
+            return Settings()
+
+        # Create filtered registry based on agent definition
+        allowed_tools = getattr(definition, "tools", None)
+
+        if allowed_tools:
+            custom_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=allowed_tools,
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=custom_config_getter,
+            )
+        else:
+            custom_registry = tool_registry
+
+        # Get system prompt from definition if available
+        system_prompt = ""
+        get_prompt_fn = getattr(definition, "get_system_prompt", None)
+        if callable(get_prompt_fn):
+            result = get_prompt_fn()
+            system_prompt = result if isinstance(result, str) else ""
+
+        # Create agent instance dynamically
+        from core.agents.base import BaseAgent
+
+        class CustomAgent(BaseAgent):
+            def __init__(self, llm_provider, tool_registry, system_prompt: str = "", model=None, config_getter=None):
+                super().__init__(
+                    llm_provider=llm_provider,
+                    tool_registry=tool_registry,
+                    system_prompt=system_prompt,
+                    model=model,
+                    config_getter=config_getter,
+                )
+                self.rebuild_system_prompt()
+
+            async def process(self, input: str, context: dict | None = None) -> str:
+                messages = self._build_messages(input, include_memory=False)
+                return await self._process_with_tools(messages, stream=False)
+
+            async def plan(self, task: str) -> list[dict[str, Any]]:
+                """Required abstract method implementation."""
+                return [{"action": "custom_agent_process", "input": task}]
+
+        subagent = CustomAgent(
+            llm_provider=llm_provider,
+            tool_registry=custom_registry,
+            system_prompt=system_prompt,
+            model=model,
+            config_getter=custom_config_getter,
+        )
+
+        result = await subagent.process(prompt)
+
+        return ToolOutput(
+            success=True,
+            result=result,
+            metadata={"agent": definition.agent_type, "prompt_length": len(prompt), "background": False}
+        )
 
     async def _handle_status(self, taskId: str) -> ToolOutput:
         """Handle agent status operation"""
@@ -637,7 +630,7 @@ class AgentsTool(AgentTool):
 
 class AgentStatusTool(AgentTool):
     """Specialized tool for checking agent status.
-    
+
     This tool provides a simpler interface focused on status and results
     operations for background agents.
     """
@@ -684,5 +677,3 @@ class AgentStatusTool(AgentTool):
             return await self._handle_status("list")
 
         return await super().execute(input_data)
-
-

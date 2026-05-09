@@ -22,7 +22,6 @@ from .constants import (
     STATUSLINE_SETUP_ALLOWED_TOOLS,
     VERIFICATION_ALLOWED_TOOLS,
 )
-from .filtered_registry import _FilteredToolRegistry
 from .fork_subagent import (
     ForkMetadata,
     complete_fork,
@@ -44,7 +43,7 @@ async def _run_agent_in_background(
     event_queue=None,
 ):
     """Run an agent in the background and update status when done.
-    
+
     Args:
         task_id: Unique task identifier
         agent_name: Name of the agent type to run
@@ -55,10 +54,10 @@ async def _run_agent_in_background(
         config_getter: Configuration getter function
         event_queue: Optional event queue for UI updates
     """
-    from core.agents import EXPLORE, PLAN, ExploreAgent, PlanAgent
-    from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
-    from core.agents.builtin.verification_agent import VerificationAgent
+    from core.agents import EXPLORE, PLAN
     from core.config.settings import Settings
+
+    from .utils import create_agent, extract_token_usage
 
     # Define callback to track tool usage
     def _on_tool_call(tool_name: str, tool_args: dict) -> None:
@@ -80,6 +79,8 @@ async def _run_agent_in_background(
                     _background_agents[task_id].current_activity = ""
         asyncio.create_task(_update())
 
+    callbacks = {"tool_call": _on_tool_call, "tool_result": _on_tool_result}
+
     try:
         # Update status to running
         async with _background_lock:
@@ -88,187 +89,63 @@ async def _run_agent_in_background(
 
         # Create the appropriate subagent
         if agent_name == "explore":
-            def explore_config_getter() -> Settings:
-                if callable(config_getter):
-                    base_settings = config_getter()
-                else:
-                    base_settings = Settings()
-                merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
-                return Settings(initial_config=merged_config)
-
-            explore_registry = _FilteredToolRegistry(
-                tool_registry,
+            from .utils import make_config_getter
+            conf_getter = make_config_getter(config_getter, EXPLORE)
+            subagent = create_agent(
+                agent_name="explore",
+                llm_provider=llm_provider,
+                tool_registry=tool_registry,
+                model=model,
+                config_getter=conf_getter,
                 allowed_tools=EXPLORE_ALLOWED_TOOLS,
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=explore_config_getter,
+                callbacks=callbacks,
             )
-
-            subagent = ExploreAgent(
-                llm_provider=llm_provider,
-                tool_registry=explore_registry,
-                model=model,
-                config_getter=explore_config_getter,
-            )
-            # Set callbacks for metrics tracking
-            subagent.tool_call_callback = _on_tool_call
-            subagent.tool_result_callback = _on_tool_result
-            subagent.rebuild_system_prompt()
-
-            # Execute the task
-            result = await subagent.process(prompt)
-
-            # Try to capture token usage from result if available
-            token_usage = 0
-            if isinstance(result, dict) and "usage" in result:
-                usage = result["usage"]
-                if isinstance(usage, dict):
-                    token_usage = usage.get("total_tokens", 0)
-                elif hasattr(usage, "total_tokens"):
-                    token_usage = usage.total_tokens
-
-            # Update with result
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].status = "completed"
-                    _background_agents[task_id].result = result
-                    _background_agents[task_id].token_usage = token_usage
-                    _background_agents[task_id].completed_at = datetime.now()
 
         elif agent_name == "plan":
-            def plan_config_getter() -> Settings:
-                if callable(config_getter):
-                    base_settings = config_getter()
-                else:
-                    base_settings = Settings()
-                merged_config = PLAN.apply_to_config(base_settings.model_dump())
-                return Settings(initial_config=merged_config)
-
-            plan_registry = _FilteredToolRegistry(
-                tool_registry,
+            conf_getter = make_config_getter(config_getter, PLAN)
+            subagent = create_agent(
+                agent_name="plan",
+                llm_provider=llm_provider,
+                tool_registry=tool_registry,
+                model=model,
+                config_getter=conf_getter,
                 allowed_tools=PLAN_ALLOWED_TOOLS,
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=plan_config_getter,
+                callbacks=callbacks,
             )
-
-            subagent = PlanAgent(
-                llm_provider=llm_provider,
-                tool_registry=plan_registry,
-                model=model,
-                config_getter=plan_config_getter,
-            )
-            # Set callbacks for metrics tracking
-            subagent.tool_call_callback = _on_tool_call
-            subagent.tool_result_callback = _on_tool_result
-            subagent.rebuild_system_prompt()
-
-            # Execute the task
-            result = await subagent.process(prompt)
-
-            # Try to capture token usage from result if available
-            token_usage = 0
-            if isinstance(result, dict) and "usage" in result:
-                usage = result["usage"]
-                if isinstance(usage, dict):
-                    token_usage = usage.get("total_tokens", 0)
-                elif hasattr(usage, "total_tokens"):
-                    token_usage = usage.total_tokens
-
-            # Update with result
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].status = "completed"
-                    _background_agents[task_id].result = result
-                    _background_agents[task_id].token_usage = token_usage
-                    _background_agents[task_id].completed_at = datetime.now()
 
         elif agent_name == "jarvis-help":
-            def help_config_getter() -> Settings:
-                if callable(config_getter):
-                    return config_getter()
-                return Settings()
-
-            help_registry = _FilteredToolRegistry(
-                tool_registry,
+            conf_getter = make_config_getter(config_getter)
+            subagent = create_agent(
+                agent_name="jarvis-help",
+                llm_provider=llm_provider,
+                tool_registry=tool_registry,
+                model=model,
+                config_getter=conf_getter,
                 allowed_tools=JARVIS_HELP_ALLOWED_TOOLS,
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=help_config_getter,
+                callbacks=callbacks,
             )
-
-            subagent = JarvisHelpAgent(
-                llm_provider=llm_provider,
-                tool_registry=help_registry,
-                model=model,
-                config_getter=help_config_getter,
-            )
-            subagent.tool_call_callback = _on_tool_call
-            subagent.tool_result_callback = _on_tool_result
-            subagent.rebuild_system_prompt()
-
-            result = await subagent.process(prompt)
-
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].status = "completed"
-                    _background_agents[task_id].result = result
-                    _background_agents[task_id].completed_at = datetime.now()
 
         elif agent_name == "verification":
-            def verify_config_getter() -> Settings:
-                if callable(config_getter):
-                    return config_getter()
-                return Settings()
-
-            verify_registry = _FilteredToolRegistry(
-                tool_registry,
+            conf_getter = make_config_getter(config_getter)
+            subagent = create_agent(
+                agent_name="verification",
+                llm_provider=llm_provider,
+                tool_registry=tool_registry,
+                model=model,
+                config_getter=conf_getter,
                 allowed_tools=VERIFICATION_ALLOWED_TOOLS,
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=verify_config_getter,
+                callbacks=callbacks,
             )
-
-            subagent = VerificationAgent(
-                llm_provider=llm_provider,
-                tool_registry=verify_registry,
-                model=model,
-                config_getter=verify_config_getter,
-            )
-            subagent.tool_call_callback = _on_tool_call
-            subagent.tool_result_callback = _on_tool_result
-            subagent.rebuild_system_prompt()
-
-            result = await subagent.process(prompt)
-
-            async with _background_lock:
-                if task_id in _background_agents:
-                    _background_agents[task_id].status = "completed"
-                    _background_agents[task_id].result = result
-                    _background_agents[task_id].completed_at = datetime.now()
 
         elif agent_name == "statusline-setup":
-            def statusline_config_getter() -> Settings:
-                if callable(config_getter):
-                    return config_getter()
-                return Settings()
-
-            statusline_registry = _FilteredToolRegistry(
-                tool_registry,
-                allowed_tools=STATUSLINE_SETUP_ALLOWED_TOOLS,
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=statusline_config_getter,
-            )
-
             # statusline-setup is a read-only guidance agent (no edit/bash tools)
             result = "I can help with statusline customization for bash, zsh, PowerShell, and other shells. " + prompt
-
             async with _background_lock:
                 if task_id in _background_agents:
                     _background_agents[task_id].status = "completed"
                     _background_agents[task_id].result = result
                     _background_agents[task_id].completed_at = datetime.now()
+            return
 
         else:
             async with _background_lock:
@@ -276,6 +153,19 @@ async def _run_agent_in_background(
                     _background_agents[task_id].status = "failed"
                     _background_agents[task_id].error = f"Unknown agent: {agent_name}"
                     _background_agents[task_id].completed_at = datetime.now()
+            return
+
+        # Execute the task
+        result = await subagent.process(prompt)
+        token_usage = extract_token_usage(result)
+
+        # Update with result
+        async with _background_lock:
+            if task_id in _background_agents:
+                _background_agents[task_id].status = "completed"
+                _background_agents[task_id].result = result
+                _background_agents[task_id].token_usage = token_usage
+                _background_agents[task_id].completed_at = datetime.now()
 
     except Exception as e:
         async with _background_lock:
@@ -323,6 +213,7 @@ async def _run_forked_agent(
         PLAN_ALLOWED_TOOLS,
         VERIFICATION_ALLOWED_TOOLS,
     )
+    from .utils import extract_token_usage
 
     # Define callback to track tool usage
     def _on_tool_call(tool_name: str, tool_args: dict) -> None:
@@ -381,13 +272,7 @@ async def _run_forked_agent(
         result = await subagent.process(prompt)
 
         # Try to capture token usage from result if available
-        token_usage = 0
-        if isinstance(result, dict) and "usage" in result:
-            usage = result["usage"]
-            if isinstance(usage, dict):
-                token_usage = usage.get("total_tokens", 0)
-            elif hasattr(usage, "total_tokens"):
-                token_usage = usage.total_tokens
+        token_usage = extract_token_usage(result)
 
         # Update with result
         async with _background_lock:

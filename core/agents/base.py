@@ -85,6 +85,10 @@ class BaseAgent(ABC):
         self.model: str = model or "gpt-4"  # Use provided model or default
         self.memory: list[MessageDict] = []
         self.context: dict[str, Any] = {}
+        # Per-task execution trace (used for self-evolving skills).
+        # This is reset at the start of each top-level `process()` implementation.
+        self.execution_trace: list[dict[str, Any]] = []
+        self.current_task_input: str | None = None
         # Callbacks for streaming and tool calls
         self.stream_callback: StreamCallback | None = None
         self.tool_call_callback: ToolCallCallback | None = None
@@ -851,6 +855,20 @@ class BaseAgent(ABC):
                 if self.tool_result_callback:
                     self.tool_result_callback(tool_name, tool_args, result)
 
+                # Record execution trace (best-effort, never fails the agent loop)
+                try:
+                    self.execution_trace.append(
+                        {
+                            "tool": tool_name,
+                            "args": tool_args,
+                            "success": bool(getattr(result, "success", False)),
+                            "result": getattr(result, "result", None),
+                            "error": getattr(result, "error", None),
+                        }
+                    )
+                except Exception:
+                    pass
+
                 # Rebuild system prompt if a skill was activated
                 if tool_name == "activate_skill" and hasattr(result, "success") and result.success:
                     self.rebuild_system_prompt()
@@ -952,6 +970,21 @@ class BaseAgent(ABC):
                 tool_name, _, tool_call = approved_tool_calls[i]
                 if self.tool_result_callback:
                     self.tool_result_callback(tool_name, tool_call["function"]["arguments"], output)
+
+                # Record execution trace (best-effort)
+                try:
+                    # tool_call["function"]["arguments"] may be a JSON string; keep as-is to avoid parsing failures here
+                    self.execution_trace.append(
+                        {
+                            "tool": tool_name,
+                            "args": tool_call["function"]["arguments"],
+                            "success": bool(getattr(output, "success", False)),
+                            "result": getattr(output, "result", None),
+                            "error": getattr(output, "error", None),
+                        }
+                    )
+                except Exception:
+                    pass
 
                 # Rebuild system prompt if a skill was activated
                 if tool_name == "activate_skill" and hasattr(output, "success") and output.success:

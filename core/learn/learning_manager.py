@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .pattern_detector import PatternDetector
 from .trace_analyzer import TraceAnalyzer
 
 
@@ -18,13 +19,16 @@ class LearningConfig:
     min_traces_for_distillation: int = 50
     enable_dspy_optimization: bool = True
 
+
 class LearningManager:
     """Manages the OpenJarvis M1->M2->M3 Learning Loop"""
 
     def __init__(self, config: LearningConfig | None = None):
         self.config = config or LearningConfig()
         self.trace_analyzer = TraceAnalyzer(sessions_dir=self.config.trace_dir)
+        self.pattern_detector = PatternDetector()
         self._running = False
+        self._trace_count: int = 0
 
         # Ensure directories exist
         Path(self.config.trace_dir).mkdir(parents=True, exist_ok=True)
@@ -48,6 +52,53 @@ class LearningManager:
                 "reward": session_data.get("success", False)
             }, f)
             f.write('\n')
+
+        self._trace_count += 1
+
+        # Detect patterns from the interaction
+        user_input = session_data.get("user_input", "")
+        agent_response = session_data.get("agent_response", "")
+        if user_input and agent_response:
+            self.pattern_detector.detect_from_input(user_input, agent_response)
+
+    async def analyze_and_optimize(self) -> dict[str, Any]:
+        """Analyze traces and generate optimizations based on patterns."""
+        if not self.config.enabled:
+            return {"status": "disabled"}
+
+        results = {
+            "patterns": [],
+            "preferences": {},
+            "optimizations": []
+        }
+
+        # Get learned preferences from pattern detector
+        results["preferences"] = self.pattern_detector.get_learned_preferences()
+        results["patterns"] = [
+            {"name": p.name, "category": p.category, "confidence": p.confidence}
+            for p in self.pattern_detector.detected_patterns
+        ]
+
+        # Analyze traces for insights
+        metrics = await self.trace_analyzer.analyze_sessions()
+        results["metrics"] = {
+            "total_interactions": metrics.total_interactions,
+            "successful_traces": metrics.successful_traces
+        }
+
+        return results
+
+    def get_patterns(self) -> list[dict[str, Any]]:
+        """Get detected patterns as simple dicts (compatible with CLI)."""
+        return [
+            {
+                "name": p.name,
+                "category": p.category,
+                "confidence": p.confidence,
+                "suggestion": p.suggestion
+            }
+            for p in self.pattern_detector.detected_patterns
+        ]
 
     async def _run_learning_cycle(self) -> None:
         """Execute the M1 -> M2 -> M3 pipeline"""

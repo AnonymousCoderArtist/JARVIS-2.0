@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from .filtered_registry import _FilteredToolRegistry
+from .utils import create_agent
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +205,52 @@ def snapshot_memory(messages: list[dict[str, Any]], context: dict[str, Any], sys
     )
 
 
+def _make_fork_config_getter(
+    base_config_getter: Any,
+    profile: Any,
+    fork_config: dict[str, Any] | None,
+) -> callable:
+    """Build a config getter that applies profile and fork-specific overrides.
+
+    Args:
+        base_config_getter: Base config getter (callable or Settings instance)
+        profile: Optional agent profile with apply_to_config method
+        fork_config: Optional fork configuration overrides
+
+    Returns:
+        Config getter function
+    """
+    from core.config.settings import Settings
+
+    def fork_config_getter() -> Settings:
+        if callable(base_config_getter):
+            base_settings = base_config_getter()
+        else:
+            base_settings = Settings()
+
+        config = base_settings.model_dump()
+
+        if profile is not None:
+            config = profile.apply_to_config(config)
+
+        if fork_config:
+            if "max_tokens" in fork_config:
+                config["max_tokens"] = fork_config["max_tokens"]
+
+        return Settings(initial_config=config)
+
+    return fork_config_getter
+
+
+# Map agent names to their profiles (for config merging)
+_AGENT_PROFILES = {
+    "explore": None,  # Will be set dynamically from core.agents
+    "plan": None,     # Will be set dynamically from core.agents
+    "jarvis-help": None,
+    "verification": None,
+}
+
+
 def create_fork_subagent(
     agent_name: str,
     prompt: str,
@@ -233,10 +280,7 @@ def create_fork_subagent(
     Returns:
         Tuple of (agent_instance, fork_metadata)
     """
-    from core.agents import EXPLORE, PLAN, ExploreAgent, PlanAgent
-    from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
-    from core.agents.builtin.verification_agent import VerificationAgent
-    from core.config.settings import Settings
+    from core.agents import EXPLORE, PLAN
 
     # Create fork metadata
     fork_id = str(uuid.uuid4())[:8]
@@ -254,144 +298,23 @@ def create_fork_subagent(
     if fork_config and "allowed_tools" in fork_config:
         allowed_tools = tuple(fork_config["allowed_tools"])
 
-    # Build config getter with fork-specific settings
-    def build_config_getter(base_config_getter):
-        def fork_config_getter() -> Settings:
-            if callable(base_config_getter):
-                base_settings = base_config_getter()
-            else:
-                base_settings = Settings()
+    # Select profile for config merging
+    profile = {"explore": EXPLORE, "plan": PLAN}.get(agent_name)
 
-            # Apply fork-specific settings
-            config = base_settings.model_dump()
-
-            if fork_config:
-                if "model" in fork_config:
-                    pass  # Model is handled separately
-                if "max_tokens" in fork_config:
-                    config["max_tokens"] = fork_config["max_tokens"]
-
-            return Settings(initial_config=config)
-
-        return fork_config_getter
-
-    fork_config_getter = build_config_getter(config_getter)
+    # Build fork-aware config getter
+    fork_config_getter = _make_fork_config_getter(config_getter, profile, fork_config)
     isolated_env = create_isolated_env()
     fork_metadata.env_vars = isolated_env
 
-    # Create filtered registry for this fork
-    fork_registry = _FilteredToolRegistry(
-        tool_registry,
-        allowed_tools=allowed_tools,
+    # Create the agent via shared utility
+    agent = create_agent(
+        agent_name=agent_name,
         llm_provider=llm_provider,
+        tool_registry=tool_registry,
         model=model,
         config_getter=fork_config_getter,
+        allowed_tools=allowed_tools,
     )
-
-    # Create the appropriate agent
-    if agent_name == "explore":
-        from core.config.settings import Settings
-
-        def explore_config_getter() -> Settings:
-            if callable(config_getter):
-                base_settings = config_getter()
-            else:
-                base_settings = Settings()
-            merged_config = EXPLORE.apply_to_config(base_settings.model_dump())
-            return Settings(initial_config=merged_config)
-
-        explore_registry = _FilteredToolRegistry(
-            tool_registry,
-            allowed_tools=allowed_tools,
-            llm_provider=llm_provider,
-            model=model,
-            config_getter=explore_config_getter,
-        )
-
-        agent = ExploreAgent(
-            llm_provider=llm_provider,
-            tool_registry=explore_registry,
-            model=model,
-            config_getter=explore_config_getter,
-        )
-
-    elif agent_name == "plan":
-        from core.config.settings import Settings
-
-        def plan_config_getter() -> Settings:
-            if callable(config_getter):
-                base_settings = config_getter()
-            else:
-                base_settings = Settings()
-            merged_config = PLAN.apply_to_config(base_settings.model_dump())
-            return Settings(initial_config=merged_config)
-
-        plan_registry = _FilteredToolRegistry(
-            tool_registry,
-            allowed_tools=allowed_tools,
-            llm_provider=llm_provider,
-            model=model,
-            config_getter=plan_config_getter,
-        )
-
-        agent = PlanAgent(
-            llm_provider=llm_provider,
-            tool_registry=plan_registry,
-            model=model,
-            config_getter=plan_config_getter,
-        )
-
-    elif agent_name == "jarvis-help":
-        from core.config.settings import Settings
-
-        def help_config_getter() -> Settings:
-            if callable(config_getter):
-                return config_getter()
-            return Settings()
-
-        help_registry = _FilteredToolRegistry(
-            tool_registry,
-            allowed_tools=allowed_tools,
-            llm_provider=llm_provider,
-            model=model,
-            config_getter=help_config_getter,
-        )
-
-        agent = JarvisHelpAgent(
-            llm_provider=llm_provider,
-            tool_registry=help_registry,
-            model=model,
-            config_getter=help_config_getter,
-        )
-
-    elif agent_name == "verification":
-        from core.config.settings import Settings
-
-        def verify_config_getter() -> Settings:
-            if callable(config_getter):
-                return config_getter()
-            return Settings()
-
-        verify_registry = _FilteredToolRegistry(
-            tool_registry,
-            allowed_tools=allowed_tools,
-            llm_provider=llm_provider,
-            model=model,
-            config_getter=verify_config_getter,
-        )
-
-        agent = VerificationAgent(
-            llm_provider=llm_provider,
-            tool_registry=verify_registry,
-            model=model,
-            config_getter=verify_config_getter,
-        )
-
-    else:
-        raise ValueError(f"Unknown agent type: {agent_name}")
-
-    # Rebuild system prompt with inherited context
-    agent.rebuild_system_prompt()
 
     # Inherit memory if provided
     if inherit_memory:

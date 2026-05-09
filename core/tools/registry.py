@@ -2,8 +2,9 @@
 
 import importlib.util
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Coroutine
 
 from .base import BaseTool, ToolOutput
 
@@ -35,6 +36,78 @@ class ToolRegistry:
             tool.event_queue = self.event_queue
 
         self._tools[tool.name] = tool
+
+    def tool(
+        self,
+        name: str,
+        description: str,
+        parameters: dict[str, Any],
+        handler: Callable[..., Coroutine[Any, Any, ToolOutput]],
+        guidelines: list[str] | None = None,
+    ):
+        """
+        Register a custom tool with a simple API.
+
+        This is a convenience method that creates a CustomTool and registers it
+        in one step.
+
+        Args:
+            name: Unique tool name
+            description: Description shown to the LLM
+            parameters: JSON schema for tool parameters
+            handler: Async function that executes the tool
+            guidelines: Tool-specific bullets for Guidelines section
+
+        Returns:
+            The created CustomTool instance
+
+        Example:
+            registry.tool(
+                name="todo",
+                description="Manage project todo list",
+                parameters={"type": "object", "properties": {...}},
+                handler=my_async_function,
+                guidelines=["Use todo when user asks for a task list"],
+            )
+        """
+        from .custom_tool import CustomTool  # type: ignore[import]
+
+        tool = CustomTool(
+            name=name,
+            description=description,
+            parameters=parameters,
+            execute_func=handler,
+            prompt_guidelines=guidelines,
+        )
+        self.register(tool)
+        return tool
+
+    def get_prompt_snippets(self) -> dict[str, str]:
+        """
+        Get prompt snippets for all custom tools.
+
+        Returns:
+            Dictionary mapping tool names to their prompt snippets
+        """
+        snippets = {}
+        for tool in self._tools.values():
+            snippet = getattr(tool, "get_prompt_snippet", lambda: None)()
+            if snippet:
+                snippets[tool.name] = snippet
+        return snippets
+
+    def get_prompt_guidelines(self) -> list[str]:
+        """
+        Get prompt guidelines from all custom tools.
+
+        Returns:
+            List of guideline strings from all custom tools
+        """
+        guidelines = []
+        for tool in self._tools.values():
+            tool_guidelines = getattr(tool, "get_prompt_guidelines", lambda: [])()
+            guidelines.extend(tool_guidelines)
+        return guidelines
 
     def update_tool_providers(self, llm_provider=None, model=None, config_getter=None, event_queue=None):
         """
