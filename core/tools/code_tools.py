@@ -16,6 +16,7 @@ from core.tools.permissions import (
 
 from .base import BaseTool, ToolInput, ToolOutput
 from .sandbox import wrap_command
+from core.config import Settings
 
 
 class BashTool(BaseTool):
@@ -140,7 +141,9 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
         ]
         self.allow_patterns = []
         self.restrict_to_workspace = False
-        self.sandbox = ""
+        # Read sandbox setting from configuration
+        settings = Settings()
+        self.sandbox = settings.sandbox_backend if settings.sandbox_enabled else ""
         self.path_append = ""
         self.allowed_env_keys = []
         self.working_dir = None
@@ -340,6 +343,11 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
 class RunTestsTool(BaseTool):
     """Tool for running tests"""
 
+    def __init__(self):
+        super().__init__()
+        settings = Settings()
+        self.sandbox = settings.sandbox_backend if settings.sandbox_enabled else ""
+
     name = "run_tests"
     description = """Run tests using pytest or unittest framework.
 
@@ -415,6 +423,15 @@ Example: {"path": "tests/", "framework": "pytest", "args": "-v"}"""
                     result=None,
                     error=f"Unsupported test framework: {framework}. Please use 'pytest' or 'unittest'. Ensure the test framework is installed in your environment."
                 )
+
+            # Apply sandboxing if enabled
+            is_windows = platform.system() == "Windows"
+            if self.sandbox:
+                if is_windows:
+                    print(f"Warning: Sandbox '{self.sandbox}' is not supported on Windows; running unsandboxed")
+                else:
+                    workspace = os.getcwd()
+                    command = wrap_command(self.sandbox, command, workspace, os.getcwd())
 
             process = await asyncio.create_subprocess_shell(
                 command,

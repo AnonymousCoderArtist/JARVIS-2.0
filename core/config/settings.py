@@ -294,3 +294,12 @@ class Settings:
     @property
     def skills_dir(self) -> Path:
         return Path(self._config.learning.skills_dir).expanduser()
+
+    # Sandbox settings
+    @property
+    def sandbox_enabled(self) -> bool:
+        return self._config.sandbox.enabled
+
+    @property
+    def sandbox_backend(self) -> str:
+        return self._config.sandbox.backend

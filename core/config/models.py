@@ -35,6 +35,12 @@ class LearningSettings(BaseModel):
     skills_dir: str = "~/.jarvis/skills"
 
 
+class SandboxSettings(BaseModel):
+    """Sandbox execution settings for shell commands"""
+    enabled: bool = False
+    backend: str = "bwrap"  # "bwrap" (bubblewrap), future: "firejail", "systemd-nspawn"
+
+
 class AppSettings(BaseModel):
     name: str = "JARVIS"
     version: str = "2.0.0"
@@ -100,6 +106,7 @@ class JarvisSettings(BaseModel):
     async_settings: AsyncSettings = Field(default_factory=AsyncSettings, alias="async")
     heartbeat: HeartbeatSettings = Field(default_factory=HeartbeatSettings)
     learning: LearningSettings = Field(default_factory=LearningSettings)
+    sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
 
     bypass_tool_permissions: bool = False
     disallowed_tools: list[str] = Field(default_factory=list)
