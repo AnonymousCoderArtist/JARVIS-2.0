@@ -154,9 +154,7 @@ def test_tool_call_display_shows_actual_tool_name_and_arguments() -> None:
 
     display = ToolUIDataAdapter(event.tool_class).get_call_display(event)
 
-    assert display.summary == (
-        "Calling file_read(path=core/agents/base.py, offset=10, limit=20)"
-    )
+    assert display.summary == "FILE_READ path=core/agents/base.py, offset=10, limit=20"
 
 
 def test_system_prompt_includes_registered_tool_descriptions() -> None:

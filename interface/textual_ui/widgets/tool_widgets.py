@@ -109,6 +109,11 @@ class ToolResultWidget(Generic[TResult], Static, can_focus=True):
 
     def compose(self) -> ComposeResult:
         """Default: show result fields."""
+        summary_text = f"└─ {self.message or 'result'}"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+
         if not self.collapsed and self.result:
             # Handle both BaseModel and plain dict results
             if isinstance(self.result, BaseModel):

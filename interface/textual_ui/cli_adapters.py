@@ -1709,13 +1709,13 @@ class ToolUIDataAdapter:
             query = args.get("query", args.get("pattern", ""))
             path = args.get("path", args.get("includePattern", "."))
             path_suffix = f" in {path}" if path != "." else ""
-            return Display(summary=f"Grep \"{query}\"{path_suffix}")
+            return Display(summary=f"GREP \"{query}\"{path_suffix}")
 
         if tool_name == "agents":
             agent_name = args.get("agentName", "agent")
             prompt = args.get("prompt", "")
             prompt_preview = prompt[:30] + "..." if len(prompt) > 30 else prompt
-            return Display(summary=f"Agent {agent_name}: {prompt_preview}")
+            return Display(summary=f"AGENT {agent_name}: {prompt_preview}")
 
         if tool_name in ("read", "read_file"):
             def get_rel_path(p_str):
@@ -1747,7 +1747,7 @@ class ToolUIDataAdapter:
                         params.append(f"limit={limit}")
 
                     param_str = f" ({', '.join(params)})" if params else ""
-                    summary = f"Read {path}{param_str}"
+                    summary = f"READ {path}{param_str}"
                     if len(paths) > 1:
                         summary += f" (+{len(paths)-1} more files)"
                     return Display(summary=summary)
@@ -1765,9 +1765,9 @@ class ToolUIDataAdapter:
                     params.append(f"limit={limit}")
 
                 param_str = f" ({', '.join(params)})" if params else ""
-                return Display(summary=f"Read {path}{param_str}")
+                return Display(summary=f"READ {path}{param_str}")
 
-            return Display(summary="Read unknown")
+            return Display(summary="READ unknown")
 
         if tool_name in ("write", "write_file"):
             def get_rel_path(p_str):
@@ -1786,7 +1786,7 @@ class ToolUIDataAdapter:
 
             raw_path = args.get("path", args.get("filePath", args.get("file_path", "unknown")))
             path = get_rel_path(raw_path)
-            return Display(summary=f"{tool_name.capitalize()} {path}")
+            return Display(summary=f"{tool_name.upper()} {path}")
 
         if tool_name == "edit":
             def get_rel_path(p_str):
@@ -1815,14 +1815,14 @@ class ToolUIDataAdapter:
             path = get_rel_path(raw_path)
             count = len(replacements) if isinstance(replacements, list) else 0
             suffix = f" ({count} edits)" if count > 1 else ""
-            return Display(summary=f"Edit {path}{suffix}")
+            return Display(summary=f"EDIT {path}{suffix}")
 
         if tool_name == "bash":
             command = args.get("command", "")
             summary = command.split("\n")[0]
             if len(summary) > 50:
                 summary = summary[:47] + "..."
-            return Display(summary=f"Bash \"{summary}\"")
+            return Display(summary=f"BASH \"{summary}\"")
 
         if tool_name == "ls":
             path_str = args.get("path", ".")
@@ -1838,7 +1838,7 @@ class ToolUIDataAdapter:
                         display_path = "."
                 else:
                     display_path = path_str
-                return Display(summary=f"List {display_path}")
+                return Display(summary=f"LIST {display_path}")
             except Exception:
                 return Display(summary=f"List {path_str}")
 
@@ -1857,14 +1857,14 @@ class ToolUIDataAdapter:
                     display_path = (str(cwd).replace("\\", "/") + "/" + str(rel).replace("\\", "/")).rstrip("/")
                 else:
                     display_path = path_str.replace('\\', '/')
-                return Display(summary=f"Find \"{pattern}\" in {display_path}")
+                return Display(summary=f"FIND \"{pattern}\" in {display_path}")
             except Exception:
-                return Display(summary=f"Find \"{pattern}\" in {path_str}")
+                return Display(summary=f"FIND \"{pattern}\" in {path_str}")
 
         args_text = self._format_args(args)
         if args_text:
-            return Display(summary=f"Calling {tool_name}({args_text})")
-        return Display(summary=f"Calling {tool_name}")
+            return Display(summary=f"{tool_name.upper()} {args_text}")
+        return Display(summary=f"{tool_name.upper()}")
 
     def get_result_display(self, event: Any) -> Any:
         @dataclass

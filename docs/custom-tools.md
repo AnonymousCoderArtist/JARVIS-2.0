@@ -48,41 +48,6 @@ class CalcTool(BaseTool):
             return ToolOutput(success=False, result=None, error=str(e))
 ```
 
-## Quick Start
-
-Use `tool_registry.tool()` to add a custom tool:
-
-```python
-from core.tools.registry import ToolRegistry
-from core.tools.base import ToolOutput
-
-async def my_tool(param: str, count: int = 0) -> ToolOutput:
-    return ToolOutput(success=True, result=f"param={param}, count={count}")
-
-tool_registry.tool(
-    name="my_tool",
-    description="Does something useful",
-    parameters={
-        "type": "object",
-        "properties": {
-            "param": {"type": "string"},
-            "count": {"type": "integer"},
-        },
-    },
-    handler=my_tool,
-    guidelines=["Use my_tool for custom operations"],
-)
-```
-
-## Tool Definition Fields
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Unique tool identifier |
-| `description` | Yes | Description shown to the LLM |
-| `parameters` | Yes | JSON Schema for parameters |
-| `handler` | Yes | Async function that executes the tool |
-| `guidelines` | No | Tool-specific bullets for Guidelines section |
 
 ## Tool Template
 
@@ -156,39 +121,6 @@ guidelines=["Use my_tool when user asks for custom operations"]
 
 Not: `"Use this tool when..."` (ambiguous)
 
-## Example: Todo List Tool
-
-```python
-import json
-from pathlib import Path
-from core.tools.base import ToolOutput
-
-TODO_FILE = Path.home() / ".jarvis" / "todo.json"
-
-async def todo(action: str, text: str | None = None) -> ToolOutput:
-    if not TODO_FILE.exists():
-        TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
-        TODO_FILE.write_text("[]")
-
-    todos = json.loads(TODO_FILE.read_text())
-
-    if action == "list":
-        return ToolOutput(success=True, result="\n".join(f"- {t}" for t in todos) or "No todos")
-    elif action == "add" and text:
-        todos.append(text)
-        TODO_FILE.write_text(json.dumps(todos))
-        return ToolOutput(success=True, result=f"Added: {text}")
-
-    return ToolOutput(success=False, result="Invalid action")
-
-tool_registry.tool(
-    name="todo",
-    description="Manage todo list",
-    parameters={"type": "object", "properties": {"action": {"type": "string"}, "text": {"type": "string"}}},
-    handler=todo,
-    guidelines=["Use todo when user asks for a task list"],
-)
-```
 
 ## See Also
 
