@@ -108,23 +108,6 @@ CODE_REVIEW_DEFINITION = AgentDefinition(
 )
 ```
 
-## TUI Integration
-
-Custom agents appear in the **Shift+Tab** profile cycle. You need **BOTH** files:
-
-1. `.jarvis/agents/my-agent.py` - Python agent definition (required for agent logic)
-2. `.jarvis/agents/my-agent.toml` - Profile for TUI cycling (required for profile integration)
-
-Example TOML profile:
-
-```toml
-# .jarvis/agents/my-agent.toml
-display_name = "My Agent"
-description = "Custom agent for specific tasks"
-safety = "neutral"
-agent_type = "subagent"
-```
-
 ## Tips
 
 - Use `model="inherit"` to respect the user's model selection

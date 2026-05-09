@@ -5,18 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
-# Import training components
-from .Classification.train_classifier import (
-    ID_TO_LABEL,
-    MODEL_DIR,
-    predict,
-    load_model,
-    LABELS,
-)
-
 
 @dataclass
 class DetectedPattern:
@@ -28,13 +16,41 @@ class DetectedPattern:
     suggestion: str
 
 
+# Lazy imports - resolved at first use to avoid circular imports during training
+_MODEL = None
+_TOKENIZER = None
+_MODEL_LOADED = False
+
+
+def _load_classifier():
+    """Lazy-load the fine-tuned transformer classifier."""
+    global _MODEL, _TOKENIZER, _MODEL_LOADED
+    if _MODEL_LOADED:
+        return _MODEL, _TOKENIZER
+
+    try:
+        from .Classification.train_classifier import (
+            ID_TO_LABEL, MODEL_DIR, predict as _predict, load_model, LABELS,
+        )
+        result = load_model()
+        if result is not None:
+            _MODEL, _TOKENIZER = result
+            print(f"Loaded fine-tuned classifier from {MODEL_DIR}")
+        else:
+            _MODEL_LOADED = True  # Mark loaded even if no model, to avoid repeated attempts
+            return None, None
+    except Exception:
+        _MODEL_LOADED = True
+        return None, None
+
+    _MODEL_LOADED = True
+    return _MODEL, _TOKENIZER
+
+
 class PatternDetector:
     """Detects patterns in user interactions using transformer classifier."""
 
     _instance = None
-    _model = None
-    _tokenizer = None
-    _model_loaded = False
 
     def __new__(cls):
         """Singleton pattern for model sharing."""
@@ -47,38 +63,22 @@ class PatternDetector:
             return
         self._initialized = True
         self.detected_patterns: list[DetectedPattern] = []
-        self._load_model()
-
-    def _load_model(self) -> None:
-        """Load the fine-tuned transformer classifier."""
-        if PatternDetector._model_loaded:
-            return
-
-        result = load_model()
-        if result is not None:
-            PatternDetector._model, PatternDetector._tokenizer = result
-            print(f"Loaded fine-tuned classifier from {MODEL_DIR}")
-        else:
-            raise RuntimeError(
-                "No trained model found. Please run: "
-                "python -m core.learn.Classification.train_classifier"
-            )
-
-        PatternDetector._model_loaded = True
 
     def detect_from_input(self, user_input: str, agent_response: str) -> list[DetectedPattern]:
         """Detect patterns from a user-agent interaction."""
         patterns = []
 
         # Detect query type using fine-tuned transformer
-        try:
-            query_type, confidence = predict(
-                PatternDetector._model,
-                PatternDetector._tokenizer,
-                user_input,
-            )
-        except Exception as e:
-            raise RuntimeError(f"Classification failed: {e}")
+        model, tokenizer = _load_classifier()
+        if model is not None and tokenizer is not None:
+            try:
+                from .Classification.train_classifier import predict as _predict
+                query_type, confidence = _predict(model, tokenizer, user_input)
+            except Exception:
+                query_type = "unknown"
+                confidence = 0.0
+        else:
+            query_type, confidence = self._rule_based_classify(user_input)
 
         if query_type != "unknown":
             patterns.append(DetectedPattern(
@@ -99,6 +99,32 @@ class PatternDetector:
 
         self.detected_patterns.extend(patterns)
         return patterns
+
+    def _rule_based_classify(self, user_input: str) -> tuple[str, float]:
+        """Fallback rule-based classification when no ML model is available."""
+        lower = user_input.lower()
+        # Simple keyword matching
+        keywords = {
+            "bug_fix": ["fix", "bug", "error", "crash", "broken", "repair", "resolve", "patch", "debug"],
+            "code_review": ["review", "check", "audit", "analyze", "evaluate", "examine", "critique"],
+            "implementation": ["implement", "build", "create", "add", "develop", "write"],
+            "refactor": ["refactor", "restructure", "clean up", "optimize", "simplify", "improve"],
+            "documentation": ["document", "explain", "readme", "guide", "tutorial", "write docs"],
+            "testing": ["test", "validate", "verify", "coverage", "unit test", "integration test"],
+        }
+        scores = {}
+        for label, kws in keywords.items():
+            score = sum(1 for kw in kws if kw in lower)
+            if score > 0:
+                scores[label] = score
+
+        if not scores:
+            return "unknown", 0.0
+
+        best = max(scores, key=scores.get)
+        total = sum(scores.values())
+        confidence = min(scores[best] / max(total, 1), 0.95)
+        return best, confidence
 
     def _detect_context_preferences(self, user_input: str) -> list[DetectedPattern]:
         """Detect context and formatting preferences."""
