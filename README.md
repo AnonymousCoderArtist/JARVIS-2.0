@@ -67,40 +67,101 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 
 ```mermaid
 graph TB
+    %% Nodes definition
     subgraph "JARVIS Agent Layer"
-        A[JARVIS Agent<br/>Unified Agentic Assistant]
+        Jarvis["JarvisV2 (Main Agent)<br/>core/agents/jarvis_v2.py"]
     end
 
-    subgraph "Core Components"
-        B[Agents<br/>jarvis_v2, explore, plan,<br/>fork, builtin]
-        C[Tools<br/>Registry + 20+ Tools]
-        D[Config<br/>Settings, Models]
+    subgraph "Core Managers & Controllers"
+        AgentMgr["AgentManager<br/>core/agents/manager.py"]
+        ToolReg["ToolRegistry<br/>core/tools/registry.py"]
+        Config["Settings & Models<br/>core/config/settings.py"]
+        History["ConversationHistory<br/>core/history.py"]
+    end
+
+    subgraph "Specialized Agents"
+        ExploreAg["ExploreAgent<br/>explore_agent.py"]
+        PlanAg["PlanAgent<br/>plan_agent.py"]
+        ForkAg["ForkSubagent<br/>fork_subagent.py"]
+        BuiltinAg["BuiltinAgents<br/>builtin_agents.py"]
+    end
+
+    subgraph "Toolbox (20+ Tools)"
+        FileTools["File Tools<br/>file_tools.py / file_edit_tool.py"]
+        GrepTool["Grep Tool<br/>grep_tool.py"]
+        ReplTool["REPL Tool<br/>repl_tool.py"]
+        MCPTool["MCP Adapter<br/>mcp_adapter.py"]
+        WebTools["Web Tools<br/>web_tools.py"]
+        SkillTool["Skill Tools<br/>skill_tool.py"]
     end
 
     subgraph "Supporting Systems"
-        E[Memory]
-        F[Skills<br/>SkillManager]
-        G[Safety<br/>Permissions, Profiles]
-        H[Learn<br/>LearningManager]
-        I[Connectors<br/>ConnectorManager]
+        Skills["SkillManager<br/>core/skills/manager.py"]
+        Safety["PermissionManager<br/>core/tools/permissions.py"]
+        Learn["LearningManager<br/>core/learn/learning_manager.py"]
+        Connectors["ConnectorManager<br/>core/connectors/manager.py"]
     end
 
-    subgraph "Provider Layer"
-        J[LLM SDK<br/>OpenAI / Anthropic / Custom]
+    subgraph "LLM Provider Layer"
+        SDK["LLM SDK Adapter<br/>core/llm/sdk_adapter.py"]
+        OpenAI["OpenAI SDK<br/>core/llm_sdk/openai"]
+        Anthropic["Anthropic SDK<br/>core/llm_sdk/anthropic"]
+        Gemini["Gemini SDK<br/>core/llm_sdk/geminicli"]
     end
 
-    A --> B
-    A --> C
-    A --> D
-    B --> E
-    C --> F
-    D --> G
-    B --> J
-    C --> J
-    D --> J
-    A --> H
-    A --> I
+    %% Relationships & Flow
+    Jarvis --> AgentMgr
+    Jarvis --> ToolReg
+    Jarvis --> Config
+    Jarvis --> History
+
+    AgentMgr --> ExploreAg
+    AgentMgr --> PlanAg
+    AgentMgr --> ForkAg
+    AgentMgr --> BuiltinAg
+
+    ToolReg --> FileTools
+    ToolReg --> GrepTool
+    ToolReg --> ReplTool
+    ToolReg --> MCPTool
+    ToolReg --> WebTools
+    ToolReg --> SkillTool
+
+    Jarvis --> Learn
+    Jarvis --> Connectors
+    
+    %% Interactions (Working)
+    FileTools --> Safety
+    GrepTool --> Safety
+    ReplTool --> Safety
+    
+    SkillTool --> Skills
+    Learn --> Skills
+    
+    Jarvis --> SDK
+    ExploreAg --> SDK
+    PlanAg --> SDK
+    
+    SDK --> OpenAI
+    SDK --> Anthropic
+    SDK --> Gemini
+
+    %% Styling
+    classDef main fill:#ffcccc,stroke:#333,stroke-width:2px;
+    classDef core fill:#ccffcc,stroke:#333,stroke-width:1px;
+    classDef agent fill:#ccccff,stroke:#333,stroke-width:1px;
+    classDef tool fill:#ffffcc,stroke:#333,stroke-width:1px;
+    classDef support fill:#ffccff,stroke:#333,stroke-width:1px;
+    classDef sdk fill:#ccffff,stroke:#333,stroke-width:1px;
+
+    class Jarvis main;
+    class AgentMgr,ToolReg,Config,History core;
+    class ExploreAg,PlanAg,ForkAg,BuiltinAg agent;
+    class FileTools,GrepTool,ReplTool,MCPTool,WebTools,SkillTool tool;
+    class Skills,Safety,Learn,Connectors support;
+    class SDK,OpenAI,Anthropic,Gemini sdk;
 ```
+
 
 ### Directory Structure
 

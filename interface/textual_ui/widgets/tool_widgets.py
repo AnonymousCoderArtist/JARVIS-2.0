@@ -188,12 +188,37 @@ class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
     def compose(self) -> ComposeResult:
         file_path = self.args.file_path if isinstance(self.args, BaseModel) else self.args.get("file_path", self.args.get("filePath", ""))
         path = Path(file_path)
-        file_extension = path.suffix.lstrip(".") or "text"
         content = self.args.content if isinstance(self.args, BaseModel) else self.args.get("content", "")
 
         yield NoMarkupStatic(f"File: {file_path}", classes="approval-description")
         yield NoMarkupStatic("")
-        yield Markdown(f"```{file_extension}\n{content}\n```")
+
+        try:
+            if path.exists():
+                old_content = path.read_text(encoding="utf-8")
+                import difflib
+                diff = difflib.unified_diff(
+                    old_content.splitlines(),
+                    content.splitlines(),
+                    lineterm="",
+                )
+                diff_text = "\n".join(diff)
+                if diff_text:
+                    diff_lines = parse_diff_text(diff_text)
+                    from interface.textual_ui.widgets.tools import DiffBlock
+                    yield DiffBlock(diff_lines, context_lines=3)
+                else:
+                    yield NoMarkupStatic("No changes (content is identical)", classes="tool-result-muted")
+            else:
+                # New file
+                yield NoMarkupStatic("New file", classes="tool-result-summary")
+                file_extension = path.suffix.lstrip(".") or "text"
+                yield Markdown(f"```{file_extension}\n{content}\n```")
+        except Exception as e:
+            yield NoMarkupStatic(f"Error reading file for diff: {e}", classes="tool-result-error")
+            # Fallback to showing content
+            file_extension = path.suffix.lstrip(".") or "text"
+            yield Markdown(f"```{file_extension}\n{content}\n```")
 
 
 class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
@@ -213,7 +238,7 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
             if not self.collapsed:
                 # Show diff if available
                 if self.result.diff:
-                    diff_lines = self._parse_diff(self.result.diff)
+                    diff_lines = parse_diff_text(self.result.diff)
                     if diff_lines:
                         # Lazy import DiffBlock
                         from interface.textual_ui.widgets.tools import DiffBlock
@@ -235,7 +260,7 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
             if not self.collapsed:
                 # Show diff if available
                 if self.result.diff:
-                    diff_lines = self._parse_diff(self.result.diff)
+                    diff_lines = parse_diff_text(self.result.diff)
                     if diff_lines:
                         # Lazy import DiffBlock
                         from interface.textual_ui.widgets.tools import DiffBlock
@@ -248,52 +273,44 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
             else:
                 yield from self._footer()
 
-    def _parse_diff(self, diff_text: str) -> list:
-        """Parse unified diff text into DiffLine objects."""
-        # Lazy import to avoid circular dependency
-        from interface.textual_ui.widgets.tools import DiffLine, DiffBlock
-        # Store DiffBlock for use in compose method
-        self._DiffBlock = DiffBlock
-        return self._parse_diff_lines(diff_text)
-
-    def _parse_diff_lines(self, diff_text: str) -> list:
-        """Parse unified diff text into DiffLine objects."""
-        from interface.textual_ui.widgets.tools import DiffLine
-        
-        lines = []
-        line_num = None
-        
-        for line in diff_text.split('\n'):
-            if line.startswith('@@'):
-                # Parse hunk header to get line numbers
-                # Format: @@ -old_start,old_count +new_start,new_count @@
-                parts = line.split(' ')
-                if len(parts) >= 3:
-                    new_part = parts[2]
-                    if new_part.startswith('+'):
-                        try:
-                            line_num = int(new_part.split(',')[0][1:])
-                        except (ValueError, IndexError):
-                            line_num = None
-                lines.append(DiffLine(line_number=None, content=line, prefix=" "))
-            elif line.startswith('+++') or line.startswith('---') or line.startswith('diff '):
-                # Skip file header lines
-                lines.append(DiffLine(line_number=None, content=line, prefix=" "))
-            elif line.startswith('+'):
-                lines.append(DiffLine(line_number=line_num, content=line[1:], prefix="+"))
-                if line_num is not None:
-                    line_num += 1
-            elif line.startswith('-'):
-                lines.append(DiffLine(line_number=None, content=line[1:], prefix="-"))
-            elif line.startswith(' '):
-                lines.append(DiffLine(line_number=line_num, content=line[1:], prefix=" "))
-                if line_num is not None:
-                    line_num += 1
-            elif line:
-                # Any other line
-                lines.append(DiffLine(line_number=None, content=line, prefix=" "))
-        
-        return lines
+def parse_diff_text(diff_text: str) -> list:
+    """Parse unified diff text into DiffLine objects."""
+    from interface.textual_ui.widgets.tools import DiffLine
+    
+    lines = []
+    line_num = None
+    
+    for line in diff_text.split('\n'):
+        if line.startswith('@@'):
+            # Parse hunk header to get line numbers
+            # Format: @@ -old_start,old_count +new_start,new_count @@
+            parts = line.split(' ')
+            if len(parts) >= 3:
+                new_part = parts[2]
+                if new_part.startswith('+'):
+                    try:
+                        line_num = int(new_part.split(',')[0][1:])
+                    except (ValueError, IndexError):
+                        line_num = None
+            lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+        elif line.startswith('+++') or line.startswith('---') or line.startswith('diff '):
+            # Skip file header lines
+            lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+        elif line.startswith('+'):
+            lines.append(DiffLine(line_number=line_num, content=line[1:], prefix="+"))
+            if line_num is not None:
+                line_num += 1
+        elif line.startswith('-'):
+            lines.append(DiffLine(line_number=None, content=line[1:], prefix="-"))
+        elif line.startswith(' '):
+            lines.append(DiffLine(line_number=line_num, content=line[1:], prefix=" "))
+            if line_num is not None:
+                line_num += 1
+        elif line:
+            # Any other line
+            lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+    
+    return lines
 
 
 class TodoApprovalWidget(ToolApprovalWidget[TodoArgs]):
