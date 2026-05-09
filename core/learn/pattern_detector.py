@@ -18,15 +18,15 @@ class DetectedPattern:
 
 # Lazy imports - resolved at first use to avoid circular imports during training
 _MODEL = None
-_TOKENIZER = None
+_VECTORIZER = None
 _MODEL_LOADED = False
 
 
 def _load_classifier():
     """Lazy-load the fine-tuned transformer classifier."""
-    global _MODEL, _TOKENIZER, _MODEL_LOADED
+    global _MODEL, _VECTORIZER, _MODEL_LOADED
     if _MODEL_LOADED:
-        return _MODEL, _TOKENIZER
+        return _MODEL, _VECTORIZER
 
     try:
         from .Classification.train_classifier import (
@@ -34,7 +34,7 @@ def _load_classifier():
         )
         result = load_model()
         if result is not None:
-            _MODEL, _TOKENIZER = result
+            _MODEL, _VECTORIZER = result
             print(f"Loaded fine-tuned classifier from {MODEL_DIR}")
         else:
             _MODEL_LOADED = True  # Mark loaded even if no model, to avoid repeated attempts
@@ -44,7 +44,7 @@ def _load_classifier():
         return None, None
 
     _MODEL_LOADED = True
-    return _MODEL, _TOKENIZER
+    return _MODEL, _VECTORIZER
 
 
 class PatternDetector:
@@ -69,11 +69,11 @@ class PatternDetector:
         patterns = []
 
         # Detect query type using fine-tuned transformer
-        model, tokenizer = _load_classifier()
-        if model is not None and tokenizer is not None:
+        model, vectorizer = _load_classifier()
+        if model is not None and vectorizer is not None:
             try:
                 from .Classification.train_classifier import predict as _predict
-                query_type, confidence = _predict(model, tokenizer, user_input)
+                query_type, confidence = _predict(model, vectorizer, user_input)
             except Exception:
                 query_type = "unknown"
                 confidence = 0.0
@@ -121,7 +121,7 @@ class PatternDetector:
         if not scores:
             return "unknown", 0.0
 
-        best = max(scores, key=scores.get)
+        best = max(scores, key=scores.get)  # ty:ignore[no-matching-overload]
         total = sum(scores.values())
         confidence = min(scores[best] / max(total, 1), 0.95)
         return best, confidence

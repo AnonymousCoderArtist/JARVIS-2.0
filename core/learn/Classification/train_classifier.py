@@ -20,7 +20,9 @@ import re
 from pathlib import Path
 from typing import Optional, Tuple
 
-import numpy as np`nimport torch`nimport torch.nn as nn
+import numpy as np
+import torch
+import torch.nn as nn
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -261,7 +263,7 @@ class TextClassifier(nn.Module):
 
     def __init__(self, input_dim: int, hidden_dims=None,
                  num_classes=NUM_CLASSES, dropout=DROPOUT_RATE):
-        import torch.nn as nn
+        super().__init__()
 
         if hidden_dims is None:
             hidden_dims = HIDDEN_DIMS
@@ -275,14 +277,14 @@ class TextClassifier(nn.Module):
             prev = h
         layers.append(nn.Linear(prev, num_classes))
 
-        self.model = nn.Sequential(*layers)
+        self.net = nn.Sequential(*layers)
         self._device = 'cpu'
 
     def forward(self, x):
-        return self.model(x)
+        return self.net(x)
 
     def to(self, device):
-        self.model = self.model.to(device)
+        self.net = self.net.to(device)
         self._device = device
         return self
 
@@ -291,29 +293,29 @@ class TextClassifier(nn.Module):
         return self._device
 
     def train_mode(self):
-        self.model.train()
+        self.net.train()
 
     def eval_mode(self):
-        self.model.eval()
+        self.net.eval()
 
     def parameters(self):
-        return self.model.parameters()
+        return self.net.parameters()
 
     def save(self, path: Path):
         import torch
-        torch.save(self.model.state_dict(), path)
+        torch.save(self.net.state_dict(), path)
 
     def load(self, path: Path, input_dim: int):
         import torch
         self.__init__(input_dim=input_dim)
-        self.model.load_state_dict(torch.load(path, weights_only=True, map_location='cpu'))
+        self.net.load_state_dict(torch.load(path, weights_only=True, map_location='cpu'))
         self.eval_mode()
 
     def predict_proba(self, x_tensor) -> np.ndarray:
         import torch
-        self.model.eval()
+        self.net.eval()
         with torch.no_grad():
-            logits = self.model(x_tensor)
+            logits = self.net(x_tensor)
             probs = torch.softmax(logits, dim=1)
             return probs.numpy()
 
@@ -322,7 +324,7 @@ class TextClassifier(nn.Module):
         return np.argmax(probs, axis=1)
 
     def count_params(self) -> int:
-        return sum(p.numel() for p in self.model.parameters())
+        return sum(p.numel() for p in self.net.parameters())
 
 
 # ---------------------------------------------------------------------------
@@ -472,7 +474,7 @@ def train_model(texts: list[str], labels: list[str],
 
         if avg_vloss < best_val_loss:
             best_val_loss = avg_vloss
-            best_state = {k: v.cpu().clone() for k, v in model.model.state_dict().items()}
+            best_state = {k: v.cpu().clone() for k, v in model.net.state_dict().items()}
             model.save(WEIGHTS_PATH)
 
         if early_stopper(avg_vloss):
@@ -585,7 +587,7 @@ def main():
     texts, labels = zip(*base_data)
     print(f"Base training samples: {len(texts)}")
 
-    aug_texts, aug_labels = augment_training_data(list(texts), list(labels))
+    aug_texts, aug_labels = zip(*augment_training_data(list(zip(texts, labels))))
     print(f"Augmented training samples: {len(aug_texts)}")
 
     vectorizer, model, meta = train_model(list(aug_texts), list(aug_labels))
