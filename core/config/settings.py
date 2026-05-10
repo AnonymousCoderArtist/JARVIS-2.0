@@ -303,3 +303,17 @@ class Settings:
     @property
     def sandbox_backend(self) -> str:
         return self._config.sandbox.backend
+
+    @property
+    def sandbox_base_url(self) -> str:
+        return self._config.sandbox.base_url
+
+    @property
+    def sandbox_timeout(self) -> int:
+        return self._config.sandbox.timeout
+
+    @property
+    def sandbox_runtime(self) -> str:
+        return self._config.sandbox.runtime
+
+    

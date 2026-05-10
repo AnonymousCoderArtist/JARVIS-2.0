@@ -81,6 +81,9 @@ dev = [
     "ruff>=0.1.0",
     "ty==0.0.33",
 ]
+sandbox = [
+    "opensandbox>=0.1.0",
+]
 
 [project.scripts]
 jarvis = "jarvis.cli:main"

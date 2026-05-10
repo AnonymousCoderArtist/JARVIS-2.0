@@ -15,7 +15,7 @@ from core.tools.permissions import (
 )
 
 from .base import BaseTool, ToolInput, ToolOutput
-from .sandbox import wrap_command
+from .sandbox import get_backend, SandboxBackend, wrap_command
 from core.config import Settings
 
 
@@ -143,10 +143,28 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
         self.restrict_to_workspace = False
         # Read sandbox setting from configuration
         settings = Settings()
-        self.sandbox = settings.sandbox_backend if settings.sandbox_enabled else ""
+        self._sandbox_backend: SandboxBackend | None = None
+        self._backend_name = settings.sandbox_backend if settings.sandbox_enabled else ""
+        self._backend_initialized = False
         self.path_append = ""
         self.allowed_env_keys = []
         self.working_dir = None
+
+    def _get_sandbox_backend(self) -> SandboxBackend | None:
+        """Get or create the sandbox backend"""
+        if not self._backend_initialized:
+            if self._backend_name:
+                settings = Settings()
+                kwargs = {}
+                if self._backend_name == "opensandbox":
+                    kwargs = {
+                        "base_url": settings.sandbox_base_url,
+                        "timeout": settings.sandbox_timeout,
+                        "runtime": settings.sandbox_runtime
+                    }
+                self._sandbox_backend = get_backend(self._backend_name, **kwargs)
+            self._backend_initialized = True
+        return self._sandbox_backend
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         try:
@@ -183,12 +201,13 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
 
             if isBackground:
                 # Apply sandboxing for background processes
-                if self.sandbox:
+                backend = self._get_sandbox_backend()
+                if backend:
                     if self.is_windows:
-                        print(f"Warning: Sandbox '{self.sandbox}' is not supported on Windows; running unsandboxed")
+                        print(f"Warning: Sandbox backend is not supported on Windows; running unsandboxed")
                     else:
                         workspace = self.working_dir or os.getcwd()
-                        command = wrap_command(self.sandbox, command, workspace, os.getcwd())
+                        command = wrap_command(self._backend_name, command, workspace, os.getcwd())
 
                 if self.is_windows:
                     process = await asyncio.create_subprocess_exec(
@@ -219,12 +238,13 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                 )
 
             # Apply sandboxing for foreground processes
-            if self.sandbox:
+            backend = self._get_sandbox_backend()
+            if backend:
                 if self.is_windows:
-                    print(f"Warning: Sandbox '{self.sandbox}' is not supported on Windows; running unsandboxed")
+                    print(f"Warning: Sandbox backend is not supported on Windows; running unsandboxed")
                 else:
                     workspace = self.working_dir or os.getcwd()
-                    command = wrap_command(self.sandbox, command, workspace, os.getcwd())
+                    command = wrap_command(self._backend_name, command, workspace, os.getcwd())
 
             # Standard foreground execution
             if self.is_windows:
@@ -346,7 +366,25 @@ class RunTestsTool(BaseTool):
     def __init__(self):
         super().__init__()
         settings = Settings()
-        self.sandbox = settings.sandbox_backend if settings.sandbox_enabled else ""
+        self._sandbox_backend: SandboxBackend | None = None
+        self._backend_name = settings.sandbox_backend if settings.sandbox_enabled else ""
+        self._backend_initialized = False
+
+    def _get_sandbox_backend(self) -> SandboxBackend | None:
+        """Get or create the sandbox backend"""
+        if not self._backend_initialized:
+            if self._backend_name:
+                settings = Settings()
+                kwargs = {}
+                if self._backend_name == "opensandbox":
+                    kwargs = {
+                        "base_url": settings.sandbox_base_url,
+                        "timeout": settings.sandbox_timeout,
+                        "runtime": settings.sandbox_runtime
+                    }
+                self._sandbox_backend = get_backend(self._backend_name, **kwargs)
+            self._backend_initialized = True
+        return self._sandbox_backend
 
     name = "run_tests"
     description = """Run tests using pytest or unittest framework.
@@ -426,12 +464,13 @@ Example: {"path": "tests/", "framework": "pytest", "args": "-v"}"""
 
             # Apply sandboxing if enabled
             is_windows = platform.system() == "Windows"
-            if self.sandbox:
+            backend = self._get_sandbox_backend()
+            if backend:
                 if is_windows:
-                    print(f"Warning: Sandbox '{self.sandbox}' is not supported on Windows; running unsandboxed")
+                    print(f"Warning: Sandbox backend is not supported on Windows; running unsandboxed")
                 else:
                     workspace = os.getcwd()
-                    command = wrap_command(self.sandbox, command, workspace, os.getcwd())
+                    command = wrap_command(self._backend_name, command, workspace, os.getcwd())
 
             process = await asyncio.create_subprocess_shell(
                 command,

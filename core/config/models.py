@@ -38,7 +38,10 @@ class LearningSettings(BaseModel):
 class SandboxSettings(BaseModel):
     """Sandbox execution settings for shell commands"""
     enabled: bool = False
-    backend: str = "bwrap"  # "bwrap" (bubblewrap), future: "firejail", "systemd-nspawn"
+    backend: str = "bwrap"  # "bwrap" (bubblewrap), "opensandbox", "disabled"
+    base_url: str = "http://localhost:8080"
+    timeout: int = 30
+    runtime: str = "opensandbox/code-interpreter:v1.0.2"
 
 
 class AppSettings(BaseModel):
