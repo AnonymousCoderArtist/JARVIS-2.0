@@ -51,10 +51,22 @@ class MCPServerConfig:
     timeout: float = 30.0
     disabled: bool = False
     disabled_tools: list[str] = field(default_factory=list)
+    # Lazy MCP fields (pi-mcp-adapter style)
+    lifecycle: str = "lazy"  # "lazy" | "eager" | "keep-alive"
+    idle_timeout: float = 15.0  # Minutes before idle disconnect (lazy only)
+    direct_tools: bool | list[str] = False  # True = all tools, ["t1","t2"] = specific
+    exclude_tools: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> "MCPServerConfig":
         """Create config from dictionary"""
+        # Parse direct_tools: can be bool or list of strings
+        raw_direct_tools = data.get("directTools", data.get("direct_tools", False))
+        if isinstance(raw_direct_tools, list):
+            direct_tools: bool | list[str] = raw_direct_tools
+        else:
+            direct_tools = bool(raw_direct_tools)
+
         return cls(
             name=data.get("name", ""),
             command=data.get("command", ""),
@@ -65,6 +77,10 @@ class MCPServerConfig:
             timeout=data.get("timeout", 30.0),
             disabled=data.get("disabled", False),
             disabled_tools=data.get("disabled_tools", []),
+            lifecycle=data.get("lifecycle", "lazy"),
+            idle_timeout=data.get("idleTimeout", data.get("idle_timeout", 15.0)),
+            direct_tools=direct_tools,
+            exclude_tools=data.get("excludeTools", data.get("exclude_tools", [])),
         )
 
 
@@ -544,17 +560,202 @@ class MCPToolProvider:
 
 
 # ============================================================================
-# MCP REGISTRY (MANAGES MULTIPLE SERVERS)
+# MCP REGISTRY (MANAGES MULTIPLE SERVERS — LAZY/EAGER/KEEP-ALIVE)
 # ============================================================================
 
 class MCPRegistry:
-    """Registry for managing multiple MCP servers and their tools"""
+    """Registry for managing multiple MCP servers with lazy/eager/keep-alive lifecycle.
 
-    def __init__(self, tool_registry: ToolRegistry | None = None):
+    When use_proxy=True (default), a single `mcp` proxy tool is registered instead
+    of individual tools — dramatically reducing token usage. Specific tools can be
+    promoted to direct tools via the `directTools` config option.
+    """
+
+    def __init__(
+        self,
+        tool_registry: ToolRegistry | None = None,
+        use_proxy: bool = True,
+    ):
         self._tool_registry = tool_registry
         self._providers: dict[str, MCPToolProvider] = {}
         self._clients: dict[str, MCPClient] = {}
         self._adapters: dict[str, MCPToolAdapter] = {}
+        self._configs: dict[str, MCPServerConfig] = {}
+        self._direct_tool_names: set[str] = set()
+        self._use_proxy = use_proxy
+        self._proxy_registered = False
+
+        # Lazy MCP subsystems (imported lazily to avoid circular imports)
+        from .mcp_metadata_cache import MCPMetadataCache
+        from .mcp_lifecycle import MCPLifecycleManager
+        self._cache = MCPMetadataCache()
+        self._lifecycle = MCPLifecycleManager(self)
+
+    async def initialize(
+        self,
+        configs: list[MCPServerConfig],
+        llm_provider: Any = None,
+        model: str | None = None,
+    ) -> dict[str, str]:
+        """Initialize all MCP servers based on their lifecycle mode.
+
+        - eager/keep-alive: connect immediately
+        - lazy: register from metadata cache only
+
+        Also registers the proxy tool and direct tools.
+
+        Returns:
+            Dict mapping server names to their initialization status.
+        """
+        results: dict[str, str] = {}
+
+        for config in configs:
+            if config.disabled:
+                results[config.name] = "disabled"
+                continue
+
+            self._configs[config.name] = config
+
+            try:
+                await self._lifecycle.initialize_server(config)
+                results[config.name] = "initialized"
+            except Exception as e:
+                results[config.name] = f"error: {e}"
+                logger.error(f"Failed to initialize MCP server '{config.name}': {e}")
+
+        # Register proxy tool (if enabled)
+        if self._use_proxy and not self._proxy_registered:
+            self._register_proxy_tool(llm_provider, model)
+
+        # Register direct tools
+        for config in self._configs.values():
+            if config.disabled:
+                continue
+            await self._register_direct_tools(config, llm_provider, model)
+
+        return results
+
+    def _register_proxy_tool(self, llm_provider: Any = None, model: str | None = None) -> None:
+        """Register the single MCP proxy tool with the tool registry."""
+        from .mcp_proxy_tool import MCPProxyTool
+
+        proxy = MCPProxyTool(
+            mcp_registry=self,
+            tool_registry=self._tool_registry,
+            llm_provider=llm_provider,
+            model=model,
+        )
+
+        if self._tool_registry:
+            self._tool_registry.register(proxy)
+
+        self._proxy_registered = True
+        logger.info("Registered MCP proxy tool")
+
+    async def _register_direct_tools(
+        self,
+        config: MCPServerConfig,
+        llm_provider: Any = None,
+        model: str | None = None,
+    ) -> None:
+        """Register direct tools for a server (promoted to first-class tools)."""
+        if not config.direct_tools:
+            return
+
+        # Determine which tools to register directly
+        cached_server = self._cache.get_server(config.name)
+        if not cached_server:
+            # No cache — try to connect and populate cache
+            try:
+                client = await self._lifecycle.ensure_connected(config.name)
+                tools = await client.list_tools()
+                self._update_cache_for_server(config.name, tools)
+                cached_server = self._cache.get_server(config.name)
+            except Exception as e:
+                logger.warning(f"Cannot register direct tools for '{config.name}': {e}")
+                return
+
+        if not cached_server:
+            return
+
+        # Filter tools based on direct_tools config
+        tools_to_register = []
+        if config.direct_tools is True:
+            # All tools
+            tools_to_register = cached_server.tools
+        elif isinstance(config.direct_tools, list):
+            tool_names = set(config.direct_tools)
+            tools_to_register = [
+                t for t in cached_server.tools
+                if t.original_name in tool_names
+            ]
+
+        # Exclude tools
+        exclude = set(config.exclude_tools) if config.exclude_tools else set()
+        tools_to_register = [t for t in tools_to_register if t.original_name not in exclude]
+
+        # Register each direct tool
+        client = self.get_client(config.name)
+        for tool_meta in tools_to_register:
+            # Check if already registered as direct tool
+            if tool_meta.name in self._direct_tool_names:
+                continue
+
+            # If using proxy mode, don't register tools that the proxy already covers
+            # (unless they are explicitly direct)
+            spec = MCPToolSpec(
+                name=tool_meta.original_name,
+                description=tool_meta.description,
+                input_schema=tool_meta.input_schema,
+                server_name=config.name,
+                remote_name=tool_meta.original_name,
+            )
+
+            if client:
+                adapter = MCPToolAdapter(
+                    mcp_client=client,
+                    tool_spec=spec,
+                    tool_registry=self._tool_registry,
+                    llm_provider=llm_provider,
+                    model=model,
+                )
+                self._adapters[adapter.name] = adapter
+                self._direct_tool_names.add(adapter.name)
+
+                if self._tool_registry:
+                    self._tool_registry.register(adapter)
+
+        logger.info(f"Registered {len(tools_to_register)} direct tools for '{config.name}'")
+
+    def _update_cache_for_server(self, server_name: str, tools: list[MCPToolSpec]) -> None:
+        """Update the metadata cache with fresh tool data from a server."""
+        from .mcp_metadata_cache import ToolMetadata
+
+        config = self._configs.get(server_name)
+        config_dict = {}
+        if config:
+            config_dict = {
+                "command": config.command,
+                "args": config.args,
+                "url": config.url,
+                "transport": config.transport,
+                "env": config.env,
+            }
+
+        tool_metas = [
+            ToolMetadata(
+                name=f"mcp_{server_name}_{t.name}",
+                original_name=t.name,
+                description=t.description,
+                input_schema=t.input_schema,
+                server_name=server_name,
+            )
+            for t in tools
+        ]
+
+        self._cache.update_server(server_name, tool_metas, config_dict)
+
+    # -- Backward-compatible API --
 
     async def add_server(
         self,
@@ -562,11 +763,15 @@ class MCPRegistry:
         llm_provider: Any = None,
         model: str | None = None,
     ) -> MCPToolProvider | None:
-        """Add and connect to an MCP server"""
+        """Add and connect to an MCP server (eager, backward-compatible method).
+
+        For lazy initialization, use initialize() instead.
+        """
         if config.disabled:
             logger.info(f"MCP server '{config.name}' is disabled, skipping")
             return None
 
+        self._configs[config.name] = config
         provider = MCPToolProvider(config)
 
         try:
@@ -581,6 +786,9 @@ class MCPRegistry:
             self._providers[config.name] = provider
             self._clients[config.name] = await provider.connect()
 
+            # Update cache
+            self._update_cache_for_server(config.name, await self._clients[config.name].list_tools())
+
             for adapter in adapters:
                 tool_name = adapter.name
                 self._adapters[tool_name] = adapter
@@ -589,6 +797,9 @@ class MCPRegistry:
                 if self._tool_registry:
                     self._tool_registry.register(adapter)
 
+            # Register with lifecycle manager
+            self._lifecycle.register_config(config)
+
             logger.info(f"Registered {len(adapters)} tools from MCP server '{config.name}'")
             return provider
 
@@ -596,20 +807,27 @@ class MCPRegistry:
             logger.error(f"Failed to connect to MCP server '{config.name}': {e}")
             raise
 
+    def get_client(self, server_name: str) -> MCPClient | None:
+        """Get the MCPClient for a server (used by lifecycle manager)."""
+        return self._clients.get(server_name)
+
     async def remove_server(self, server_name: str) -> None:
         """Remove an MCP server and its tools"""
+        await self._lifecycle.disconnect_server(server_name)
+
         if server_name in self._providers:
             await self._providers[server_name].disconnect()
             del self._providers[server_name]
 
-        if server_name in self._clients:
-            await self._clients[server_name].disconnect()
-            del self._clients[server_name]
-
         # Remove adapters for this server
         to_remove = [k for k in self._adapters if k.startswith(f"mcp_{server_name}_")]
         for key in to_remove:
+            self._direct_tool_names.discard(key)
             del self._adapters[key]
+
+        # Remove config and cache
+        self._configs.pop(server_name, None)
+        self._cache.remove_server(server_name)
 
     async def connect_all(
         self,
@@ -617,7 +835,10 @@ class MCPRegistry:
         llm_provider: Any = None,
         model: str | None = None,
     ) -> dict[str, list[str]]:
-        """Connect to multiple MCP servers"""
+        """Connect to multiple MCP servers (eager, backward-compatible).
+
+        For lazy initialization, use initialize() instead.
+        """
         results = {}
 
         for config in configs:
@@ -631,24 +852,28 @@ class MCPRegistry:
 
     async def disconnect_all(self) -> None:
         """Disconnect from all MCP servers"""
+        await self._lifecycle.shutdown()
+
         for provider in self._providers.values():
             await provider.disconnect()
 
         self._providers.clear()
         self._clients.clear()
         self._adapters.clear()
+        self._direct_tool_names.clear()
+        self._configs.clear()
 
     def get_tool(self, tool_name: str) -> MCPToolAdapter | None:
         """Get an MCP tool adapter by name"""
         return self._adapters.get(tool_name)
 
     def list_servers(self) -> list[str]:
-        """List connected MCP server names"""
-        return list(self._providers.keys())
+        """List all configured MCP server names"""
+        return list(self._configs.keys())
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """List all MCP tools"""
-        return [
+        """List all MCP tools (from adapters + cache)"""
+        tool_list = [
             {
                 "name": adapter.name,
                 "description": adapter.description,
@@ -658,15 +883,28 @@ class MCPRegistry:
             for adapter in self._adapters.values()
         ]
 
+        # Add cached tools not yet in adapters
+        adapter_names = {a.name for a in self._adapters.values()}
+        for cached_tool in self._cache.list_all_tools():
+            if cached_tool.name not in adapter_names:
+                tool_list.append({
+                    "name": cached_tool.name,
+                    "description": cached_tool.description,
+                    "server": cached_tool.server_name,
+                    "remote_name": cached_tool.original_name,
+                })
+
+        return tool_list
+
     @property
     def connected_servers(self) -> int:
         """Get the number of connected servers"""
-        return len(self._clients)
+        return sum(1 for c in self._clients.values() if c.is_connected)
 
     @property
     def total_tools(self) -> int:
-        """Get the total number of MCP tools"""
-        return len(self._adapters)
+        """Get the total number of MCP tools (adapters + cached)"""
+        return max(len(self._adapters), self._cache.total_tools)
 
 
 # ============================================================================

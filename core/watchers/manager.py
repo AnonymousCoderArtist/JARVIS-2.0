@@ -55,11 +55,11 @@ class WatcherManager:
                     try:
                         watcher_instance = attr()
                         self.register(watcher_instance)
-                    except Exception as e:
-                        logger.error(f"Failed to instantiate watcher {attr_name}: {e}")
+                    except Exception:
+                        pass  # Silently suppress
 
-        except Exception as e:
-            logger.error(f"Failed to load watcher plugin {plugin_path}: {e}")
+        except Exception:
+            pass  # Silently suppress
 
     def discover_watchers(self):
         """Discover watchers from .jarvis/watchers/ subdirectories"""
@@ -106,15 +106,13 @@ class WatcherManager:
         self._tasks.clear()
 
     async def _run_watcher(self, watcher: BaseWatcher):
-        """Internal loop for a single watcher"""
-        logger.info(f"Watcher loop started: {watcher.name}")
+        """Internal loop for a single watcher."""
         while self._running:
             try:
                 await watcher.watch()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Watcher {watcher.name} encountered an error: {e}")
-            
+            except Exception:
+                pass  # Silently suppress
+
             await asyncio.sleep(watcher.interval)
-        logger.info(f"Watcher loop stopped: {watcher.name}")

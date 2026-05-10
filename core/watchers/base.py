@@ -51,8 +51,9 @@ class BaseWatcher(ABC):
 
     def _send_system_toast(self, title: str, message: str):
         """Cross-platform system notification with PowerShell fallback for Windows."""
+        # Windows balloon notifications have a 256 character limit
         clean_title = f"JARVIS: {title}"[:100]
-        clean_message = message[:1000] # Increased from 200 to allow full messages
+        clean_message = message[:250]  # Windows limit is 256, leave buffer
 
         # Try plyer first
         try:

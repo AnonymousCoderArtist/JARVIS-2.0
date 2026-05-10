@@ -127,6 +127,13 @@ _LAZY_IMPORTS: dict[str, str] = {
     # Worktrees
     "EnterWorktreeTool": "core.tools.worktree_tool:EnterWorktreeTool",
     "ExitWorktreeTool": "core.tools.worktree_tool:ExitWorktreeTool",
+    # MCP
+    "MCPRegistry": "core.tools.mcp_adapter:MCPRegistry",
+    "MCPServerConfig": "core.tools.mcp_adapter:MCPServerConfig",
+    "MCPClient": "core.tools.mcp_adapter:MCPClient",
+    "MCPProxyTool": "core.tools.mcp_proxy_tool:MCPProxyTool",
+    "MCPMetadataCache": "core.tools.mcp_metadata_cache:MCPMetadataCache",
+    "MCPLifecycleManager": "core.tools.mcp_lifecycle:MCPLifecycleManager",
 }
 
 

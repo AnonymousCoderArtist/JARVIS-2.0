@@ -189,41 +189,41 @@ class CLIInterface:
             )
 
     async def _initialize_mcp_servers_async(self):
-        """Initialize MCP servers and register their tools asynchronously."""
+        """Initialize MCP servers using lazy lifecycle model."""
         try:
-            # Import MCP components
-
-            from core.tools.mcp_adapter import MCPRegistry
+            from core.tools.mcp_adapter import MCPRegistry, MCPServerConfig
 
             # Load MCP server configurations
-            mcp_configs = self._load_mcp_configs()
+            mcp_config_dicts = self._load_mcp_configs()
 
-            if not mcp_configs:
+            if not mcp_config_dicts:
                 return
 
-            # Create MCP registry and connect servers
-            mcp_registry = MCPRegistry(tool_registry=self.tool_registry)
+            # Create MCP registry with proxy mode
+            mcp_registry = MCPRegistry(tool_registry=self.tool_registry, use_proxy=True)
 
-            connected_count = 0
-            for config_dict in mcp_configs:
+            # Convert config dicts to MCPServerConfig objects
+            configs = []
+            for config_dict in mcp_config_dicts:
                 try:
-                    # Convert config dict to MCPServerConfig
                     config = self._create_mcp_config(config_dict)
-
-                    # Add and connect to server
-                    provider = await mcp_registry.add_server(
-                        config=config,
-                        llm_provider=self._current_provider,
-                        model=self.model
-                    )
-                    if provider:
-                        connected_count += 1
-
+                    configs.append(config)
                 except Exception as e:
-                    print(f"Warning: Failed to connect to MCP server '{config_dict.get('name', 'unknown')}': {e}")
+                    print(f"Warning: Invalid MCP config for '{config_dict.get('name', 'unknown')}': {e}")
 
-            if connected_count > 0:
-                print(f"Connected to {connected_count} MCP server(s)")
+            if not configs:
+                return
+
+            # Initialize with lazy lifecycle (only eager/keep-alive connect immediately)
+            results = await mcp_registry.initialize(
+                configs=configs,
+                llm_provider=self._current_provider,
+                model=self.model,
+            )
+
+            connected = sum(1 for v in results.values() if v == "initialized")
+            total = len(configs)
+            print(f"MCP: {connected}/{total} server(s) ready (lazy mode)")
 
         except Exception as e:
             print(f"Warning: MCP server initialization failed: {e}")
@@ -345,7 +345,7 @@ class CLIInterface:
         # Initialize WatcherManager and discover watchers
         self.watcher_manager = WatcherManager(
             config_getter=lambda: self.agent_manager.config,
-            event_queue=self.agent_loop._event_queue if hasattr(self.agent_loop, '_event_queue') else None
+            event_queue=None  # CLI doesn't use AgentLoop
         )
         self.watcher_manager.discover_watchers()
 
@@ -415,16 +415,21 @@ class CLIInterface:
         # Auto-detect transport based on URL presence
         transport = config_dict.get("transport", MCPTransportType.HTTP if "url" in config_dict else MCPTransportType.STDIO)
 
-        return MCPServerConfig(
-            name=config_dict["name"],
-            command=config_dict.get("command", ""),
-            args=config_dict.get("args", []),
-            env=config_dict.get("env", {}),
-            url=config_dict.get("url") or "",
-            transport=transport,
-            timeout=config_dict.get("timeout", 30.0),
-            disabled=config_dict.get("disabled", False),
-        )
+        return MCPServerConfig.from_dict({
+            "name": config_dict["name"],
+            "command": config_dict.get("command", ""),
+            "args": config_dict.get("args", []),
+            "env": config_dict.get("env", {}),
+            "url": config_dict.get("url", ""),
+            "transport": transport,
+            "timeout": config_dict.get("timeout", 30.0),
+            "disabled": config_dict.get("disabled", False),
+            "disabled_tools": config_dict.get("disabled_tools", []),
+            "lifecycle": config_dict.get("lifecycle", "lazy"),
+            "idleTimeout": config_dict.get("idleTimeout", config_dict.get("idle_timeout", 15.0)),
+            "directTools": config_dict.get("directTools", config_dict.get("direct_tools", False)),
+            "excludeTools": config_dict.get("excludeTools", config_dict.get("exclude_tools", [])),
+        })
 
     def _show_help(self):
         """Display available commands."""

@@ -165,49 +165,57 @@ def load_mcp_servers_from_config(config_path: Path | None = None) -> list[dict]:
 
 
 async def connect_mcp_servers(tool_registry: AsyncToolRegistry, provider: Any, model: str) -> int:
-    """Connect to MCP servers and register their tools."""
+    """Initialize MCP servers using lazy lifecycle model."""
     from core.tools.mcp_adapter import MCPRegistry, MCPServerConfig, MCPTransportType
 
     # Load MCP server configurations
-    mcp_configs = load_mcp_servers_from_config()
+    mcp_config_dicts = load_mcp_servers_from_config()
 
-    if not mcp_configs:
+    if not mcp_config_dicts:
         return 0
 
-    # Create MCP registry
-    mcp_registry = MCPRegistry(tool_registry=tool_registry)
+    # Create MCP registry with proxy mode
+    mcp_registry = MCPRegistry(tool_registry=tool_registry, use_proxy=True)
 
-    # Convert and connect to each MCP server
-    connected_count = 0
-    for config_dict in mcp_configs:
+    # Convert config dicts to MCPServerConfig objects
+    configs = []
+    for config_dict in mcp_config_dicts:
         try:
-            # Auto-detect transport based on URL presence
             url = config_dict.get("url", "")
             transport = config_dict.get("transport", "")
             if url and not transport:
                 transport = MCPTransportType.HTTP
 
-            config = MCPServerConfig(
-                name=config_dict.get("name", ""),
-                command=config_dict.get("command", ""),
-                args=config_dict.get("args", []),
-                env=config_dict.get("env", {}),
-                transport=transport or MCPTransportType.STDIO,
-                url=url,
-                timeout=config_dict.get("timeout", 30.0),
-            )
-
-            await mcp_registry.add_server(
-                config=config,
-                llm_provider=provider,
-                model=model,
-            )
-            connected_count += 1
-            print(f"Connected to MCP server: {config.name}")
+            config = MCPServerConfig.from_dict({
+                "name": config_dict.get("name", ""),
+                "command": config_dict.get("command", ""),
+                "args": config_dict.get("args", []),
+                "env": config_dict.get("env", {}),
+                "transport": transport or MCPTransportType.STDIO,
+                "url": url,
+                "timeout": config_dict.get("timeout", 30.0),
+                "lifecycle": config_dict.get("lifecycle", "lazy"),
+                "idleTimeout": config_dict.get("idleTimeout", config_dict.get("idle_timeout", 15.0)),
+                "directTools": config_dict.get("directTools", config_dict.get("direct_tools", False)),
+                "excludeTools": config_dict.get("excludeTools", config_dict.get("exclude_tools", [])),
+            })
+            configs.append(config)
         except Exception as e:
-            print(f"Warning: Failed to connect to MCP server '{config_dict.get('name', 'unknown')}': {e}")
+            print(f"Warning: Invalid MCP config for '{config_dict.get('name', 'unknown')}': {e}")
 
-    return connected_count
+    if not configs:
+        return 0
+
+    # Initialize with lazy lifecycle
+    results = await mcp_registry.initialize(
+        configs=configs,
+        llm_provider=provider,
+        model=model,
+    )
+
+    connected = sum(1 for v in results.values() if v == "initialized")
+    print(f"MCP: {connected}/{len(configs)} server(s) ready (lazy mode)")
+    return connected
 
 
 def create_tool_registry() -> AsyncToolRegistry:
