@@ -882,7 +882,14 @@ Create a comprehensive summary that captures:
                 return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result), diff=diff)
             if tool_name == "edit":
                 # For edit, return the diff showing changes
-                path = str(arguments.get("path") or arguments.get("filePath", ""))
+                # Extract path from replacements array (edit args have replacements, not top-level path)
+                path = ""
+                replacements = arguments.get("replacements", [])
+                if replacements and isinstance(replacements, list):
+                    first = replacements[0] if isinstance(replacements[0], dict) else {}
+                    path = first.get("filePath") or first.get("file_path", "")
+                if not path:
+                    path = str(arguments.get("path") or arguments.get("filePath", ""))
                 # Extract diff from metadata (can be at top level or in results array)
                 diff = ""
                 status = "success"
@@ -980,7 +987,15 @@ Create a comprehensive summary that captures:
         """
         # Track files modified by write and edit tools
         if tool_name in ("write", "write_file", "edit", "str_replace_editor"):
-            path = str(arguments.get("path") or arguments.get("filePath", ""))
+            path = ""
+            # For edit tools, the path is inside replacements array
+            if tool_name in ("edit", "str_replace_editor"):
+                replacements = arguments.get("replacements", [])
+                if replacements and isinstance(replacements, list):
+                    first = replacements[0] if isinstance(replacements[0], dict) else {}
+                    path = first.get("filePath") or first.get("file_path", "")
+            if not path:
+                path = str(arguments.get("path") or arguments.get("filePath", ""))
             if path:
                 try:
                     content = Path(path).read_bytes()

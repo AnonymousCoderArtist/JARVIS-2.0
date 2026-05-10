@@ -101,8 +101,30 @@ class ToolResultWidget(Generic[TResult], Static, can_focus=True):
         self.add_class("tool-result-widget")
 
     def watch_collapsed(self, collapsed: bool) -> None:
-        """Update the widget when collapsed state changes."""
-        self.refresh()
+        """Re-compose the widget when collapsed state changes."""
+        # refresh() only repaints; we need re-compose to show/hide diff content
+        self._recompose_on_collapse_change()
+
+    def _recompose_on_collapse_change(self) -> None:
+        """Re-compose and notify parent ToolResultMessage of collapsed change."""
+        try:
+            # Use Textual's recompose to rebuild children with new collapsed state
+            self.recompose()
+        except Exception:
+            # Fallback to refresh if recompose fails
+            self.refresh()
+        # Notify parent ToolResultMessage about the toggle
+        self._notify_parent_toggle()
+
+    def _notify_parent_toggle(self) -> None:
+        """Notify the parent ToolResultMessage about collapsed state change."""
+        from interface.textual_ui.widgets.tools import ToolResultMessage
+        parent = self.parent
+        while parent is not None:
+            if isinstance(parent, ToolResultMessage):
+                parent.collapsed = self.collapsed
+                break
+            parent = parent.parent
 
     def _footer(self, extra: str | None = None) -> ComposeResult:
         """Yield the footer with optional extra info."""

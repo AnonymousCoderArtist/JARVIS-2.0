@@ -187,6 +187,11 @@ Supports multiple replacements in single call."""
                     errors.append(f"Replacement {i + 1}: Missing or invalid new_string. Please provide the replacement text as a string.")
                     continue
 
+                # Check if old_string and new_string are identical
+                if old_string == new_string:
+                    errors.append(f"Replacement {i + 1}: The old_string and new_string are identical. No change will be made.")
+                    continue
+
                 if not os.path.exists(file_path):
                     errors.append(f"Replacement {i + 1}: File not found: {file_path}. Please verify the file path is correct and the file exists. Use list_directory or glob to find the correct file path.")
                     continue
