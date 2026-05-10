@@ -203,7 +203,18 @@ A cohesive dark theme with a new color palette:
 
 ---
 
+## Files Modified
 
+| File | What Changed |
+|------|-------------|
+| `core/agents/system_prompts.py` | Complete rewrite of guidelines (16 rules), updated header, stronger read tool instructions |
+| `interface/textual_ui/tcss/app.tcss` | New color palette, dark theme, styled all message types, borders, panels |
+| `interface/textual_ui/tcss/tools.tcss` | Color palette added, all tool-specific styles updated |
+| `interface/textual_ui/widgets/tool_widgets.py` | Generic syntax fix (Python 3.11), removed `edit` from registries, fixed `file_path` access |
+| `interface/textual_ui/cli_adapters.py` | F-string backslash fix, separated `edit` display logic |
+| `core/tools/__init__.py` | Conditional Windows imports |
+| `interface/textual_ui/tui_main.py` | Conditional Windows tool registration |
+| `interface/cli/cli.py` | Conditional Windows tool registration |
 
 ---
 
