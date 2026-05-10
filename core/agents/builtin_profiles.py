@@ -126,6 +126,31 @@ EXPLORE = AgentProfile(
     },
 )
 
+# Cowork agent - multi-agent task execution
+COWORK = AgentProfile(
+    name="cowork",
+    display_name="Cowork",
+    description="Multi-agent collaborative task execution with sandboxed operations",
+    safety=AgentSafety.SAFE,
+    agent_type=AgentType.SUBAGENT,
+    overrides={
+        "disallowed_tools": [],
+        "tools": {
+            "code_generation": {"permission": "always"},
+            "file_operations": {"permission": "always"},
+            "read_file": {"permission": "always"},
+            "write_file": {"permission": "always"},
+            "list_directory": {"permission": "always"},
+            "read_memory": {"permission": "always"},
+            "shell_execution": {"permission": "always"},
+            "system_info": {"permission": "always"},
+            "memory_management": {"permission": "always"},
+            "agents": {"permission": "always"},
+        },
+        "system_prompt_id": "cowork",
+    },
+)
+
 # Dictionary of built-in agents
 BUILTIN_AGENTS: dict[str, AgentProfile] = {
     "default": DEFAULT,
@@ -133,7 +158,8 @@ BUILTIN_AGENTS: dict[str, AgentProfile] = {
     "accept-edits": ACCEPT_EDITS,
     "auto-approve": AUTO_APPROVE,
     "explore": EXPLORE,
+    "cowork": COWORK,
 }
 
 # Agent cycling order
-AGENT_ORDER = ["default", "plan", "accept-edits", "auto-approve"]
+AGENT_ORDER = ["default", "plan", "accept-edits", "auto-approve", "cowork"]

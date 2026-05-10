@@ -220,3 +220,40 @@ class BaseTool(ABC):
         """
         # Default implementation - tools can override for undo functionality
         return None
+
+    def _get_param(self, input_data: ToolInput, key: str, alternate_key: str | None = None) -> Any:
+        """Extract a parameter from ToolInput with optional alternate key.
+        
+        Handles both snake_case (Python convention) and camelCase (JSON convention)
+        parameter naming.
+
+        Args:
+            input_data: The ToolInput instance
+            key: Primary parameter key (snake_case)
+            alternate_key: Optional alternate key (camelCase) to check if primary not found
+
+        Returns:
+            The parameter value or None if not found
+        """
+        # Try snake_case first (Python convention)
+        snake_key = key
+
+        # Build camelCase key if not provided
+        camel_key = alternate_key
+        if not camel_key and '_' in key:
+            # Convert snake_case to camelCase for JSON compatibility
+            parts = key.split('_')
+            camel_key = parts[0] + ''.join(p.title() for p in parts[1:])
+
+        # Try to get from input_data attributes
+        if hasattr(input_data, snake_key):
+            value = getattr(input_data, snake_key, None)
+            if value is not None:
+                return value
+
+        if camel_key and hasattr(input_data, camel_key):
+            value = getattr(input_data, camel_key, None)
+            if value is not None:
+                return value
+
+        return None

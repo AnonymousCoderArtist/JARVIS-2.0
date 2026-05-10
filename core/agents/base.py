@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeAlias, cast
 
-from core.agents.system_prompts import get_system_context
 from core.config.settings import Settings
 from core.llm.base import BaseLLMProvider, MessageDict
 from core.llm_sdk.base.sdk import ToolCall
@@ -37,6 +36,7 @@ logger = logging.getLogger(__name__)
 StreamCallback: TypeAlias = Callable[[str], None]
 ToolCallCallback: TypeAlias = Callable[[str, dict[str, Any]], None]
 ToolResultCallback: TypeAlias = Callable[[str, dict[str, Any], Any], None]
+ToolStreamCallback: TypeAlias = Callable[[str, str], None]
 ReasoningCallback: TypeAlias = Callable[[str], None]
 ReasoningDoneCallback: TypeAlias = Callable[[], None]
 ApprovalCallback: TypeAlias = Callable[[str, dict[str, Any], str, list[Any]], Any]
@@ -93,6 +93,7 @@ class BaseAgent(ABC):
         self.stream_callback: StreamCallback | None = None
         self.tool_call_callback: ToolCallCallback | None = None
         self.tool_result_callback: ToolResultCallback | None = None
+        self.tool_stream_callback: ToolStreamCallback | None = None
         self.reasoning_callback: ReasoningCallback | None = None
         self.reasoning_done_callback: ReasoningDoneCallback | None = None
 
@@ -136,6 +137,7 @@ class BaseAgent(ABC):
     def _build_system_prompt(self) -> None:
         """Build the full system prompt with system context and active skills."""
         # Get system context
+        from core.agents.prompts.constants import get_system_context
         system_context = get_system_context()
 
         # Combine base prompt with system context
@@ -851,7 +853,27 @@ class BaseAgent(ABC):
                 if self.tool_call_callback:
                     self.tool_call_callback(tool_name, tool_args)
 
-                result = await self.tools.execute_tool(tool_name, tool_args)
+                # Execute tool with retry for transient errors
+                max_retries = 2  # Up to 2 retries (3 total attempts)
+                result = None
+                for attempt in range(max_retries + 1):
+                    result = await self.tools.execute_tool(tool_name, tool_args)
+                    success = getattr(result, "success", False)
+                    err_val = getattr(result, "error", None)
+                    # Only retry on transient infrastructure errors, not on tool logic errors
+                    if success or not err_val or attempt == max_retries:
+                        break
+                    err_str = str(err_val).lower()
+                    is_transient = any(
+                        kw in err_str
+                        for kw in ("rate limit", "timeout", "connection", "429", "503", "502", "500", "overloaded")
+                    )
+                    if not is_transient:
+                        break
+                    # Exponential backoff: 1s, 2s
+                    import asyncio as _asyncio
+                    await _asyncio.sleep(2 ** attempt)
+
                 if self.tool_result_callback:
                     self.tool_result_callback(tool_name, tool_args, result)
 

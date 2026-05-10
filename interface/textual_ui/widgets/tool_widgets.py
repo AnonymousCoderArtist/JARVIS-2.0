@@ -188,21 +188,29 @@ class BashResultWidget(ToolResultWidget[BashResult]):
             yield from self._footer()
             return
 
-        # Result summary
-        summary_text = f"└─ exit code {self.result.returncode}"
+        # Result summary with exit code color
+        exit_code = self.result.returncode
+        if exit_code == 0:
+            summary_text = "└─ ✓ exit 0"
+        else:
+            summary_text = f"└─ ✗ exit {exit_code}"
         if self.collapsed:
             summary_text += " • Ctrl+O to expand"
         yield NoMarkupStatic(summary_text, classes="tool-result-summary")
 
         if not self.collapsed:
             if self.result.stdout:
-                content, truncation_info = _truncate_lines(self.result.stdout, 15)
+                content, truncation_info = _truncate_lines(self.result.stdout, 20)
                 yield Markdown(f"```text\n{content}\n```")
                 if truncation_info:
                     yield NoMarkupStatic(truncation_info, classes="tool-result-hint")
 
             if self.result.stderr:
-                yield NoMarkupStatic(self.result.stderr, classes="tool-result-error")
+                yield NoMarkupStatic("stderr:", classes="tool-result-label")
+                content, truncation_info = _truncate_lines(self.result.stderr, 10)
+                yield NoMarkupStatic(content, classes="tool-result-error")
+                if truncation_info:
+                    yield NoMarkupStatic(truncation_info, classes="tool-result-hint")
 
             yield from self._footer()
         else:
@@ -249,7 +257,7 @@ class EditApprovalWidget(ToolApprovalWidget[Any]):
                     if diff_text:
                         diff_lines = parse_diff_text(diff_text)
                         from interface.textual_ui.widgets.tools import DiffBlock
-                        yield DiffBlock(diff_lines, context_lines=3)
+                        yield DiffBlock(diff_lines, context_lines=3, file_path=file_path)
                     else:
                         yield NoMarkupStatic("No changes (content is identical after replacement)", classes="tool-result-muted")
                 else:
@@ -288,7 +296,7 @@ class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
                 if diff_text:
                     diff_lines = parse_diff_text(diff_text)
                     from interface.textual_ui.widgets.tools import DiffBlock
-                    yield DiffBlock(diff_lines, context_lines=3)
+                    yield DiffBlock(diff_lines, context_lines=3, file_path=file_path)
                 else:
                     yield NoMarkupStatic("No changes (content is identical)", classes="tool-result-muted")
             else:
@@ -324,7 +332,7 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
                     if diff_lines:
                         # Lazy import DiffBlock
                         from interface.textual_ui.widgets.tools import DiffBlock
-                        yield DiffBlock(diff_lines, context_lines=3)
+                        yield DiffBlock(diff_lines, context_lines=3, file_path=self.result.path)
                 # Show new content
                 ext = Path(self.result.path).suffix.lstrip(".") or "text"
                 content, truncation_info = _truncate_lines(self.result.content, 15)
@@ -346,7 +354,7 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
                     if diff_lines:
                         # Lazy import DiffBlock
                         from interface.textual_ui.widgets.tools import DiffBlock
-                        yield DiffBlock(diff_lines, context_lines=3)
+                        yield DiffBlock(diff_lines, context_lines=3, file_path=self.result.path)
                 # Show content
                 ext = Path(self.result.path).suffix.lstrip(".") or "text"
                 content, truncation_info = _truncate_lines(self.result.content, 15)
@@ -394,7 +402,7 @@ class EditResultWidget(ToolResultWidget[EditResult]):
                 diff_lines = parse_diff_text(diff_text)
                 if diff_lines:
                     from interface.textual_ui.widgets.tools import DiffBlock
-                    yield DiffBlock(diff_lines, context_lines=3)
+                    yield DiffBlock(diff_lines, context_lines=3, file_path=file_path)
             
             # Show status
             status = self.result.status or "success"
@@ -407,12 +415,14 @@ class EditResultWidget(ToolResultWidget[EditResult]):
 
 
 def parse_diff_text(diff_text: str) -> list:
-    """Parse unified diff text into DiffLine objects."""
+    """Parse unified diff text into DiffLine objects with dual line numbers."""
     from interface.textual_ui.widgets.tools import DiffLine
     
     lines = []
     old_line_num = None
     new_line_num = None
+    current_old = None
+    current_new = None
     
     for line in diff_text.split('\n'):
         if line.startswith('@@'):
@@ -432,24 +442,54 @@ def parse_diff_text(diff_text: str) -> list:
                         new_line_num = int(new_part.split(',')[0][1:])
                     except (ValueError, IndexError):
                         new_line_num = None
-            lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+            current_old = old_line_num
+            current_new = new_line_num
+            lines.append(DiffLine(
+                line_number=None,
+                content=line,
+                prefix=" ",
+                is_hunk_header=True,
+            ))
         elif line.startswith('+++') or line.startswith('---') or line.startswith('diff '):
-            # Skip file header lines
-            lines.append(DiffLine(line_number=None, content=line, prefix=" "))
+            # File header lines — show them with file header styling
+            lines.append(DiffLine(
+                line_number=None,
+                content=line,
+                prefix=" ",
+                is_file_header=True,
+            ))
         elif line.startswith('+'):
-            lines.append(DiffLine(line_number=new_line_num, content=line[1:], prefix="+"))
-            if new_line_num is not None:
-                new_line_num += 1
+            lines.append(DiffLine(
+                line_number=current_new,
+                content=line[1:],
+                prefix="+",
+                old_line_number=None,
+                new_line_number=current_new,
+            ))
+            if current_new is not None:
+                current_new += 1
         elif line.startswith('-'):
-            lines.append(DiffLine(line_number=old_line_num, content=line[1:], prefix="-"))
-            if old_line_num is not None:
-                old_line_num += 1
+            lines.append(DiffLine(
+                line_number=current_old,
+                content=line[1:],
+                prefix="-",
+                old_line_number=current_old,
+                new_line_number=None,
+            ))
+            if current_old is not None:
+                current_old += 1
         elif line.startswith(' '):
-            lines.append(DiffLine(line_number=new_line_num, content=line[1:], prefix=" "))
-            if old_line_num is not None:
-                old_line_num += 1
-            if new_line_num is not None:
-                new_line_num += 1
+            lines.append(DiffLine(
+                line_number=current_new,
+                content=line[1:],
+                prefix=" ",
+                old_line_number=current_old,
+                new_line_number=current_new,
+            ))
+            if current_old is not None:
+                current_old += 1
+            if current_new is not None:
+                current_new += 1
         elif line:
             # Any other line
             lines.append(DiffLine(line_number=None, content=line, prefix=" "))
@@ -529,10 +569,11 @@ class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
             yield from self._footer()
             return
 
-        # Result summary
+        # Result summary with file info
         lines = self.result.content.split("\n")
         line_count = len(lines)
-        summary_text = f"└─ {line_count} lines loaded"
+        path = self.result.path or "unknown"
+        summary_text = f"└─ {line_count} lines from {path}"
         if self.collapsed:
             summary_text += " • Ctrl+O to expand"
         yield NoMarkupStatic(summary_text, classes="tool-result-summary tool-result-read-summary")
@@ -541,9 +582,9 @@ class ReadFileResultWidget(ToolResultWidget[ReadFileResult]):
             for warning in self.warnings:
                 yield NoMarkupStatic(f"warning: {warning}", classes="tool-result-warning tool-result-read-warning")
 
-            # Show content
+            # Show content with syntax highlighting
             ext = Path(self.result.path).suffix.lstrip(".") or "text"
-            content, truncation_info = _truncate_lines(self.result.content, 15)
+            content, truncation_info = _truncate_lines(self.result.content, 20)
             yield Markdown(f"```{ext}\n{content}\n```")
             yield from self._footer(truncation_info)
         else:
@@ -587,7 +628,7 @@ class GrepResultWidget(ToolResultWidget[GrepResult]):
     """Modern grep result widget matching design.
     
     Layout:
-    └─ 24 matches
+    └─ 24 matches in 5 files
        src/file.py:10: content
     """
 
@@ -599,41 +640,56 @@ class GrepResultWidget(ToolResultWidget[GrepResult]):
 
         matches = self.result.matches
         total_matches = len(matches)
+        # Count unique files
+        unique_files = len(set(m.file for m in matches))
 
-        # Branch with match count
-        summary_text = f"└─ {total_matches} matches"
+        # Branch with match count and file count
+        summary_text = f"└─ {total_matches} match{'es' if total_matches != 1 else ''} in {unique_files} file{'s' if unique_files != 1 else ''}"
         if self.collapsed:
             summary_text += " • Ctrl+O to expand"
         yield NoMarkupStatic(summary_text, classes="tool-result-summary")
 
         if not self.collapsed:
-            # Show matches with line numbers and file paths
-            max_matches_to_show = 15
-            for match in matches[:max_matches_to_show]:
-                file = match.file
-                line_num = match.line
-                content = match.content
+            # Group matches by file
+            from collections import OrderedDict
+            by_file: dict[str, list] = OrderedDict()
+            for match in matches:
+                if match.file not in by_file:
+                    by_file[match.file] = []
+                by_file[match.file].append(match)
 
-                # Truncate very long content
-                display_content = content[:100] + "…" if len(content) > 100 else content
-                # Use markup for colors: bright black for path, yellow for line
-                yield Static(f"   [ansi_bright_black]{file}[/][ansi_bright_black]:[/][ansi_bright_yellow]{line_num}[/][ansi_bright_black]:[/] {display_content}", classes="tool-result-match")
+            max_matches_to_show = 20
+            shown = 0
+            for file_path, file_matches in by_file.items():
+                if shown >= max_matches_to_show:
+                    break
+                # File header
+                yield NoMarkupStatic(f"   📄 {file_path}", classes="tool-result-file-header")
+                for match in file_matches:
+                    if shown >= max_matches_to_show:
+                        break
+                    content = match.content
+                    display_content = content[:100] + "…" if len(content) > 100 else content
+                    yield Static(
+                        f"      [ansi_bright_black]{match.line}[/][ansi_bright_black]:[/] {display_content}",
+                        classes="tool-result-match",
+                    )
+                    shown += 1
 
             if total_matches > max_matches_to_show:
                 remaining = total_matches - max_matches_to_show
-                yield NoMarkupStatic(f"   ... ({remaining} more lines • Ctrl+O to expand)", classes="tool-result-hint")
+                yield NoMarkupStatic(f"   ... ({remaining} more matches)", classes="tool-result-hint")
 
         yield from self._footer()
 
 
-
 class LSResultWidget(ToolResultWidget[LSResult]):
-    """LS result widget.
+    """LS result widget with file type icons.
 
     Layout:
     └─ 24 entries
-       .env
-       src/
+       📁 src/
+       📄 main.py
     """
 
     def compose(self) -> ComposeResult:
@@ -644,19 +700,27 @@ class LSResultWidget(ToolResultWidget[LSResult]):
 
         items = self.result.items
         total_items = len(items)
+        dir_count = sum(1 for i in items if i.endswith("/"))
+        file_count = total_items - dir_count
 
-        # Branch with count
-        summary_text = f"└─ {total_items} entries"
+        # Branch with count and type breakdown
+        parts = []
+        if dir_count:
+            parts.append(f"{dir_count} dir{'s' if dir_count != 1 else ''}")
+        if file_count:
+            parts.append(f"{file_count} file{'s' if file_count != 1 else ''}")
+        summary_text = f"└─ {' · '.join(parts)}" if parts else f"└─ {total_items} entries"
         if self.collapsed:
             summary_text += " • Ctrl+O to expand"
         yield NoMarkupStatic(summary_text, classes="tool-result-summary")
 
         if not self.collapsed:
-            max_items_to_show = 15
+            max_items_to_show = 20
             for item in items[:max_items_to_show]:
                 is_dir = item.endswith("/")
+                icon = "📁" if is_dir else "📄"
                 item_class = "tool-result-ls-dir" if is_dir else "tool-result-ls-file"
-                yield Static(f"   {item}", classes=f"tool-result-ls-item {item_class}")
+                yield Static(f"   {icon} {item}", classes=f"tool-result-ls-item {item_class}")
 
             if total_items > max_items_to_show:
                 remaining = total_items - max_items_to_show

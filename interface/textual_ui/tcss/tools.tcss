@@ -154,6 +154,18 @@ $info: ansi_cyan;
     background: transparent;
 }
 
+.tool-result-file-header {
+    color: $info;
+    text-style: bold;
+    padding-left: 3;
+}
+
+.tool-result-label {
+    color: $text-secondary;
+    text-style: bold;
+    padding-left: 2;
+}
+
 /* ========================================
    LS Tool Styles
    ======================================== */

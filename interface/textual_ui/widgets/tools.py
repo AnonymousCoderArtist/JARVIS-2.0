@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,6 +15,33 @@ from interface.textual_ui.types import ToolCallEvent, ToolResultEvent
 from interface.textual_ui.widgets.messages import NonSelectableStatic
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tool_widgets import get_result_widget
+
+# Tool-specific icons for visual identification
+TOOL_ICONS: dict[str, str] = {
+    "read": "📄",
+    "read_file": "📄",
+    "write": "📝",
+    "write_file": "📝",
+    "edit": "✏️",
+    "edit_file": "✏️",
+    "ls": "📁",
+    "find": "🔍",
+    "grep": "🔎",
+    "bash": "⚡",
+    "web_search": "🌐",
+    "fetch_webpage": "🌐",
+    "AskUserQuestion": "❓",
+    "agents": "🤖",
+    "save_memory": "💾",
+    "read_memory": "📖",
+    "skill": "🎯",
+    "repl": "🐍",
+}
+
+
+def _get_tool_icon(tool_name: str) -> str:
+    """Get icon for a tool name."""
+    return TOOL_ICONS.get(tool_name, "●")
 
 
 def _format_tool_value(value: Any, *, max_length: int = 80) -> str:
@@ -36,6 +64,7 @@ def _format_tool_args(args: dict[str, Any] | None) -> list[str]:
     priority_keys = [
         "path",
         "file_path",
+        "filePath",
         "command",
         "pattern",
         "query",
@@ -48,10 +77,87 @@ def _format_tool_args(args: dict[str, Any] | None) -> list[str]:
     return [f"{key}: {_format_tool_value(args[key])}" for key in ordered[:4]]
 
 
+def _get_inline_summary(tool_name: str, args: dict[str, Any] | None) -> str:
+    """Get a compact inline summary of tool arguments for the call header.
+
+    Returns something like:
+      read: src/main.py (3 files)
+      bash: npm test
+      edit: src/main.py (+2 replacements)
+      grep: TODO (in **/*.py)
+    """
+    if not args:
+        return ""
+
+    # Tool-specific summaries
+    if tool_name in ("read", "read_file"):
+        files = args.get("files") or args.get("path") or args.get("filePath", "")
+        if isinstance(files, list):
+            return f"({len(files)} file{'s' if len(files) != 1 else ''})"
+        return str(files) if files else ""
+
+    if tool_name in ("write", "write_file"):
+        path = args.get("path") or args.get("filePath", "")
+        return str(path) if path else ""
+
+    if tool_name in ("edit", "edit_file"):
+        path = args.get("path") or args.get("filePath", "")
+        replacements = args.get("replacements", [])
+        if isinstance(replacements, list):
+            count = len(replacements)
+            parts = []
+            if path:
+                parts.append(str(path))
+            parts.append(f"{count} replacement{'s' if count != 1 else ''}")
+            return " ".join(parts)
+        return str(path) if path else ""
+
+    if tool_name == "bash":
+        cmd = args.get("command", "")
+        if cmd:
+            # Truncate long commands
+            if len(cmd) > 60:
+                return cmd[:57] + "…"
+            return cmd
+        return ""
+
+    if tool_name == "grep":
+        pattern = args.get("pattern") or args.get("query", "")
+        glob = args.get("glob") or args.get("include", "")
+        parts = []
+        if pattern:
+            parts.append(f'"{pattern}"')
+        if glob:
+            parts.append(f"in {glob}")
+        return " ".join(parts) if parts else ""
+
+    if tool_name == "find":
+        pattern = args.get("pattern") or args.get("glob", "")
+        return str(pattern) if pattern else ""
+
+    if tool_name in ("ls",):
+        path = args.get("path", "")
+        return str(path) if path else ""
+
+    if tool_name == "agents":
+        agent_name = args.get("agent_name") or args.get("name", "")
+        return str(agent_name) if agent_name else ""
+
+    if tool_name in ("web_search",):
+        query = args.get("query", "")
+        return f'"{query}"' if query else ""
+
+    # Default: show first priority arg
+    for key in ("path", "file_path", "filePath", "command", "pattern", "query"):
+        if key in args and args[key]:
+            return _format_tool_value(args[key], max_length=60)
+    return ""
+
+
 class ToolCallMessage(Static):
-    """Tool call message with target design:
-    ● Read  src/main.py
-    └─ 120 lines loaded • Ctrl+O to expand
+    """Tool call message with rich display:
+    ⚡ Bash  npm test  (2.3s)
+    └─ running…
     """
     MARKER = "●"
     BRANCH = "└─"
@@ -70,10 +176,15 @@ class ToolCallMessage(Static):
         self._info_text: str = ""
         self._indicator_widget: Static | None = None
         self._tool_name_widget: Static | None = None
+        self._args_widget: Static | None = None
+        self._duration_widget: Static | None = None
         self._info_widget: Static | None = None
         self._spinner_timer: Timer | None = None
+        self._duration_timer: Timer | None = None
         self._is_spinning = False
         self._frame_index = 0
+        self._start_time: float = 0.0
+        self._duration: float = 0.0
 
         super().__init__()
         self.add_class("tool-call")
@@ -81,25 +192,51 @@ class ToolCallMessage(Static):
     def compose(self) -> ComposeResult:
         with Vertical(classes="tool-call-container"):
             with Horizontal(classes="tool-call-header"):
+                # Tool icon/indicator
+                icon = _get_tool_icon(self._tool_name)
                 self._indicator_widget = NonSelectableStatic(
-                    self.MARKER, classes="tool-indicator"
+                    icon, classes="tool-indicator"
                 )
                 yield self._indicator_widget
 
-                summary = self.get_content()
+                # Tool name (bold)
+                tool_label = self._tool_name.upper() if len(self._tool_name) <= 6 else self._tool_name.title()
                 self._tool_name_widget = NoMarkupStatic(
-                    summary, classes="tool-name"
+                    tool_label, classes="tool-name"
                 )
                 yield self._tool_name_widget
+
+                # Inline argument summary
+                args_summary = self._get_inline_args()
+                if args_summary:
+                    self._args_widget = NoMarkupStatic(
+                        args_summary, classes="tool-call-args"
+                    )
+                    yield self._args_widget
+
+                # Duration timer (shows while running)
+                if not self._is_history:
+                    self._duration_widget = NoMarkupStatic(
+                        "", classes="tool-call-duration"
+                    )
+                    yield self._duration_widget
+
+    def _get_inline_args(self) -> str:
+        """Get compact inline argument summary."""
+        if self._event:
+            return _get_inline_summary(self._tool_name, self._event.tool_args)
+        return ""
 
     def on_mount(self) -> None:
         """Start the spinning animation when mounted."""
         if not self._is_history:
             self._is_spinning = True
             self._frame_index = 0
+            self._start_time = time.monotonic()
             self._spinner_timer = self.set_interval(0.3, self._update_spinner_frame)
+            # Update duration every second
+            self._duration_timer = self.set_interval(1.0, self._update_duration)
             if self._indicator_widget:
-                # White (no color class) while running - will be colored on completion
                 self._indicator_widget.remove_class("success")
                 self._indicator_widget.remove_class("error")
 
@@ -108,6 +245,9 @@ class ToolCallMessage(Static):
         if self._spinner_timer:
             self._spinner_timer.stop()
             self._spinner_timer = None
+        if self._duration_timer:
+            self._duration_timer.stop()
+            self._duration_timer = None
 
     def _update_spinner_frame(self) -> None:
         """Update with rotating frames."""
@@ -116,6 +256,19 @@ class ToolCallMessage(Static):
         frame = self.SPINNER_FRAMES[self._frame_index % len(self.SPINNER_FRAMES)]
         self._indicator_widget.update(frame)
         self._frame_index += 1
+
+    def _update_duration(self) -> None:
+        """Update the duration display."""
+        if not self._is_spinning or not self._duration_widget:
+            return
+        elapsed = time.monotonic() - self._start_time
+        if elapsed >= 60:
+            mins = int(elapsed) // 60
+            secs = int(elapsed) % 60
+            text = f"({mins}m{secs}s)"
+        else:
+            text = f"({elapsed:.1f}s)"
+        self._duration_widget.update(text)
 
     @property
     def tool_call_id(self) -> str | None:
@@ -137,7 +290,8 @@ class ToolCallMessage(Static):
         self._event = event
         self._tool_name = event.tool_name
         if self._tool_name_widget:
-            self._tool_name_widget.update(event.tool_name.ljust(10))
+            tool_label = self._tool_name.upper() if len(self._tool_name) <= 6 else self._tool_name.title()
+            self._tool_name_widget.update(tool_label)
 
     def set_stream_message(self, message: str) -> None:
         """Set additional info below the tool call."""
@@ -147,19 +301,34 @@ class ToolCallMessage(Static):
     def stop_spinning(self, success: bool = True) -> None:
         """Update indicator when tool completes."""
         self._is_spinning = False
+        self._duration = time.monotonic() - self._start_time if self._start_time else 0
+
         if self._spinner_timer:
             self._spinner_timer.stop()
             self._spinner_timer = None
+        if self._duration_timer:
+            self._duration_timer.stop()
+            self._duration_timer = None
 
         if self._indicator_widget:
-            icon = self.MARKER
+            icon = _get_tool_icon(self._tool_name)
             self._indicator_widget.update(icon)
             if success:
-                self._indicator_widget.add_class("success")  # Green for success
+                self._indicator_widget.add_class("success")
                 self._indicator_widget.remove_class("error")
             else:
-                self._indicator_widget.add_class("error")  # Red for failure
+                self._indicator_widget.add_class("error")
                 self._indicator_widget.remove_class("success")
+
+        # Show final duration
+        if self._duration_widget:
+            if self._duration >= 60:
+                mins = int(self._duration) // 60
+                secs = int(self._duration) % 60
+                text = f"({mins}m{secs}s)"
+            else:
+                text = f"({self._duration:.1f}s)"
+            self._duration_widget.update(text)
 
 
 class ToolResultMessage(Static):
@@ -373,52 +542,110 @@ class DiffLine:
     line_number: int | None
     content: str
     prefix: str  # " ", "+", "-"
+    old_line_number: int | None = None
+    new_line_number: int | None = None
+    is_hunk_header: bool = False
+    is_file_header: bool = False
 
 
 class DiffBlock(Static):
-    """Diff block with target design:
-       ─────────────────────────────────
-       │ 41  │  def foo():
-       │ 42- │      return None
-       │ 42+ │      return 42
-       ─────────────────────────────────
+    """Enhanced diff block with rich rendering:
 
-    Markers: ▌ for left border, │ for divider
+       ▌ src/main.py
+       ▌ ─────────────────────────────────
+       ▌     │ @@ -41,3 +41,4 @@ class Foo
+       ▌  41 │  def foo():
+       ▌  42- │      return None
+       ▌  42+ │      return 42
+       ▌  43 │  # end
+       ▌ ─────────────────────────────────
+       ▌ +1 -1
+
+    Features:
+    - File path header
+    - Hunk headers with line numbers
+    - Dual line numbers (old/new) for changes
+    - Summary bar showing additions/deletions
     """
 
-    def __init__(self, lines: list[DiffLine], context_lines: int = 0) -> None:
+    def __init__(
+        self,
+        lines: list[DiffLine],
+        context_lines: int = 0,
+        file_path: str | None = None,
+    ) -> None:
         super().__init__()
         self.add_class("diff-block")
         self._lines = lines
         self._context_lines = context_lines
-        self._border_widget: Static | None = None
+        self._file_path = file_path
+        self._added = sum(1 for l in lines if l.prefix == "+")
+        self._removed = sum(1 for l in lines if l.prefix == "-")
 
     def compose(self) -> ComposeResult:
-        # Top border with marker at start
-        yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
+        # File path header
+        if self._file_path:
+            yield NonSelectableStatic(
+                f"▌ {self._file_path}", classes="diff-file-header"
+            )
+
+        # Top border
+        yield NonSelectableStatic("▌" + "─" * 40, classes="diff-border")
 
         # Diff lines
         for line in self._lines:
-            line_num = f"{line.line_number:>4}" if line.line_number else "    "
+            # File header lines (--- / +++)
+            if line.is_file_header:
+                yield NonSelectableStatic(
+                    f"▌     │ {line.content}", classes="diff-hunk-header"
+                )
+                continue
+
+            # Hunk header lines (@@ ... @@)
+            if line.is_hunk_header:
+                yield NonSelectableStatic(
+                    f"▌     │ {line.content}", classes="diff-hunk-header"
+                )
+                continue
+
+            # Regular diff lines
             prefix = line.prefix if line.prefix else " "
-            gutter = f"▌ {line_num} │ {prefix} "
-            
+
+            # Use dual line numbers for change lines, single for context
+            if prefix in ("+", "-"):
+                old_num = f"{line.old_line_number:>4}" if line.old_line_number else "    "
+                new_num = f"{line.new_line_number:>4}" if line.new_line_number else "    "
+                gutter = f"▌ {old_num} {new_num} │ {prefix} "
+            else:
+                num = f"{line.line_number:>4}" if line.line_number else "    "
+                gutter = f"▌ {num}     │   "
+
             from rich.text import Text
-            text = Text(gutter, style="ansi_bright_black") + Text(line.content, style=self._get_line_style(prefix))
-            
-            yield NonSelectableStatic(text, classes="diff-line")
+            gutter_text = Text(gutter, style="ansi_bright_black")
+            content_text = Text(line.content, style=self._get_line_style(prefix))
+            yield NonSelectableStatic(gutter_text + content_text, classes="diff-line")
 
         # Bottom border
-        yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
+        yield NonSelectableStatic("▌" + "─" * 40, classes="diff-border")
+
+        # Summary bar
+        parts = []
+        if self._added:
+            parts.append(f"+{self._added}")
+        if self._removed:
+            parts.append(f"-{self._removed}")
+        if parts:
+            summary = "▌ " + " ".join(parts)
+            yield NonSelectableStatic(summary, classes="diff-summary")
 
     def _get_line_style(self, prefix: str) -> str:
         """Get Rich style based on line prefix."""
         if prefix == "+":
-            return "bright_white on dark_green"
+            return "ansi_green"
         elif prefix == "-":
-            return "bright_white on dark_red"
+            return "ansi_red"
         else:
-            return "bright_white"
+            return "ansi_default"
 
 
 class ToolStatsWidget(Static):

@@ -27,6 +27,7 @@
 - [ ] Add support for agent collaboration and communication
 - [X] Implement worktree tools for better code management in coding agents
 - [X] user Can add own tools in jarvis
+- [X] Pasive Watchers 
 
  ### WEBUI IMPLEMENTATION
 

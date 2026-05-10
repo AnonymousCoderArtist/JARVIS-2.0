@@ -62,13 +62,13 @@ class AgentTool(BaseTool):
         "properties": {
             "action": {
                 "type": "string",
-                "description": "Action to perform: 'launch', 'status', 'results', or 'list'",
-                "enum": ["launch", "status", "results", "list"],
+                "description": "Action to perform: 'launch', 'list_agents', 'list_tasks', 'status', 'results'",
+                "enum": ["launch", "list_agents", "list_tasks", "status", "results"],
                 "default": "launch",
             },
             "agentName": {
                 "type": "string",
-                "description": "Name of specialized subagent: 'explore' (codebase analysis), 'plan' (task decomposition)",
+                "description": "Name of specialized subagent to launch",
                 "minLength": 1
             },
             "prompt": {
@@ -78,12 +78,12 @@ class AgentTool(BaseTool):
             },
             "runInBackground": {
                 "type": "boolean",
-                "description": "Run agent in background (async) or foreground (sync, default). Use false for immediate results in your conversation.",
+                "description": "Run agent in background (async) or foreground (sync).",
                 "default": False
             },
             "taskId": {
                 "type": "string",
-                "description": "Task ID for status/results queries, or 'list' for all tasks",
+                "description": "Task ID for status/results queries",
                 "minLength": 1
             },
             "resultsAction": {
@@ -92,26 +92,18 @@ class AgentTool(BaseTool):
                 "enum": ["check", "retrieve", "clear"]
             }
         },
-        # Backwards compatible: older callers omitted "action" and used agentName/prompt.
-        "required": []
     }
 
-    def _get_param(self, input_data: ToolInput, *names) -> Any:
-        """Get parameter using multiple possible names"""
-        return get_agent_param(input_data, *names)
-
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Get parameters - 'action' is the primary parameter name
+        # Get parameters
         action = self._get_param(input_data, "action")
         agent_name = self._get_param(input_data, "agentName")
         prompt = self._get_param(input_data, "prompt")
-        runInBackground = self._get_param(input_data, "runInBackground", "run_in_background")
+        runInBackground = self._get_param(input_data, "runInBackground", "run_in_background") or False
         taskId = self._get_param(input_data, "taskId")
         resultsAction = self._get_param(input_data, "resultsAction")
 
-        # Backwards-compatible inference for legacy callers:
-        # - If agentName + prompt are provided, treat as launch.
-        # - Otherwise infer status/results/list from the other parameters.
+        # Backwards-compatible inference
         if action is None:
             if isinstance(agent_name, str) and isinstance(prompt, str):
                 action = "launch"
@@ -120,50 +112,68 @@ class AgentTool(BaseTool):
             elif isinstance(taskId, str):
                 action = "status"
             else:
-                action = "list"
-
-        # Normalize runInBackground default (legacy callers frequently omit it).
-        if runInBackground is None:
-            runInBackground = False  # Default to foreground (run immediately)
+                action = "list_agents"
 
         # Validate action
-        if not isinstance(action, str) or action not in ["launch", "status", "results", "list"]:
+        if action not in ["launch", "list_agents", "list_tasks", "status", "results"]:
             return ToolOutput(
                 success=False,
                 result=None,
-                error="Invalid action: must be 'launch', 'status', 'results', or 'list'. Please provide a valid action."
+                error=f"Invalid action: {action}. Must be 'launch', 'list_agents', 'list_tasks', 'status', or 'results'."
             )
 
         try:
             if action == "launch":
                 return await self._handle_launch(agent_name, prompt, runInBackground)
+            elif action == "list_agents":
+                return await self._handle_list_agents()
+            elif action == "list_tasks":
+                return await self._handle_status("list")
             elif action == "status":
                 return await self._handle_status(taskId)
             elif action == "results":
                 return await self._handle_results(resultsAction, taskId)
-            elif action == "list":
-                # List is an alias for status with taskId='list'
-                return await self._handle_status("list")
             else:
-                # This should never happen due to validation above, but type checker needs it
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Internal error: unhandled action type"
-                )
+                return ToolOutput(success=False, result=None, error="Internal error: unhandled action")
 
-        except ImportError as e:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error=f"Failed to import agent classes: {str(e)}. Please ensure the agent modules are properly installed and accessible."
-            )
         except Exception as e:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error=f"Failed to execute agent operation: {str(e)}. Please check your parameters and try again."
-            )
+            return ToolOutput(success=False, result=None, error=f"Operation failed: {str(e)}")
+
+    async def _handle_list_agents(self) -> ToolOutput:
+        """List all available agent types with their descriptions."""
+        from core.agents.custom_loader import discover_custom_agents
+        
+        # Define built-in agent metadata
+        builtin_definitions = {
+            "explore": "Codebase exploration, file analysis, and pattern finding. Best for read-only investigative tasks.",
+            "plan": "Task decomposition, architecture design, and implementation planning. Best for breaking down complex requirements.",
+            "jarvis-help": "General assistance and guidance on JARVIS features, custom tools, and configuration.",
+            "verification": "Post-implementation testing, adversarial verification, and quality assurance.",
+            "statusline-setup": "Guidance and scripts for customizing your shell prompt (bash, zsh, powershell)."
+        }
+        
+        custom_agents = discover_custom_agents()
+        
+        lines = ["Available subagents:"]
+        agent_data = []
+
+        # Add built-ins
+        for name, desc in builtin_definitions.items():
+            lines.append(f"- {name}: {desc}")
+            agent_data.append({"name": name, "description": desc, "source": "built-in"})
+            
+        # Add customs
+        for agent in custom_agents:
+            desc = getattr(agent, "when_to_use", "Custom agent (no description provided)")
+            lines.append(f"- {agent.agent_type}: {desc}")
+            agent_data.append({"name": agent.agent_type, "description": desc, "source": "custom"})
+        
+        return ToolOutput(
+            success=True,
+            result="\n".join(lines),
+            metadata={"agents": agent_data}
+        )
+
 
     async def _handle_launch(self, agent_name: str, prompt: str, runInBackground: bool) -> ToolOutput:
         """Handle agent launch operation"""

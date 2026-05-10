@@ -248,6 +248,9 @@ def create_tool_registry() -> AsyncToolRegistry:
     # Register agent tools
     tool_registry.register(AgentsTool())
     tool_registry.register(AgentStatusTool())
+    # Register watcher status tool
+    from core.tools.watcher_tool import WatcherStatusTool
+    tool_registry.register(WatcherStatusTool())
     # Register skill tool
     from core.tools.skill_manage_tool import SkillTool
     tool_registry.register(SkillTool())

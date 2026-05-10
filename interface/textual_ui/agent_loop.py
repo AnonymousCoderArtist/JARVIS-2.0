@@ -21,6 +21,7 @@ from core.history import ConversationHistory, create_assistant_message, create_u
 from core.rewind import RewindManager
 from core.skills.manager import SkillManager as CoreSkillManager
 from core.tools.registry import ToolRegistry
+from core.watchers.manager import WatcherManager
 from interface.textual_ui.tool_results import (
     BashResult,
     EditResult,
@@ -312,6 +313,8 @@ class AgentLoop:
         self.hook_config_issues: list[HookConfigIssue] = []
         self.tool_manager = ToolManagerAdapter(tool_registry)
         self.session_logger = SessionLoggerAdapter()
+        self.watcher_manager = WatcherManager(config_getter=lambda: self.agent_manager.config)
+        self.watcher_manager.discover_watchers()
         self.session_id: str | None = None
         self.parent_session_id: str | None = None
         # Initialize rewind manager with proper callbacks
@@ -359,6 +362,7 @@ class AgentLoop:
         # Set up tool call/result callbacks for event tracking
         self.agent.tool_call_callback = self._on_tool_call
         self.agent.tool_result_callback = self._on_tool_result
+        self.agent.tool_stream_callback = self._on_tool_stream
         # Set up reasoning callback to capture reasoning content
         self.agent.reasoning_callback = self._on_reasoning
 
@@ -833,6 +837,14 @@ Create a comprehensive summary that captures:
             tool_args=arguments,
             tool_call_id=tool_call_id,
             tool_class=tool_class
+        ))
+
+    def _on_tool_stream(self, tool_call_id: str, content: str) -> None:
+        """Handle tool stream event from agent — live output from running tools."""
+        from interface.textual_ui.types import ToolStreamEvent
+        self._get_event_queue().put_nowait(ToolStreamEvent(
+            content=content,
+            tool_call_id=tool_call_id,
         ))
 
     def _normalize_arguments(self, arguments: dict[str, Any] | str) -> dict[str, Any]:

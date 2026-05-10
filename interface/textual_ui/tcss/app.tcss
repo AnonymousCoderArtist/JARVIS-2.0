@@ -878,6 +878,16 @@ StatusMessage {
     border: solid $warning;
     padding: 0 1;
     margin: 0;
+
+    &.approval-border-high {
+        border: solid $error;
+    }
+    &.approval-border-medium {
+        border: solid $warning;
+    }
+    &.approval-border-low {
+        border: solid $success;
+    }
 }
 
 #approval-options {
@@ -895,6 +905,31 @@ StatusMessage {
     width: 100%;
     height: auto;
     max-height: 50vh;
+}
+
+.approval-title-row {
+    width: 100%;
+    height: auto;
+}
+
+.approval-risk-badge {
+    height: auto;
+    text-style: bold;
+    padding: 0 1;
+    margin-right: 1;
+
+    &.approval-risk-low {
+        color: $success;
+        background: $success 15%;
+    }
+    &.approval-risk-medium {
+        color: $warning;
+        background: $warning 15%;
+    }
+    &.approval-risk-high {
+        color: $error;
+        background: $error 15%;
+    }
 }
 
 .approval-title {
@@ -956,6 +991,54 @@ StatusMessage {
 .approval-description {
     height: auto;
     color: ansi_default;
+}
+
+/* Inline Approval Bar (for low-risk tools) */
+.inline-approval-bar {
+    width: 100%;
+    height: auto;
+    background: $success 10%;
+    border: solid $success;
+    padding: 0 1;
+    margin: 0;
+}
+
+.inline-approval-content {
+    width: 100%;
+    height: auto;
+    align: left middle;
+}
+
+.inline-approval-risk {
+    height: auto;
+    color: $success;
+    text-style: bold;
+    padding: 0 1;
+    margin-right: 1;
+}
+
+.inline-approval-tool {
+    height: auto;
+    color: $text;
+    text-style: bold;
+    padding: 0 1;
+    margin-right: 1;
+}
+
+.inline-approval-btn {
+    height: auto;
+    padding: 0 1;
+    margin: 0 0 0 1;
+
+    &.inline-approval-yes {
+        color: $success;
+    }
+    &.inline-approval-always {
+        color: $info;
+    }
+    &.inline-approval-no {
+        color: $error;
+    }
 }
 
 .code-block {
@@ -1274,10 +1357,25 @@ NarratorStatus {
     height: auto;
 }
 
+.diff-file-header {
+    width: 100%;
+    height: auto;
+    color: ansi_cyan;
+    text-style: bold;
+    padding-left: 1;
+}
+
 .diff-border {
     width: 100%;
     height: auto;
     color: ansi_bright_black;
+}
+
+.diff-hunk-header {
+    width: 100%;
+    height: auto;
+    color: ansi_bright_magenta;
+    text-style: italic;
 }
 
 .diff-line {
@@ -1306,6 +1404,13 @@ NarratorStatus {
 
 .diff-line-content.diff-context {
     color: ansi_default;
+}
+
+.diff-summary {
+    width: 100%;
+    height: auto;
+    color: ansi_bright_black;
+    text-style: bold;
 }
 
 /* Tool Stats Widget */
@@ -1608,6 +1713,23 @@ FeedbackBar {
 .tool-name {
     width: auto;
     height: auto;
+    color: $text;
+    text-style: bold;
+    margin-right: 1;
+}
+
+.tool-call-args {
+    width: auto;
+    height: auto;
+    color: $subtext;
+    margin-right: 1;
+}
+
+.tool-call-duration {
+    width: auto;
+    height: auto;
+    color: $muted;
+    text-style: italic;
 }
 
 /* Tool Result Message (target design) */
@@ -1654,4 +1776,81 @@ FeedbackBar {
     color: $muted;
 }
 
+/* ========================================
+   Phase 5: Visual Polish & Interactive States
+   ======================================== */
+
+/* Tool call hover/active states */
+.tool-call:focus-within .tool-call-header {
+    color: $accent;
+}
+
+/* Tool result interactive expand/collapse */
+.tool-result-summary.clickable:focus {
+    color: $accent;
+    text-style: bold italic;
+}
+
+/* Diff block polish — subtle left border for diff regions */
+.diff-block {
+    border-left: outer $overlay;
+    padding-left: 1;
+}
+
+/* Diff file header with accent background */
+.diff-file-header {
+    background: $accent 10%;
+    padding: 0 1;
+}
+
+/* Diff summary bar polish */
+.diff-summary {
+    background: $overlay 20%;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+/* Approval options hover states */
+.approval-option:focus {
+    color: $accent;
+    text-style: bold;
+}
+
+/* Inline approval bar focus highlight */
+.inline-approval-bar:focus {
+    border: solid $accent;
+    background: $accent 8%;
+}
+
+/* Inline approval button hover */
+.inline-approval-btn:focus {
+    text-style: bold underline;
+}
+
+/* Tool indicator pulse animation (via class toggle, no CSS animation for terminal compat) */
+.tool-indicator.running {
+    color: $warning;
+}
+
+/* Consistent vertical rhythm — tool call/result pairs */
+.tool-call {
+    margin-bottom: 0;
+}
+
+/* Collapsed tool results get a subtle left accent */
+.tool-result-widget.collapsed {
+    border-left: tall $accent 30%;
+}
+
+/* Error state polish */
+.tool-result-error {
+    background: $error 8%;
+    padding: 0 1;
+}
+
+/* Warning state polish */
+.tool-result-warning {
+    background: $warning 8%;
+    padding: 0 1;
+}
 

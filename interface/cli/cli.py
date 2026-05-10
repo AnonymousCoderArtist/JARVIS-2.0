@@ -40,6 +40,7 @@ from core.tools.repl_tool import REPLTool
 from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 from core.tools.worktree_tool import EnterWorktreeTool, ExitWorktreeTool
 from core.tools.tool_search_tool import ToolSearchTool
+from core.watchers.manager import WatcherManager
 
 from .commands import CommandHandler
 from .config import load_config
@@ -255,6 +256,9 @@ class CLIInterface:
         self.tool_registry.register(ExitWorktreeTool())
         # Register tool search tool
         self.tool_registry.register(ToolSearchTool())
+        # Register watcher status tool
+        from core.tools.watcher_tool import WatcherStatusTool
+        self.tool_registry.register(WatcherStatusTool())
 
         # Discover and register custom tools from .jarvis/tools/
         self.tool_registry.discover_and_register_plugins()
@@ -337,6 +341,13 @@ class CLIInterface:
         # Initialize learning manager (only if enabled in settings)
         settings = Settings()
         self.learning_manager = LearningManager(LearningConfig(enabled=settings.learning_enabled)) if settings.learning_enabled else None
+
+        # Initialize WatcherManager and discover watchers
+        self.watcher_manager = WatcherManager(
+            config_getter=lambda: self.agent_manager.config,
+            event_queue=self.agent_loop._event_queue if hasattr(self.agent_loop, '_event_queue') else None
+        )
+        self.watcher_manager.discover_watchers()
 
         # Initialize connector manager with filesystem connector
         self.connector_manager = ConnectorManager()
@@ -516,6 +527,10 @@ class CLIInterface:
 
         # Initialize MCP servers asynchronously
         await self._initialize_mcp_servers_async()
+
+        # Start background watchers
+        if hasattr(self, 'watcher_manager'):
+            await self.watcher_manager.start()
 
         while True:
             try:

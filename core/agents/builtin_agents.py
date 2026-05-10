@@ -54,6 +54,20 @@ GENERAL_PURPOSE_AGENT = AgentDefinition(
     model='inherit',
 )
 
+# Cowork Agent - multi-agent collaborative task execution
+COWORK_AGENT = AgentDefinition(
+    agent_type='cowork',
+    when_to_use='''Use this agent for complex multi-step tasks requiring coordinated execution. It:
+- Decomposes objectives into subtasks with dependency tracking
+- Executes tasks in parallel using sub-agents
+- Uses sandboxed file and command execution
+- Maintains persistent memory across sessions
+- Supports dynamic skill loading from .md and .json files''',
+    tools=['*'],
+    disallowed_tools=[],
+    model='inherit',
+)
+
 # Fork Agent - for parallel task execution
 FORK_AGENT = AgentDefinition(
     agent_type='fork',
@@ -75,6 +89,7 @@ def get_builtin_agents() -> list[AgentDefinition]:
         List of all AgentDefinition instances for built-in agents
     """
     return [
+        COWORK_AGENT,
         EXPLORE_AGENT,
         PLAN_AGENT,
         GENERAL_PURPOSE_AGENT,
