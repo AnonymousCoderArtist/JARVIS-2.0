@@ -23,6 +23,7 @@ from core.skills.manager import SkillManager as CoreSkillManager
 from core.tools.registry import ToolRegistry
 from interface.textual_ui.tool_results import (
     BashResult,
+    EditResult,
     GrepMatch,
     GrepResult,
     ReadFileResult,
@@ -808,7 +809,16 @@ Create a comprehensive summary that captures:
         # Generate a unique tool_call_id for tracking
         import uuid
         tool_call_id = str(uuid.uuid4())
-        self._tool_call_ids[tool_name] = tool_call_id
+        
+        # Use arguments in key to support parallel calls of the same tool
+        import json
+        try:
+            args_str = json.dumps(arguments, sort_keys=True)
+            key = f"{tool_name}:{args_str}"
+        except Exception:
+            key = tool_name
+            
+        self._tool_call_ids[key] = tool_call_id
         # Try to get tool class from tool registry
         tool_class = ""
         try:
@@ -875,18 +885,28 @@ Create a comprehensive summary that captures:
                 path = str(arguments.get("path") or arguments.get("filePath", ""))
                 # Extract diff from metadata (can be at top level or in results array)
                 diff = ""
-                replacements = 0
+                status = "success"
+                occurrences_replaced = 0
                 if hasattr(result, 'metadata') and result.metadata:
                     metadata = result.metadata
                     # Check if diff is directly in metadata (for single replacements)
                     diff = metadata.get('diff', '')
-                    replacements = metadata.get('successful', 0)
+                    status = "success" if metadata.get('successful', 0) > 0 else "failed"
+                    occurrences_replaced = metadata.get('successful', 0)
                     # If not, check in results array (for multiple replacements)
                     if not diff and 'results' in metadata and metadata['results']:
                         first_result = metadata['results'][0]
-                        diff = first_result.get('diff', '')
-                        replacements = metadata.get('successful', 0)
-                return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result), diff=diff, replacements=replacements)
+                        diff = first_result.get('diff', first_result.get('unified_diff', ''))
+                        status = first_result.get('status', 'success')
+                        occurrences_replaced = metadata.get('successful', 0)
+                return EditResult(
+                    file=path,
+                    file_path=path,
+                    status=status,
+                    occurrences_replaced=occurrences_replaced,
+                    diff=diff,
+                    unified_diff=diff
+                )
 
         # Special case for grep: list of dicts to GrepMatch objects
         if tool_name == "grep" and isinstance(raw_result, list):
@@ -907,8 +927,15 @@ Create a comprehensive summary that captures:
         arguments = self._normalize_arguments(arguments)
 
         # Queue tool result event for UI synchronously
-        # Use the same tool_call_id as the tool call
-        tool_call_id = self._tool_call_ids.get(tool_name, "")
+        # Use arguments in key to support parallel calls of the same tool
+        import json
+        try:
+            args_str = json.dumps(arguments, sort_keys=True)
+            key = f"{tool_name}:{args_str}"
+        except Exception:
+            key = tool_name
+            
+        tool_call_id = self._tool_call_ids.get(key, "")
         # Try to get tool class from tool registry
         tool_class = ""
         error = ""
@@ -943,8 +970,8 @@ Create a comprehensive summary that captures:
         ))
 
         # Clean up the tool_call_id after use
-        if tool_name in self._tool_call_ids:
-            del self._tool_call_ids[tool_name]
+        if key in self._tool_call_ids:
+            del self._tool_call_ids[key]
 
     def _track_file_snapshot(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
         """Track file snapshots for rewind functionality.

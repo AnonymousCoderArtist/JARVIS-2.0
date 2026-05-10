@@ -20,7 +20,7 @@ class FeedbackBar(Widget):
     @staticmethod
     def _prompt_text() -> Text:
         text = Text()
-        text.append("How is Vibe doing so far?  ")
+        text.append("How is JARVIS doing so far?  ")
         text.append("1", style="blue")
         text.append(": good  ")
         text.append("2", style="blue")

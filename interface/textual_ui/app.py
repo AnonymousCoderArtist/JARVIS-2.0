@@ -406,7 +406,7 @@ class VibeApp(App):  # noqa: PLR0904
         self._terminal_notifier = terminal_notifier or TextualNotificationAdapter(
             self,
             get_enabled=lambda: False,  # Notifications not supported in core Settings
-            default_title="Vibe",
+            default_title="JARVIS",
         )
         self._agent_running = False
         self._interrupt_requested = False

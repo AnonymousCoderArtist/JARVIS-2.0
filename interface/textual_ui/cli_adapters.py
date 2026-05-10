@@ -1537,6 +1537,11 @@ class SearchReplaceArgs(BaseModel):
     content: str
 
 
+class EditArgs(BaseModel):
+    """Arguments for the edit tool."""
+    replacements: list[dict] = Field(default_factory=list)
+
+
 # ============================================================================
 # QUESTION SYSTEM
 # ============================================================================

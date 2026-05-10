@@ -13,6 +13,7 @@ from interface.textual_ui.ansi_markdown import AnsiMarkdown as Markdown
 from interface.textual_ui.cli_adapters import (
     AskUserQuestionResult,
     BashArgs,
+    EditArgs,
     GrepArgs,
     LSArgs,
     ReadFileArgs,
@@ -21,6 +22,7 @@ from interface.textual_ui.cli_adapters import (
 )
 from interface.textual_ui.tool_results import (
     BashResult,
+    EditResult,
     GrepResult,
     LSResult,
     ReadFileResult,
@@ -183,6 +185,63 @@ class BashResultWidget(ToolResultWidget[BashResult]):
         else:
             yield from self._footer()
 
+class EditApprovalWidget(ToolApprovalWidget[Any]):
+    def compose(self) -> ComposeResult:
+        replacements = self.args.replacements if isinstance(self.args, BaseModel) else self.args.get("replacements", [])
+        
+        if not replacements:
+            yield NoMarkupStatic("No replacements specified", classes="approval-description")
+            return
+
+        # Group replacements by file path
+        from collections import defaultdict
+        files_to_edits = defaultdict(list)
+        for edit in replacements:
+            file_path = edit.get("filePath") or edit.get("file_path", "unknown")
+            files_to_edits[file_path].append(edit)
+
+        for file_path, edits in files_to_edits.items():
+            yield NoMarkupStatic(f"File: {file_path}", classes="approval-description")
+            yield NoMarkupStatic("")
+
+            path = Path(file_path)
+            try:
+                if path.exists():
+                    old_content = path.read_text(encoding="utf-8")
+                    
+                    new_content = old_content
+                    for edit in edits:
+                        old_str = edit.get("oldString") or edit.get("old_string", "")
+                        new_str = edit.get("newString") or edit.get("new_string", "")
+                        if old_str:
+                            new_content = new_content.replace(old_str, new_str)
+
+                    import difflib
+                    diff = difflib.unified_diff(
+                        old_content.splitlines(),
+                        new_content.splitlines(),
+                        lineterm="",
+                    )
+                    diff_text = "\n".join(diff)
+                    if diff_text:
+                        diff_lines = parse_diff_text(diff_text)
+                        from interface.textual_ui.widgets.tools import DiffBlock
+                        yield DiffBlock(diff_lines, context_lines=3)
+                    else:
+                        yield NoMarkupStatic("No changes (content is identical after replacement)", classes="tool-result-muted")
+                else:
+                    yield NoMarkupStatic("File does not exist (cannot show diff)", classes="tool-result-error")
+                    for edit in edits:
+                        old_str = edit.get("oldString") or edit.get("old_string", "")
+                        new_str = edit.get("newString") or edit.get("new_string", "")
+                        yield Markdown(f"Replace:\n```\n{old_str}\n```\nWith:\n```\n{new_str}\n```")
+            except Exception as e:
+                yield NoMarkupStatic(f"Error reading file for diff: {e}", classes="tool-result-error")
+                for edit in edits:
+                    old_str = edit.get("oldString") or edit.get("old_string", "")
+                    new_str = edit.get("newString") or edit.get("new_string", "")
+                    yield Markdown(f"Replace:\n```\n{old_str}\n```\nWith:\n```\n{new_str}\n```")
+
 
 class WriteFileApprovalWidget(ToolApprovalWidget[WriteFileArgs]):
     def compose(self) -> ComposeResult:
@@ -273,12 +332,51 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
             else:
                 yield from self._footer()
 
+
+class EditResultWidget(ToolResultWidget[EditResult]):
+    """Result widget for the edit tool - shows diff for file modifications."""
+    
+    def compose(self) -> ComposeResult:
+        if not self.result:
+            yield from self._footer()
+            return
+
+        # Get file path - handle both 'file' and 'file_path' keys
+        file_path = self.result.file_path or self.result.file or "unknown"
+        occurrences = self.result.occurrences_replaced or 0
+        
+        # Summary line
+        summary_text = f"└─ {occurrences} replacement(s) in {file_path}"
+        if self.collapsed:
+            summary_text += " • Ctrl+O to expand"
+        yield NoMarkupStatic(summary_text, classes="tool-result-summary")
+
+        if not self.collapsed:
+            # Show diff if available
+            diff_text = self.result.diff or self.result.unified_diff or ""
+            if diff_text:
+                diff_lines = parse_diff_text(diff_text)
+                if diff_lines:
+                    from interface.textual_ui.widgets.tools import DiffBlock
+                    yield DiffBlock(diff_lines, context_lines=3)
+            
+            # Show status
+            status = self.result.status or "success"
+            status_class = "tool-result-success" if status == "success" else "tool-result-error"
+            yield NoMarkupStatic(f"   Status: {status}", classes=status_class)
+            
+            yield from self._footer()
+        else:
+            yield from self._footer()
+
+
 def parse_diff_text(diff_text: str) -> list:
     """Parse unified diff text into DiffLine objects."""
     from interface.textual_ui.widgets.tools import DiffLine
     
     lines = []
-    line_num = None
+    old_line_num = None
+    new_line_num = None
     
     for line in diff_text.split('\n'):
         if line.startswith('@@'):
@@ -286,26 +384,36 @@ def parse_diff_text(diff_text: str) -> list:
             # Format: @@ -old_start,old_count +new_start,new_count @@
             parts = line.split(' ')
             if len(parts) >= 3:
+                old_part = parts[1]
                 new_part = parts[2]
+                if old_part.startswith('-'):
+                    try:
+                        old_line_num = int(old_part.split(',')[0][1:])
+                    except (ValueError, IndexError):
+                        old_line_num = None
                 if new_part.startswith('+'):
                     try:
-                        line_num = int(new_part.split(',')[0][1:])
+                        new_line_num = int(new_part.split(',')[0][1:])
                     except (ValueError, IndexError):
-                        line_num = None
+                        new_line_num = None
             lines.append(DiffLine(line_number=None, content=line, prefix=" "))
         elif line.startswith('+++') or line.startswith('---') or line.startswith('diff '):
             # Skip file header lines
             lines.append(DiffLine(line_number=None, content=line, prefix=" "))
         elif line.startswith('+'):
-            lines.append(DiffLine(line_number=line_num, content=line[1:], prefix="+"))
-            if line_num is not None:
-                line_num += 1
+            lines.append(DiffLine(line_number=new_line_num, content=line[1:], prefix="+"))
+            if new_line_num is not None:
+                new_line_num += 1
         elif line.startswith('-'):
-            lines.append(DiffLine(line_number=None, content=line[1:], prefix="-"))
+            lines.append(DiffLine(line_number=old_line_num, content=line[1:], prefix="-"))
+            if old_line_num is not None:
+                old_line_num += 1
         elif line.startswith(' '):
-            lines.append(DiffLine(line_number=line_num, content=line[1:], prefix=" "))
-            if line_num is not None:
-                line_num += 1
+            lines.append(DiffLine(line_number=new_line_num, content=line[1:], prefix=" "))
+            if old_line_num is not None:
+                old_line_num += 1
+            if new_line_num is not None:
+                new_line_num += 1
         elif line:
             # Any other line
             lines.append(DiffLine(line_number=None, content=line, prefix=" "))
@@ -552,6 +660,8 @@ APPROVAL_WIDGETS: dict[str, type[ToolApprovalWidget]] = {
     "write_file": WriteFileApprovalWidget,
     "grep": GrepApprovalWidget,
     "todo": TodoApprovalWidget,
+    "edit": EditApprovalWidget,
+    "str_replace_editor": EditApprovalWidget,
 }
 
 RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
@@ -560,7 +670,7 @@ RESULT_WIDGETS: dict[str, type[ToolResultWidget]] = {
     "read_file": ReadFileResultWidget,
     "write": WriteFileResultWidget,
     "write_file": WriteFileResultWidget,
-    "edit": WriteFileResultWidget,  # Reuse WriteFileResultWidget for edit (shows diff)
+    "edit": EditResultWidget,  # Use EditResultWidget for edit (shows diff)
     "grep": GrepResultWidget,
     "ls": LSResultWidget,
     "todo": TodoResultWidget,
@@ -573,6 +683,7 @@ ARGS_MODELS: dict[str, type[BaseModel]] = {
     "read_file": ReadFileArgs,
     "write": WriteFileArgs,
     "write_file": WriteFileArgs,
+    "edit": EditArgs,
     "grep": GrepArgs,
     "ls": LSArgs,
     "todo": TodoArgs,
@@ -619,5 +730,15 @@ def get_result_widget(
                     content=r.get("content", "")
                 ))
         result = GrepResult(matches=matches)
+    elif tool_name == "edit" and isinstance(result, dict):
+        # Convert edit tool result dict to EditResult model
+        result = EditResult(
+            file=result.get("file", result.get("file_path", "")),
+            file_path=result.get("file_path", result.get("file", "")),
+            status=result.get("status", "success"),
+            occurrences_replaced=result.get("occurrences_replaced", result.get("replacements", 0)),
+            diff=result.get("diff", result.get("unified_diff", "")),
+            unified_diff=result.get("unified_diff", result.get("diff", "")),
+        )
 
     return widget_class(result, success, message, collapsed, warnings)

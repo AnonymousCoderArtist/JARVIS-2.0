@@ -399,31 +399,26 @@ class DiffBlock(Static):
 
         # Diff lines
         for line in self._lines:
-            with Horizontal(classes="diff-line"):
-                # Line number column
-                line_num = f"{line.line_number:>4}" if line.line_number else "    "
-                # Prefix marker (+/-/ )
-                prefix = line.prefix if line.prefix else " "
-                yield NoMarkupStatic(
-                    f"▌ {line_num} │ {prefix} ",
-                    classes="diff-gutter"
-                )
-                yield NoMarkupStatic(
-                    line.content,
-                    classes=self._get_line_class(prefix)
-                )
+            line_num = f"{line.line_number:>4}" if line.line_number else "    "
+            prefix = line.prefix if line.prefix else " "
+            gutter = f"▌ {line_num} │ {prefix} "
+            
+            from rich.text import Text
+            text = Text(gutter, style="ansi_bright_black") + Text(line.content, style=self._get_line_style(prefix))
+            
+            yield Static(text, classes="diff-line")
 
         # Bottom border
         yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
 
-    def _get_line_class(self, prefix: str) -> str:
-        """Get CSS class based on line prefix."""
+    def _get_line_style(self, prefix: str) -> str:
+        """Get Rich style based on line prefix."""
         if prefix == "+":
-            return "diff-line-content diff-added"
+            return "bright_white on dark_green"
         elif prefix == "-":
-            return "diff-line-content diff-removed"
+            return "bright_white on dark_red"
         else:
-            return "diff-line-content diff-context"
+            return "bright_white"
 
 
 class ToolStatsWidget(Static):

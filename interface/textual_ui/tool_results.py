@@ -37,6 +37,16 @@ class WriteFileResult(BaseModel):
     replacements: int = 0  # For edit operations
 
 
+class EditResult(BaseModel):
+    """Result model for the edit tool."""
+    file: str = ""
+    file_path: str = ""
+    status: str = "success"
+    occurrences_replaced: int = 0
+    diff: str = ""
+    unified_diff: str = ""
+
+
 class LSResult(BaseModel):
     items: list[str] = []
 
