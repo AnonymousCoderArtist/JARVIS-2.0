@@ -24,6 +24,27 @@
 - [X] Make !bang commands to be non-blocking and run via async subprocess for better latency
 - [X] Add more built-in agents for specific tasks (e.g. research, data analysis, etc.)
 - [ ] Implement better error handling and recovery mechanisms for agents
+
+### BETTER MCP
+
+- [X] Lazy MCP proxy architecture (single `mcp` proxy tool)
+- [X] MCP lifecycle modes (lazy / eager / keep-alive)
+- [X] Persistent metadata cache (~/.jarvis/mcp-cache.json)
+- [X] Direct tools support (register high-frequency tools individually)
+- [X] Idle timeout with auto-disconnect
+- [ ] Multi-server parallel lazy initialization
+- [ ] MCP server health monitoring dashboard (TUI)
+- [ ] Auto-reconnect on connection drops
+- [ ] Tool result streaming for long-running MCP tools
+- [ ] MCP server capability negotiation (resources, prompts, sampling)
+- [ ] Dynamic tool exclusion via runtime patterns (regex)
+- [ ] Cache warm-up on startup for frequently-used servers
+- [ ] Per-server rate limiting and request queuing
+- [ ] MCP OAuth/auth flow support for protected servers
+- [ ] Tool composition: chain MCP tool outputs as inputs to other tools
+- [ ] Persistent connection pooling across sessions
+- [ ] MCP server sandboxing (resource limits, timeouts per tool)
+- [ ] Cross-session MCP usage analytics and token savings reporting
 - [ ] Add support for agent collaboration and communication
 - [X] Implement worktree tools for better code management in coding agents
 - [X] user Can add own tools in jarvis
