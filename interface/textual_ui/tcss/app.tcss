@@ -1283,7 +1283,6 @@ NarratorStatus {
 .diff-line {
     width: 100%;
     height: auto;
-    layout: horizontal;
 }
 
 .diff-line-number {

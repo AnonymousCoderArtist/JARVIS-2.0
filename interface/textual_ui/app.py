@@ -25,7 +25,7 @@ from pydantic import BaseModel
 from rich import print as rprint
 from textual.app import WINDOWS, App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Horizontal, VerticalGroup, VerticalScroll
+from textual.containers import Container, Horizontal, VerticalGroup, VerticalScroll
 from textual.driver import Driver
 from textual.events import AppBlur, AppFocus, MouseUp
 from textual.theme import Theme
@@ -500,7 +500,7 @@ class VibeApp(App):  # noqa: PLR0904
             yield Static(id="loading-area-content")
             yield FeedbackBar()
 
-        with Static(id="bottom-app-container"):
+        with Container(id="bottom-app-container"):
             yield ChatInputContainer(
                 history_file=self.history_file,
                 command_registry=self.commands,

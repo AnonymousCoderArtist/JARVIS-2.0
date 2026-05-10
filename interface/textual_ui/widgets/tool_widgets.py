@@ -109,7 +109,8 @@ class ToolResultWidget(Generic[TResult], Static, can_focus=True):
         """Re-compose and notify parent ToolResultMessage of collapsed change."""
         try:
             # Use Textual's recompose to rebuild children with new collapsed state
-            self.recompose()
+            # recompose() is async — schedule it via call_after_refresh
+            self.call_after_refresh(self.recompose)
         except Exception:
             # Fallback to refresh if recompose fails
             self.refresh()
@@ -356,8 +357,21 @@ class WriteFileResultWidget(ToolResultWidget[WriteFileResult]):
 
 
 class EditResultWidget(ToolResultWidget[EditResult]):
-    """Result widget for the edit tool - shows diff for file modifications."""
-    
+    """Result widget for the edit tool - shows diff for file modifications.
+
+    Always starts expanded so the diff is visible by default.
+    """
+
+    def __init__(
+        self,
+        result: EditResult | None,
+        success: bool,
+        message: str,
+        collapsed: bool = False,  # Override: edit results default to expanded
+        warnings: list[str] | None = None,
+    ) -> None:
+        super().__init__(result, success, message, collapsed=False, warnings=warnings)
+
     def compose(self) -> ComposeResult:
         if not self.result:
             yield from self._footer()

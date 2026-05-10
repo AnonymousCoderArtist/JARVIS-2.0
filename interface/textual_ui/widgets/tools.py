@@ -406,7 +406,7 @@ class DiffBlock(Static):
             from rich.text import Text
             text = Text(gutter, style="ansi_bright_black") + Text(line.content, style=self._get_line_style(prefix))
             
-            yield Static(text, classes="diff-line")
+            yield NonSelectableStatic(text, classes="diff-line")
 
         # Bottom border
         yield NonSelectableStatic("▌" + "─" * 39, classes="diff-border")
