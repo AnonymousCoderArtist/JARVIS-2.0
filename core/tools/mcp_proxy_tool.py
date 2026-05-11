@@ -1,9 +1,9 @@
 """MCP Proxy Tool — single tool interface for all MCP servers.
 
 Provides a token-efficient way for the LLM to discover, search, describe,
-and call tools from any configured MCP server. Instead of registering dozens
-of individual tools (~150-300 tokens each), only one proxy tool is registered
-(~200 tokens total).
+and call tools, read resources, and render prompts from any configured MCP server.
+Instead of registering dozens of individual tools (~150-300 tokens each), only one
+proxy tool is registered (~200 tokens total).
 
 Modes (in precedence order):
 1. call:     tool="tool_name" args='{"key":"val"}' [server="server_name"]
@@ -11,7 +11,11 @@ Modes (in precedence order):
 3. describe: describe="tool_name"
 4. search:   search="query" [regex=true] [include_schemas=true] [server="name"]
 5. list:     server="server_name"
-6. status:   (no args)
+6. resources: resources="server_name" — list resources for a server
+7. read_resource: read_resource="uri" — read a resource
+8. prompts: prompts="server_name" — list prompts for a server
+9. get_prompt: get_prompt="name" args='{"key":"val"}' — render a prompt
+10. status:  (no args)
 
 Inspired by pi-mcp-adapter's mcp proxy tool.
 """
@@ -35,13 +39,18 @@ class MCPProxyTool(BaseTool):
 
     name = "mcp"
     description = (
-        "MCP tool proxy — discover, search, describe, and call tools from MCP servers. "
+        "MCP proxy — discover, search, describe, and call tools; read resources; "
+        "render prompts from MCP servers. "
         "Modes (by precedence): "
         "call: tool='name' args='{...}' [server='name'] — execute a tool; "
         "connect: connect='server' — lazy-connect a server; "
         "describe: describe='tool' — show tool schema; "
         "search: search='query' [regex=true] [include_schemas=true] [server='name'] — find tools; "
         "list: server='name' — list tools for a server; "
+        "resources: resources='server' — list resources; "
+        "read_resource: read_resource='uri' — read a resource; "
+        "prompts: prompts='server' — list prompts; "
+        "get_prompt: get_prompt='name' args='{...}' — render a prompt; "
         "status: (no args) — show all servers and connection status."
     )
 
@@ -54,7 +63,7 @@ class MCPProxyTool(BaseTool):
             },
             "args": {
                 "type": "string",
-                "description": "JSON string of arguments for tool call",
+                "description": "JSON string of arguments for tool call or prompt arguments",
             },
             "server": {
                 "type": "string",
@@ -80,6 +89,22 @@ class MCPProxyTool(BaseTool):
                 "type": "boolean",
                 "description": "Include parameter schemas in search results (default: true)",
             },
+            "resources": {
+                "type": "string",
+                "description": "Server name to list resources from (triggers resources mode)",
+            },
+            "read_resource": {
+                "type": "string",
+                "description": "Resource URI to read (triggers read_resource mode)",
+            },
+            "prompts": {
+                "type": "string",
+                "description": "Server name to list prompts from (triggers prompts mode)",
+            },
+            "get_prompt": {
+                "type": "string",
+                "description": "Prompt name to render (triggers get_prompt mode, use args for prompt arguments)",
+            },
         },
     }
 
@@ -91,11 +116,16 @@ class MCPProxyTool(BaseTool):
     async def execute(self, input_data: ToolInput) -> ToolOutput:
         """Route to appropriate mode handler based on provided parameters."""
         try:
-            # Mode precedence: tool (call) > connect > describe > search > server (list) > status
+            # Mode precedence: tool (call) > connect > describe > search >
+            # resources > read_resource > prompts > get_prompt > server (list) > status
             tool_name = getattr(input_data, "tool", None)
             connect = getattr(input_data, "connect", None)
             describe = getattr(input_data, "describe", None)
             search = getattr(input_data, "search", None)
+            resources = getattr(input_data, "resources", None)
+            read_resource = getattr(input_data, "read_resource", None)
+            prompts = getattr(input_data, "prompts", None)
+            get_prompt = getattr(input_data, "get_prompt", None)
             server = getattr(input_data, "server", None)
 
             if tool_name:
@@ -114,6 +144,17 @@ class MCPProxyTool(BaseTool):
                     regex=getattr(input_data, "regex", False) or False,
                     include_schemas=getattr(input_data, "include_schemas", True),
                     server=server,
+                )
+            elif resources:
+                return await self._execute_resources(resources)
+            elif read_resource:
+                return await self._execute_read_resource(read_resource)
+            elif prompts:
+                return await self._execute_prompts(prompts)
+            elif get_prompt:
+                return await self._execute_get_prompt(
+                    prompt_name=get_prompt,
+                    args_str=getattr(input_data, "args", "{}"),
                 )
             elif server:
                 return await self._execute_list(server)
@@ -142,29 +183,65 @@ class MCPProxyTool(BaseTool):
             connected = client.is_connected if client else False
             status_emoji = "🟢" if connected else "🔴"
             tool_count = 0
+            resource_count = 0
+            prompt_count = 0
             cached_smeta = cache.get_server(server_name)
             if cached_smeta:
                 tool_count = len(cached_smeta.tools)
+                resource_count = len(cached_smeta.resources)
+                prompt_count = len(cached_smeta.prompts)
             elif client:
                 tool_count = client.tool_count
+                resource_count = client.resource_count
+                prompt_count = client.prompt_count
 
             lifecycle_mode = config.lifecycle
+
+            # Build capability badge
+            caps_parts = []
+            if tool_count:
+                caps_parts.append(f"{tool_count}t")
+            if resource_count:
+                caps_parts.append(f"{resource_count}r")
+            if prompt_count:
+                caps_parts.append(f"{prompt_count}p")
+            caps_badge = f"[{','.join(caps_parts)}]" if caps_parts else "[no capabilities]"
+
+            # Auth indicator
+            auth_badge = ""
+            if config.auth and config.auth.is_configured:
+                auth_badge = f" 🔒{config.auth.type}"
+
             lines.append(
-                f"  {status_emoji} **{server_name}** — {tool_count} tools, "
+                f"  {status_emoji} **{server_name}** {caps_badge}{auth_badge} — "
                 f"{lifecycle_mode}, {'connected' if connected else 'disconnected'}"
             )
 
         total_cached = cache.total_tools
+        total_resources = cache.total_resources
+        total_prompts = cache.total_prompts
         connected_count = sum(
             1 for n in registry._configs
             if (c := registry.get_client(n)) and c.is_connected
         )
-        lines.append(f"\n  Total: {len(registry._configs)} servers, {connected_count} connected, {total_cached} tools in cache")
+        summary_parts = [f"{total_cached} tools"]
+        if total_resources:
+            summary_parts.append(f"{total_resources} resources")
+        if total_prompts:
+            summary_parts.append(f"{total_prompts} prompts")
+        lines.append(f"\n  Total: {len(registry._configs)} servers, {connected_count} connected, {', '.join(summary_parts)} in cache")
 
         return ToolOutput(
             success=True,
             result="\n".join(lines),
-            metadata={"mode": "status", "total_servers": len(registry._configs), "connected": connected_count},
+            metadata={
+                "mode": "status",
+                "total_servers": len(registry._configs),
+                "connected": connected_count,
+                "total_tools": total_cached,
+                "total_resources": total_resources,
+                "total_prompts": total_prompts,
+            },
         )
 
     async def _execute_list(self, server: str) -> ToolOutput:
@@ -375,18 +452,242 @@ class MCPProxyTool(BaseTool):
         try:
             client = await self._mcp_registry._lifecycle.ensure_connected(server)
 
-            # Refresh metadata cache
+            # Refresh metadata cache — tools, resources, and prompts in one pass
             tools = await client.list_tools()
-            self._mcp_registry._update_cache_for_server(server, tools)
+            capabilities = client.get_capabilities()
+            resources = await client.list_resources() if capabilities.resources else []
+            prompts = await client.list_prompts() if capabilities.prompts else []
+            self._mcp_registry._update_cache_for_server(
+                server, tools, resources=resources, prompts=prompts
+            )
+
+            caps_info = []
+            if capabilities.tools:
+                caps_info.append(f"{client.tool_count} tools")
+            if capabilities.resources:
+                caps_info.append(f"{len(resources)} resources")
+            if capabilities.prompts:
+                caps_info.append(f"{len(prompts)} prompts")
 
             return ToolOutput(
                 success=True,
-                result=f"Connected to '{server}' with {client.tool_count} tools",
-                metadata={"mode": "connect", "server": server, "tool_count": client.tool_count},
+                result=f"Connected to '{server}' with {', '.join(caps_info) or 'no capabilities'}",
+                metadata={
+                    "mode": "connect",
+                    "server": server,
+                    "tool_count": client.tool_count,
+                    "resource_count": len(resources),
+                    "prompt_count": len(prompts),
+                },
             )
         except Exception as e:
             return ToolOutput(
                 success=False,
                 result=None,
                 error=f"Failed to connect to MCP server '{server}': {e}",
+            )
+
+    # ========================================================================
+    # RESOURCE MODES
+    # ========================================================================
+
+    async def _execute_resources(self, server: str) -> ToolOutput:
+        """List resources for a specific server."""
+        cache = self._mcp_registry._cache
+        client = self._mcp_registry.get_client(server)
+
+        # Try cache first
+        cached_resources = cache.list_server_resources(server)
+        if cached_resources:
+            lines = [f"## Resources from '{server}'\n"]
+            for resource in cached_resources:
+                mime = f" ({resource.mime_type})" if resource.mime_type else ""
+                lines.append(f"  - **{resource.name}** [{resource.uri}]{mime}: {resource.description}")
+            lines.append(f"\n  {len(cached_resources)} resources")
+            return ToolOutput(
+                success=True,
+                result="\n".join(lines),
+                metadata={"mode": "resources", "server": server, "count": len(cached_resources)},
+            )
+
+        # Try live client
+        if client and client.is_connected:
+            try:
+                resources = await client.list_resources()
+                lines = [f"## Resources from '{server}'\n"]
+                for resource in resources:
+                    mime = f" ({resource.mime_type})" if resource.mime_type else ""
+                    lines.append(f"  - **{resource.name}** [{resource.uri}]{mime}: {resource.description}")
+                lines.append(f"\n  {len(resources)} resources")
+                return ToolOutput(
+                    success=True,
+                    result="\n".join(lines),
+                    metadata={"mode": "resources", "server": server, "count": len(resources)},
+                )
+            except Exception as e:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=f"Failed to list resources from '{server}': {e}",
+                )
+
+        return ToolOutput(
+            success=False,
+            result=None,
+            error=f"Server '{server}' not found in cache or not connected. Use connect='{server}' first.",
+        )
+
+    async def _execute_read_resource(self, uri: str) -> ToolOutput:
+        """Read a resource by URI."""
+        # Find which server has this resource
+        cache = self._mcp_registry._cache
+        server = None
+
+        # Search cache for the resource
+        for smeta_name in cache.server_names:
+            for resource in cache.list_server_resources(smeta_name):
+                if resource.uri == uri:
+                    server = smeta_name
+                    break
+            if server:
+                break
+
+        if not server:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Resource '{uri}' not found in any server cache. Use resources='server' to list available resources.",
+            )
+
+        # Connect and read
+        try:
+            client = await self._mcp_registry._lifecycle.ensure_connected(server)
+            contents = await client.read_resource(uri)
+
+            lines = [f"## Resource: {uri}\n"]
+            for content in contents:
+                if content.mime_type:
+                    lines.append(f"  **MIME Type**: {content.mime_type}")
+                if content.text:
+                    lines.append(f"\n  {content.text}")
+                elif content.blob is not None:
+                    lines.append(f"\n  [Binary data: {len(content.blob)} bytes]")
+
+            return ToolOutput(
+                success=True,
+                result="\n".join(lines),
+                metadata={"mode": "read_resource", "uri": uri, "server": server},
+            )
+        except Exception as e:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Failed to read resource '{uri}': {e}",
+            )
+
+    # ========================================================================
+    # PROMPT MODES
+    # ========================================================================
+
+    async def _execute_prompts(self, server: str) -> ToolOutput:
+        """List prompts for a specific server."""
+        cache = self._mcp_registry._cache
+        client = self._mcp_registry.get_client(server)
+
+        # Try cache first
+        cached_prompts = cache.list_server_prompts(server)
+        if cached_prompts:
+            lines = [f"## Prompts from '{server}'\n"]
+            for prompt in cached_prompts:
+                arg_desc = ""
+                if prompt.arguments:
+                    arg_names = [a.get("name", "?") for a in prompt.arguments]
+                    arg_desc = f" (args: {', '.join(arg_names)})"
+                lines.append(f"  - **{prompt.name}**{arg_desc}: {prompt.description}")
+            lines.append(f"\n  {len(cached_prompts)} prompts")
+            return ToolOutput(
+                success=True,
+                result="\n".join(lines),
+                metadata={"mode": "prompts", "server": server, "count": len(cached_prompts)},
+            )
+
+        # Try live client
+        if client and client.is_connected:
+            try:
+                prompts = await client.list_prompts()
+                lines = [f"## Prompts from '{server}'\n"]
+                for prompt in prompts:
+                    arg_desc = ""
+                    if prompt.arguments:
+                        arg_names = [a.name for a in prompt.arguments]
+                        arg_desc = f" (args: {', '.join(arg_names)})"
+                    lines.append(f"  - **{prompt.name}**{arg_desc}: {prompt.description}")
+                lines.append(f"\n  {len(prompts)} prompts")
+                return ToolOutput(
+                    success=True,
+                    result="\n".join(lines),
+                    metadata={"mode": "prompts", "server": server, "count": len(prompts)},
+                )
+            except Exception as e:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=f"Failed to list prompts from '{server}': {e}",
+                )
+
+        return ToolOutput(
+            success=False,
+            result=None,
+            error=f"Server '{server}' not found in cache or not connected. Use connect='{server}' first.",
+        )
+
+    async def _execute_get_prompt(self, prompt_name: str, args_str: str = "{}") -> ToolOutput:
+        """Render a prompt by name."""
+        # Parse arguments
+        try:
+            args = json.loads(args_str) if isinstance(args_str, str) else args_str
+        except json.JSONDecodeError as e:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Invalid JSON args: {e}",
+            )
+
+        # Find which server has this prompt
+        cache = self._mcp_registry._cache
+        server = None
+
+        for smeta_name in cache.server_names:
+            prompt = cache.get_prompt(smeta_name, prompt_name)
+            if prompt:
+                server = smeta_name
+                break
+
+        if not server:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Prompt '{prompt_name}' not found. Use prompts='server' to list available prompts.",
+            )
+
+        # Connect and render
+        try:
+            client = await self._mcp_registry._lifecycle.ensure_connected(server)
+            messages = await client.get_prompt(prompt_name, args)
+
+            lines = [f"## Prompt: {prompt_name}\n"]
+            for msg in messages:
+                role_marker = "👤" if msg.role == "user" else "🤖"
+                lines.append(f"  {role_marker} **{msg.role}**: {msg.content[:200]}{'...' if len(msg.content) > 200 else ''}")
+
+            return ToolOutput(
+                success=True,
+                result="\n".join(lines),
+                metadata={"mode": "get_prompt", "prompt": prompt_name, "server": server, "message_count": len(messages)},
+            )
+        except Exception as e:
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=f"Failed to render prompt '{prompt_name}': {e}",
             )

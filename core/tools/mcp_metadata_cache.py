@@ -48,11 +48,59 @@ class ToolMetadata:
 
 
 @dataclass
+class ResourceMetadata:
+    """Metadata for an MCP resource."""
+
+    uri: str
+    name: str
+    description: str
+    mime_type: str
+    server_name: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ResourceMetadata:
+        return cls(
+            uri=data["uri"],
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            mime_type=data.get("mime_type", ""),
+            server_name=data.get("server_name", ""),
+        )
+
+
+@dataclass
+class PromptMetadata:
+    """Metadata for an MCP prompt template."""
+
+    name: str
+    description: str
+    arguments: list[dict[str, Any]]  # list of {name, description, required}
+    server_name: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PromptMetadata:
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            arguments=data.get("arguments", []),
+            server_name=data.get("server_name", ""),
+        )
+
+
+@dataclass
 class ServerMetadata:
-    """Metadata for an MCP server including its tools."""
+    """Metadata for an MCP server including its tools, resources, and prompts."""
 
     name: str
     tools: list[ToolMetadata]
+    resources: list[ResourceMetadata]
+    prompts: list[PromptMetadata]
     cached_at: float
     config_hash: str  # Hash of server config for validation
 
@@ -60,6 +108,8 @@ class ServerMetadata:
         return {
             "name": self.name,
             "tools": [t.to_dict() for t in self.tools],
+            "resources": [r.to_dict() for r in self.resources],
+            "prompts": [p.to_dict() for p in self.prompts],
             "cached_at": self.cached_at,
             "config_hash": self.config_hash,
         }
@@ -69,6 +119,8 @@ class ServerMetadata:
         return cls(
             name=data["name"],
             tools=[ToolMetadata.from_dict(t) for t in data.get("tools", [])],
+            resources=[ResourceMetadata.from_dict(r) for r in data.get("resources", [])],
+            prompts=[PromptMetadata.from_dict(p) for p in data.get("prompts", [])],
             cached_at=data.get("cached_at", 0.0),
             config_hash=data.get("config_hash", ""),
         )
@@ -201,11 +253,25 @@ class MCPMetadataCache:
             return False
         return smeta.config_hash == compute_config_hash(config_dict)
 
-    def update_server(self, name: str, tools: list[ToolMetadata], config_dict: dict[str, Any]) -> None:
-        """Update cache for a server with fresh tool metadata."""
+    def update_server(
+        self,
+        name: str,
+        tools: list[ToolMetadata],
+        config_dict: dict[str, Any],
+        resources: list[ResourceMetadata] | None = None,
+        prompts: list[PromptMetadata] | None = None,
+    ) -> None:
+        """Update cache for a server with fresh tool, resource, and prompt metadata."""
+        # Preserve existing resources/prompts if not provided
+        existing = self._servers.get(name)
+        existing_resources = existing.resources if existing else []
+        existing_prompts = existing.prompts if existing else []
+
         self._servers[name] = ServerMetadata(
             name=name,
             tools=tools,
+            resources=resources if resources is not None else existing_resources,
+            prompts=prompts if prompts is not None else existing_prompts,
             cached_at=time.time(),
             config_hash=compute_config_hash(config_dict),
         )
@@ -225,3 +291,119 @@ class MCPMetadataCache:
     def total_tools(self) -> int:
         """Get total number of cached tools."""
         return sum(len(s.tools) for s in self._servers.values())
+
+    @property
+    def total_resources(self) -> int:
+        """Get total number of cached resources."""
+        return sum(len(s.resources) for s in self._servers.values())
+
+    @property
+    def total_prompts(self) -> int:
+        """Get total number of cached prompts."""
+        return sum(len(s.prompts) for s in self._servers.values())
+
+    # -- Resource cache methods --
+
+    def get_resource(self, server: str, uri: str) -> ResourceMetadata | None:
+        """Get a specific resource's metadata."""
+        smeta = self._servers.get(server)
+        if not smeta:
+            return None
+        for resource in smeta.resources:
+            if resource.uri == uri:
+                return resource
+        return None
+
+    def list_server_resources(self, server: str) -> list[ResourceMetadata]:
+        """List all resources for a server."""
+        smeta = self._servers.get(server)
+        return smeta.resources if smeta else []
+
+    def list_all_resources(self) -> list[ResourceMetadata]:
+        """List all resources across all servers."""
+        resources: list[ResourceMetadata] = []
+        for smeta in self._servers.values():
+            resources.extend(smeta.resources)
+        return resources
+
+    def search_resources(
+        self,
+        query: str,
+        server: str | None = None,
+        regex: bool = False,
+    ) -> list[ResourceMetadata]:
+        """Search for resources by name/description/URI."""
+        matches: list[ResourceMetadata] = []
+        servers_to_search = (
+            {server: self._servers[server]} if server and server in self._servers else self._servers
+        )
+
+        if regex:
+            try:
+                pattern = re.compile(query, re.IGNORECASE)
+            except re.error:
+                pattern = re.compile(re.escape(query), re.IGNORECASE)
+        else:
+            pattern = re.compile(re.escape(query), re.IGNORECASE)
+
+        for smeta in servers_to_search.values():
+            for resource in smeta.resources:
+                if (
+                    pattern.search(resource.name)
+                    or pattern.search(resource.description)
+                    or pattern.search(resource.uri)
+                ):
+                    matches.append(resource)
+
+        return matches
+
+    # -- Prompt cache methods --
+
+    def get_prompt(self, server: str, prompt_name: str) -> PromptMetadata | None:
+        """Get a specific prompt's metadata."""
+        smeta = self._servers.get(server)
+        if not smeta:
+            return None
+        for prompt in smeta.prompts:
+            if prompt.name == prompt_name:
+                return prompt
+        return None
+
+    def list_server_prompts(self, server: str) -> list[PromptMetadata]:
+        """List all prompts for a server."""
+        smeta = self._servers.get(server)
+        return smeta.prompts if smeta else []
+
+    def list_all_prompts(self) -> list[PromptMetadata]:
+        """List all prompts across all servers."""
+        prompts: list[PromptMetadata] = []
+        for smeta in self._servers.values():
+            prompts.extend(smeta.prompts)
+        return prompts
+
+    def search_prompts(
+        self,
+        query: str,
+        server: str | None = None,
+        regex: bool = False,
+    ) -> list[PromptMetadata]:
+        """Search for prompts by name/description."""
+        matches: list[PromptMetadata] = []
+        servers_to_search = (
+            {server: self._servers[server]} if server and server in self._servers else self._servers
+        )
+
+        if regex:
+            try:
+                pattern = re.compile(query, re.IGNORECASE)
+            except re.error:
+                pattern = re.compile(re.escape(query), re.IGNORECASE)
+        else:
+            pattern = re.compile(re.escape(query), re.IGNORECASE)
+
+        for smeta in servers_to_search.values():
+            for prompt in smeta.prompts:
+                if pattern.search(prompt.name) or pattern.search(prompt.description):
+                    matches.append(prompt)
+
+        return matches

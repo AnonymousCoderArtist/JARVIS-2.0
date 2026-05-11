@@ -112,7 +112,7 @@ class WatcherManager:
                 await watcher.watch()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                pass  # Silently suppress
+            except Exception as e:
+                logger.error(f"Error in watcher {watcher.name}: {e}")
 
             await asyncio.sleep(watcher.interval)

@@ -35,6 +35,8 @@ class MCPLifecycleManager:
         self._health_tasks: dict[str, asyncio.Task[None]] = {}
         self._last_activity: dict[str, float] = {}
         self._shutting_down = False
+        self._llm_provider: Any = None
+        self._model: str | None = None
 
     def register_config(self, config: MCPServerConfig) -> None:
         """Register a server config for lifecycle management."""
@@ -85,7 +87,7 @@ class MCPLifecycleManager:
 
         # Need to connect
         logger.info(f"Connecting to MCP server '{server_name}' (lifecycle: {config.lifecycle})")
-        client = MCPClient(config)
+        client = MCPClient(config, llm_provider=self._llm_provider, model=self._model)
         await client.connect()
 
         # Register with the registry

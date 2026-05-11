@@ -1,7 +1,7 @@
 """MCP (Model Context Protocol) Adapter for JARVIS
 
 This module provides MCP client integration to connect to external MCP servers
-and expose their tools as native JARVIS tools.
+and expose their tools, resources, prompts, and sampling as native JARVIS features.
 
 Uses the official MCP Python SDK: https://github.com/modelcontextprotocol/python-sdk
 
@@ -21,8 +21,18 @@ from typing import Any
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
+from mcp.types import CreateMessageRequestParams, CreateMessageResult, Implementation
 
 from .base import BaseTool, ToolInput, ToolOutput
+from .mcp_capabilities import (
+    MCPAuthConfig,
+    MCPPromptMessage,
+    MCPPromptSpec,
+    MCPResourceContent,
+    MCPResourceSpec,
+    MCPResourceTemplateSpec,
+    MCPServerCapabilities,
+)
 from .registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -56,6 +66,10 @@ class MCPServerConfig:
     idle_timeout: float = 15.0  # Minutes before idle disconnect (lazy only)
     direct_tools: bool | list[str] = False  # True = all tools, ["t1","t2"] = specific
     exclude_tools: list[str] = field(default_factory=list)
+    # Capability negotiation fields
+    auto_discover_capabilities: bool = True  # Query resources/prompts on connect
+    # Auth configuration
+    auth: MCPAuthConfig | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "MCPServerConfig":
@@ -66,6 +80,10 @@ class MCPServerConfig:
             direct_tools: bool | list[str] = raw_direct_tools
         else:
             direct_tools = bool(raw_direct_tools)
+
+        # Parse auth config
+        auth_data = data.get("auth", None)
+        auth = MCPAuthConfig.from_dict(auth_data) if auth_data else None
 
         return cls(
             name=data.get("name", ""),
@@ -81,6 +99,8 @@ class MCPServerConfig:
             idle_timeout=data.get("idleTimeout", data.get("idle_timeout", 15.0)),
             direct_tools=direct_tools,
             exclude_tools=data.get("excludeTools", data.get("exclude_tools", [])),
+            auto_discover_capabilities=data.get("autoDiscoverCapabilities", data.get("auto_discover_capabilities", True)),
+            auth=auth,
         )
 
 
@@ -99,12 +119,25 @@ class MCPToolSpec:
 # ============================================================================
 
 class MCPClient:
-    """Client for connecting to MCP servers using the official MCP SDK"""
+    """Client for connecting to MCP servers using the official MCP SDK
 
-    def __init__(self, config: MCPServerConfig):
+    Supports tools, resources, prompts, and sampling capabilities with
+    automatic negotiation based on server capabilities.
+    """
+
+    def __init__(
+        self,
+        config: MCPServerConfig,
+        llm_provider: Any = None,
+        model: str | None = None,
+    ):
         self.config = config
         self._session: ClientSession | None = None
         self._tools: list[MCPToolSpec] = []
+        self._resources: list[MCPResourceSpec] = []
+        self._resource_templates: list[MCPResourceTemplateSpec] = []
+        self._prompts: list[MCPPromptSpec] = []
+        self._capabilities: MCPServerCapabilities = MCPServerCapabilities()
         self._initialized = False
         self._lock = asyncio.Lock()
         self._event_loop: asyncio.AbstractEventLoop | None = None
@@ -116,6 +149,9 @@ class MCPClient:
         self._connect_time: float = 0.0
         self._last_error: str | None = None
         self._last_tool_call: float = 0.0
+        # Sampling support
+        self._llm_provider = llm_provider
+        self._model = model
 
     async def _reset_client(self) -> None:
         """Reset the client state when event loop changes"""
@@ -135,6 +171,10 @@ class MCPClient:
         self._ready_event = None
         self._session = None
         self._tools = []
+        self._resources = []
+        self._resource_templates = []
+        self._prompts = []
+        self._capabilities = MCPServerCapabilities()
         self._initialized = False
         self._event_loop = None
         self._connect_error = None
@@ -179,11 +219,25 @@ class MCPClient:
             if self._connect_error:
                 raise self._connect_error
 
+            # Negotiate capabilities from the initialize result
+            self._negotiate_capabilities()
+
             # List available tools
             await self._list_tools()
 
+            # Auto-discover resources and prompts if enabled and server supports them
+            if self.config.auto_discover_capabilities:
+                if self._capabilities.resources:
+                    await self._list_resources()
+                if self._capabilities.prompts:
+                    await self._list_prompts()
+
             self._initialized = True
-            logger.info(f"Connected to MCP server '{self.config.name}' with {len(self._tools)} tools")
+            caps_desc = ", ".join(k for k, v in self._capabilities.to_dict().items() if v)
+            logger.info(
+                f"Connected to MCP server '{self.config.name}' with {len(self._tools)} tools "
+                f"[capabilities: {caps_desc or 'none'}]"
+            )
 
         except Exception as e:
             logger.error(f"Failed to connect to MCP server '{self.config.name}': {e}")
@@ -194,6 +248,7 @@ class MCPClient:
         """Background task that keeps the MCP context managers open in a single task scope"""
         try:
             from contextlib import AsyncExitStack
+
             async with AsyncExitStack() as stack:
                 if self.config.transport == MCPTransportType.STDIO:
                     # Build environment
@@ -218,7 +273,14 @@ class MCPClient:
                         raise ValueError(f"No URL configured for HTTP MCP server '{self.config.name}'")
 
                     logger.info(f"Connecting to MCP server via HTTP: {self.config.url}")
-                    ctx = streamable_http_client(self.config.url)
+
+                    # Build httpx client with auth if configured
+                    http_client = await self._build_http_client(stack)
+
+                    if http_client:
+                        ctx = streamable_http_client(self.config.url, http_client=http_client)
+                    else:
+                        ctx = streamable_http_client(self.config.url)
                     streams = await stack.enter_async_context(ctx)
                     # HTTP stream client returns (read, write, session_id) or similar depending on MCP sdk version
                     if len(streams) == 3:
@@ -228,11 +290,20 @@ class MCPClient:
                 else:
                     raise ValueError(f"Unknown transport: {self.config.transport}")
 
-                # Create session
-                session_ctx = ClientSession(read_stream, write_stream)
+                # Build session kwargs — pass sampling_callback to constructor
+                # so the SDK auto-advertises SamplingCapability in initialize()
+                session_kwargs: dict[str, Any] = {
+                    "client_info": Implementation(name="JARVIS", version="2.0.0"),
+                }
+                if self._llm_provider:
+                    session_kwargs["sampling_callback"] = self._handle_sampling_request
+
+                # Create session with sampling callback
+                session_ctx = ClientSession(read_stream, write_stream, **session_kwargs)
                 self._session = await stack.enter_async_context(session_ctx)
 
-                # Initialize the session
+                # Initialize the session (SDK builds InitializeRequest internally
+                # based on the callbacks/capabilities passed to the constructor)
                 await self._session.initialize()
 
                 logger.info(f"MCP transport initialized for {self.config.name}")
@@ -275,6 +346,301 @@ class MCPClient:
             )
             for tool in tools
         ]
+
+    # ========================================================================
+    # CAPABILITY NEGOTIATION
+    # ========================================================================
+
+    def _negotiate_capabilities(self) -> None:
+        """Negotiate server capabilities after initialize()."""
+        if not self._session:
+            return
+
+        server_caps = self._session.get_server_capabilities()
+        self._capabilities = MCPServerCapabilities.from_server_capabilities(server_caps)
+
+        # Mark sampling as available if we advertised it and server might request it
+        if self._llm_provider:
+            self._capabilities.sampling = True
+
+        logger.debug(
+            f"MCP server '{self.config.name}' capabilities: {self._capabilities.to_dict()}"
+        )
+
+    def get_capabilities(self) -> MCPServerCapabilities:
+        """Get the negotiated server capabilities."""
+        return self._capabilities
+
+    # ========================================================================
+    # RESOURCES
+    # ========================================================================
+
+    async def _list_resources(self) -> None:
+        """List available resources from the MCP server."""
+        if not self._session or not self._capabilities.resources:
+            return
+
+        try:
+            response = await self._session.list_resources()
+            resources = response.resources if hasattr(response, 'resources') else []
+            self._resources = [
+                MCPResourceSpec.from_sdk(r, self.config.name) for r in resources
+            ]
+            logger.debug(f"Discovered {len(self._resources)} resources from '{self.config.name}'")
+        except Exception as e:
+            logger.warning(f"Failed to list resources from '{self.config.name}': {e}")
+
+    async def list_resources(self) -> list[MCPResourceSpec]:
+        """List available resources from the MCP server."""
+        await self._ensure_active_loop()
+
+        if not self._initialized:
+            await self.connect()
+
+        return self._resources
+
+    async def read_resource(self, uri: str) -> list[MCPResourceContent]:
+        """Read a resource from the MCP server."""
+        await self._ensure_active_loop()
+
+        if not self._initialized:
+            await self.connect()
+
+        if not self._session:
+            raise RuntimeError("MCP session not initialized")
+
+        try:
+            response = await self._session.read_resource(uri)
+            contents = []
+
+            # Handle the response which may have different formats
+            if hasattr(response, 'contents'):
+                for item in response.contents:
+                    content = MCPResourceContent(uri=str(item.uri))
+                    if hasattr(item, 'mimeType') and item.mimeType:
+                        content.mime_type = item.mimeType
+                    if hasattr(item, 'text') and item.text:
+                        content.text = item.text
+                    elif hasattr(item, 'blob') and item.blob:
+                        import base64
+                        content.blob = base64.b64decode(item.blob)
+                    contents.append(content)
+            elif hasattr(response, 'content'):
+                # Single content item
+                item = response.content
+                content = MCPResourceContent(uri=uri)
+                if hasattr(item, 'mimeType') and item.mimeType:
+                    content.mime_type = item.mimeType
+                if hasattr(item, 'text') and item.text:
+                    content.text = item.text
+                contents.append(content)
+
+            return contents
+
+        except Exception as e:
+            logger.error(f"Failed to read resource '{uri}' from '{self.config.name}': {e}")
+            raise
+
+    async def list_resource_templates(self) -> list[MCPResourceTemplateSpec]:
+        """List resource templates from the MCP server."""
+        await self._ensure_active_loop()
+
+        if not self._initialized:
+            await self.connect()
+
+        if not self._session:
+            raise RuntimeError("MCP session not initialized")
+
+        if self._resource_templates:
+            return self._resource_templates
+
+        try:
+            response = await self._session.list_resource_templates()
+            templates = response.resourceTemplates if hasattr(response, 'resourceTemplates') else []
+            self._resource_templates = [
+                MCPResourceTemplateSpec.from_sdk(t, self.config.name) for t in templates
+            ]
+            return self._resource_templates
+
+        except Exception as e:
+            logger.warning(f"Failed to list resource templates from '{self.config.name}': {e}")
+            return []
+
+    # ========================================================================
+    # PROMPTS
+    # ========================================================================
+
+    async def _list_prompts(self) -> None:
+        """List available prompts from the MCP server."""
+        if not self._session or not self._capabilities.prompts:
+            return
+
+        try:
+            response = await self._session.list_prompts()
+            prompts = response.prompts if hasattr(response, 'prompts') else []
+            self._prompts = [
+                MCPPromptSpec.from_sdk(p, self.config.name) for p in prompts
+            ]
+            logger.debug(f"Discovered {len(self._prompts)} prompts from '{self.config.name}'")
+        except Exception as e:
+            logger.warning(f"Failed to list prompts from '{self.config.name}': {e}")
+
+    async def list_prompts(self) -> list[MCPPromptSpec]:
+        """List available prompts from the MCP server."""
+        await self._ensure_active_loop()
+
+        if not self._initialized:
+            await self.connect()
+
+        return self._prompts
+
+    async def get_prompt(self, name: str, arguments: dict[str, str] | None = None) -> list[MCPPromptMessage]:
+        """Get a rendered prompt from the MCP server."""
+        await self._ensure_active_loop()
+
+        if not self._initialized:
+            await self.connect()
+
+        if not self._session:
+            raise RuntimeError("MCP session not initialized")
+
+        try:
+            response = await self._session.get_prompt(name, arguments=arguments or {})
+            messages = []
+
+            if hasattr(response, 'messages'):
+                for msg in response.messages:
+                    role = str(msg.role) if msg.role else "user"
+                    content = ""
+                    if hasattr(msg, 'content'):
+                        if isinstance(msg.content, str):
+                            content = msg.content
+                        elif hasattr(msg.content, 'text'):
+                            content = msg.content.text
+                        else:
+                            content = str(msg.content)
+                    messages.append(MCPPromptMessage(role=role, content=content))
+
+            return messages
+
+        except Exception as e:
+            logger.error(f"Failed to get prompt '{name}' from '{self.config.name}': {e}")
+            raise
+
+    # ========================================================================
+    # SAMPLING
+    # ========================================================================
+
+    async def _handle_sampling_request(
+        self,
+        context: Any,
+        params: CreateMessageRequestParams,
+    ) -> CreateMessageResult:
+        """Handle a server-initiated sampling request by routing through JARVIS LLM provider.
+
+        This matches the SDK's SamplingFnT protocol:
+            async def __call__(context, params) -> CreateMessageResult
+        """
+        if not self._llm_provider:
+            raise RuntimeError("No LLM provider available for sampling")
+
+        try:
+            messages = []
+
+            # Convert MCP sampling messages to LLM format
+            if hasattr(params, 'messages') and params.messages:
+                for msg in params.messages:
+                    role = str(msg.role) if msg.role else "user"
+                    content = ""
+                    if hasattr(msg, 'content'):
+                        if isinstance(msg.content, str):
+                            content = msg.content
+                        elif hasattr(msg.content, 'text'):
+                            content = msg.content.text
+                        else:
+                            content = str(msg.content)
+                    messages.append({"role": role, "content": content})
+
+            # Build completion request
+            kwargs: dict[str, Any] = {
+                "messages": messages,
+            }
+
+            if hasattr(params, 'systemPrompt') and params.systemPrompt:
+                kwargs["system_prompt"] = params.systemPrompt
+
+            if hasattr(params, 'maxTokens') and params.maxTokens:
+                kwargs["max_tokens"] = params.maxTokens
+
+            if hasattr(params, 'temperature') and params.temperature is not None:
+                kwargs["temperature"] = params.temperature
+
+            if self._model:
+                kwargs["model"] = self._model
+
+            # Route through LLM provider
+            result = await self._llm_provider.create_completion(**kwargs)
+
+            # Build CreateMessageResult — content must be TextContent, not a raw string
+            from mcp.types import TextContent
+            response_text = result if isinstance(result, str) else str(result)
+
+            return CreateMessageResult(
+                role="assistant",
+                content=TextContent(type="text", text=response_text),
+                model=self._model or "jarvis",
+                stopReason="endTurn",
+            )
+
+        except Exception as e:
+            logger.error(f"Sampling request failed for '{self.config.name}': {e}")
+            raise
+
+    # ========================================================================
+    # AUTH HELPERS
+    # ========================================================================
+
+    async def _build_http_client(self, stack: Any) -> Any:
+        """Build an authenticated httpx.AsyncClient if auth is configured.
+
+        Returns None if no auth is configured (use default client).
+        """
+        import httpx
+
+        auth_config = self.config.auth
+        if not auth_config or not auth_config.is_configured:
+            return None
+
+        if auth_config.type == "bearer":
+            token = auth_config.get_token()
+            if not token:
+                logger.warning(f"No bearer token configured for '{self.config.name}'")
+                return None
+
+            return httpx.AsyncClient(
+                headers={auth_config.header_name: f"{auth_config.header_prefix} {token}"}
+            )
+
+        elif auth_config.type == "api_key":
+            token = auth_config.get_token()
+            if not token:
+                logger.warning(f"No API key configured for '{self.config.name}'")
+                return None
+
+            return httpx.AsyncClient(
+                headers={auth_config.header_name: token}
+            )
+
+        elif auth_config.type == "oauth":
+            # OAuth2 flow — use the MCP SDK's OAuthClientProvider
+            try:
+                from .mcp_auth import create_oauth_client
+                return await create_oauth_client(self.config)
+            except ImportError:
+                logger.warning(f"OAuth support not available for '{self.config.name}'")
+                return None
+
+        return None
 
     async def disconnect(self) -> None:
         """Disconnect from the MCP server"""
@@ -343,6 +709,16 @@ class MCPClient:
     def tool_count(self) -> int:
         """Get the number of available tools"""
         return len(self._tools)
+
+    @property
+    def resource_count(self) -> int:
+        """Get the number of available resources"""
+        return len(self._resources)
+
+    @property
+    def prompt_count(self) -> int:
+        """Get the number of available prompts"""
+        return len(self._prompts)
 
     @property
     def uptime_seconds(self) -> float:
@@ -498,14 +874,16 @@ class MCPToolAdapter(BaseTool):
 class MCPToolProvider:
     """Discovers tools from MCP servers and provides them as JARVIS tools"""
 
-    def __init__(self, config: MCPServerConfig):
+    def __init__(self, config: MCPServerConfig, llm_provider: Any = None, model: str | None = None):
         self.config = config
+        self._llm_provider = llm_provider
+        self._model = model
         self._client: MCPClient | None = None
 
     async def connect(self) -> MCPClient:
         """Connect to the MCP server and return the client"""
         if self._client is None:
-            self._client = MCPClient(self.config)
+            self._client = MCPClient(self.config, llm_provider=self._llm_provider, model=self._model)
             await self._client.connect()
         return self._client
 
@@ -608,6 +986,10 @@ class MCPRegistry:
             Dict mapping server names to their initialization status.
         """
         results: dict[str, str] = {}
+
+        # Propagate LLM provider and model to lifecycle manager for sampling support
+        self._lifecycle._llm_provider = llm_provider
+        self._lifecycle._model = model
 
         for config in configs:
             if config.disabled:
@@ -727,9 +1109,15 @@ class MCPRegistry:
 
         logger.info(f"Registered {len(tools_to_register)} direct tools for '{config.name}'")
 
-    def _update_cache_for_server(self, server_name: str, tools: list[MCPToolSpec]) -> None:
-        """Update the metadata cache with fresh tool data from a server."""
-        from .mcp_metadata_cache import ToolMetadata
+    def _update_cache_for_server(
+        self,
+        server_name: str,
+        tools: list[MCPToolSpec],
+        resources: list[MCPResourceSpec] | None = None,
+        prompts: list[MCPPromptSpec] | None = None,
+    ) -> None:
+        """Update the metadata cache with fresh tool, resource, and prompt data from a server."""
+        from .mcp_metadata_cache import ToolMetadata, ResourceMetadata, PromptMetadata
 
         config = self._configs.get(server_name)
         config_dict = {}
@@ -753,7 +1141,28 @@ class MCPRegistry:
             for t in tools
         ]
 
-        self._cache.update_server(server_name, tool_metas, config_dict)
+        resource_metas = [
+            ResourceMetadata(
+                uri=r.uri,
+                name=r.name,
+                description=r.description,
+                mime_type=r.mime_type,
+                server_name=server_name,
+            )
+            for r in (resources or [])
+        ]
+
+        prompt_metas = [
+            PromptMetadata(
+                name=p.name,
+                description=p.description,
+                arguments=[{"name": a.name, "description": a.description, "required": a.required} for a in p.arguments],
+                server_name=server_name,
+            )
+            for p in (prompts or [])
+        ]
+
+        self._cache.update_server(server_name, tool_metas, config_dict, resources=resource_metas, prompts=prompt_metas)
 
     # -- Backward-compatible API --
 
@@ -772,7 +1181,7 @@ class MCPRegistry:
             return None
 
         self._configs[config.name] = config
-        provider = MCPToolProvider(config)
+        provider = MCPToolProvider(config, llm_provider=llm_provider, model=model)
 
         try:
             # Connect and discover tools
