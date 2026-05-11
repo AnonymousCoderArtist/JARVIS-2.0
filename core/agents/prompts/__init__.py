@@ -12,7 +12,7 @@ Usage:
 
 import os
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 # Import constants
 from .constants import (
@@ -63,38 +63,6 @@ from .verification import (
     get_verification_metadata,
     get_verification_prompt,
 )
-
-# Cowork agent prompts - lazy loaded to avoid circular imports
-_COWORK_PROMPT_LOADED = False
-_COWORK_SYSTEM_PROMPT: str | None = None
-_COWORK_METADATA: dict | None = None
-
-
-def _load_cowork_prompts() -> Tuple[str, dict]:
-    """Lazy load cowork prompts to break circular import."""
-    global _COWORK_PROMPT_LOADED, _COWORK_SYSTEM_PROMPT, _COWORK_METADATA
-    if not _COWORK_PROMPT_LOADED:
-        from core.agents.cowork.prompts.system_prompt import (
-            COWORK_SYSTEM_PROMPT,
-            get_cowork_metadata,
-        )
-        _COWORK_SYSTEM_PROMPT = COWORK_SYSTEM_PROMPT
-        _COWORK_METADATA = get_cowork_metadata()
-        _COWORK_PROMPT_LOADED = True
-    return _COWORK_SYSTEM_PROMPT, _COWORK_METADATA
-
-
-
-def get_cowork_prompt() -> str:
-    """Get the Cowork system prompt (lazy loaded)."""
-    prompt, _ = _load_cowork_prompts()
-    return prompt
-
-
-def get_cowork_metadata() -> dict:
-    """Get the Cowork metadata (lazy loaded)."""
-    _, metadata = _load_cowork_prompts()
-    return metadata
 
 
 @dataclass
@@ -300,10 +268,6 @@ AGENT_PROMPTS: dict[str, tuple[str, AgentPromptMetadata]] = {
         FORK_SYSTEM_PROMPT,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for parallel task execution.", model="inherit", max_turns=50),
     ),
-    "cowork": (
-        "Loading...",
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for multi-agent collaborative task execution.", model="inherit", max_turns=100),
-    ),
 }
 
 
@@ -317,8 +281,6 @@ def get_agent_prompt(agent_name: str) -> str:
         System prompt for the specified agent.
     """
     _init_prompts()
-    if agent_name == 'cowork':
-        return get_cowork_prompt()
     prompts = {
         'jarvis': JARVIS_V2_SYSTEM_PROMPT,
         'explore': _RUNTIME_EXPLORE_PROMPT,
@@ -408,8 +370,6 @@ __all__ = [
     "FORK_SYSTEM_PROMPT",
     # Metadata class
     "AgentPromptMetadata",
-    "get_cowork_metadata",
-    "get_cowork_prompt",
     # Main API functions
     "get_agent_prompt",
     "get_agent_metadata",
