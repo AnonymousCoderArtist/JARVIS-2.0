@@ -2356,11 +2356,13 @@ class VibeApp(App):  # noqa: PLR0904
         tool_args: BaseModel,
         required_permissions: list[RequiredPermission] | None = None,
     ) -> None:
+        session_rules_count = len(self.agent_loop.agent._session_rules)
         approval_app = ApprovalApp(
             tool_name=tool_name,
             tool_args=tool_args,
             config=self.config,
             required_permissions=required_permissions,
+            session_rules_count=session_rules_count,
         )
         await self._switch_from_input(approval_app, scroll=True)
 
@@ -2371,10 +2373,12 @@ class VibeApp(App):  # noqa: PLR0904
         required_permissions: list[RequiredPermission] | None = None,
     ) -> None:
         """Mount inline approval bar in the chat stream for low-risk tools."""
+        session_rules_count = len(self.agent_loop.agent._session_rules)
         bar = InlineApprovalBar(
             tool_name=tool_name,
             tool_args=tool_args,
             required_permissions=required_permissions,
+            session_rules_count=session_rules_count,
         )
         await self._mount_and_scroll(bar)
 
