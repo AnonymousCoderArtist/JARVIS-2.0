@@ -1198,9 +1198,9 @@ class VibeApp(App):  # noqa: PLR0904
             await self._handle_remote_user_message(message)
             return
 
-        # message_index is where the user message will land in agent_loop.messages
-        # (checkpoint is created in agent_loop.act())
-        message_index = len(self.agent_loop.messages)
+        # message_index is the index in agent.memory where the user message will land
+        # (checkpoint is created in agent_loop.act() using len(agent.memory))
+        message_index = len(self.agent_loop.agent.memory)
         user_message = UserMessage(message, message_index=message_index)
 
         await self._mount_and_scroll(user_message)
@@ -2620,8 +2620,18 @@ class VibeApp(App):  # noqa: PLR0904
                 and self.agent_loop.rewind_manager.has_file_changes_at(msg_index)
             )
 
+            # Calculate position for counter display
+            user_widgets = self._get_user_message_widgets()
+            try:
+                pos = user_widgets.index(widget) + 1
+                total = len(user_widgets)
+            except ValueError:
+                pos = 0
+                total = len(user_widgets)
+
             await self._switch_to_rewind_app(
-                widget.get_content(), has_file_changes=has_file_changes
+                widget.get_content(), has_file_changes=has_file_changes,
+                position=pos, total=total,
             )
 
             chat = self._cached_chat or self.query_one("#chat", ChatScroll)
@@ -2630,14 +2640,19 @@ class VibeApp(App):  # noqa: PLR0904
             self.notify(f"Rewind error: {e}", severity="error")
 
     async def _switch_to_rewind_app(
-        self, message_preview: str, *, has_file_changes: bool
+        self, message_preview: str, *, has_file_changes: bool,
+        position: int = 0, total: int = 0,
     ) -> None:
         """Show the rewind action panel at the bottom."""
         # Clean up existing rewind app if needed
         try:
-            existing = self.query_one(RewindApp)
+            existing = self.query_one("#rewind-app", RewindApp)
             if existing.has_file_changes == has_file_changes:
                 existing.update_preview(message_preview)
+                # Update counter if widget exists
+                if existing._counter_widget is not None and total > 0:
+                    existing._counter_widget.update(f"[{position}/{total}]")
+                self.call_after_refresh(existing.focus)
                 return
             await existing.remove()
         except Exception:
@@ -2652,9 +2667,15 @@ class VibeApp(App):  # noqa: PLR0904
         rewind_app = RewindApp(
             message_preview=message_preview, has_file_changes=has_file_changes
         )
+        # Set counter after creation
+        if rewind_app._counter_widget is not None and total > 0:
+            rewind_app._counter_widget.update(f"[{position}/{total}]")
         bottom_container = self.query_one("#bottom-app-container")
         self._current_bottom_app = BottomApp.Rewind
         await bottom_container.mount(rewind_app)
+        # Set counter text after mount
+        if rewind_app._counter_widget is not None and total > 0:
+            rewind_app._counter_widget.update(f"[{position}/{total}]")
         self.call_after_refresh(rewind_app.focus)
 
     def _clear_rewind_state(self) -> None:
@@ -2677,6 +2698,12 @@ class VibeApp(App):  # noqa: PLR0904
         self, message: RewindApp.RewindWithoutRestore
     ) -> None:
         await self._execute_rewind(restore_files=False)
+
+    async def on_rewind_app_rewind_cancelled(
+        self, message: RewindApp.RewindCancelled
+    ) -> None:
+        """Handle ESC from within the rewind panel."""
+        await self._exit_rewind_mode()
 
     async def _execute_rewind(self, *, restore_files: bool) -> None:
         """Fork the session at the selected user message."""
@@ -2714,12 +2741,23 @@ class VibeApp(App):  # noqa: PLR0904
         if to_remove:
             await messages_area.remove_children(to_remove)
 
+        # Reset windowing state since we removed widgets
+        self._windowing.reset()
+        self._tool_call_map = None
+        self._history_widget_indices = WeakKeyDictionary()
+
         self._clear_rewind_state()
+
+        if restore_files:
+            self.notify("Rewound and restored files", severity="information")
+        else:
+            self.notify("Rewound conversation", severity="information")
 
         # Switch back to input and pre-fill with the original message
         await self._switch_to_input_app()
         if self._chat_input_container:
             self._chat_input_container.value = message_content
+            self.call_after_refresh(self._chat_input_container.focus_input)
 
     # --- End rewind mode ---
 

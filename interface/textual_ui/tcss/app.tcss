@@ -122,33 +122,33 @@ TextArea > .text-area--cursor {
     height: auto;
     width: 100%;
     background: transparent;
-    border: solid ansi_bright_black;
+    border: round ansi_bright_black;
     border-title-align: right;
-    border-title-color: ansi_bright_black;
+    border-title-color: $accent;
     padding: 0 1;
 
     &.border-warning {
-        border: solid $warning;
+        border: round $warning;
         border-title-color: $warning;
     }
 
     &.border-safe {
-        border: solid $success;
+        border: round $success;
         border-title-color: $success;
     }
 
     &.border-error {
-        border: solid $error;
+        border: round $error;
         border-title-color: $error;
     }
 
     &.border-recording {
-        border: solid $peach;
+        border: round $peach;
         border-title-color: $peach;
     }
 
     &.border-remote {
-        border: solid $peach;
+        border: round $peach;
         border-title-color: $peach;
     }
 }
@@ -285,7 +285,7 @@ Markdown {
     width: 100%;
     height: auto;
     padding: 0 1;
-    border-left: heavy $overlay;
+    border-left: heavy $accent;
 
     Markdown {
         width: 100%;
@@ -1560,6 +1560,8 @@ FeedbackBar {
 .user-message.rewind-selected {
     .user-message-content {
         text-style: bold reverse;
+        color: ansi_bright_cyan;
+        background: ansi_cyan;
     }
 }
 
@@ -1567,8 +1569,8 @@ FeedbackBar {
     width: 100%;
     height: auto;
     background: transparent;
-    border: solid ansi_bright_black;
-    padding: 0 1;
+    border: tall $accent;
+    padding: 1 2;
     margin: 0;
 }
 
@@ -1577,20 +1579,41 @@ FeedbackBar {
     height: auto;
 }
 
+#rewind-header {
+    width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
 .rewind-title {
+    width: 1fr;
     height: auto;
     text-style: bold;
     color: $accent;
 }
 
+.rewind-counter {
+    width: auto;
+    height: auto;
+    color: $muted;
+    text-style: italic;
+}
+
+.rewind-separator {
+    height: auto;
+    color: $overlay;
+}
+
 .rewind-option {
     height: auto;
     color: ansi_default;
+    padding: 0 1;
 }
 
 .rewind-cursor-selected {
-    color: ansi_blue;
+    color: ansi_bright_cyan;
     text-style: bold;
+    background: $overlay;
 }
 
 .rewind-option-unselected {
@@ -1600,6 +1623,7 @@ FeedbackBar {
 .rewind-help {
     height: auto;
     color: $muted;
+    padding-top: 1;
 }
 
 #feedback-text {
