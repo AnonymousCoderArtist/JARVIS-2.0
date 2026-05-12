@@ -124,7 +124,7 @@ from interface.textual_ui.utils import (
     get_user_cancellation_message,
     is_dangerous_directory,
 )
-from interface.textual_ui.widgets.approval_app import ApprovalApp, InlineApprovalBar, is_inline_approval
+from interface.textual_ui.widgets.approval_app import ApprovalApp
 from interface.textual_ui.widgets.banner.banner import Banner
 from interface.textual_ui.widgets.chat_input import ChatInputContainer
 from interface.textual_ui.widgets.chat_input.text_area import ChatTextArea
@@ -354,7 +354,7 @@ ANSI_DARK = Theme(
 
 class VibeApp(App):  # noqa: PLR0904
     ENABLE_COMMAND_PALETTE = False
-    CSS_PATH = ["tcss/app.tcss", "tcss/tools.tcss"]
+    CSS_PATH = ["tcss/app.tcss", "tcss/tools.tcss", "tcss/approval.tcss"]
     PAUSE_GC_ON_SCROLL: ClassVar[bool] = True
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -718,6 +718,17 @@ class VibeApp(App):  # noqa: PLR0904
         self, message: ApprovalApp.ApprovalGrantedAlwaysTool
     ) -> None:
         self.agent_loop.approve_always(message.tool_name, message.required_permissions)
+
+        if self._pending_approval and not self._pending_approval.done():
+            self._pending_approval.set_result((ApprovalResponse.YES, None))
+        await self._switch_to_input_app()
+
+    async def on_approval_app_approval_granted_always_permanent(
+        self, message: ApprovalApp.ApprovalGrantedAlwaysPermanent
+    ) -> None:
+        self.agent_loop.approve_always(
+            message.tool_name, message.required_permissions, save_permanently=True
+        )
 
         if self._pending_approval and not self._pending_approval.done():
             self._pending_approval.set_result((ApprovalResponse.YES, None))
@@ -1333,10 +1344,7 @@ class VibeApp(App):  # noqa: PLR0904
             self._terminal_notifier.notify(NotificationContext.ACTION_REQUIRED)
             try:
                 with paused_timer(self._loading_widget):
-                    if is_inline_approval(tool):
-                        await self._show_inline_approval(tool, args, required_permissions)
-                    else:
-                        await self._switch_to_approval_app(tool, args, required_permissions)
+                    await self._switch_to_approval_app(tool, args, required_permissions)
                     result = await self._pending_approval
                 return result
             finally:
@@ -2356,53 +2364,13 @@ class VibeApp(App):  # noqa: PLR0904
         tool_args: BaseModel,
         required_permissions: list[RequiredPermission] | None = None,
     ) -> None:
-        session_rules_count = len(self.agent_loop.agent._session_rules)
         approval_app = ApprovalApp(
             tool_name=tool_name,
             tool_args=tool_args,
             config=self.config,
             required_permissions=required_permissions,
-            session_rules_count=session_rules_count,
         )
         await self._switch_from_input(approval_app, scroll=True)
-
-    async def _show_inline_approval(
-        self,
-        tool_name: str,
-        tool_args: BaseModel,
-        required_permissions: list[RequiredPermission] | None = None,
-    ) -> None:
-        """Mount inline approval bar in the chat stream for low-risk tools."""
-        session_rules_count = len(self.agent_loop.agent._session_rules)
-        bar = InlineApprovalBar(
-            tool_name=tool_name,
-            tool_args=tool_args,
-            required_permissions=required_permissions,
-            session_rules_count=session_rules_count,
-        )
-        await self._mount_and_scroll(bar)
-
-    async def on_inline_approval_bar_approved(
-        self, message: InlineApprovalBar.Approved
-    ) -> None:
-        if self._pending_approval and not self._pending_approval.done():
-            self._pending_approval.set_result((ApprovalResponse.YES, None))
-
-    async def on_inline_approval_bar_approved_always(
-        self, message: InlineApprovalBar.ApprovedAlways
-    ) -> None:
-        self.agent_loop.approve_always(message.tool_name, message.required_permissions)
-        if self._pending_approval and not self._pending_approval.done():
-            self._pending_approval.set_result((ApprovalResponse.YES, None))
-
-    async def on_inline_approval_bar_rejected(
-        self, message: InlineApprovalBar.Rejected
-    ) -> None:
-        if self._pending_approval and not self._pending_approval.done():
-            feedback = str(
-                get_user_cancellation_message(CancellationReason.OPERATION_CANCELLED)
-            )
-            self._pending_approval.set_result((ApprovalResponse.NO, feedback))
 
     async def _switch_to_question_app(self, args: AskUserQuestionArgs) -> None:
         await self._switch_from_input(QuestionApp(args=args), scroll=True)

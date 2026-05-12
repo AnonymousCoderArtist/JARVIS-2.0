@@ -698,9 +698,9 @@ Create a comprehensive summary that captures:
         self._user_input_callback = callback
         self.agent.set_user_input_callback(callback)
 
-    def approve_always(self, tool_name: str, permissions: list[Any]) -> None:
+    def approve_always(self, tool_name: str, permissions: list[Any], save_permanently: bool = False) -> None:
         """Approve tool always (store in config or agent state)."""
-        self.agent.approve_always(tool_name, permissions)
+        self.agent.approve_always(tool_name, permissions, save_permanently=save_permanently)
 
     def emit_new_session_telemetry(self) -> None:
         """Emit new session telemetry."""
