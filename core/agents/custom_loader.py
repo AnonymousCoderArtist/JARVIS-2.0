@@ -64,6 +64,10 @@ def load_custom_agent_from_py(py_file: Path) -> Any | None:
         from core.agents.agent_definition import AgentDefinition
         definition = AgentDefinition(**definition)
 
+    # Ensure dict-form definitions get their name set
+    if hasattr(definition, 'name') and not definition.name:
+        definition.name = module_name
+
     return definition
 
 
@@ -83,7 +87,7 @@ def discover_custom_agents() -> list[AgentDefinition]:
             definition = load_custom_agent_from_py(py_file)
             if definition:
                 definitions.append(definition)
-                logger.info(f"Discovered custom agent: {definition.agent_type}")
+                logger.info(f"Discovered custom agent: {definition.name}")
 
     return definitions
 

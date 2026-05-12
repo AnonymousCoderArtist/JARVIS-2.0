@@ -1,5 +1,10 @@
 # JARVIS v2.0 Development Todo List
 
+- [X] Added Prompt Cache (Anthropic cache_control, always-on)
+- [X] Switched to official openai/anthropic SDK packages instead of custom HTTP client
+- [X] AgentDefinition fields: renamed agent_type→name, added agent_type (AGENT/SUBAGENT) flag
+- [X] Per-agent profile registration control (AGENT→profiles+tools, SUBAGENT→tools only)
+- [X] Updated custom-agents.md documentation
 - [ ] Add support for any ACP client as SDK providers
 - [ ] Implement connector system for external services
 - [X] Add AskUserTool for agents to ask users for input when needed
@@ -11,7 +16,7 @@
 - [X] Make HEARTBEAT to run as a non blocking background subagent
 - [ ] Make the agent's memory more efficient and scalable
 - [ ] Make Skill system better and more flexible
-- [ ] Add support for multiple agents working together in a team
+- [X] Add support for multiple agents working together in a team
 - [ ] Implement Connectors for popular services like Google Drive, Slack, etc.
 - [X] Implement Coding Agent
 - [X] Subagents 
@@ -41,7 +46,7 @@
 - [ ] Persistent connection pooling across sessions
 - [ ] MCP server sandboxing (resource limits, timeouts per tool)
 - [ ] Cross-session MCP usage analytics and token savings reporting
-- [ ] Add support for agent collaboration and communication
+- [X] Add support for agent collaboration and communication
 - [X] Implement worktree tools for better code management in coding agents
 - [X] user Can add own tools in jarvis
 - [X] Pasive Watchers 

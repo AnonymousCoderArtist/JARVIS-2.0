@@ -586,7 +586,7 @@ class AsyncAgentManager:
             return None
 
         try:
-            agent_type = agent_definition.agent_type
+            agent_type = agent_definition.name
 
             if agent_type == 'explore':
                 return ExploreAgent(
@@ -611,7 +611,7 @@ class AsyncAgentManager:
                 logger.warning(f"Unknown agent type: {agent_type}")
                 return None
         except Exception as e:
-            logger.error(f"Failed to create agent of type {agent_definition.agent_type}: {e}")
+            logger.error(f"Failed to create agent of type {agent_definition.name}: {e}")
             return None
 
     async def cancel_agent(self, agent_id: str) -> bool:

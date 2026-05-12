@@ -1,9 +1,12 @@
-"""Anthropic Claude SDK implementation using curl_cffi and httpx"""
+"""Anthropic Claude SDK implementation using the official anthropic package."""
 
 import json
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
+
+from anthropic import AsyncAnthropic
+from anthropic.types import MessageStreamEvent, ToolUseBlock, Usage
 
 from ..base.sdk import (
     BaseLLMSDK,
@@ -12,32 +15,138 @@ from ..base.sdk import (
     Message,
     ToolCall,
 )
-from ..http_client import HTTPClient
 
 logger = logging.getLogger(__name__)
 
+
+async def _anthropic_stream_chunks(
+    stream: AsyncIterator[MessageStreamEvent],
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Convert an Anthropic streaming response into the JARVIS chunk protocol."""
+    content_buffer = ""
+    current_tool: dict[str, Any] | None = None
+
+    async for event in stream:
+        if event.type == "content_block_start":
+            block = event.content_block
+            if isinstance(block, ToolUseBlock):
+                current_tool = {"id": block.id, "name": block.name, "arguments": ""}
+
+        elif event.type == "content_block_delta":
+            delta = event.delta
+            if delta.type == "text_delta":
+                content_buffer += delta.text
+                yield {"type": "text", "content": delta.text}
+            elif delta.type == "thinking_delta":
+                yield {"type": "reasoning", "content": delta.thinking}
+            elif delta.type == "input_json_delta" and current_tool is not None:
+                current_tool["arguments"] += delta.partial_json
+
+        elif event.type == "content_block_stop":
+            if current_tool is not None:
+                tc = ToolCall(
+                    id=current_tool["id"],
+                    name=current_tool["name"],
+                    arguments=current_tool["arguments"],
+                )
+                yield {"type": "tool_call", "tool_call": tc}
+                current_tool = None
+
+        elif event.type == "message_delta":
+            if event.usage:
+                yield {"type": "usage", "usage": event.usage.model_dump()}
+
+        elif event.type == "message_stop":
+            break
+
+
 class AnthropicSDK(BaseLLMSDK):
-    """Anthropic Claude SDK implementation using curl_cffi and httpx"""
+    """Anthropic Claude SDK implementation using the official anthropic package."""
 
     def __init__(self, api_key: str, base_url: str | None = None):
         super().__init__(api_key, base_url or "https://api.anthropic.com/v1")
         self.sdk_mode = "messages"
-        self._http_client: HTTPClient | None = None
+        self._async_client: AsyncAnthropic | None = None
 
     @property
-    def client(self) -> HTTPClient:
-        """Lazy load the custom HTTP client"""
-        if self._http_client is None:
-            base_url = self.base_url or "https://api.anthropic.com/v1"
-            self._http_client = HTTPClient(base_url, self.api_key)
-        return self._http_client
+    def client(self) -> AsyncAnthropic:
+        if self._async_client is None:
+            self._async_client = AsyncAnthropic(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
+        return self._async_client
 
-    def _get_headers(self) -> dict[str, str]:
-        return {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        }
+    def _build_messages_and_system(
+        self, messages: list[Message]
+    ) -> tuple[list[dict[str, Any]], str]:
+        """Split messages into Anthropic messages array and system prompt.
+
+        Applies prompt caching to system prompt, tools, and last user message.
+        """
+        system_parts: list[str] = []
+        anthropic_messages: list[dict[str, Any]] = []
+
+        for msg in messages:
+            if msg.role == "system":
+                system_parts.append(msg.content)
+            else:
+                content = msg.content
+                if msg.image_parts:
+                    blocks: list[dict[str, Any]] = [{"type": "text", "text": content}]
+                    for img in msg.image_parts:
+                        blocks.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": img,
+                            },
+                        })
+                    content = blocks
+                anthropic_messages.append({"role": msg.role, "content": content})
+
+        system_text = "\n".join(system_parts)
+
+        # Apply prompt caching to system prompt
+        if system_text:
+            system_payload: list[dict[str, Any]] = [
+                {"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}
+            ]
+        else:
+            system_payload = []
+
+        # Apply prompt caching to last user message
+        for i in range(len(anthropic_messages) - 1, -1, -1):
+            msg = anthropic_messages[i]
+            if msg["role"] == "user":
+                content = msg["content"]
+                if isinstance(content, str) and content:
+                    msg["content"] = [
+                        {"type": "text", "text": content},
+                        {"type": "text", "text": "", "cache_control": {"type": "ephemeral"}},
+                    ]
+                elif isinstance(content, list) and content:
+                    content[-1]["cache_control"] = {"type": "ephemeral"}
+                break
+
+        return anthropic_messages, system_payload
+
+    def _build_tools(self, tools: list[dict]) -> list[dict[str, Any]]:
+        """Convert JARVIS tool definitions to Anthropic format with caching."""
+        if not tools:
+            return []
+        anthropic_tools: list[dict[str, Any]] = [
+            {
+                "name": t["function"]["name"],
+                "description": t["function"].get("description", ""),
+                "input_schema": t["function"]["parameters"],
+            }
+            for t in tools
+        ]
+        # Cache the last tool definition
+        anthropic_tools[-1] = {**anthropic_tools[-1], "cache_control": {"type": "ephemeral"}}
+        return anthropic_tools
 
     async def generate(
         self,
@@ -45,149 +154,43 @@ class AnthropicSDK(BaseLLMSDK):
         config: GenerationConfig,
         stream: bool = False,
     ) -> GenerationResponse | AsyncGenerator:
-        """Generate response using Anthropic API via curl_cffi"""
         try:
-            system_prompt = ""
-            anthropic_messages = []
+            anthropic_messages, system_payload = self._build_messages_and_system(messages)
 
-            for msg in messages:
-                if msg.role == "system":
-                    system_prompt = msg.content
-                else:
-                    anthropic_messages.append({
-                        "role": msg.role,
-                        "content": msg.content
-                    })
-
-            payload = {
+            kwargs: dict[str, Any] = {
                 "model": config.model,
                 "messages": anthropic_messages,
-                "max_tokens": config.max_tokens,
+                "max_tokens": config.max_tokens or 4096,
                 "temperature": config.temperature,
-                "top_p": config.top_p or 1.0,
-                "stop_sequences": config.stop_sequences,
-                "stream": stream
             }
-            if system_prompt:
-                payload["system"] = system_prompt
+            if system_payload:
+                kwargs["system"] = system_payload
 
             if stream:
-                return self._stream_response(payload)
+                raw_stream = await self.client.messages.create(**kwargs, stream=True)
+                return _anthropic_stream_chunks(raw_stream)
             else:
-                response_data = await self.client.post("messages", payload, self._get_headers())
+                msg = await self.client.messages.create(**kwargs)
+                content = ""
+                reasoning = ""
+                for block in msg.content:
+                    if block.type == "text":
+                        content += block.text
+                    elif block.type == "thinking":
+                        reasoning += block.thinking
 
-                content = response_data["content"]
-                result_content = ""
-                reasoning_content = ""
-
-                for block in content:
-                    if block["type"] == "text":
-                        result_content += block["text"]
-                    elif block["type"] == "thinking":
-                        reasoning_content += block.get("thinking", "")
-
-                response = GenerationResponse(
-                    content=result_content,
-                    model=response_data["model"],
-                    finish_reason=response_data["stop_reason"],
-                    usage={
-                        "input_tokens": response_data["usage"]["input_tokens"],
-                        "output_tokens": response_data["usage"]["output_tokens"],
-                    },
+                usage: Usage = msg.usage  # type: ignore
+                return GenerationResponse(
+                    content=content,
+                    model=msg.model,
+                    finish_reason=msg.stop_reason,
+                    usage=usage.model_dump() if usage else None,
+                    reasoning_content=reasoning,
                 )
-
-                # Add reasoning content if present
-                if reasoning_content:
-                    response.reasoning_content = reasoning_content
-
-                return response
 
         except Exception as e:
             logger.error(f"Anthropic generation failed: {str(e)}")
             raise RuntimeError(f"Anthropic generation failed: {str(e)}") from e
-
-    async def _stream_response(self, payload: dict[str, Any]) -> AsyncGenerator:
-        """Stream response from Anthropic API using curl_cffi and manual SSE parsing"""
-        try:
-            async for line in self.client.stream("messages", payload, self._get_headers()):
-                if line.startswith("data: "):
-                    data_str = line[6:].strip()
-                    try:
-                        chunk = json.loads(data_str)
-                        if chunk.get("type") == "content_block_delta" and chunk.get("delta"):
-                            if chunk["delta"].get("type") == "text_delta":
-                                yield {"type": "text", "content": chunk["delta"]["text"]}
-                            elif chunk["delta"].get("type") == "thinking_delta":
-                                # Extended thinking (reasoning) content
-                                yield {"type": "reasoning", "content": chunk["delta"].get("thinking", "")}
-                        elif chunk.get("type") == "message_stop":
-                            break
-                    except (json.JSONDecodeError, KeyError) as e:
-                        logger.debug(f"Failed to parse stream chunk: {e}")
-                        continue
-        except Exception as e:
-            logger.error(f"Anthropic streaming failed: {str(e)}")
-            raise RuntimeError(f"Anthropic streaming failed: {str(e)}") from e
-
-    async def _stream_response_with_tools(self, payload: dict[str, Any]) -> AsyncGenerator:
-        """Stream response from Anthropic API with tool calling support"""
-        try:
-            content_buffer = ""
-            tool_calls = []
-            current_tool_call = None
-
-            async for line in self.client.stream("messages", payload, self._get_headers()):
-                if line.startswith("data: "):
-                    data_str = line[6:].strip()
-                    try:
-                        chunk = json.loads(data_str)
-
-                        if chunk.get("type") == "content_block_start":
-                            content_block = chunk.get("content_block", {})
-                            if content_block.get("type") == "text":
-                                pass  # Starting text block
-                            elif content_block.get("type") == "tool_use":
-                                current_tool_call = {
-                                    "id": content_block.get("id", ""),
-                                    "name": content_block.get("name", ""),
-                                    "arguments": ""
-                                }
-
-                        elif chunk.get("type") == "content_block_delta":
-                            delta = chunk.get("delta", {})
-                            if delta.get("type") == "text_delta":
-                                text_chunk = delta.get("text", "")
-                                content_buffer += text_chunk
-                                yield {"type": "text", "content": text_chunk}
-                            elif delta.get("type") == "thinking_delta":
-                                # Extended thinking (reasoning) content
-                                thinking_content = delta.get("thinking", "")
-                                yield {"type": "reasoning", "content": thinking_content}
-                            elif delta.get("type") == "input_json_delta":
-                                if current_tool_call:
-                                    current_tool_call["arguments"] += delta.get("partial_json", "")
-
-                        elif chunk.get("type") == "content_block_stop":
-                            if current_tool_call:
-                                tool_call = ToolCall(
-                                    id=current_tool_call["id"],
-                                    name=current_tool_call["name"],
-                                    arguments=current_tool_call["arguments"],
-                                )
-                                tool_calls.append(tool_call)
-                                yield {"type": "tool_call", "tool_call": tool_call}
-                                current_tool_call = None
-
-                        elif chunk.get("type") == "message_stop":
-                            break
-
-                    except (json.JSONDecodeError, KeyError) as e:
-                        logger.debug(f"Failed to parse stream chunk with tools: {e}")
-                        continue
-
-        except Exception as e:
-            logger.error(f"Anthropic streaming with tools failed: {str(e)}")
-            raise RuntimeError(f"Anthropic streaming with tools failed: {str(e)}") from e
 
     async def generate_with_tools(
         self,
@@ -196,89 +199,56 @@ class AnthropicSDK(BaseLLMSDK):
         config: GenerationConfig,
         stream: bool = False,
     ) -> GenerationResponse | AsyncGenerator:
-        """Generate response with tool calling using curl_cffi"""
         try:
-            system_prompt = ""
-            anthropic_messages = []
+            anthropic_messages, system_payload = self._build_messages_and_system(messages)
 
-            for msg in messages:
-                if msg.role == "system":
-                    system_prompt = msg.content
-                else:
-                    anthropic_messages.append({
-                        "role": msg.role,
-                        "content": msg.content
-                    })
-
-            anthropic_tools = [
-                {
-                    "name": tool["function"]["name"],
-                    "description": tool["function"].get("description", ""),
-                    "input_schema": tool["function"]["parameters"],
-                }
-                for tool in tools
-            ]
-
-            payload = {
+            kwargs: dict[str, Any] = {
                 "model": config.model,
                 "messages": anthropic_messages,
-                "tools": anthropic_tools,
-                "max_tokens": config.max_tokens,
+                "tools": self._build_tools(tools),
+                "max_tokens": config.max_tokens or 4096,
                 "temperature": config.temperature,
-                "stream": stream
             }
-            if system_prompt:
-                payload["system"] = system_prompt
+            if system_payload:
+                kwargs["system"] = system_payload
 
             if stream:
-                return self._stream_response_with_tools(payload)
+                raw_stream = await self.client.messages.create(**kwargs, stream=True)
+                return _anthropic_stream_chunks(raw_stream)
             else:
-                response_data = await self.client.post("messages", payload, self._get_headers())
-
-                content = response_data["content"]
-                result_content = ""
-                reasoning_content = ""
+                msg = await self.client.messages.create(**kwargs)
+                content = ""
+                reasoning = ""
                 tool_calls = []
-
-                for block in content:
-                    if block["type"] == "text":
-                        result_content += block["text"]
-                    elif block["type"] == "thinking":
-                        reasoning_content += block.get("thinking", "")
-                    elif block["type"] == "tool_use":
+                for block in msg.content:
+                    if block.type == "text":
+                        content += block.text
+                    elif block.type == "thinking":
+                        reasoning += block.thinking
+                    elif block.type == "tool_use":
                         tool_calls.append(
                             ToolCall(
-                                id=block["id"],
-                                name=block["name"],
-                                arguments=json.dumps(block["input"]),
+                                id=block.id,
+                                name=block.name,
+                                arguments=json.dumps(block.input),
                             )
                         )
 
-                response = GenerationResponse(
-                    content=result_content,
-                    model=response_data["model"],
-                    finish_reason=response_data["stop_reason"],
-                    tool_calls=tool_calls if tool_calls else None,
-                    usage={
-                        "input_tokens": response_data["usage"]["input_tokens"],
-                        "output_tokens": response_data["usage"]["output_tokens"],
-                    },
+                usage: Usage = msg.usage  # type: ignore
+                return GenerationResponse(
+                    content=content,
+                    model=msg.model,
+                    finish_reason=msg.stop_reason,
+                    tool_calls=tool_calls or None,
+                    usage=usage.model_dump() if usage else None,
+                    reasoning_content=reasoning,
                 )
-
-                # Add reasoning content if present
-                if reasoning_content:
-                    response.reasoning_content = reasoning_content
-
-                return response
 
         except Exception as e:
             logger.error(f"Anthropic tool generation failed: {str(e)}")
             raise RuntimeError(f"Anthropic tool generation failed: {str(e)}") from e
 
     def get_available_models(self) -> list[str]:
-        """Get available Anthropic models using httpx as requested"""
-        # Note: Anthropic doesn't have a public models endpoint like OpenAI.
-        # However, for consistency we try or return the known list.
         return [
             "claude-3-5-sonnet-20241022",
             "claude-3-5-haiku-20241022",
@@ -288,12 +258,7 @@ class AnthropicSDK(BaseLLMSDK):
         ]
 
     def convert_messages_to_dict(self, messages: list[Message]) -> list[dict]:
-        """Convert Message objects to dictionaries"""
         return [
-            {
-                "role": msg.role,
-                "content": msg.content,
-                **(msg.metadata or {})
-            }
+            {"role": msg.role, "content": msg.content, **(msg.metadata or {})}
             for msg in messages
         ]

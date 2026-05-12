@@ -190,18 +190,16 @@ class AgentManager:
         # Load Python agents as both definitions AND profiles
         from core.agents.custom_loader import discover_custom_agents
         for definition in discover_custom_agents():
-            if definition.agent_type not in agents:
-                # Create a profile from the Python agent definition
-                # Use the definition's description or a default
+            if definition.name not in agents:
                 description = getattr(definition, "when_to_use", None) or "Custom agent"
-                display_name = definition.agent_type.replace("-", " ").title()
+                display_name = definition.name.replace("-", " ").title()
 
                 profile = AgentProfile(
-                    name=definition.agent_type,
+                    name=definition.name,
                     display_name=display_name,
                     description=description,
                     safety=AgentSafety.NEUTRAL,
-                    agent_type=AgentType.SUBAGENT,
+                    agent_type=definition.agent_type,
                 )
                 agents[profile.name] = profile
                 logger.info("Loaded custom Python agent: %s", profile.name)
@@ -250,11 +248,12 @@ class AgentManager:
 
     def get_agent_order(self) -> list[str]:
         """Get ordered list of agents for cycling"""
-        # Include both AGENT and SUBAGENT types in cycling
+        # Only AGENT type appears in profile cycling (Shift+Tab).
+        # SUBAGENT type is only invocable via the agents tool.
         primary_agents = [
             name
             for name, agent in self.available_agents.items()
-            if agent.agent_type in (AgentType.AGENT, AgentType.SUBAGENT)
+            if agent.agent_type == AgentType.AGENT
         ]
 
         # Start with builtin order, then add custom agents

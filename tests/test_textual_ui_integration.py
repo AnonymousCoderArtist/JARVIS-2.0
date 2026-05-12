@@ -157,19 +157,18 @@ def test_tool_call_display_shows_actual_tool_name_and_arguments() -> None:
     assert display.summary == "FILE_READ path=core/agents/base.py, offset=10, limit=20"
 
 
-def test_system_prompt_includes_registered_tool_descriptions() -> None:
+def test_tool_is_available_via_registry() -> None:
     registry = ToolRegistry()
 
     class ExampleTool:
         name = "example_tool"
         description = "Example tool description."
-        input_schema = {"type": "object", "properties": {}}
 
     registry.register(ExampleTool())  # type: ignore
-    agent = CodingAgent(FakeNoToolsProvider(), registry, model="fake-no-tools", config_getter=None)
 
-    assert "### example_tool" in agent.system_prompt
-    assert "Example tool description." in agent.system_prompt
+    tool = registry.get("example_tool")
+    assert tool is not None
+    assert tool.description == "Example tool description."
 
 
 def test_tui_help_text_shows_command_usage_hints() -> None:

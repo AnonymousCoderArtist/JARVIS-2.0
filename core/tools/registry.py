@@ -38,33 +38,6 @@ class ToolRegistry:
         self._tools[tool.name] = tool
 
 
-    def get_prompt_snippets(self) -> dict[str, str]:
-        """
-        Get prompt snippets for all custom tools.
-
-        Returns:
-            Dictionary mapping tool names to their prompt snippets
-        """
-        snippets = {}
-        for tool in self._tools.values():
-            snippet = getattr(tool, "get_prompt_snippet", lambda: None)()
-            if snippet:
-                snippets[tool.name] = snippet
-        return snippets
-
-    def get_prompt_guidelines(self) -> list[str]:
-        """
-        Get prompt guidelines from all custom tools.
-
-        Returns:
-            List of guideline strings from all custom tools
-        """
-        guidelines = []
-        for tool in self._tools.values():
-            tool_guidelines = getattr(tool, "get_prompt_guidelines", lambda: [])()
-            guidelines.extend(tool_guidelines)
-        return guidelines
-
     def update_tool_providers(self, llm_provider=None, model=None, config_getter=None, event_queue=None):
         """
         Update the provider and model references for all registered tools.

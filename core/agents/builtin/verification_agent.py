@@ -6,6 +6,7 @@ from typing import Any
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.base import BaseAgent
+from core.agents.profiles import AgentType
 
 
 def GetVerificationPrompt() -> str:
@@ -126,16 +127,14 @@ class VerificationAgent(BaseAgent):
 
 # Define the Verification agent definition for registration
 VERIFICATION_AGENT = AgentDefinition(
-    agent_type='verification',
+    name='verification',
+    agent_type=AgentType.SUBAGENT,
     when_to_use="""Use this agent for post-implementation verification and testing. It excels at:
 - Running builds and test suites to verify implementations
 - Attempting to break implementations through adversarial testing
 - Checking for edge cases and potential regressions
-- Providing detailed verification reports with actionable findings
-- Validating that code changes work correctly and don't introduce issues""",
+- Providing detailed verification reports with actionable findings""",
     tools=['bash', 'read', 'ls', 'find', 'grep', 'web_search', 'fetch_webpage'],
-    disallowed_tools=['agent', 'write'],
     model='inherit',
     max_turns=10,
-    get_system_prompt=GetVerificationPrompt,
 )
