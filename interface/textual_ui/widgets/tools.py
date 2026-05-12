@@ -621,7 +621,7 @@ class DiffBlock(Static):
                 gutter = f"▌ {num}     │   "
 
             from rich.text import Text
-            gutter_text = Text(gutter, style="ansi_bright_black")
+            gutter_text = Text(gutter, style="bright_black")
             content_text = Text(line.content, style=self._get_line_style(prefix))
             yield NonSelectableStatic(gutter_text + content_text, classes="diff-line")
 
@@ -641,11 +641,10 @@ class DiffBlock(Static):
     def _get_line_style(self, prefix: str) -> str:
         """Get Rich style based on line prefix."""
         if prefix == "+":
-            return "ansi_green"
+            return "green"
         elif prefix == "-":
-            return "ansi_red"
-        else:
-            return "ansi_default"
+            return "red"
+        return ""
 
 
 class ToolStatsWidget(Static):
