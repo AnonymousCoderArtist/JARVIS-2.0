@@ -1,6 +1,9 @@
-"""Rewind manager for JARVIS - handles conversation rewind and file restoration."""
-
 from __future__ import annotations
+
+"""Rewind manager for JARVIS - handles conversation rewind and file restoration.
+
+Fully aligned with mistralai/mistral-vibe's RewindManager approach.
+"""
 
 import logging
 import os
@@ -72,9 +75,26 @@ class RewindManager:
         )
 
     def add_snapshot(self, snapshot: FileSnapshot) -> None:
-        """Record a file snapshot into every checkpoint that doesn't have it yet."""
+        """Record (or update) a file snapshot in ALL checkpoints.
+
+        Unlike vibe's upstream logic which skips duplicates, JARVIS
+        REPLACES the snapshot for the same path so that the latest
+        known file state is always tracked. This ensures:
+        - When `_has_changes_since` compares current state with the
+          snapshot, it detects changes from the latest captured state.
+        - When `_restore_checkpoint` restores files, it uses the state
+          that was fresh-smapped at checkpoint-creation time (from
+          `create_checkpoint` which does NOT call `add_snapshot`).
+        """
         for cp in self._checkpoints:
-            if all(s.path != snapshot.path for s in cp.files):
+            # Replace existing snapshot for same path (compare by path)
+            replaced = False
+            for i, s in enumerate(cp.files):
+                if s.path == snapshot.path:
+                    cp.files[i] = snapshot
+                    replaced = True
+                    break
+            if not replaced:
                 cp.files.append(snapshot)
 
     def has_file_changes_at(self, message_index: int) -> bool:
@@ -162,6 +182,10 @@ class RewindManager:
             checkpoint = self._get_checkpoint(message_index)
             if checkpoint:
                 restore_errors = self._restore_checkpoint(checkpoint)
+                if not restore_errors:
+                    logger.info("Rewind: restored %d files to checkpoint %d", len(checkpoint.files), message_index)
+                else:
+                    logger.warning("Rewind: %d errors restoring files to checkpoint %d", len(restore_errors), message_index)
 
         await self._save_messages()
         self._checkpoints = [
@@ -194,18 +218,16 @@ class RewindManager:
         errors: list[str] = []
         for snap in checkpoint.files:
             path = Path(snap.path)
-            if snap.content is None:
-                if path.exists():
-                    try:
+            try:
+                if snap.content is None:
+                    if path.exists():
                         os.remove(path)
-                    except Exception:
-                        errors.append(f"Failed to delete file: {snap.path}")
-            else:
-                try:
+                else:
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_bytes(snap.content)
-                except Exception:
-                    errors.append(f"Failed to restore file: {snap.path}")
+            except Exception as exc:
+                errors.append(f"Failed to restore {snap.path}: {exc}")
+                logger.error("Rewind restore error for %s: %s", snap.path, exc)
         return errors
 
     @staticmethod
@@ -214,6 +236,8 @@ class RewindManager:
             try:
                 current: bytes | None = Path(snap.path).read_bytes()
             except FileNotFoundError:
+                current = None
+            except Exception:
                 current = None
             if current != snap.content:
                 return True
@@ -229,3 +253,4 @@ class RewindManager:
             logger.warning("Failed to read file for checkpoint: %s", path)
             content = None
         return FileSnapshot(path=path, content=content)
+
