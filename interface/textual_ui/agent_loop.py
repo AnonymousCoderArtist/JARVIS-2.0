@@ -435,6 +435,7 @@ class AgentLoop:
     def reset_messages(self, messages: list[LLMMessage]) -> None:
         """Reset agent memory with new messages."""
         self.agent.clear_memory()
+        self.rewind_manager.on_messages_reset()
         for msg in messages:
             if msg.role == Role.user:
                 self.agent.add_to_memory({"content": msg.content})
@@ -444,11 +445,13 @@ class AgentLoop:
     async def reload_with_initial_messages(self, base_config: Settings | None = None) -> None:
         """Reload agent with initial messages."""
         self.agent.clear_memory()
+        self.rewind_manager.on_messages_reset()
         self.agent.rebuild_system_prompt()
 
     async def clear_history(self) -> None:
         """Clear agent history."""
         self.agent.clear_memory()
+        self.rewind_manager.on_messages_reset()
 
     async def compact(
         self,
@@ -480,6 +483,7 @@ class AgentLoop:
 
             # Clear old memory and store summary
             self.agent.clear_memory()
+            self.rewind_manager.on_messages_reset()
             self.agent.add_to_memory({"content": summary})
 
             # Update stats
@@ -694,9 +698,9 @@ Create a comprehensive summary that captures:
         self._user_input_callback = callback
         self.agent.set_user_input_callback(callback)
 
-    def approve_always(self, tool_name: str, permissions: list[Any]) -> None:
+    def approve_always(self, tool_name: str, permissions: list[Any], save_permanently: bool = False) -> None:
         """Approve tool always (store in config or agent state)."""
-        self.agent.approve_always(tool_name, permissions)
+        self.agent.approve_always(tool_name, permissions, save_permanently=save_permanently)
 
     def emit_new_session_telemetry(self) -> None:
         """Emit new session telemetry."""
@@ -831,6 +835,9 @@ Create a comprehensive summary that captures:
                 tool_class = tool.__class__.__name__
         except Exception:
             pass
+
+        # Capture file state BEFORE tool modifies it (for rewind snapshots)
+        self._capture_file_before(tool_name, arguments)
 
         self._get_event_queue().put_nowait(ToolCallEvent(
             tool_name=tool_name,
@@ -992,29 +999,133 @@ Create a comprehensive summary that captures:
         if key in self._tool_call_ids:
             del self._tool_call_ids[key]
 
+    # Tools known to modify files on disk
+    FILE_MODIFYING_TOOLS = frozenset({
+        "write", "write_file", "edit", "str_replace_editor",
+        "delete", "remove", "rename", "move", "copy",
+    })
+    # Tools that may modify files indirectly (bash/shell)
+    SHELL_TOOLS = frozenset({"bash", "shell", "run_command", "repl"})
+
     def _track_file_snapshot(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
         """Track file snapshots for rewind functionality.
         
         Called when file-modifying tools complete successfully.
+        Records the AFTER state of the file so rewind can detect changes.
+        For shell tools, uses git diff to find changed files.
         """
-        # Track files modified by write and edit tools
-        if tool_name in ("write", "write_file", "edit", "str_replace_editor"):
-            path = ""
-            # For edit tools, the path is inside replacements array
-            if tool_name in ("edit", "str_replace_editor"):
-                replacements = arguments.get("replacements", [])
-                if replacements and isinstance(replacements, list):
-                    first = replacements[0] if isinstance(replacements[0], dict) else {}
-                    path = first.get("filePath") or first.get("file_path", "")
-            if not path:
-                path = str(arguments.get("path") or arguments.get("filePath", ""))
+        if tool_name in self.FILE_MODIFYING_TOOLS:
+            path = self._extract_file_path(tool_name, arguments)
             if path:
                 try:
                     content = Path(path).read_bytes()
                     self.add_file_snapshot(path, content)
+                except FileNotFoundError:
+                    self.add_file_snapshot(path, None)
                 except Exception:
-                    # File might not exist or be newly created
                     pass
+        elif tool_name in self.SHELL_TOOLS:
+            self._track_shell_file_changes()
+
+    def _capture_file_before(self, tool_name: str, arguments: dict[str, Any]) -> None:
+        """Capture file state BEFORE a tool modifies it (for rewind restore).
+        
+        This is called from _on_tool_call, before the tool actually runs.
+        The captured content represents the pre-modification state that
+        rewind can restore to.
+        """
+        if tool_name in self.FILE_MODIFYING_TOOLS:
+            path = self._extract_file_path(tool_name, arguments)
+            if path:
+                try:
+                    content = Path(path).read_bytes()
+                    self.add_file_snapshot(path, content)
+                except FileNotFoundError:
+                    self.add_file_snapshot(path, None)
+                except Exception:
+                    pass
+        elif tool_name in self.SHELL_TOOLS:
+            # Snapshot all currently-tracked files before shell runs
+            self._snapshot_tracked_files_before_shell()
+
+    def _snapshot_tracked_files_before_shell(self) -> None:
+        """Snapshot all files tracked in checkpoints before a shell command runs.
+        
+        This ensures we have the BEFORE state for any files that might be
+        modified by the shell command (e.g., sed, mv, cp, git checkout).
+        """
+        if not self.rewind_manager.checkpoints:
+            return
+        # Collect all file paths from existing checkpoints
+        known_paths: set[str] = set()
+        for cp in self.rewind_manager.checkpoints:
+            for snap in cp.files:
+                known_paths.add(snap.path)
+        # Re-snapshot all known files to capture their current (before) state
+        for path in known_paths:
+            try:
+                content = Path(path).read_bytes()
+                self.add_file_snapshot(path, content)
+            except FileNotFoundError:
+                self.add_file_snapshot(path, None)
+            except Exception:
+                pass
+
+    def _track_shell_file_changes(self) -> None:
+        """Detect and track file changes after a shell command.
+        
+        Uses git diff to find files that changed, falling back to
+        re-snapshotting known files.
+        """
+        changed_files = self._get_changed_files_from_git()
+        if changed_files:
+            for path in changed_files:
+                try:
+                    content = Path(path).read_bytes()
+                    self.add_file_snapshot(path, content)
+                except FileNotFoundError:
+                    self.add_file_snapshot(path, None)
+                except Exception:
+                    pass
+        else:
+            # No git or no changes detected via git - re-snapshot known files
+            self._snapshot_tracked_files_before_shell()
+
+    def _get_changed_files_from_git(self) -> list[str]:
+        """Get list of files changed since last git state using git diff."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["git", "diff", "--name-only"],
+                capture_output=True, text=True, timeout=5,
+                cwd=Path.cwd(),
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # Filter to only files that exist and are under cwd
+                changed: list[str] = []
+                for line in result.stdout.strip().splitlines():
+                    fpath = Path(line.strip())
+                    if not fpath.is_absolute():
+                        fpath = Path.cwd() / fpath
+                    if fpath.exists():
+                        changed.append(str(fpath))
+                return changed
+        except Exception:
+            pass
+        return []
+
+    def _extract_file_path(self, tool_name: str, arguments: dict[str, Any]) -> str:
+        """Extract file path from tool arguments."""
+        path = ""
+        # For edit tools, the path is inside replacements array
+        if tool_name in ("edit", "str_replace_editor"):
+            replacements = arguments.get("replacements", [])
+            if replacements and isinstance(replacements, list):
+                first = replacements[0] if isinstance(replacements[0], dict) else {}
+                path = first.get("filePath") or first.get("file_path", "")
+        if not path:
+            path = str(arguments.get("path") or arguments.get("filePath", ""))
+        return path
 
     def _on_reasoning(self, reasoning: str) -> None:
         """Handle reasoning content from agent."""
@@ -1255,6 +1366,15 @@ Create a comprehensive summary that captures:
         self._reasoning_chunks.clear()
         # Reset stats for the new forked session
         self.stats = Stats()
+        # Clear any pending tool call IDs
+        self._tool_call_ids.clear()
+        # Drain the event queue to prevent stale events
+        self._drain_event_queue()
+        # Rebuild system prompt to reflect current tool state
+        try:
+            self.agent.rebuild_system_prompt()
+        except Exception:
+            pass
 
     def create_checkpoint(self) -> None:
         """Create a checkpoint - convenience method."""

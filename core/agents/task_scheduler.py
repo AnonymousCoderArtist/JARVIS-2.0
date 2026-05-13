@@ -1,7 +1,8 @@
-"""Task scheduling and decomposition for the Cowork Agent"""
+"""Task scheduling and decomposition for JARVIS agents"""
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass, field
 from enum import Enum
@@ -141,13 +142,11 @@ class TaskScheduler:
         Returns:
             Dictionary mapping task IDs to their results
         """
-        import asyncio
-
         tasks = self.decompose(objective)
         batches = self.schedule(tasks)
 
         results = {}
-        for batch_idx, batch in enumerate(batches):
+        for batch in batches:
             coroutines = [executor_fn(task) for task in batch]
             batch_results = await asyncio.gather(*coroutines, return_exceptions=True)
 

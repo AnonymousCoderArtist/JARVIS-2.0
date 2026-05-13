@@ -12,6 +12,7 @@ JARVIS uses a **lazy MCP** architecture inspired by [pi-mcp-adapter](https://git
 │  │  mcp    │───▶│  MCPProxyTool                │   │
 │  │ (proxy) │    │  status / list / search /    │   │
 │  └─────────┘    │  describe / call / connect    │   │
+│                 │  resources / prompts / sampling │   │
 │                 └──────────┬───────────────────┘   │
 │                            │                        │
 │                 ┌──────────▼───────────────────┐   │
@@ -30,6 +31,10 @@ JARVIS uses a **lazy MCP** architecture inspired by [pi-mcp-adapter](https://git
 │  │ MCPClient  │    │ MCPClient  │    │ MCPClient  │   │
 │  │ (stdio)    │    │ (http)     │    │ (sse)      │   │
 │  └───────────┘    └───────────┘    └───────────┘   │
+│                                                     │
+│  ┌─────────────────────────────────────────────┐   │
+│  │  MCP Authentication (OAuth/Bearer/API Key) │   │
+│  └─────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -40,7 +45,9 @@ JARVIS uses a **lazy MCP** architecture inspired by [pi-mcp-adapter](https://git
 | **Token efficiency** | Single `mcp` proxy tool instead of dozens of individual tools |
 | **Lazy connections** | Servers connect only when their tools are called |
 | **Offline discovery** | Metadata cache enables search/describe without live connections |
-| **Direct tools** | Specific tools can be promoted to first-class if needed |
+| **Authentication** | OAuth2, Bearer tokens, and API key support |
+| **Resources/Prompts** | Full support for MCP resources and prompt templates |
+| **Sampling** | Server-initiated LLM calls via the sampling protocol |
 | **Auto-disconnect** | Idle servers disconnect after a configurable timeout |
 
 ---
@@ -90,6 +97,154 @@ JARVIS supports multiple configuration formats:
     "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
   }
 ]
+```
+
+---
+
+## Authentication
+
+JARVIS supports three authentication mechanisms for MCP servers: **OAuth2**, **Bearer tokens**, and **API keys**. Authentication is configured per-server in the `.mcp.json` file.
+
+### OAuth2 (Full Authorization Code Flow)
+
+OAuth2 provides the most secure authentication with automatic token refresh and PKCE support. Use this for servers that require user authorization.
+
+```json
+{
+  "mcpServers": {
+    "my-oauth-server": {
+      "url": "https://api.example.com/mcp",
+      "transport": "http",
+      "auth": {
+        "type": "oauth",
+        "clientId": "my-client-id",
+        "clientSecret": "your-client-secret",
+        "scope": "read write",
+        "redirectUri": "http://localhost:8765/callback",
+        "clientMetadataUrl": "https://auth.example.com/.well-known/oauth-metadata"
+      }
+    }
+  }
+}
+```
+
+#### OAuth Configuration Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `type` | string | Must be `"oauth"` |
+| `clientId` | string | OAuth client identifier |
+| `clientSecret` | string | OAuth client secret |
+| `scope` | string | Space-separated OAuth scopes (default: `openid profile email`) |
+| `redirectUri` | string | Callback URL for OAuth flow (default: `http://localhost:8765/callback`) |
+| `clientMetadataUrl` | string | URL to fetch dynamic client metadata |
+
+#### How OAuth Works in JARVIS
+
+1. When connecting to an OAuth-protected server, JARVIS initiates the OAuth2 authorization code flow
+2. A browser window opens for user authorization
+3. A local callback server receives the authorization code
+4. Tokens are exchanged and stored in `~/.jarvis/auth/<server-name>.json`
+5. Tokens are automatically refreshed when they expire
+
+### Bearer Tokens (Static Token)
+
+For servers that use simple bearer token authentication:
+
+```json
+{
+  "mcpServers": {
+    "my-bearer-server": {
+      "url": "https://api.example.com/mcp",
+      "transport": "http",
+      "auth": {
+        "type": "bearer",
+        "token": "your-bearer-token-here",
+        "headerName": "Authorization",
+        "headerPrefix": "Bearer"
+      }
+    }
+  }
+}
+```
+
+#### Bearer Token from Environment Variable
+
+For security, store the token in an environment variable:
+
+```json
+{
+  "mcpServers": {
+    "my-bearer-server": {
+      "url": "https://api.example.com/mcp",
+      "transport": "http",
+      "auth": {
+        "type": "bearer",
+        "tokenEnvVar": "MCP_BEARER_TOKEN"
+      }
+    }
+  }
+}
+```
+
+### API Keys
+
+For servers that use API key authentication in custom headers:
+
+```json
+{
+  "mcpServers": {
+    "my-api-key-server": {
+      "url": "https://api.example.com/mcp",
+      "transport": "http",
+      "auth": {
+        "type": "api_key",
+        "token": "your-api-key-here",
+        "headerName": "X-API-Key"
+      }
+    }
+  }
+}
+```
+
+#### API Key Configuration Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `type` | string | — | Must be `"bearer"` or `"api_key"` |
+| `token` | string | — | The static token value |
+| `tokenEnvVar` | string | — | Environment variable name to read token from |
+| `headerName` | string | `"Authorization"` | HTTP header name for the token |
+| `headerPrefix` | string | `"Bearer"` | Prefix for the header value (ignored for `api_key`) |
+
+### Auth Configuration Reference
+
+```json
+{
+  "auth": {
+    "type": "oauth|bearer|api_key",
+    "clientId": "...",
+    "clientSecret": "...",
+    "scope": "openid profile email",
+    "redirectUri": "http://localhost:8765/callback",
+    "clientMetadataUrl": "https://auth.example.com/metadata",
+    "token": "static-token-or-empty",
+    "tokenEnvVar": "ENV_VAR_NAME",
+    "headerName": "Authorization",
+    "headerPrefix": "Bearer"
+  }
+}
+```
+
+### Checking Token Status
+
+You can check the authentication status of a server:
+
+```python
+from core.tools.mcp_auth import get_token_status
+
+status = get_token_status("my-server")
+# Returns: {"has_tokens": True, "is_expired": False, "auth_type": "oauth", "expires_at": 1234567890.0}
 ```
 
 ---
@@ -155,6 +310,7 @@ For servers using Server-Sent Events:
 | `idleTimeout` | number | `15` | Minutes before idle disconnect (lazy mode only) |
 | `directTools` | boolean \| string[] | `false` | Promote tools to first-class (see below) |
 | `excludeTools` | string[] | `[]` | Tool names to hide from both proxy and direct tools |
+| `autoDiscoverCapabilities` | boolean | `true` | Query resources/prompts on connect |
 
 ---
 
@@ -242,7 +398,11 @@ The proxy tool routes to different modes based on which parameters are provided.
 | 3 | **describe** | `describe` | Show a tool's full schema |
 | 4 | **search** | `search` | Find tools by name/description |
 | 5 | **list** | `server` | List tools for a server |
-| 6 | **status** | *(none)* | Show all servers and connection status |
+| 6 | **resources** | `resources` | List resources from a server |
+| 7 | **read_resource** | `read_resource` | Read a specific resource by URI |
+| 8 | **prompts** | `prompts` | List prompts from a server |
+| 9 | **get_prompt** | `get_prompt` | Render a prompt template |
+| 10 | **status** | *(none)* | Show all servers and connection status |
 
 ### Status Mode
 
@@ -256,11 +416,18 @@ Returns a summary like:
 ```
 ## MCP Server Status
 
-  🔴 exa — 12 tools, lazy, disconnected
-  🟢 chrome-devtools — 45 tools, eager, connected
+  🔴 exa — [12t, 5r, 3p] — lazy, disconnected
+  🟢 chrome-devtools — [45t] 🔒oauth — eager, connected
+  🔴 my-api-server — [8t] 🔒bearer — lazy, disconnected
 
-  Total: 2 servers, 1 connected, 57 tools in cache
+  Total: 3 servers, 1 connected, 65 tools, 5 resources, 3 prompts in cache
 ```
+
+The status shows:
+- Connection status (🟢 connected / 🔴 disconnected)
+- Capability counts: `[tools, resources, prompts]`
+- Auth type: `🔒oauth`, `🔒bearer`, `🔒api_key`
+- Lifecycle mode
 
 ### List Mode
 
@@ -353,6 +520,131 @@ This is useful when you want to ensure a server is connected before making multi
 
 ---
 
+## Resources
+
+MCP servers can expose **resources** — data that clients can read. JARVIS supports discovering, listing, and reading resources via the proxy tool.
+
+### List Resources
+
+List all resources from a server:
+
+```
+mcp resources="exa"
+```
+
+Returns:
+```
+## Resources from 'exa'
+
+  - **docs**: [jarvis://docs] (text/markdown): JARVIS documentation
+  - **config**: [jarvis://config] (application/json): Current configuration
+
+  2 resources
+```
+
+### Read a Resource
+
+Read a specific resource by its URI:
+
+```
+mcp read_resource="jarvis://config"
+```
+
+Returns:
+```
+## Resource: jarvis://config
+
+  **MIME Type**: application/json
+
+  {"model": "gpt-4o", "theme": "dark"}
+```
+
+### Resource Configuration
+
+Resources are automatically discovered when a server connects (if the server advertises the `resources` capability). The metadata is cached for offline access.
+
+---
+
+## Prompts
+
+MCP servers can expose **prompt templates** — parameterized prompts that clients can render. JARVIS supports discovering, listing, and rendering prompts.
+
+### List Prompts
+
+List all prompts from a server:
+
+```
+mcp prompts="my-server"
+```
+
+Returns:
+```
+## Prompts from 'my-server'
+
+  - **analyze_code**: Analyze code structure (args: language, codebase)
+  - **review_pr**: Review a pull request (args: pr_url)
+
+  2 prompts
+```
+
+### Render a Prompt
+
+Render a prompt with arguments:
+
+```
+mcp get_prompt="analyze_code" args='{"language": "python", "codebase": "./src"}'
+```
+
+Returns:
+```
+## Prompt: analyze_code
+
+  👤 **user**: Please analyze the Python codebase in ./src...
+  🤖 **assistant**: Here's my analysis of the codebase...
+```
+
+---
+
+## Sampling (Server-Initiated LLM Calls)
+
+The **sampling protocol** allows MCP servers to request JARVIS to generate LLM responses. This is useful for servers that need AI assistance to fulfill user requests.
+
+### How It Works
+
+1. An MCP tool on the server calls the `SamplingCapability` 
+2. JARVIS intercepts the request and routes it through the configured LLM provider
+3. The response is sent back to the server
+
+### Configuration
+
+To enable sampling support, pass an LLM provider when initializing the MCP registry:
+
+```python
+from core.tools.mcp_adapter import MCPRegistry, MCPServerConfig
+
+registry = MCPRegistry(tool_registry=tool_registry, use_proxy=True)
+
+configs = [MCPServerConfig.from_dict(d) for d in mcp_config_dicts]
+
+# Pass the LLM provider for sampling support
+results = await registry.initialize(
+    configs, 
+    llm_provider=llm_provider,  # Your LLM provider instance
+    model="gpt-4o"
+)
+```
+
+### Requirements
+
+- The MCP server must advertise `sampling` capability
+- An LLM provider must be configured
+- The sampling handler supports:
+  - Message history from the server
+  - System prompts
+  - Temperature and max_tokens settings
+
+---
+
 ## Direct Tools
 
 While the proxy tool is the default and most token-efficient approach, some tools are used so frequently that they benefit from being **promoted to first-class tools** — registered individually alongside built-in tools.
@@ -424,18 +716,43 @@ Hide tools from both proxy and direct tool registration:
 
 ## Metadata Cache
 
-JARVIS maintains a persistent metadata cache at `~/.jarvis/mcp-cache.json` that stores tool definitions from all configured MCP servers. This enables **offline tool discovery** — the LLM can search, list, and describe tools without needing a live server connection.
+JARVIS maintains a persistent metadata cache at `~/.jarvis/mcp-cache.json` that stores tool definitions, resources, and prompts from all configured MCP servers. This enables **offline capability discovery** — the LLM can search, list, and describe tools/resources/prompts without needing a live server connection.
 
 ### How It Works
 
-1. When a server connects (either eagerly or lazily), its tool definitions are saved to the cache
+1. When a server connects (either eagerly or lazily), its capabilities are saved to the cache
 2. The cache includes a config hash for validation — if the server config changes, the cache is invalidated
-3. Search, list, and describe modes work from the cache when the server is disconnected
+3. Search, list, describe, and resource/prompt modes work from the cache when the server is disconnected
 4. Call mode triggers a lazy connection if the server is offline
 
 ### Cache Validation
 
 The cache uses a SHA-256 hash of the server's `command`, `args`, `url`, `transport`, and `env` fields. If any of these change, the cached metadata is considered stale and the server must reconnect to refresh it.
+
+### Cache Contents
+
+The cache stores:
+- **Tools**: name, original_name, description, input_schema, server_name
+- **Resources**: uri, name, description, mime_type, server_name  
+- **Prompts**: name, description, arguments, server_name
+
+---
+
+## Capabilities Negotiation
+
+When an MCP server connects, JARVIS automatically negotiates its capabilities:
+
+| Capability | Description |
+|------------|-------------|
+| `tools` | Server provides callable tools |
+| `resources` | Server provides readable resources |
+| `prompts` | Server provides prompt templates |
+| `sampling` | Server can request LLM responses |
+| `logging` | Server supports logging |
+| `completions` | Server supports completion suggestions |
+| `tasks` | Server supports background tasks |
+
+The proxy tool's status output shows which capabilities are available for each server.
 
 ---
 
@@ -451,6 +768,44 @@ The simplest configuration — servers are lazy by default:
     "exa": {
       "url": "https://mcp.exa.ai/mcp",
       "transport": "http"
+    }
+  }
+}
+```
+
+### OAuth-Authenticated Server
+
+```json
+{
+  "mcpServers": {
+    "secure-api": {
+      "url": "https://api.secure.example.com/mcp",
+      "transport": "http",
+      "lifecycle": "keep-alive",
+      "auth": {
+        "type": "oauth",
+        "clientId": "jarvis-client",
+        "clientSecret": "secret123",
+        "scope": "read write admin",
+        "redirectUri": "http://localhost:8765/callback"
+      }
+    }
+  }
+}
+```
+
+### Bearer Token Server
+
+```json
+{
+  "mcpServers": {
+    "internal-api": {
+      "url": "https://internal.example.com/mcp",
+      "transport": "http",
+      "auth": {
+        "type": "bearer",
+        "tokenEnvVar": "INTERNAL_API_TOKEN"
+      }
     }
   }
 }
@@ -555,7 +910,8 @@ When using the proxy tool, you can reference tools by either their **original na
           │
 4. Register direct tools (if configured)
           │
-5. Ready — LLM can now use `mcp` tool to discover and call tools
+5. Ready — LLM can now use `mcp` tool to discover and call tools,
+   read resources, render prompts, and more
 ```
 
 ### On Tool Call (Lazy Connect)
@@ -567,8 +923,8 @@ LLM calls: mcp tool="web_search" args='{"query":"hello"}'
           │   └── Yes → Execute tool directly
           │
           └── No (lazy mode)?
-              ├── Connect to "exa" server
-              ├── Refresh metadata cache
+              ├── Connect to "exa" server (with auth if configured)
+              ├── Refresh metadata cache (tools, resources, prompts)
               ├── Start idle timer
               └── Execute tool
 ```
@@ -580,7 +936,7 @@ No tool calls for idleTimeout minutes...
           │
           ├── Idle timer fires
           ├── Server is disconnected
-          └── Metadata cache preserved (tools still discoverable)
+          └── Metadata cache preserved (tools/resources/prompts still discoverable)
 ```
 
 ---
@@ -639,6 +995,14 @@ To disable a server without removing its configuration:
 - Check that required dependencies (Node.js, npm) are installed
 - Ensure environment variables are set correctly
 - For HTTP servers, verify the URL is accessible: `curl http://localhost:59686/mcp`
+- Check authentication configuration if the server requires auth
+
+### Authentication Issues
+
+- For OAuth: Ensure the redirect URI is accessible (no firewall blocking localhost)
+- For Bearer/API Key: Verify the token is correct and not expired
+- Check `~/.jarvis/auth/<server-name>.json` for token storage status
+- Use `get_token_status()` to check token validity
 
 ### Tool Not Found
 
@@ -646,6 +1010,13 @@ To disable a server without removing its configuration:
 - Use `mcp search="tool_name"` to search across all servers
 - Use `mcp connect="server-name"` to manually connect a lazy server
 - Check `.mcp.json` for typos in server names or tool exclusions
+
+### Resource/Prompt Not Found
+
+- Use `mcp resources="server"` to list available resources
+- Use `mcp prompts="server"` to list available prompts
+- Ensure the server is connected (or use `mcp connect="server"`)
+- Check if the server advertises the capability in status output
 
 ### Proxy Tool Not Registered
 
@@ -662,6 +1033,7 @@ To disable a server without removing its configuration:
 
 - Check file permissions for stdio servers
 - Verify network access for HTTP servers
+- Ensure OAuth redirect port (default 8765) is not in use
 - Some servers may require additional configuration or API keys
 
 ---
@@ -673,7 +1045,9 @@ To disable a server without removing its configuration:
 - Review server code before connecting if possible
 - Use `excludeTools` to hide dangerous tools
 - Use `disabled: true` to temporarily disable servers without removing configuration
-- The metadata cache (`~/.jarvis/mcp-cache.json`) contains tool schemas but no sensitive data
+- Store sensitive tokens in environment variables rather than config files
+- The metadata cache (`~/.jarvis/mcp-cache.json`) contains tool/resource/prompt schemas but no sensitive data
+- OAuth tokens are stored in `~/.jarvis/auth/<server-name>.json` — keep this directory secure
 
 ---
 
@@ -683,15 +1057,28 @@ To disable a server without removing its configuration:
 
 | Class | File | Purpose |
 |-------|------|---------|
-| `MCPServerConfig` | `core/tools/mcp_adapter.py` | Server configuration with lifecycle fields |
+| `MCPServerConfig` | `core/tools/mcp_adapter.py` | Server configuration with lifecycle and auth fields |
 | `MCPClient` | `core/tools/mcp_adapter.py` | Low-level MCP SDK client (stdio/HTTP/SSE) |
 | `MCPToolAdapter` | `core/tools/mcp_adapter.py` | Wraps MCP tool as JARVIS `BaseTool` (for direct tools) |
 | `MCPRegistry` | `core/tools/mcp_adapter.py` | Orchestrates servers, cache, lifecycle, proxy, and direct tools |
-| `MCPProxyTool` | `core/tools/mcp_proxy_tool.py` | The single `mcp` proxy tool (BaseTool subclass) |
+| `MCPProxyTool` | `core/tools/mcp_proxy_tool.py` | The single `mcp` proxy tool with all modes |
 | `MCPLifecycleManager` | `core/tools/mcp_lifecycle.py` | Manages lazy/eager/keep-alive modes, idle timers, health checks |
-| `MCPMetadataCache` | `core/tools/mcp_metadata_cache.py` | Persistent cache for offline tool discovery |
-| `ToolMetadata` | `core/tools/mcp_metadata_cache.py` | Cached tool definition (name, schema, server) |
-| `ServerMetadata` | `core/tools/mcp_metadata_cache.py` | Cached server definition (tools, config hash) |
+| `MCPMetadataCache` | `core/tools/mcp_metadata_cache.py` | Persistent cache for offline tool/resource/prompt discovery |
+| `MCPServerCapabilities` | `core/tools/mcp_capabilities.py` | Server capability negotiation |
+| `MCPAuthConfig` | `core/tools/mcp_capabilities.py` | Authentication configuration (OAuth/Bearer/API key) |
+| `FileTokenStorage` | `core/tools/mcp_auth.py` | File-based OAuth token storage |
+| `create_oauth_client` | `core/tools/mcp_auth.py` | OAuth2 client factory with browser authorization |
+
+### Data Models
+
+| Model | File | Purpose |
+|-------|------|---------|
+| `ToolMetadata` | `core/tools/mcp_metadata_cache.py` | Cached tool definition |
+| `ResourceMetadata` | `core/tools/mcp_metadata_cache.py` | Cached resource definition |
+| `PromptMetadata` | `core/tools/mcp_metadata_cache.py` | Cached prompt template definition |
+| `ServerMetadata` | `core/tools/mcp_metadata_cache.py` | Complete server cache entry |
+| `MCPResourceSpec` | `core/tools/mcp_capabilities.py` | Resource specification from server |
+| `MCPPromptSpec` | `core/tools/mcp_capabilities.py` | Prompt specification from server |
 
 ### Initialization API
 
@@ -705,16 +1092,22 @@ registry = MCPRegistry(tool_registry=tool_registry, use_proxy=True)
 configs = [MCPServerConfig.from_dict(d) for d in mcp_config_dicts]
 
 # Initialize (lazy by default — only eager/keep-alive connect)
-results = await registry.initialize(configs, llm_provider=provider, model=model)
+# Pass LLM provider for sampling support
+results = await registry.initialize(
+    configs, 
+    llm_provider=provider, 
+    model="gpt-4o"
+)
 
 # Backward-compatible eager mode (connects all servers immediately)
-results = await registry.connect_all(configs, llm_provider=provider, model=model)
+results = await registry.connect_all(configs, llm_provider=provider, model="gpt-4o")
 ```
 
-### Cache Location
+### Cache Locations
 
 ```
-~/.jarvis/mcp-cache.json     # Tool metadata cache
-~/.jarvis/mcp.json            # Global MCP server config (fallback)
-.mcp.json                     # Project-level MCP server config (primary)
+~/.jarvis/mcp-cache.json          # Tool/resource/prompt metadata cache
+~/.jarvis/auth/                   # OAuth tokens (one file per server)
+~/.jarvis/mcp.json                # Global MCP server config (fallback)
+.mcp.json                         # Project-level MCP server config (primary)
 ```

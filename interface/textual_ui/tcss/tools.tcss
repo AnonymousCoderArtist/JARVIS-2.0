@@ -96,13 +96,6 @@ $info: ansi_cyan;
    Bash Tool Styles
    ======================================== */
 
-.approval-tool-name {
-    height: auto;
-    color: $info;
-    text-style: bold;
-    margin-left: 0;
-}
-
 .approval-bash-command {
     height: auto;
     margin-left: 2;

@@ -165,8 +165,8 @@ class AgentTool(BaseTool):
         # Add customs
         for agent in custom_agents:
             desc = getattr(agent, "when_to_use", "Custom agent (no description provided)")
-            lines.append(f"- {agent.agent_type}: {desc}")
-            agent_data.append({"name": agent.agent_type, "description": desc, "source": "custom"})
+            lines.append(f"- {agent.name}: {desc}")
+            agent_data.append({"name": agent.name, "description": desc, "source": "custom"})
         
         return ToolOutput(
             success=True,
@@ -321,7 +321,7 @@ class AgentTool(BaseTool):
                 # Try loading custom agents from .jarvis/agents/
                 from core.agents.custom_loader import discover_custom_agents
                 custom_agents = discover_custom_agents()
-                custom_agent = next((a for a in custom_agents if a.agent_type == agent_name), None)
+                custom_agent = next((a for a in custom_agents if a.name == agent_name), None)
 
                 if custom_agent:
                     return await self._handle_custom_agent(
@@ -330,7 +330,7 @@ class AgentTool(BaseTool):
 
                 # Build list of available agents
                 builtin_agents = ['explore', 'plan', 'jarvis-help', 'verification', 'statusline-setup']
-                custom_names = [a.agent_type for a in custom_agents]
+                custom_names = [a.name for a in custom_agents]
                 all_agents = builtin_agents + custom_names
 
                 return ToolOutput(
@@ -413,7 +413,7 @@ class AgentTool(BaseTool):
         return ToolOutput(
             success=True,
             result=result,
-            metadata={"agent": definition.agent_type, "prompt_length": len(prompt), "background": False}
+            metadata={"agent": definition.name, "prompt_length": len(prompt), "background": False}
         )
 
     async def _handle_status(self, taskId: str) -> ToolOutput:

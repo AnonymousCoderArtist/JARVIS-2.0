@@ -37,49 +37,7 @@ class ToolRegistry:
 
         self._tools[tool.name] = tool
 
-
-    def get_prompt_snippets(self) -> dict[str, str]:
-        """
-        Get prompt snippets for all custom tools.
-
-        Returns:
-            Dictionary mapping tool names to their prompt snippets
-        """
-        snippets = {}
-        for tool in self._tools.values():
-            snippet = getattr(tool, "get_prompt_snippet", lambda: None)()
-            if snippet:
-                snippets[tool.name] = snippet
-        return snippets
-
-    def get_prompt_guidelines(self) -> list[str]:
-        """
-        Get prompt guidelines from all custom tools.
-
-        Returns:
-            List of guideline strings from all custom tools
-        """
-        guidelines = []
-        for tool in self._tools.values():
-            tool_guidelines = getattr(tool, "get_prompt_guidelines", lambda: [])()
-            guidelines.extend(tool_guidelines)
-        return guidelines
-
     def update_tool_providers(self, llm_provider=None, model=None, config_getter=None, event_queue=None):
-        """
-        Update the provider and model references for all registered tools.
-        Call this after the provider is initialized.
-
-        Only non-None arguments overwrite the existing values so that callers
-        that only want to inject an event_queue don't accidentally clear a
-        previously configured llm_provider or model.
-
-        Args:
-            llm_provider: LLM provider instance (skipped when None)
-            model: Model name string (skipped when None)
-            config_getter: Config getter callable (skipped when None)
-            event_queue: Event queue for tools that need to emit events (skipped when None)
-        """
         if llm_provider is not None:
             self.llm_provider = llm_provider
         if model is not None:
@@ -89,8 +47,6 @@ class ToolRegistry:
         if event_queue is not None:
             self.event_queue = event_queue
         for tool in self._tools.values():
-            # Ensure tools always have a back-reference to the registry.
-            # Some tools (e.g. `agents`) require this and may fail if created outside `register()`.
             tool.tool_registry = self
             if llm_provider is not None:
                 tool.llm_provider = llm_provider
@@ -100,24 +56,9 @@ class ToolRegistry:
                 tool.event_queue = self.event_queue
 
     def get(self, name: str) -> BaseTool | None:
-        """
-        Get a registered tool by name
-
-        Args:
-            name: Tool name
-
-        Returns:
-            Tool instance or None if not found
-        """
         return self._tools.get(name)
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """
-        List all registered tools
-
-        Returns:
-            List of tool information dictionaries
-        """
         return [
             {
                 "name": tool.name,
@@ -128,12 +69,6 @@ class ToolRegistry:
         ]
 
     def get_function_definitions(self) -> list[dict[str, Any]]:
-        """
-        Get all tools in OpenAI function calling format
-
-        Returns:
-            List of function definitions
-        """
         return [tool.get_function_definition() for tool in self._tools.values()]
 
     def get_tools(self) -> dict[str, BaseTool]:
@@ -224,9 +159,7 @@ class ToolRegistry:
         """
         search_paths = [
             Path.home() / ".jarvis" / "tools",
-            Path.home() / ".jarvis" / "tool",
             Path.cwd() / ".jarvis" / "tools",
-            Path.cwd() / ".jarvis" / "tool",
         ]
         
         registered_count = 0

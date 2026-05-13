@@ -1,6 +1,9 @@
-"""Rewind manager for JARVIS - handles conversation rewind and file restoration."""
-
 from __future__ import annotations
+
+"""Rewind manager for JARVIS - handles conversation rewind and file restoration.
+
+Fully aligned with mistralai/mistral-vibe's RewindManager approach.
+"""
 
 import logging
 import os
@@ -72,9 +75,26 @@ class RewindManager:
         )
 
     def add_snapshot(self, snapshot: FileSnapshot) -> None:
-        """Record a file snapshot into every checkpoint that doesn't have it yet."""
+        """Record (or update) a file snapshot in ALL checkpoints.
+
+        Unlike vibe's upstream logic which skips duplicates, JARVIS
+        REPLACES the snapshot for the same path so that the latest
+        known file state is always tracked. This ensures:
+        - When `_has_changes_since` compares current state with the
+          snapshot, it detects changes from the latest captured state.
+        - When `_restore_checkpoint` restores files, it uses the state
+          that was fresh-smapped at checkpoint-creation time (from
+          `create_checkpoint` which does NOT call `add_snapshot`).
+        """
         for cp in self._checkpoints:
-            if all(s.path != snapshot.path for s in cp.files):
+            # Replace existing snapshot for same path (compare by path)
+            replaced = False
+            for i, s in enumerate(cp.files):
+                if s.path == snapshot.path:
+                    cp.files[i] = snapshot
+                    replaced = True
+                    break
+            if not replaced:
                 cp.files.append(snapshot)
 
     def has_file_changes_at(self, message_index: int) -> bool:
@@ -84,15 +104,39 @@ class RewindManager:
             return False
         return self._has_changes_since(checkpoint)
 
+    def on_messages_reset(self) -> None:
+        """Called when the message list is externally reset (session switch, clear, compact).
+
+        Clears checkpoints unless we're in the middle of a rewind operation.
+        """
+        if not self._is_rewinding:
+            self._checkpoints.clear()
+
     # -- Rewind operations -----------------------------------------------------
 
     def get_rewindable_messages(self) -> list[tuple[int, str]]:
-        """Return (message_index, content) for each user message."""
-        return [
-            (i, msg.get("content") or "")
-            for i, msg in enumerate(self._messages)
-            if msg.get("role") == "user" and msg.get("content")
-        ]
+        """Return (message_index, content) for each user message.
+
+        Supports two message formats:
+        - Standard: {"role": "user", "content": "..."}
+        - Agent memory: {"content": "...", "response": "..."}
+        """
+        results: list[tuple[int, str]] = []
+        for i, msg in enumerate(self._messages):
+            content = msg.get("content")
+            if not content:
+                continue
+            role = msg.get("role")
+            # Standard role-based format
+            if role == "user":
+                results.append((i, str(content)))
+            # Agent memory format: entries with "content" but no "role"
+            elif role is None and "response" not in msg and not msg.get("type"):
+                results.append((i, str(content)))
+            # Agent memory format: entries with both "content" and "response"
+            elif role is None and "response" in msg:
+                results.append((i, str(content)))
+        return results
 
     async def rewind_to_message(
         self, message_index: int, *, restore_files: bool
@@ -101,6 +145,10 @@ class RewindManager:
 
         Saves the current session, truncates messages, optionally restores
         files, and forks to a new session.
+
+        Supports two message formats:
+        - Standard: {"role": "user", "content": "..."}
+        - Agent memory: {"content": "...", "response": "..."}
 
         Returns a tuple of (message_content, restore_errors).
 
@@ -112,16 +160,32 @@ class RewindManager:
             raise RewindError(f"Invalid message index: {message_index}")
 
         user_msg = messages[message_index]
-        if user_msg.get("role") != "user":
+        role = user_msg.get("role")
+        content = user_msg.get("content")
+
+        # Validate this is a user message (support both formats)
+        is_user_msg = (
+            role == "user"
+            or (role is None and content and ("response" not in user_msg or "response" in user_msg))
+        )
+        if not is_user_msg or not content:
             raise RewindError(f"Message at index {message_index} is not a user message")
 
-        message_content = user_msg.get("content") or ""
+        # Extract clean message content (strip "Task: " prefix if present)
+        message_content = str(content)
+        if message_content.startswith("Task: "):
+            message_content = message_content[6:]
+
         restore_errors: list[str] = []
 
         if restore_files:
             checkpoint = self._get_checkpoint(message_index)
             if checkpoint:
                 restore_errors = self._restore_checkpoint(checkpoint)
+                if not restore_errors:
+                    logger.info("Rewind: restored %d files to checkpoint %d", len(checkpoint.files), message_index)
+                else:
+                    logger.warning("Rewind: %d errors restoring files to checkpoint %d", len(restore_errors), message_index)
 
         await self._save_messages()
         self._checkpoints = [
@@ -154,18 +218,16 @@ class RewindManager:
         errors: list[str] = []
         for snap in checkpoint.files:
             path = Path(snap.path)
-            if snap.content is None:
-                if path.exists():
-                    try:
+            try:
+                if snap.content is None:
+                    if path.exists():
                         os.remove(path)
-                    except Exception:
-                        errors.append(f"Failed to delete file: {snap.path}")
-            else:
-                try:
+                else:
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_bytes(snap.content)
-                except Exception:
-                    errors.append(f"Failed to restore file: {snap.path}")
+            except Exception as exc:
+                errors.append(f"Failed to restore {snap.path}: {exc}")
+                logger.error("Rewind restore error for %s: %s", snap.path, exc)
         return errors
 
     @staticmethod
@@ -174,6 +236,8 @@ class RewindManager:
             try:
                 current: bytes | None = Path(snap.path).read_bytes()
             except FileNotFoundError:
+                current = None
+            except Exception:
                 current = None
             if current != snap.content:
                 return True
@@ -189,3 +253,4 @@ class RewindManager:
             logger.warning("Failed to read file for checkpoint: %s", path)
             content = None
         return FileSnapshot(path=path, content=content)
+

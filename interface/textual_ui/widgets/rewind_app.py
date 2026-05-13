@@ -6,7 +6,7 @@ from typing import ClassVar
 from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Container, Vertical
+from textual.containers import Container, Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Static
 
@@ -26,11 +26,21 @@ class RewindApp(Container):
     can_focus_children = False
 
     BINDINGS: ClassVar[list[BindingType]] = [
+        # Option navigation
         Binding("up", "move_up", "Up", show=False),
         Binding("down", "move_down", "Down", show=False),
+        Binding("j", "move_down", "Down", show=False),
+        Binding("k", "move_up", "Up", show=False),
+        # Message navigation (forwarded to parent app)
+        Binding("alt+up", "rewind_prev", "Prev Message", show=False, priority=True),
+        Binding("alt+down", "rewind_next", "Next Message", show=False, priority=True),
+        Binding("ctrl+p", "rewind_prev", "Prev Message", show=False, priority=True),
+        Binding("ctrl+n", "rewind_next", "Next Message", show=False, priority=True),
+        # Selection
         Binding("enter", "select", "Select", show=False),
         Binding("1", "select_1", "Option 1", show=False),
         Binding("2", "select_2", "Option 2", show=False),
+        Binding("escape", "cancel", "Cancel", show=False),
     ]
 
     class RewindWithRestore(Message):
@@ -39,6 +49,9 @@ class RewindApp(Container):
     class RewindWithoutRestore(Message):
         """User chose to edit the message without restoring files."""
 
+    class RewindCancelled(Message):
+        """User cancelled the rewind operation."""
+
     def __init__(self, message_preview: str, *, has_file_changes: bool) -> None:
         super().__init__(id="rewind-app")
         self._message_preview = message_preview
@@ -46,19 +59,20 @@ class RewindApp(Container):
         self.selected_option = 0
         self.option_widgets: list[Static] = []
         self._title_widget: NoMarkupStatic | None = None
+        self._counter_widget: NoMarkupStatic | None = None
         self._options = self._build_options()
 
     def _build_options(self) -> list[tuple[str, _RewindAction]]:
         options: list[tuple[str, _RewindAction]] = []
         if self._has_file_changes:
             options.append((
-                "Edit & restore files to this point",
+                "⟲ Edit & restore files to this point",
                 _RewindAction.EDIT_AND_RESTORE,
             ))
         edit_only_label = (
-            "Edit without restoring files"
+            "✎ Edit without restoring files"
             if self._has_file_changes
-            else "Edit message from here"
+            else "✎ Edit message from here"
         )
         options.append((edit_only_label, _RewindAction.EDIT_ONLY))
         return options
@@ -70,36 +84,36 @@ class RewindApp(Container):
     def update_preview(self, message_preview: str) -> None:
         self._message_preview = message_preview
         if self._title_widget is not None:
-            self._title_widget.update(f"Rewind to: {message_preview[:80]}")
+            self._title_widget.update(f"⏪ Rewind to: {message_preview[:80]}")
 
     def compose(self) -> ComposeResult:
         with Vertical(id="rewind-content"):
-            self._title_widget = NoMarkupStatic(
-                f"Rewind to: {self._message_preview[:80]}", classes="rewind-title"
-            )
-            yield self._title_widget
-            yield NoMarkupStatic("")
+            with Horizontal(id="rewind-header"):
+                self._title_widget = NoMarkupStatic(
+                    f"⏪ Rewind to: {self._message_preview[:80]}", classes="rewind-title"
+                )
+                yield self._title_widget
+                self._counter_widget = NoMarkupStatic("", classes="rewind-counter")
+                yield self._counter_widget
+            yield NoMarkupStatic("─" * 60, classes="rewind-separator")
             for _ in range(len(self._options)):
                 widget = NoMarkupStatic("", classes="rewind-option")
                 self.option_widgets.append(widget)
                 yield widget
-            yield NoMarkupStatic("")
             yield NoMarkupStatic(
-                f"{ALT_KEY}+↑↓ or Ctrl+P/N browse messages  ↑↓ pick option  Enter confirm  ESC cancel",
+                f"Ctrl+P/N: browse messages  ↑↓/jk: pick option  Enter: confirm  ESC: cancel",
                 classes="rewind-help",
             )
 
     async def on_mount(self) -> None:
         self._update_options()
-        # Focus is handled by parent via call_after_refresh
-        # Don't call self.focus() here - it's too early
 
     def _update_options(self) -> None:
         for idx, ((text, _action), widget) in enumerate(
             zip(self._options, self.option_widgets, strict=True)
         ):
             is_selected = idx == self.selected_option
-            cursor = "› " if is_selected else "  "
+            cursor = "▶ " if is_selected else "  "
             option_text = f"{cursor}{idx + 1}. {text}"
 
             widget.update(option_text)
@@ -129,7 +143,6 @@ class RewindApp(Container):
     def action_select_1(self) -> None:
         if not self.has_focus:
             self.focus()
-            # Don't return - proceed to handle selection
         if self._option_count() >= 1:
             self.selected_option = 0
             self._handle_selection(0)
@@ -137,10 +150,24 @@ class RewindApp(Container):
     def action_select_2(self) -> None:
         if not self.has_focus:
             self.focus()
-            # Don't return - proceed to handle selection
         if self._option_count() >= 2:  # noqa: PLR2004
             self.selected_option = 1
             self._handle_selection(1)
+
+    def action_cancel(self) -> None:
+        self.post_message(self.RewindCancelled())
+
+    def action_rewind_prev(self) -> None:
+        """Navigate to the previous user message in rewind mode."""
+        app = self.app
+        if hasattr(app, "action_rewind_prev"):
+            app.action_rewind_prev()
+
+    def action_rewind_next(self) -> None:
+        """Navigate to the next user message in rewind mode."""
+        app = self.app
+        if hasattr(app, "action_rewind_next") and hasattr(app, "_rewind_mode") and app._rewind_mode:
+            app.action_rewind_next()
 
     def _handle_selection(self, option: int) -> None:
         _, action = self._options[option]
@@ -151,6 +178,6 @@ class RewindApp(Container):
                 self.post_message(self.RewindWithoutRestore())
 
     def on_blur(self, event: events.Blur) -> None:
-        # Don't immediately refocus - this interferes with proper mounting
-        # and navigation. Let the parent App handle refocusing when needed.
-        pass
+        # Re-focus ourselves to prevent focus escaping during rewind mode
+        # The parent App handles exiting rewind mode via ESC
+        self.call_after_refresh(self.focus)

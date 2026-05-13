@@ -135,48 +135,33 @@ class BaseAgent(ABC):
         self._build_system_prompt()
 
     def _build_system_prompt(self) -> None:
-        """Build the full system prompt with system context and active skills."""
-        # Get system context
+        """Build the full system prompt with dynamic context sections.
+
+        Tool descriptions are NOT injected here — they are sent to the model
+        via the native tool calling API (tools parameter), which already
+        provides names, descriptions, and schemas to the model.
+        """
         from core.agents.prompts.constants import get_system_context
         system_context = get_system_context()
 
-        # Combine base prompt with system context
         full_prompt = self.base_system_prompt
         if system_context:
-            full_prompt = f"{full_prompt}\n\n{system_context}"
+            full_prompt = f"{full_prompt}\n\n---\n\n{system_context}"
 
-        # Add active skills if any
         if hasattr(self.tools, 'active_skills') and self.tools.active_skills:
-            skills_section = "\n\n## Active Skills\n\n"
+            skills_section = "\n\n---\n\n## Active Skills\n\n"
             active_skills = cast(dict[str, str], self.tools.active_skills)
             for skill_name, skill_content in active_skills.items():
                 skills_section += f"### {skill_name}\n{skill_content}\n\n"
             full_prompt += skills_section
 
-        # Add available tool descriptions from the tool registry (dynamic)
-        # This is required for UI help text and for tests expecting registered tool sections.
-        try:
-            tools = self.tools.get_tools()
-            if tools:
-                tool_section = "\n\n## Tool Descriptions\n\n"
-                # Sort by tool name for stable prompt output.
-                for tool_name, tool in sorted(tools.items(), key=lambda kv: kv[0]):
-                    tool_desc = tool.description or ""
-                    tool_section += f"### {tool_name}\n{tool_desc}\n\n"
-                full_prompt += tool_section
-        except Exception:
-            # If tool registry doesn't support enumeration, don't break prompt construction.
-            pass
-
-        # Add available skills information dynamically
         try:
             from core.skills import SkillManager
             skill_manager = SkillManager()
             available_skills = skill_manager.get_skill_descriptions_for_prompt()
             if available_skills:
-                full_prompt += "\n\n" + available_skills
+                full_prompt += "\n\n---\n\n" + available_skills
         except Exception:
-            # If skill manager fails, continue without skill descriptions
             pass
 
         self.system_prompt = full_prompt

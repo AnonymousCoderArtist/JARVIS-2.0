@@ -12,6 +12,7 @@ from core.tools.skill_manage_tool import create_skill_markdown, get_skill_dir
 
 from .base import BaseAgent
 from .heartbeat_scheduler import HeartbeatScheduler
+from .task_scheduler import TaskScheduler
 from .system_prompts import (
     FORK_SYSTEM_PROMPT,
     GENERAL_PURPOSE_SYSTEM_PROMPT,
@@ -402,6 +403,49 @@ class JarvisV2(BaseAgent):
         # Parse the plan into steps
         steps = self._parse_plan(response)
         return steps
+
+    async def plan_with_scheduler(
+        self, task: str, max_concurrent: int = 5
+    ) -> list[dict[str, Any]]:
+        """
+        Decompose a task using the TaskScheduler and return a structured plan
+        with dependency tracking and priority ordering.
+
+        Unlike plan() which uses LLM-based decomposition, this uses
+        keyword-based analysis with topological sorting for parallel execution.
+
+        Args:
+            task: Task description to decompose
+            max_concurrent: Maximum number of parallel tasks per batch
+
+        Returns:
+            List of planned steps with descriptions, priorities, and dependencies
+        """
+        scheduler = TaskScheduler(max_concurrent=max_concurrent)
+        return await scheduler.decompose_and_plan(task)
+
+    async def run_scheduled(
+        self, task: str, executor_fn=None, max_concurrent: int = 5
+    ) -> dict[str, Any]:
+        """
+        Decompose, schedule, and execute a task using the TaskScheduler.
+
+        Args:
+            task: High-level task description
+            executor_fn: Async callable taking a Task and returning a result.
+                         Defaults to using the agent's process() method.
+            max_concurrent: Maximum number of parallel tasks per batch
+
+        Returns:
+            Dictionary mapping task IDs to their results
+        """
+        scheduler = TaskScheduler(max_concurrent=max_concurrent)
+
+        if executor_fn is None:
+            async def executor_fn(scheduled_task):
+                return await self.process(scheduled_task.description)
+
+        return await scheduler.run(task, executor_fn)
 
     def _parse_plan(self, plan_text: str) -> list[dict]:
         """Parse plan text into structured steps"""

@@ -6,6 +6,7 @@ from typing import Any
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.base import BaseAgent
+from core.agents.profiles import AgentType
 
 
 def GetJarvisHelpPrompt() -> str:
@@ -108,10 +109,10 @@ class JarvisHelpAgent(BaseAgent):
 
 # Agent definition for builtin registration
 JARVIS_HELP_AGENT = AgentDefinition(
-    agent_type="jarvis-help",
+    name="jarvis-help",
+    agent_type=AgentType.SUBAGENT,
     when_to_use="Use this agent when users need help understanding JARVIS features, tools, or configuration.",
     tools=["read", "ls", "find", "grep", "web_search", "fetch_webpage"],
-    disallowed_tools=["write", "edit", "bash"],
     model="inherit",
     max_turns=50,
     get_system_prompt=GetJarvisHelpPrompt,

@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 
 from core.agents.agent_definition import AgentDefinition
+from core.agents.profiles import AgentType
 
 
 def GetStatuslineSetupPrompt() -> str:
@@ -159,7 +160,8 @@ Current working directory: {cwd}
 
 
 STATUSLINE_SETUP_AGENT = AgentDefinition(
-    agent_type='statusline-setup',
+    name='statusline-setup',
+    agent_type=AgentType.SUBAGENT,
     when_to_use="""Use this agent for statusline customization guidance. It provides:
 - Help with shell prompt configuration (bash, zsh, fish, PowerShell)
 - Guidance on statusline frameworks (Oh My Zsh, Starship, Bash-it, Oh My Posh)
@@ -168,7 +170,6 @@ STATUSLINE_SETUP_AGENT = AgentDefinition(
 - Font requirements (Nerd Fonts, Powerline)
 - Read-only approach - suggests configurations without modifying files""",
     tools=['read', 'ls', 'find', 'grep', 'web_search', 'fetch_webpage'],
-    disallowed_tools=['write', 'edit', 'bash'],
     model='inherit',
     get_system_prompt=GetStatuslineSetupPrompt,
 )

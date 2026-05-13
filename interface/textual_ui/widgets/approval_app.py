@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.containers import Container, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
 
@@ -16,65 +16,44 @@ from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tool_widgets import get_approval_widget
 
 
-# Tool risk classification
-RISK_LOW = "low"
-RISK_MEDIUM = "medium"
-RISK_HIGH = "high"
+# ── Vibe-style ApprovalApp (fully cloned from mistralai/mistral-vibe) ──
 
-TOOL_RISK_LEVELS: dict[str, str] = {
-    "read": RISK_LOW,
-    "read_file": RISK_LOW,
-    "ls": RISK_LOW,
-    "find": RISK_LOW,
-    "grep": RISK_LOW,
-    "bash": RISK_MEDIUM,
-    "edit": RISK_HIGH,
-    "edit_file": RISK_HIGH,
-    "str_replace_editor": RISK_HIGH,
-    "write": RISK_HIGH,
-    "write_file": RISK_HIGH,
-}
+class ApprovalApp(Container):
+    """Vibe-style tool approval dialog.
 
-RISK_STYLES: dict[str, dict[str, str]] = {
-    RISK_LOW: {"icon": "🟢", "label": "LOW RISK", "border": "success"},
-    RISK_MEDIUM: {"icon": "🟡", "label": "MEDIUM RISK", "border": "warning"},
-    RISK_HIGH: {"icon": "🔴", "label": "HIGH RISK", "border": "error"},
-}
+    Cloned from mistralai/mistral-vibe's ApprovalApp.
 
-
-def get_tool_risk(tool_name: str) -> str:
-    return TOOL_RISK_LEVELS.get(tool_name, RISK_MEDIUM)
-
-
-def is_inline_approval(tool_name: str) -> bool:
-    """Whether this tool should use the compact inline approval bar."""
-    return get_tool_risk(tool_name) == RISK_LOW
-
-
-class InlineApprovalBar(Container):
-    """Compact inline approval bar for low-risk tools.
-
-    Rendered as:
-      🟢 LOW RISK  📄 READ src/main.py  [Y]es  [A]lways  [N]o
+    4-option numbered list:
+      1. Allow once
+      2. Allow for remainder of this session
+      3. Always allow
+      4. Deny
     """
 
     can_focus = True
     can_focus_children = False
 
+    NUM_OPTIONS = 4
+
     BINDINGS: ClassVar[list[BindingType]] = [
-        Binding("y", "approve", "Yes", show=False),
-        Binding("a", "approve_always", "Always", show=False),
-        Binding("n", "reject", "No", show=False),
-        Binding("escape", "reject", "Reject", show=False),
+        Binding("up", "move_up", "Up", show=False),
+        Binding("down", "move_down", "Down", show=False),
+        Binding("enter", "select", "Select", show=False),
+        Binding("1", "select_1", "Yes", show=False),
+        Binding("y", "select_1", "Yes", show=False),
+        Binding("2", "select_2", "Always Tool Session", show=False),
+        Binding("3", "select_3", "Always Permanent", show=False),
+        Binding("4", "select_4", "No", show=False),
+        Binding("n", "select_4", "No", show=False),
     ]
 
-    class Approved(Message):
+    class ApprovalGranted(Message):
         def __init__(self, tool_name: str, tool_args: BaseModel) -> None:
             super().__init__()
             self.tool_name = tool_name
             self.tool_args = tool_args
 
-    class ApprovedAlways(Message):
+    class ApprovalGrantedAlwaysTool(Message):
         def __init__(
             self,
             tool_name: str,
@@ -86,117 +65,7 @@ class InlineApprovalBar(Container):
             self.tool_args = tool_args
             self.required_permissions = required_permissions
 
-    class Rejected(Message):
-        def __init__(self, tool_name: str, tool_args: BaseModel) -> None:
-            super().__init__()
-            self.tool_name = tool_name
-            self.tool_args = tool_args
-
-    def __init__(
-        self,
-        tool_name: str,
-        tool_args: BaseModel,
-        required_permissions: list[RequiredPermission] | None = None,
-    ) -> None:
-        super().__init__(classes="inline-approval-bar")
-        self.tool_name = tool_name
-        self.tool_args = tool_args
-        self.required_permissions = required_permissions or []
-        self._summary = self._build_summary()
-
-    def _build_summary(self) -> str:
-        """Build compact tool summary for the bar."""
-        args = self.tool_args
-        if isinstance(args, dict):
-            for key in ("files", "path", "filePath", "command", "pattern", "query"):
-                val = args.get(key)
-                if val:
-                    text = str(val)
-                    if isinstance(val, list):
-                        text = f"{len(val)} file{'s' if len(val) != 1 else ''}"
-                    elif len(text) > 50:
-                        text = text[:47] + "…"
-                    return text
-        elif hasattr(args, "model_fields"):
-            for key in ("files", "path", "file_path", "command", "pattern", "query"):
-                val = getattr(args, key, None)
-                if val:
-                    text = str(val)
-                    if isinstance(val, list):
-                        text = f"{len(val)} file{'s' if len(val) != 1 else ''}"
-                    elif len(text) > 50:
-                        text = text[:47] + "…"
-                    return text
-        return ""
-
-    def compose(self) -> ComposeResult:
-        risk = get_tool_risk(self.tool_name)
-        style = RISK_STYLES[risk]
-
-        with Horizontal(classes="inline-approval-content"):
-            yield NoMarkupStatic(
-                f"{style['icon']} {style['label']}", classes="inline-approval-risk"
-            )
-            tool_label = self.tool_name.upper() if len(self.tool_name) <= 6 else self.tool_name.title()
-            summary = f"{tool_label}"
-            if self._summary:
-                summary += f"  {self._summary}"
-            yield NoMarkupStatic(summary, classes="inline-approval-tool")
-            yield NoMarkupStatic("[Y]es", classes="inline-approval-btn inline-approval-yes")
-            yield NoMarkupStatic("[A]lways", classes="inline-approval-btn inline-approval-always")
-            yield NoMarkupStatic("[N]o", classes="inline-approval-btn inline-approval-no")
-
-    def on_mount(self) -> None:
-        self.focus()
-
-    def action_approve(self) -> None:
-        self.post_message(self.Approved(tool_name=self.tool_name, tool_args=self.tool_args))
-
-    def action_approve_always(self) -> None:
-        self.post_message(
-            self.ApprovedAlways(
-                tool_name=self.tool_name,
-                tool_args=self.tool_args,
-                required_permissions=self.required_permissions,
-            )
-        )
-
-    def action_reject(self) -> None:
-        self.post_message(self.Rejected(tool_name=self.tool_name, tool_args=self.tool_args))
-
-    def on_blur(self, event: events.Blur) -> None:
-        self.call_after_refresh(self._refocus_if_needed)
-
-    def _refocus_if_needed(self) -> None:
-        if self.has_focus:
-            return
-        if self.is_mounted and self.display and not self._closing:
-            self.focus()
-
-
-class ApprovalApp(Container):
-    can_focus = True
-    can_focus_children = False
-
-    BINDINGS: ClassVar[list[BindingType]] = [
-        Binding("up", "move_up", "Up", show=False),
-        Binding("down", "move_down", "Down", show=False),
-        Binding("enter", "select", "Select", show=False),
-        Binding("1", "select_1", "Yes", show=False),
-        Binding("y", "select_1", "Yes", show=False),
-        Binding("2", "select_2", "Always Tool Session", show=False),
-        Binding("3", "select_3", "No", show=False),
-        Binding("n", "select_3", "No", show=False),
-        Binding("escape", "reject", "Reject", show=False),
-    ]
-
-    class ApprovalGranted(Message):
-        def __init__(self, tool_name: str, tool_args: BaseModel) -> None:
-            super().__init__()
-            self.tool_name = tool_name
-            self.tool_args = tool_args
-
-    class ApprovalGrantedAlwaysTool(Message):
+    class ApprovalGrantedAlwaysPermanent(Message):
         def __init__(
             self,
             tool_name: str,
@@ -229,39 +98,26 @@ class ApprovalApp(Container):
         self.selected_option = 0
         self.content_container: Vertical | None = None
         self.title_widget: Static | None = None
-        self.risk_widget: Static | None = None
         self.tool_info_container: Vertical | None = None
         self.option_widgets: list[Static] = []
         self.help_widget: Static | None = None
 
     def compose(self) -> ComposeResult:
-        risk = get_tool_risk(self.tool_name)
-        style = RISK_STYLES[risk]
-
         with Vertical(id="approval-options"):
             yield NoMarkupStatic("")
-            for _ in range(3):
+            for _ in range(self.NUM_OPTIONS):
                 widget = NoMarkupStatic("", classes="approval-option")
                 self.option_widgets.append(widget)
                 yield widget
-            yield NoMarkupStatic("")
             self.help_widget = NoMarkupStatic(
-                "↑↓ navigate  1-3/y/n direct  Enter select  ESC reject", classes="approval-help"
+                "↑↓ navigate  Enter select  ESC reject", classes="approval-help"
             )
             yield self.help_widget
 
         with Vertical(id="approval-content"):
-            # Risk badge + title on same line
-            with Horizontal(classes="approval-title-row"):
-                self.risk_widget = NoMarkupStatic(
-                    f"{style['icon']} {style['label']}", classes="approval-risk-badge"
-                )
-                self.risk_widget.add_class(f"approval-risk-{risk}")
-                yield self.risk_widget
-                self.title_widget = NoMarkupStatic(
-                    f"Approval required: {self.tool_name}", classes="approval-title"
-                )
-                yield self.title_widget
+            title = self._build_title()
+            self.title_widget = NoMarkupStatic(title, classes="approval-title")
+            yield self.title_widget
 
             with VerticalScroll(classes="approval-tool-info-scroll"):
                 self.tool_info_container = Vertical(
@@ -269,19 +125,13 @@ class ApprovalApp(Container):
                 )
                 yield self.tool_info_container
 
-    async def on_mount(self) -> None:
-        # Apply risk-based border styling
-        risk = get_tool_risk(self.tool_name)
-        style = RISK_STYLES[risk]
-        border_var = style["border"]
-        # Map to CSS class for the border color
-        if border_var == "error":
-            self.add_class("approval-border-high")
-        elif border_var == "warning":
-            self.add_class("approval-border-medium")
-        else:
-            self.add_class("approval-border-low")
+    def _build_title(self) -> str:
+        if self.required_permissions:
+            labels = ", ".join(rp.label for rp in self.required_permissions)
+            return f"Permission for the {self.tool_name} tool ({labels})"
+        return f"Permission for the {self.tool_name} tool"
 
+    async def on_mount(self) -> None:
         await self._update_tool_info()
         self._update_options()
         self.focus()
@@ -295,16 +145,11 @@ class ApprovalApp(Container):
         await self.tool_info_container.mount(approval_widget)
 
     def _update_options(self) -> None:
-        if self.required_permissions:
-            labels = ", ".join(rp.label for rp in self.required_permissions)
-            always_text = f"Yes and always allow for this session: {labels}"
-        else:
-            always_text = f"Yes and always allow {self.tool_name} for this session"
-
         options = [
-            ("Yes", "yes"),
-            (always_text, "yes"),
-            ("No and tell the agent what to do instead", "no"),
+            ("Allow once", "yes"),
+            ("Allow for remainder of this session", "yes"),
+            ("Always allow", "yes"),
+            ("Deny", "no"),
         ]
 
         for idx, ((text, color_type), widget) in enumerate(
@@ -336,11 +181,11 @@ class ApprovalApp(Container):
                     widget.add_class("approval-option-no")
 
     def action_move_up(self) -> None:
-        self.selected_option = (self.selected_option - 1) % 3
+        self.selected_option = (self.selected_option - 1) % self.NUM_OPTIONS
         self._update_options()
 
     def action_move_down(self) -> None:
-        self.selected_option = (self.selected_option + 1) % 3
+        self.selected_option = (self.selected_option + 1) % self.NUM_OPTIONS
         self._update_options()
 
     def action_select(self) -> None:
@@ -358,9 +203,13 @@ class ApprovalApp(Container):
         self.selected_option = 2
         self._handle_selection(2)
 
+    def action_select_4(self) -> None:
+        self.selected_option = 3
+        self._handle_selection(3)
+
     def action_reject(self) -> None:
-        self.selected_option = 2
-        self._handle_selection(2)
+        self.selected_option = 3
+        self._handle_selection(3)
 
     def _handle_selection(self, option: int) -> None:
         match option:
@@ -380,24 +229,18 @@ class ApprovalApp(Container):
                 )
             case 2:
                 self.post_message(
+                    self.ApprovalGrantedAlwaysPermanent(
+                        tool_name=self.tool_name,
+                        tool_args=self.tool_args,
+                        required_permissions=self.required_permissions,
+                    )
+                )
+            case 3:
+                self.post_message(
                     self.ApprovalRejected(
                         tool_name=self.tool_name, tool_args=self.tool_args
                     )
                 )
 
     def on_blur(self, event: events.Blur) -> None:
-        # Refocus if needed to prevent getting stuck without keyboard control
-        self.call_after_refresh(self._refocus_if_needed)
-
-    def _refocus_if_needed(self) -> None:
-        if self.has_focus:
-            return
-        # Only refocus if we are still visible and part of the DOM
-        if self.is_mounted and self.display and not self.is_closing:
-            self.focus()
-
-    @property
-    def is_closing(self) -> bool:
-        """Check if the widget is in the process of being removed."""
-        return not self.is_mounted or self._closing
-
+        self.call_after_refresh(self.focus)

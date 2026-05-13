@@ -1,0 +1,95 @@
+/* ========================================
+   Vibe-style Approval Popup CSS
+   Fully cloned from mistralai/mistral-vibe
+   ======================================== */
+
+#approval-app {
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+    background: transparent;
+    border: solid ansi_bright_black;
+    padding: 0 1;
+    margin: 0;
+}
+
+#approval-options {
+    width: 100%;
+    height: auto;
+    dock: bottom;
+}
+
+#approval-content {
+    width: 100%;
+    height: auto;
+}
+
+.approval-tool-info-scroll {
+    width: 100%;
+    height: auto;
+    max-height: 50vh;
+}
+
+.approval-title {
+    height: auto;
+    text-style: bold;
+    color: ansi_bright_yellow;
+}
+
+.approval-tool-info-container {
+    width: 100%;
+    height: auto;
+}
+
+.tool-approval-widget {
+    width: 100%;
+    height: auto;
+
+    Static,
+    Vertical {
+        width: 100%;
+        height: auto;
+    }
+}
+
+.approval-option {
+    height: auto;
+    color: ansi_default;
+    margin-bottom: 1;
+
+    &:last-of-type {
+        margin-bottom: 0;
+    }
+}
+
+.approval-cursor-selected {
+    &.approval-option-yes {
+        color: ansi_green;
+        text-style: bold;
+    }
+
+    &.approval-option-no {
+        color: ansi_bright_red;
+        text-style: bold;
+    }
+}
+
+.approval-option-selected {
+    &.approval-option-yes {
+        color: ansi_white;
+    }
+
+    &.approval-option-no {
+        color: ansi_red;
+    }
+}
+
+.approval-help {
+    height: auto;
+    color: ansi_bright_black;
+}
+
+.approval-description {
+    height: auto;
+    color: ansi_bright_black;
+}

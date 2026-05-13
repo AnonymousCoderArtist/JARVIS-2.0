@@ -37,6 +37,7 @@ class GenerationConfig:
     supports_vision: bool = False  # Whether the model supports vision/multimodal
 
 
+
 @dataclass
 class ToolCall:
     """Tool call from LLM"""
