@@ -1,0 +1,12 @@
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/api.test.ts
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/app-layout.test.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/format.i18n.test.ts
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/i18n.test.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/jarvis-client.test.ts
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/message-bubble.test.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/setup.ts
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/thread-composer-attach.test.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/thread-composer.test.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/thread-shell.test.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/useJarvisStream.test.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/useSessions.test.tsx

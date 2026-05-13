@@ -1,0 +1,1346 @@
+{
+  "/home/anonymouslokesh/Desktop/JARVIS/main.py": {
+    "mtime": 1778251538.432991,
+    "hash": "1f0c1a30f9827d178c5ceee9b4132311"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/__init__.py": {
+    "mtime": 1778251538.4134183,
+    "hash": "cabb416884172598ce9f43c6fc756d07"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/clipboard.py": {
+    "mtime": 1778251538.4161851,
+    "hash": "b9097ef777eafa9f8f26acf15b00c6a1"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/history.py": {
+    "mtime": 1778251538.4170575,
+    "hash": "e4c3d27899fd85f7aec135314a89b10f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/trusted_folders.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "dd99d73c64215cc6a029aa36659bde7b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/background_task_manager.py": {
+    "mtime": 1778251538.4147809,
+    "hash": "5f376ef491fe962ceb784b6c8aa26346"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin_profiles.py": {
+    "mtime": 1778251538.4153297,
+    "hash": "b975738f479865ba03d21a015e6cab52"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/explore_agent.py": {
+    "mtime": 1778251538.4154181,
+    "hash": "cf986a2b1dd894c60f6be1e865cec00e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/fork_subagent.py": {
+    "mtime": 1778251538.4154181,
+    "hash": "823f8e72a02e1760c12f2f71fba4fc3f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/heartbeat_scheduler.py": {
+    "mtime": 1778251538.4154181,
+    "hash": "57877cdef65aef74c2a4033e44745f94"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/plan_agent.py": {
+    "mtime": 1778251538.4154181,
+    "hash": "40f3f8bd2af74fb7cb13e60dcd171330"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/profiles.py": {
+    "mtime": 1778251538.4154181,
+    "hash": "7086f3a012d687e18db4281c28525e0b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/resource_monitor.py": {
+    "mtime": 1778251538.4161851,
+    "hash": "3ae9f14ff83aae9c9817f11deb7874bf"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/system_prompts.py": {
+    "mtime": 1778251538.4161851,
+    "hash": "5fdd13c352d7f885f0f03e3a1c8c0282"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/__init__.py": {
+    "mtime": 1778589365.221507,
+    "hash": "723cda4b44ed1b2f5c2f5b07da0d804b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/agent_definition.py": {
+    "mtime": 1778589365.221507,
+    "hash": "4d12a8570f7a4f1832526617e36ecc57"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/async_manager.py": {
+    "mtime": 1778589365.221507,
+    "hash": "21c7a4d772557ed3106d2e236475ea15"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/base.py": {
+    "mtime": 1778589365.221507,
+    "hash": "318914ea7b1caaa11a9f27da57fbf24b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin_agents.py": {
+    "mtime": 1778589365.2225072,
+    "hash": "539475d208419b9ab6a09a929cd75c31"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/custom_loader.py": {
+    "mtime": 1778589365.2225072,
+    "hash": "ab07ab9b0f7e89d62d0cfef474b2099e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/jarvis_v2.py": {
+    "mtime": 1778589365.2225072,
+    "hash": "d610bc5e27a39a6cec4cc6aeaadbbb58"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/manager.py": {
+    "mtime": 1778589365.2225072,
+    "hash": "63c64970525b47e90298b7aaf28ab011"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/task_scheduler.py": {
+    "mtime": 1778589365.2235072,
+    "hash": "a72557b860fb3a8876a7fcbea17d45fc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin/__init__.py": {
+    "mtime": 1778251538.4147809,
+    "hash": "45804643f5a8087d1ef9d527da458aa8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin/explore_prompt.py": {
+    "mtime": 1778251538.4153297,
+    "hash": "1032f889564eb7bc9dd623ba348a3ba8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin/plan_prompt.py": {
+    "mtime": 1778251538.4153297,
+    "hash": "141c17ecc4d1e6083880502bee5f8911"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin/jarvis_help_agent.py": {
+    "mtime": 1778589365.2225072,
+    "hash": "c8d991283df39bae832a014443e64bb8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin/statusline_setup_agent.py": {
+    "mtime": 1778589365.2225072,
+    "hash": "4953b327c9c069a858a6fa55921e647f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/builtin/verification_agent.py": {
+    "mtime": 1778589365.2225072,
+    "hash": "fb47d393902edf417934853159fa00d6"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/prompts/constants.py": {
+    "mtime": 1778251538.4161851,
+    "hash": "240e8d7f2e0fdc1bd2427364055e4a7a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/prompts/prompt_utils.py": {
+    "mtime": 1778251538.4161851,
+    "hash": "54a4db0c62fae821bf70acb599563ddc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/prompts/__init__.py": {
+    "mtime": 1778589365.2235072,
+    "hash": "ebc8c555108f96042a9668deb9ed609a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/prompts/explore.py": {
+    "mtime": 1778589365.2235072,
+    "hash": "b18aa11e6f8cc37f95b9cd56b73c8252"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/prompts/jarvis_v2.py": {
+    "mtime": 1778589365.2235072,
+    "hash": "5cd5e860dbb729ed628c7731f5773f13"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/prompts/plan.py": {
+    "mtime": 1778589365.2235072,
+    "hash": "8579653aa29a94db5777651de753a269"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/agents/prompts/verification.py": {
+    "mtime": 1778589365.2235072,
+    "hash": "b5b74548bcb100ea31bc5e8d15ea6739"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/config/__init__.py": {
+    "mtime": 1778251538.4161851,
+    "hash": "8e81952e3f250de333bd3b28e8fa3693"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/config/models.py": {
+    "mtime": 1778589365.224507,
+    "hash": "402e77560fa0d5623b5594e1e8d9ff66"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/config/settings.py": {
+    "mtime": 1778589365.224507,
+    "hash": "742d8e6ca2614c3f018d892db609f93a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/manager.py": {
+    "mtime": 1778251538.4168527,
+    "hash": "d96bfa42beee18089409177cb51250d4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/__init__.py": {
+    "mtime": 1778589365.224507,
+    "hash": "7ded6a20f8594cdafbdeefab8d9eb1bd"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/base.py": {
+    "mtime": 1778589365.224507,
+    "hash": "1189746d74a147ee1e82f15ac227032e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/filesystem.py": {
+    "mtime": 1778589365.224507,
+    "hash": "1e904c4b690f7a852233b456fff2a614"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/github.py": {
+    "mtime": 1778589365.224507,
+    "hash": "e1dcc682f78d2c729dda450bafdeab9a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/http.py": {
+    "mtime": 1778589365.224507,
+    "hash": "e3e36eb8e0c9398c32cd5a604a84b7b7"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/registry.py": {
+    "mtime": 1778589365.224507,
+    "hash": "6e6a8f49a4a335915b353d90d22e76dc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/rss.py": {
+    "mtime": 1778589365.2255073,
+    "hash": "eb18c0bfa35cf611c6ea8106f663f8bf"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/connectors/weather.py": {
+    "mtime": 1778589365.2255073,
+    "hash": "ee07d391f44d965671e2fa8aed7249c7"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/__init__.py": {
+    "mtime": 1778251538.4170575,
+    "hash": "173a944571eb84cd949c4c429bd23b66"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/trace_analyzer.py": {
+    "mtime": 1778251538.417306,
+    "hash": "a06bc234dc16f6a934007f18a7fd218e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/learning_manager.py": {
+    "mtime": 1778589365.8135073,
+    "hash": "3737eee0496ea0a99f4a806f437aa896"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/pattern_detector.py": {
+    "mtime": 1778589365.8135073,
+    "hash": "a02a07f06f1cbdc3e04aed0a36819e44"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/skill_crystallizer.py": {
+    "mtime": 1778589365.8135073,
+    "hash": "9317ee4e3ab68ffe75ca0b45dd22b251"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/Classification/__init__.py": {
+    "mtime": 1778589365.2255073,
+    "hash": "b08f4a17be690436bd32860c927a349b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/Classification/train_classifier.py": {
+    "mtime": 1778589365.8125072,
+    "hash": "ebc88d9bc79bcc549311cff83544b1ce"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/learn/Classification/training_data.py": {
+    "mtime": 1778589365.8125072,
+    "hash": "f0de5dba950a2896888fdf821619251b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm/__init__.py": {
+    "mtime": 1778251538.417306,
+    "hash": "4ca81e266407adb24a2a04150c84bb8a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm/base.py": {
+    "mtime": 1778251538.4175582,
+    "hash": "fbc473aae5e5c7834a84303ac1f49083"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm/model_info.py": {
+    "mtime": 1778251538.4175582,
+    "hash": "ba3b453b93b6d914a1c3faa184f04cc0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm/registry.py": {
+    "mtime": 1778251538.4175582,
+    "hash": "fbf3bd6c9bf2b72e34da95560b1618a5"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm/sdk_adapter.py": {
+    "mtime": 1778251538.4175582,
+    "hash": "480fb853bd5d3207f9d2a69e30371f72"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/__init__.py": {
+    "mtime": 1778251538.4175582,
+    "hash": "f185e462e47dcc692c8e3b2f4faa31e6"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/context_length_manager.py": {
+    "mtime": 1778251538.4179513,
+    "hash": "c37a17b844e04889fd484f2b768cbcd9"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/http_client.py": {
+    "mtime": 1778251538.4179513,
+    "hash": "2660a86e5bc3a6c2377328b2becb166d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/tool_parser.py": {
+    "mtime": 1778251538.4180946,
+    "hash": "4425db3940cf2ddbd84c1f9936aaf87c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/anthropic/__init__.py": {
+    "mtime": 1778251538.4177945,
+    "hash": "c2cebacf96354aeed1fdd8a34f9b5167"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/anthropic/sdk.py": {
+    "mtime": 1778589365.8135073,
+    "hash": "d7217ad7804daf60af3f684602a7473f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/base/__init__.py": {
+    "mtime": 1778251538.4178364,
+    "hash": "91d99cdf02e0d73ed884f3ea7916a20d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/base/sdk.py": {
+    "mtime": 1778589365.8135073,
+    "hash": "4fbebd28851c9e0eb37cc80df980263d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/openai/__init__.py": {
+    "mtime": 1778251538.4179513,
+    "hash": "7d511130ef6f0f99f3c294464287f411"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/llm_sdk/openai/sdk.py": {
+    "mtime": 1778589365.8135073,
+    "hash": "bace1c35f1b185c01235403b6a41231d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/provider/__init__.py": {
+    "mtime": 1778251538.4180946,
+    "hash": "63b765e7183b0d9b718078faf86b2427"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/provider/manager.py": {
+    "mtime": 1778251538.4182043,
+    "hash": "a6cfcec1f81a9faec1f9bd786bbe0872"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/provider/models.py": {
+    "mtime": 1778251538.4182043,
+    "hash": "6e3f0fc1d9e320e778a10d5ad9e9099a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/rewind/__init__.py": {
+    "mtime": 1778251538.4182043,
+    "hash": "ca65ce2c5e51fdf020be726dc646f455"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/rewind/manager.py": {
+    "mtime": 1778589365.8145072,
+    "hash": "4f84bd9e832bbfe9017a5dc0a9a7bc40"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/skills/__init__.py": {
+    "mtime": 1778251538.4183352,
+    "hash": "d25eaa943d0fce3f629cbd4e5ad75ad9"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/skills/commands.py": {
+    "mtime": 1778251538.4184284,
+    "hash": "a1c0b9d812a08dffa14e92e38f538aec"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/skills/manager.py": {
+    "mtime": 1778251538.4184284,
+    "hash": "9b32a161f4b6ee3696b0d8e45ce20bc5"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/skills/models.py": {
+    "mtime": 1778251538.4184284,
+    "hash": "15aa87d7b8bbc4ed8c7f0eabdcf9b0a8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/skills/sources.py": {
+    "mtime": 1778251538.4184284,
+    "hash": "92a26829430dc8d8adf2d9b3f514d1ba"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/skills/trace_collector.py": {
+    "mtime": 1778251538.4184284,
+    "hash": "a5c7d27a3cd2478bcf6108c3bbe65d00"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent_tool.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "add5ee07e22e2b4b23b0f8b290a8d83a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/ask_user_question_tool.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "9e3c8eebd34d387f5fed8f7546bd80eb"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/async_registry.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "8b59876b254f1bdb94f81eba3b37f586"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/background_tools.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "650105984e33055be96dba5f223ef665"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/concurrent_executor.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "d42bbdcb03415a6ca0ce0395fc0a5b12"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/file_state.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "f7827148cb992ba657b8200bbd84dc95"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/file_tools.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "f35ec7de280d00cca44dad31fdfabffc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/grep_tool.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "344f862a54d7e7e293c6de3328bd26a6"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/memory_tool.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "8957ea8d2140b5158b3e1a9038a9ff18"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/permission_manager.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "0d05e40a9fbbaccdd4de7b266afbae29"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/permissions.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "c10a1de7813c724cc521ed3efe317682"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/repl_tool.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "07500d68083a5c5eabb6cf6bf975f1e0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/skill_manage_tool.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "c408a8779c28841f16a0d613dc2cb8b9"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/skill_tool.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "c78d6271a0f3cf7df862e81cdefbb5f5"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/tool_search_tool.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "2f07240b7beb1a69316550288a03d113"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/utils.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "7b6e9d3b000b46d3583dc92c1d5a2077"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/web_tools.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "224b11431c622a43787ed2b1015f605e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/worktree_tool.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "389c117aefb9a03c15cb9fce816f569c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/worktree_utils.py": {
+    "mtime": 1778251538.4194183,
+    "hash": "a013259c5783b39849c0b8902a671cdb"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/__init__.py": {
+    "mtime": 1778589365.8145072,
+    "hash": "a9fe22e0d89e28888830be25276006f1"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/base.py": {
+    "mtime": 1778589365.8145072,
+    "hash": "abe6cd4e352da8ec4d2f1b8c3d78a32c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/code_tools.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "3a8d1eff0496a8a488d2df9d38e06f5a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/data_collect.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "050d33abceff4cdddb3eb40e68b6a0f8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/file_edit_tool.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "51a36239974534574934afd34d1d3999"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/mcp_adapter.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "f2cbe5a9ce0555da87fe1bfcf9bd8c8a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/mcp_auth.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "88d2c1fdc05ded6a6001b4c72f3f7e9b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/mcp_capabilities.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "8401b91991a77f911c81774fd03c20dd"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/mcp_lifecycle.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "e1ebf35a0827e369c706c9cafdcabfcc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/mcp_metadata_cache.py": {
+    "mtime": 1778589365.8185072,
+    "hash": "22063b3c4eb5d1163f605f9202304105"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/mcp_proxy_tool.py": {
+    "mtime": 1778589365.8195071,
+    "hash": "d11cd69d7484b93244f56664ef486e1d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/registry.py": {
+    "mtime": 1778589365.8195071,
+    "hash": "7deceade56e4d84d14f81199fd4e282b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/sandbox.py": {
+    "mtime": 1778589365.8195071,
+    "hash": "3b60da94057dcc410af8bb7dbaf25866"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/watcher_tool.py": {
+    "mtime": 1778589365.8195071,
+    "hash": "7f7253a5c2c1e530eb04784f110b41e3"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/__init__.py": {
+    "mtime": 1778251538.4186773,
+    "hash": "99d607e6868e377adbde23de94d63a1a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/agent_memory.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "570a4ad73fc644b612b08ffeeaebd068"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/background_task.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "3ae98a7ebd883a767392adfb66a4d610"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/constants.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "8ecd77da7500748367f6a188f7371d9c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/filtered_registry.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "892b8153a3d8c32d4cb6e2ef40322f9c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/progress_tracker.py": {
+    "mtime": 1778251538.4187295,
+    "hash": "caf25c0bca1b7c3b16de02fa4c1a0407"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/agent_lifecycle.py": {
+    "mtime": 1778589365.8145072,
+    "hash": "e08f3be624b11c77658ba35a232ad1d4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/agent_tool.py": {
+    "mtime": 1778589365.8145072,
+    "hash": "08fc215b22dc5282486a5df53edfb8a5"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/fork_subagent.py": {
+    "mtime": 1778589365.8145072,
+    "hash": "95f57afe718d26d467972b8fd3d9a700"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/tools/agent/utils.py": {
+    "mtime": 1778589365.8145072,
+    "hash": "56ed03c0097762eebc0c247d9bd24438"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/utils/indexer.py": {
+    "mtime": 1778251538.4204183,
+    "hash": "3016e67d72ee51b63424b2524314d801"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/web/server.py": {
+    "mtime": 1778314482.92768,
+    "hash": "9f9c1d3fa1386d392c557be135f20525"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/watchers/base.py": {
+    "mtime": 1778589365.8195071,
+    "hash": "0de137db3b6ad5734005104506a9e1a0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/core/watchers/manager.py": {
+    "mtime": 1778589365.8208733,
+    "hash": "b8ea96975b2b28e3503e046d10bc6083"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/cli/__init__.py": {
+    "mtime": 1778251538.421089,
+    "hash": "7404d470608ca6fde875babbd0a2afec"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/cli/clipboard.py": {
+    "mtime": 1778251538.4211357,
+    "hash": "d076ffeccedf8e9c8b72aedb6107a2c3"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/cli/config.py": {
+    "mtime": 1778251538.4211357,
+    "hash": "18351fb5af001c09fcc8c1557123c458"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/cli/keybindings.py": {
+    "mtime": 1778251538.4211357,
+    "hash": "26b9641e99a27554a9b21d92da60e0c9"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/cli/cli.py": {
+    "mtime": 1778589365.8375072,
+    "hash": "0df1a8aad04bec90999e2f76a4f3fdcf"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/cli/commands.py": {
+    "mtime": 1778589365.8385072,
+    "hash": "a95a803d0163294f27b4d9fdd72f3976"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/cli/display.py": {
+    "mtime": 1778589365.8385072,
+    "hash": "68b9235e5cd0403e2378a66fb31fd21e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/__init__.py": {
+    "mtime": 1778251538.4211357,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/ansi_markdown.py": {
+    "mtime": 1778251538.4216444,
+    "hash": "e9d27d11e17f0d8f0b7ca189f715a000"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/constants.py": {
+    "mtime": 1778251538.4216444,
+    "hash": "f72c77f97f1168dda17054d55b9872b4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/external_editor.py": {
+    "mtime": 1778251538.4216444,
+    "hash": "ee7c93832938bf3e27a955ba6fed5dfa"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/quit_manager.py": {
+    "mtime": 1778251538.4230165,
+    "hash": "bab95ba8f669659b3979b3be034f3b0e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/types.py": {
+    "mtime": 1778251538.4235392,
+    "hash": "270d0e57e3538f83fd82559c88fbd0fe"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/utils.py": {
+    "mtime": 1778251538.4235392,
+    "hash": "8f7d05e7f49c09fdd4df3e51117d2ba0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/agent_loop.py": {
+    "mtime": 1778589365.8397458,
+    "hash": "e42b67d9ad68b1b0dce9571adc305a14"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/app.py": {
+    "mtime": 1778589365.8397458,
+    "hash": "0907e492318de25b28e9679a630c8c7d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/cli_adapters.py": {
+    "mtime": 1778589365.8425071,
+    "hash": "0e5775f8b01ddb98b3a1b0f2f1c238e8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/session_exit.py": {
+    "mtime": 1778589365.8425071,
+    "hash": "9630a607543407546680bfba82bc5546"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/tool_results.py": {
+    "mtime": 1778589365.845309,
+    "hash": "bb19f3683072555f190713a3e296c350"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/tui_main.py": {
+    "mtime": 1778589365.845309,
+    "hash": "4015b586a206d15e2a52785f390fd82f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/handlers/__init__.py": {
+    "mtime": 1778251538.4216444,
+    "hash": "3e7e2ea53a6d536da20b93fc73378a4b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/handlers/event_handler.py": {
+    "mtime": 1778589365.8425071,
+    "hash": "b9dcffb45dc1764045053f59f61feaaf"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/notifications/__init__.py": {
+    "mtime": 1778251538.422718,
+    "hash": "29f54714ea99190081a5cfbfe3212289"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/notifications/adapters/__init__.py": {
+    "mtime": 1778251538.4228835,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/notifications/adapters/textual_notification_adapter.py": {
+    "mtime": 1778251538.4229305,
+    "hash": "36209548d1edd67624e90907973104ad"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/notifications/ports/__init__.py": {
+    "mtime": 1778251538.4229305,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/notifications/ports/notification_port.py": {
+    "mtime": 1778251538.4230165,
+    "hash": "0ca1a4cda0f57b22285f386508d39386"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/recording/__init__.py": {
+    "mtime": 1778251538.4230165,
+    "hash": "78a09b515072df6c641c019ef7236725"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/recording/recording_indicator.py": {
+    "mtime": 1778251538.4231725,
+    "hash": "a9f8f83cb085e253fbf6501a19e871bc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/remote/__init__.py": {
+    "mtime": 1778251538.42324,
+    "hash": "9c40a3789aeda57cf64ede8f070b40aa"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/remote/remote_session_manager.py": {
+    "mtime": 1778251538.4233098,
+    "hash": "9ed796fc106b25b1a7f1201c5bc412a7"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/__init__.py": {
+    "mtime": 1778251538.4235392,
+    "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/braille_renderer.py": {
+    "mtime": 1778251538.4240084,
+    "hash": "d7327babf9959b2f8e51615ca307a4e0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/compact.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "5904a39f9ea98c600e11eeb05a6e1ec2"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/config_app.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "6ddc3184a459e0baaa2c49428be51009"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/config_menu_app.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "876dc2a037ec582a1a9684e245fed1a7"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/connector_auth_app.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "9541a18ee5f6ee993e863a3806daa15c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/context_progress.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "5b9d2b27e01a588482590608e4ae316e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/debug_console.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "3f8bdd8d276d8ba8cad5cd6f210a7d75"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/feedback_bar_manager.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "3a3db559e09eb0a71f6b275f7c223f3e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/load_more.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "2af5bd72edf92f16ae165a14d598f357"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/loading.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "82c80d95c10608eca35ada8caa97db77"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/mcp_app.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "c317d963ce22c8026bc4eaadbf493741"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/messages.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "41e6d5a204c077d3d5ca39148534eede"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/model_picker.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "8a007be16381c9e133422363f6745279"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/narrator_status.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "bf8794449a64d8dd7279042972308543"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/no_markup_static.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "51bb20c5f414bbe41e438fb057bd9617"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/path_display.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "0e8e5eece6074e2950b845d1b318871b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/proxy_setup_app.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "f1aba779d3da24413aa1f1a1e37f55c4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/question_app.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "d58c830c516130fb5e45259df23eecb4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/session_picker.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "8e70cb470eb7ee5662b586a7c1dab665"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/spinner.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "3ac97be4447d8cfce3081ce1d75e1569"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/status_message.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "6dd862cd22354ed1f35b4eafea20c7b8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/teleport_message.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "73ed6371371b0e91c6350c4d0bbc7878"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/thinking_picker.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "a00b9a1b1d64eee0a891df1a7456bca5"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/unicode_math.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "a6e977436713462309168ff46de681ff"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/voice_app.py": {
+    "mtime": 1778251538.4244184,
+    "hash": "8eebbf457967cbb6681a10cc858e0d41"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/vscode_compat.py": {
+    "mtime": 1778251538.4254184,
+    "hash": "35bb2ff72f5a4e6a46f1256851545a62"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/approval_app.py": {
+    "mtime": 1778589365.845309,
+    "hash": "3f8eb6f1af4d3c98bc635a8c3b59c469"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/feedback_bar.py": {
+    "mtime": 1778589365.845309,
+    "hash": "7bb158d4b0c2f7089f1ad6aa7e1b81ae"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/rewind_app.py": {
+    "mtime": 1778589365.845309,
+    "hash": "4dff6fa34c7f875dab7f011769aec10d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/tool_widgets.py": {
+    "mtime": 1778589365.8455071,
+    "hash": "434e44280df7c44bc7e4c245d3777b1d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/tools.py": {
+    "mtime": 1778589365.8455071,
+    "hash": "1f775dffd2002b4b6db69d909084d18f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/banner/banner.py": {
+    "mtime": 1778251538.4239058,
+    "hash": "23b832b3a21bada669b8b2746be11bf7"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/banner/petit_chat.py": {
+    "mtime": 1778251538.4240084,
+    "hash": "11963d73932ac3d04b10ddb2666b8204"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/chat_input/__init__.py": {
+    "mtime": 1778251538.4240084,
+    "hash": "945caacdd82134d7ae306e2354e30267"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/chat_input/body.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "782f7ea1e6194a2562314f22eed9840c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/chat_input/clipboard.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "ff84c40f9851143476ecab758d4fbe69"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/chat_input/completion_manager.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "b2a4d50571313d623dfc7be6f1db55f9"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/chat_input/completion_popup.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "8f7728638a5e83cf348aa540885f58d3"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/chat_input/container.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "0f4f6d4fa311b16e3ed688e892a9a371"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/widgets/chat_input/text_area.py": {
+    "mtime": 1778251538.4241288,
+    "hash": "9532d535cbf55c89540fe0c34434aec2"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/windowing/__init__.py": {
+    "mtime": 1778251538.4254184,
+    "hash": "87bf12065fd6c08344865a1198719682"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/windowing/history.py": {
+    "mtime": 1778251538.4258466,
+    "hash": "4ad8607a8d22c48573c2e9ba85ebc10f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/windowing/history_windowing.py": {
+    "mtime": 1778251538.4258466,
+    "hash": "522dca6802678e02fc5b21f8a59e267e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/windowing/state.py": {
+    "mtime": 1778251538.4258466,
+    "hash": "205413cdd1c1acba47343a2addc0e8a2"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/__init__.py": {
+    "mtime": 1778251538.425991,
+    "hash": "c273a8bd7b2f78478d972b554e4a5478"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/postcss.config.js": {
+    "mtime": 1778251538.425991,
+    "hash": "c735540bb63936a123bc867d950c9f69"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/tailwind.config.js": {
+    "mtime": 1778251538.4324183,
+    "hash": "0c321b36d1292c978926d7cf43c7dcfa"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/vite.config.ts": {
+    "mtime": 1778251538.4324183,
+    "hash": "a575fc1fc14677b16615e28ddfce26b6"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/webui_main.py": {
+    "mtime": 1778251538.4324183,
+    "hash": "4ffa1e8f531d26e8f1baae34b007d429"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/App.tsx": {
+    "mtime": 1778251538.42672,
+    "hash": "1717afd59769ae01f3e51a133eb441c0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/main.tsx": {
+    "mtime": 1778251538.4318867,
+    "hash": "183313981b39479f2b820a484603ec43"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ApprovalDialog.tsx": {
+    "mtime": 1778251538.4274044,
+    "hash": "d6d9a90007f247eb0b03a98883272b50"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ChatList.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "da2528184b6c376fc9df9036bdc61902"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ChatPane.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "e5c58c97d55b48292345da8c31802c01"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/CodeBlock.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "d28d0bc8f611e82c474dbd2ef3abcaac"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/Composer.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "bed0f2939aff188f46d8f330017b6045"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ConnectionBadge.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "254d2332d9f8fb82ecd3ed1ead81b510"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/DeleteConfirm.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "2669b794ce0326b9f945bb546702110a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/EmptyState.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "e728b54d7803c5ce099e30800a78ff75"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ImageLightbox.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "c5bf734091cd1bb86935e53c255f146e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/LanguageSwitcher.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "b81ff908c83a2f335d9d5e105a4f2c58"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MarkdownText.tsx": {
+    "mtime": 1778251538.4275358,
+    "hash": "9127b32f8f1c400175bc63294ad5f475"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MarkdownTextRenderer.tsx": {
+    "mtime": 1778313995.5989347,
+    "hash": "c14f60611c4af38ab5c12a078c3cbd60"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MessageBubble.tsx": {
+    "mtime": 1778251538.4284184,
+    "hash": "1c81fc244dc6f7090dfb3ee73337340d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MessageList.tsx": {
+    "mtime": 1778251538.4284184,
+    "hash": "2b07c884201471db444b90c5d07a3b27"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/Sidebar.tsx": {
+    "mtime": 1778251538.4284184,
+    "hash": "1e016d1aed53cb780a16d050d07a907c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ThinkingIndicator.tsx": {
+    "mtime": 1778251538.4284184,
+    "hash": "e28cbdc3f74d8a89e7384f94c5452322"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/settings/SettingsView.tsx": {
+    "mtime": 1778251538.4284184,
+    "hash": "0d71536bc831cb4c490d8f7ba009a6ac"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/ChatHistory.tsx": {
+    "mtime": 1778314628.3897958,
+    "hash": "ed18b0eef6ce06af9b968dad0abd54d6"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/ChatInput.tsx": {
+    "mtime": 1778313645.598231,
+    "hash": "c86163ba231550bd1e8f2aa87f0e79fb"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/ChatPanel.tsx": {
+    "mtime": 1778251538.4294183,
+    "hash": "1e92406b89394e8c743f5585f41a2e4c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/DotGrid.tsx": {
+    "mtime": 1778311911.6815267,
+    "hash": "db38131c551e967d7964eb289efaaa50"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/ScrambleText.tsx": {
+    "mtime": 1778251538.4294183,
+    "hash": "964e5403c3eaf5ae42432a58e1a78373"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/SphereResponse.tsx": {
+    "mtime": 1778251538.4294183,
+    "hash": "25aca6f987fa2146af9807b1c649c938"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/TechShell.tsx": {
+    "mtime": 1778312968.5829115,
+    "hash": "d8fd24a5824cdb20b6c8497b77744643"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/TechSphere.tsx": {
+    "mtime": 1778251538.4294183,
+    "hash": "b69ad7a5ecab33b6ab7f9f575a789841"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/ToolCallBox.tsx": {
+    "mtime": 1778251538.4294183,
+    "hash": "3e4f4fede33f918d9692dd3648c44919"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/TopMenu.tsx": {
+    "mtime": 1778251538.4294183,
+    "hash": "bf13cdae15efae3f5c3fc5f34ca0079d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/useDraggable.ts": {
+    "mtime": 1778251538.4294183,
+    "hash": "b63ea170507ea84bcb59953b582e099a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/ThinkingPicker.tsx": {
+    "mtime": 1778310852.8647141,
+    "hash": "62553a2c5b712adbc42d3abcab035dbe"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/techy/SlashCommands.tsx": {
+    "mtime": 1778310874.263876,
+    "hash": "4cc7a20c5f37fcb3b5dce23216d95c0f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/AskUserPrompt.tsx": {
+    "mtime": 1778251538.4294183,
+    "hash": "330aa44a840523869c69ba6dd8708b14"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/StreamErrorNotice.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "5316005dec991dae42104099f586438f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ThinkingBlock.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "5dd264abece1cc55abd8ef0b00b2de3f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ThreadComposer.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "d5da72ab186168db0c297b801a2daa87"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ThreadHeader.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "a16df989f8f0f15228687c1cdd25e020"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ThreadMessages.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "0fdcd0c386666844e37c4718763adf18"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ThreadShell.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "950855a63ee263b8c6d110dc69875b60"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ThreadViewport.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "251ce41e918fb852c3d225e44f3ddf76"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ToolApprovalPrompt.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "3e4c8f5186a05993a37c775801161455"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/thread/ToolCallBlock.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "40eeea1396b1686b22af1bd29db91602"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/alert-dialog.tsx": {
+    "mtime": 1778251538.430528,
+    "hash": "5018d709645e47ac3dec58d7bf53958d"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/avatar.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "f4dedbfcd54350c91334ae15299f2477"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/button.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "09acfad4232b2b85aa5017490e282509"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/dialog.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "4c11a387f5397ac9a941f02459015557"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/dropdown-menu.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "875ea4401266c984cb7e022b5e1e57e8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/input.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "bcea5a93a05712f720e2b75e0380d0fd"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/scroll-area.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "b73901c6068db9b1da15101bfc6cccbd"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/separator.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "5022b5062d143b3017164d4ce9f263f2"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/sheet.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "4c7052e6e33fb35b997a6f50df04bbe0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/textarea.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "f5641a08ebaa6aa374d04748ba1342f5"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ui/tooltip.tsx": {
+    "mtime": 1778251538.4309905,
+    "hash": "c29c148c4fd0448c39edd4c75ebe2ac8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/hooks/useAttachedImages.ts": {
+    "mtime": 1778251538.4309905,
+    "hash": "1a922d81159c75f80097fce6981226bd"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/hooks/useClipboardAndDrop.ts": {
+    "mtime": 1778251538.4314396,
+    "hash": "9a67a42ba03a9925c11f4243ca266195"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/hooks/useJarvisStream.ts": {
+    "mtime": 1778310937.6903465,
+    "hash": "268f20b75e91d725bd6bf5ada0d6b8f4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/hooks/useSessions.ts": {
+    "mtime": 1778314504.8008478,
+    "hash": "9846098ae6052fd99bad34f89806b8a2"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/hooks/useTheme.ts": {
+    "mtime": 1778251538.4314396,
+    "hash": "53f46b0c711f5789ac06ca2bdfb61b41"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/i18n/config.ts": {
+    "mtime": 1778251538.4314396,
+    "hash": "32b018fe8e673482721d7c67d47079e1"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/i18n/index.ts": {
+    "mtime": 1778251538.4316354,
+    "hash": "d5ae16e9718f92ed550ca87b157fb2bd"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/api.ts": {
+    "mtime": 1778314490.9217412,
+    "hash": "aa07e9a8477d08e60b4ce15853c65df7"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/bootstrap.ts": {
+    "mtime": 1778251538.4318867,
+    "hash": "c2674f6faad9d2a22d80c779eeda026f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/format.ts": {
+    "mtime": 1778251538.4318867,
+    "hash": "9eacda159c931df067c667489f5aa642"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/imageEncode.ts": {
+    "mtime": 1778251538.4318867,
+    "hash": "3e9e175bb7b1bf1e270ec4a2a4f340dc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/jarvis-client.ts": {
+    "mtime": 1778310927.7752738,
+    "hash": "0568213e0c18e124dce2fba8b36ee1fb"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/media.ts": {
+    "mtime": 1778251538.4318867,
+    "hash": "e5fd82ba68a8d80567fe9f3f678ba18a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/types.ts": {
+    "mtime": 1778314496.853787,
+    "hash": "b2ad007532f489b6b39a1a4b5feba575"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/lib/utils.ts": {
+    "mtime": 1778251538.4318867,
+    "hash": "a201fb9f1c5fefe41b771aa8d7f99957"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/providers/ClientProvider.tsx": {
+    "mtime": 1778251538.4318867,
+    "hash": "bd2dd8f8c80259cebfda1be0ede9bd34"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/api.test.ts": {
+    "mtime": 1778251538.4318867,
+    "hash": "b40ea4dea5ff498fc1f59bf43c49bc10"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/app-layout.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "efb4655d6029f69fc038fd3de5350dc4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/format.i18n.test.ts": {
+    "mtime": 1778251538.432266,
+    "hash": "78125fb7827264ab49e5fd2fb67bc1e5"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/i18n.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "6ee8faff51b6b60b5fe5b138d44ca9ed"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/jarvis-client.test.ts": {
+    "mtime": 1778251538.432266,
+    "hash": "f79e994d01695e95dc85c674213aa0b1"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/message-bubble.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "9a2c9b40d8c9a207964adcc56b4da0ab"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/setup.ts": {
+    "mtime": 1778251538.432266,
+    "hash": "acbd4e20078133dc1134f2d4353ee90f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/thread-composer-attach.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "889ed17e1178c9f2d226c9b8bd39a18c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/thread-composer.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "ada1726f2ce856f8d9dd2a269ff0decb"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/thread-shell.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "f21ba30dbaee34731ac6aa822dbeb046"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/useJarvisStream.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "a4613caaf10afa15165162c8d20c29da"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/tests/useSessions.test.tsx": {
+    "mtime": 1778251538.432266,
+    "hash": "2014fdd7af122dce5f50c88abecf5483"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/workers/imageEncode.worker.ts": {
+    "mtime": 1778251538.432266,
+    "hash": "05679b0f2350d9b838a214c39af70d3a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/opentui_ui/__init__.py": {
+    "mtime": 1778589365.8385072,
+    "hash": "b08b62a14e955d15e04404aaf4982a3a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/opentui_ui/app.py": {
+    "mtime": 1778589365.8397458,
+    "hash": "5c268ef17e91b10bd1b6adfba4dfae75"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/opentui_ui/tui_main.py": {
+    "mtime": 1778589365.8397458,
+    "hash": "9513ccecd2876ee1439a0140b81058fc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/jarvis/__init__.py": {
+    "mtime": 1778251538.4324183,
+    "hash": "72d825923a3e7572821d921f84d6cd5a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/jarvis/_version.py": {
+    "mtime": 1778251538.432991,
+    "hash": "a2b497cf7a563793af2437d5c53429e2"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/jarvis/cli.py": {
+    "mtime": 1778251538.432991,
+    "hash": "f0b9428cec52539a310c5e14cc2a4557"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_advanced_tools.py": {
+    "mtime": 1778251538.432991,
+    "hash": "da2d4cf13b41876604719e2d51321e9f"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_async_agents.py": {
+    "mtime": 1778251538.4331892,
+    "hash": "f33c9a59350724f55b450f71ca7d1687"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_heartbeat_scheduler.py": {
+    "mtime": 1778251538.4331892,
+    "hash": "425a7f429abd7648aa58e80d33bdfcfc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_history.py": {
+    "mtime": 1778251538.4331892,
+    "hash": "1fe020c1451f2973305872b50a874cb7"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_permissions.py": {
+    "mtime": 1778251538.4331892,
+    "hash": "3a8c2ae98d6d904875e58c84d0af4120"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_read_many_files.py": {
+    "mtime": 1778251538.4331892,
+    "hash": "e9eccf1fe842ff28a70470e3654ee7e9"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_sdk_adapter.py": {
+    "mtime": 1778251538.4331892,
+    "hash": "9110cca4a00463b1691578a855740933"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_text_tool_calls.py": {
+    "mtime": 1778251538.4331892,
+    "hash": "c3d6ff67335f855d5f43c6c6d33d2880"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_calc_tool.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "544348f6d468b63a6a7ff038dc84e367"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_diff_screenshot.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "1eb890361aac67e19a8511f67839aee3"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_discover_plugins.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "d5a7f7fc65f3ecb605700cf00e542e50"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_get_param.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "635a230387a30d55deaa39503bafda7b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_learning.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "5a9f90bbc4d80a17f6032b2e3308b8c0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_mcp_adapter.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "e438dbb0459b117c17829d3cc09055b2"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_mcp_auth.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "c821e6ac365a81ca5be796656616bef3"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_mcp_capabilities.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "45a383f4f332000eea1796f24070fc09"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_mcp_resources_prompts.py": {
+    "mtime": 1778589365.8485072,
+    "hash": "83db172ec0f6a2721c69469681fe17ba"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_mcp_sampling.py": {
+    "mtime": 1778589365.8485072,
+    "hash": "1c68ffdf776c68a94d16b0376afeedad"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_rewind.py": {
+    "mtime": 1778589365.8485072,
+    "hash": "c192541b1013476e91ba7f055b17bf9b"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_skill_crystallizer.py": {
+    "mtime": 1778589365.8485072,
+    "hash": "e971121f163b116dd55e66bf05ae61d6"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/tests/test_textual_ui_integration.py": {
+    "mtime": 1778589365.8485072,
+    "hash": "b8e7beabdf830dd310d9fe01512441b4"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/scripts/train_classifier.py": {
+    "mtime": 1778589365.8475072,
+    "hash": "ea45f7aee075e051505a3a8a575d30bf"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/Agents.md": {
+    "mtime": 1778251538.4134183,
+    "hash": "74d258acac6edc0edde82cf630174e50"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/CHANGELOG.md": {
+    "mtime": 1778314643.1685102,
+    "hash": "60829485cd62eb229488778655076596"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/README.md": {
+    "mtime": 1778589365.2155073,
+    "hash": "c6e9ea9535e7c85990c0e2c61e4adc9a"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/To-do.md": {
+    "mtime": 1778589365.2205071,
+    "hash": "8642619d7fd5c32e54a027754ad09e6e"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/docs/MCP.md": {
+    "mtime": 1778589365.8208733,
+    "hash": "d48105326d307595e2c91f8e0cff24fa"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/docs/SANDBOX.md": {
+    "mtime": 1778589365.8375072,
+    "hash": "5f46005b296d9bc51bb39f6753cbedf1"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/docs/custom-agents.md": {
+    "mtime": 1778589365.8375072,
+    "hash": "19392efa7f0876a088c13f9f8c9efccc"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/docs/custom-tools.md": {
+    "mtime": 1778589365.8375072,
+    "hash": "d2b6475eb69417a7bb231b64772167bb"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/docs/watchers.md": {
+    "mtime": 1778589365.8375072,
+    "hash": "8b38e1503bbfc07dcda187330feaef7c"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/README.md": {
+    "mtime": 1778251538.425991,
+    "hash": "c75835a149b714c3c095ce9958e9d137"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/index.html": {
+    "mtime": 1778251538.425991,
+    "hash": "685cc4a791de7901b10dccfe24e21bc0"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/public/brand/jarvis_apple_touch.png": {
+    "mtime": 1778251538.4266207,
+    "hash": "ada2578fbbdc6bcf54006cb260a34cda"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/public/brand/jarvis_favicon_32.png": {
+    "mtime": 1778251538.42672,
+    "hash": "08cda1045c8f167e78c497153b1b23c8"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/public/brand/jarvis_icon.png": {
+    "mtime": 1778251538.42672,
+    "hash": "cb1e52a9550d612b31d32195b7c63439"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/public/brand/jarvis_logo.png": {
+    "mtime": 1778251538.42672,
+    "hash": "fe3cb575571e0fe0333a372d801afa58"
+  },
+  "/home/anonymouslokesh/Desktop/JARVIS/interface/webui/public/brand/jarvis_logo.webp": {
+    "mtime": 1778251538.42672,
+    "hash": "3f706824a4c52b3767f8ede5e78760aa"
+  }
+}

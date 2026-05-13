@@ -1,0 +1,16 @@
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ApprovalDialog.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ChatList.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ChatPane.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/CodeBlock.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/Composer.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ConnectionBadge.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/DeleteConfirm.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/EmptyState.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ImageLightbox.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/LanguageSwitcher.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MarkdownText.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MarkdownTextRenderer.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MessageBubble.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/MessageList.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/Sidebar.tsx
+/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/ThinkingIndicator.tsx
