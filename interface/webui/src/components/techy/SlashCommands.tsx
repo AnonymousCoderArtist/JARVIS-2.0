@@ -51,6 +51,12 @@ export const COMMANDS: Command[] = [
     usage: "[activate <name>]",
   },
   {
+    name: "model",
+    aliases: ["/model", "/models"],
+    description: "Open model picker",
+    usage: "",
+  },
+  {
     name: "rewind",
     aliases: ["/rewind", "/rw"],
     description: "Rewind conversation to a previous message",
@@ -59,14 +65,32 @@ export const COMMANDS: Command[] = [
   {
     name: "config",
     aliases: ["/config", "/settings"],
-    description: "Edit config settings",
+    description: "Open settings panel",
     usage: "",
   },
   {
     name: "mcp",
     aliases: ["/mcp"],
-    description: "Display available MCP servers",
-    usage: "[server_name]",
+    description: "Open MCP servers panel",
+    usage: "",
+  },
+  {
+    name: "heartbeat",
+    aliases: ["/heartbeat", "/hb"],
+    description: "Open heartbeat monitor",
+    usage: "",
+  },
+  {
+    name: "debug",
+    aliases: ["/debug", "/dbg"],
+    description: "Open debug console",
+    usage: "",
+  },
+  {
+    name: "feedback",
+    aliases: ["/feedback", "/fb"],
+    description: "Send feedback",
+    usage: "",
   },
 ];
 
@@ -77,7 +101,7 @@ interface SlashCommandsProps {
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-export function SlashCommands({ value, onChange, onCommand, inputRef }: SlashCommandsProps) {
+export function SlashCommands({ value, onChange, onCommand: _onCommand, inputRef }: SlashCommandsProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [matchStart, setMatchStart] = useState(0);
@@ -125,38 +149,6 @@ export function SlashCommands({ value, onChange, onCommand, inputRef }: SlashCom
     setShowSuggestions(false);
     inputRef.current?.focus();
   }, [value, matchStart, onChange, inputRef]);
-
-  const handleKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
-    if (!showSuggestions) return;
-
-    const matches = matchingCommands();
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setSelectedIndex(i => (i + 1) % matches.length);
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedIndex(i => (i - 1 + matches.length) % matches.length);
-        break;
-      case "Enter":
-        if (matches[selectedIndex]) {
-          e.preventDefault();
-          selectCommand(matches[selectedIndex]);
-        }
-        break;
-      case "Escape":
-        setShowSuggestions(false);
-        break;
-      case "Tab":
-        if (matches[selectedIndex]) {
-          e.preventDefault();
-          selectCommand(matches[selectedIndex]);
-        }
-        break;
-    }
-  };
 
   if (!showSuggestions || matchingCommands().length === 0) return null;
 

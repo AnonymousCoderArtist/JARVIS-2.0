@@ -1,15 +1,27 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Mic, Send, Sparkles } from "lucide-react";
+import { Send } from "lucide-react";
 import { ThinkingPicker } from "./ThinkingPicker";
 import { COMMANDS, type Command } from "./SlashCommands";
+import { VoiceInput } from "./VoiceInput";
 
 interface ChatInputProps {
   onSend: (content: string, thinkingLevel?: string) => void;
   disabled?: boolean;
   initialThinkingLevel?: string;
+  onOpenModelPicker?: () => void;
+  onOpenMcpPanel?: () => void;
+  onOpenHeartbeat?: () => void;
+  onOpenRewind?: () => void;
+  onOpenConfig?: () => void;
+  onOpenDebug?: () => void;
+  onOpenFeedback?: () => void;
 }
 
-export function ChatInput({ onSend, disabled, initialThinkingLevel = "medium" }: ChatInputProps) {
+export function ChatInput({
+  onSend, disabled, initialThinkingLevel = "medium",
+  onOpenModelPicker, onOpenMcpPanel, onOpenHeartbeat,
+  onOpenRewind, onOpenConfig, onOpenDebug, onOpenFeedback,
+}: ChatInputProps) {
   const [value, setValue] = useState("");
   const [thinkingLevel, setThinkingLevel] = useState(initialThinkingLevel);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -33,7 +45,7 @@ export function ChatInput({ onSend, disabled, initialThinkingLevel = "medium" }:
   const matchingCommands = useMemo(() => {
     const current = getCurrentWord();
     if (!current || !current.word.startsWith("/")) return [];
-    
+
     const searchTerm = current.word.toLowerCase();
     return COMMANDS.filter(cmd => 
       cmd.name.toLowerCase().includes(searchTerm) ||
@@ -61,6 +73,52 @@ export function ChatInput({ onSend, disabled, initialThinkingLevel = "medium" }:
     setWasCommandSelected(true);
     textareaRef.current?.focus();
   }, [value, getCurrentWord]);
+
+  const handleCommand = useCallback((command: string, args: string) => {
+    switch (command) {
+      case "clear":
+        window.location.reload();
+        break;
+      case "help":
+        onSend("Please list all available commands with descriptions.", thinkingLevel);
+        break;
+      case "status":
+        onSend("Show system status", thinkingLevel);
+        break;
+      case "profile":
+        onSend(args ? `Switch to profile: ${args}` : "Show available profiles", thinkingLevel);
+        break;
+      case "tools":
+        onSend("List all available tools", thinkingLevel);
+        break;
+      case "skills":
+        onSend(args ? `Activate skill: ${args}` : "List all skills", thinkingLevel);
+        break;
+      case "config":
+        onOpenConfig?.();
+        break;
+      case "mcp":
+        onOpenMcpPanel?.();
+        break;
+      case "rewind":
+        onOpenRewind?.();
+        break;
+      case "model":
+        onOpenModelPicker?.();
+        break;
+      case "debug":
+        onOpenDebug?.();
+        break;
+      case "feedback":
+        onOpenFeedback?.();
+        break;
+      case "heartbeat":
+        onOpenHeartbeat?.();
+        break;
+      default:
+        onSend(value.trim(), thinkingLevel);
+    }
+  }, [onSend, thinkingLevel, value, onOpenConfig, onOpenMcpPanel, onOpenRewind, onOpenModelPicker, onOpenDebug, onOpenFeedback, onOpenHeartbeat]);
 
   const submit = useCallback(() => {
     const trimmed = value.trim();
@@ -106,41 +164,7 @@ export function ChatInput({ onSend, disabled, initialThinkingLevel = "medium" }:
         el.style.height = "auto";
       }
     });
-  }, [disabled, onSend, value, thinkingLevel, showSuggestions, matchingCommands, selectedIndex, selectCommand, wasCommandSelected]);
-
-  const handleCommand = useCallback((command: string, args: string) => {
-    switch (command) {
-      case "clear":
-        window.location.reload();
-        break;
-      case "help":
-        onSend("Please list all available commands with descriptions.", thinkingLevel);
-        break;
-      case "status":
-        onSend("Show system status", thinkingLevel);
-        break;
-      case "profile":
-        onSend(args ? `Switch to profile: ${args}` : "Show available profiles", thinkingLevel);
-        break;
-      case "tools":
-        onSend("List all available tools", thinkingLevel);
-        break;
-      case "skills":
-        onSend(args ? `Activate skill: ${args}` : "List all skills", thinkingLevel);
-        break;
-      case "config":
-        onSend("Open config settings", thinkingLevel);
-        break;
-      case "mcp":
-        onSend(args ? `Show MCP server: ${args}` : "List MCP servers", thinkingLevel);
-        break;
-      case "rewind":
-        onSend("Start rewind mode", thinkingLevel);
-        break;
-      default:
-        onSend(value.trim(), thinkingLevel);
-    }
-  }, [onSend, thinkingLevel, value]);
+  }, [disabled, onSend, value, thinkingLevel, showSuggestions, matchingCommands, selectedIndex, selectCommand, wasCommandSelected, handleCommand]);
 
   const onKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
     if (!showSuggestions) return;
@@ -183,6 +207,12 @@ export function ChatInput({ onSend, disabled, initialThinkingLevel = "medium" }:
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   };
+
+  const handleTranscript = useCallback((text: string) => {
+    if (text.trim()) {
+      setValue(prev => prev + text);
+    }
+  }, []);
 
   return (
     <div
@@ -277,13 +307,7 @@ export function ChatInput({ onSend, disabled, initialThinkingLevel = "medium" }:
           />
         </div>
         <div className="flex items-center gap-2 pb-0.5">
-          <button
-            type="button"
-            disabled={disabled}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-blue-500/10 hover:text-blue-300 disabled:opacity-40"
-          >
-            <Mic className="h-4 w-4" />
-          </button>
+          <VoiceInput onTranscript={handleTranscript} />
           <button
             onClick={submit}
             disabled={disabled || !value.trim()}

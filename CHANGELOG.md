@@ -145,61 +145,121 @@ A cohesive dark theme with a new color palette:
 
 ---
 
-## WebUI Improvements
+## WebUI: Context, Connector Auth, Safety Profiles
 
-### Connection & Auto-Greeting
-- Added connection status indicator showing "Connecting to JARVIS..." when connecting
-- Auto-creates new chat session on WebSocket connect
-- Auto-sends "hi" message once connected so users see immediate activity (no waiting for connection)
+### Context Progress (Token Usage)
+- New `ContextProgress.tsx` panel showing real-time token usage with progress bars
+- Displays context window utilization + output budget as animated bars
+- Input/Output/Total token counts with live 3s auto-refresh
+- Backend: `GET /api/context/usage` — reads `SDKAdapter.get_and_clear_usage()` + `ContextLengthManager`
 
-### Slash Commands System
-- Implemented slash command autocomplete in chat input
-- Commands: `/help`, `/status`, `/clear`, `/exit`, `/profile`, `/tools`, `/skills`, `/rewind`, `/config`, `/mcp`
-- Keyboard navigation: Arrow Up/Down to navigate, Enter/Tab to select, Escape to close
-- First Enter selects command, second Enter sends the message
+### Connector Auth UI
+- New `ConnectorAuth.tsx` panel listing all 5 connectors (GitHub, HTTP, RSS, OpenWeatherMap, Filesystem)
+- Connection status indicators (green/offline), expandable credential forms per connector
+- GitHub: token + username; Weather: API key + city; generic token input for others
+- Credentials saved to `~/.jarvis/credentials/` via `ConnectorRegistry`
+- Backend: `GET /api/connectors` + `POST /api/connectors/{name}/auth`
 
-### Thinking Picker
-- Added thinking level selector (Low/Medium/High) in chat input
-- Persists thinking level with each message sent to backend
-- Dropdown UI with blue theme styling
-
-### Markdown Rendering
-- Tables: Custom styled UI tables with blue theme (not plain text)
-- Headings (h1/h2/h3): Properly styled with theme colors
-- Lists: Bulleted and numbered lists with proper styling
-- Bold/Italic: Theme-colored text
-
-### UI/UX Enhancements
-- **Infinite Dot Grid Canvas**: Truly infinite canvas with progressive dot expansion
-- **Blue Scrollbars**: All scrollbars styled with blue theme (`rgba(26, 90, 255, ...)`)
-- **Session Management**: Resume/load previous sessions, history navigation
-- **Local Session Storage**: Sessions saved to `~/.jarvis/sessions`
-- **Remote Sessions**: Connect to remote JARVIS instances via `JARVIS_REMOTE_URL` env variable
-
-### Backend API Updates
-- Added `thinking_level` to settings API (`/api/settings`)
-- Added `thinking_level` to message send API
-- Settings now includes available thinking levels for the frontend
+### Safety Profiles (Shift+Tab)
+- New `SafetyProfile.tsx` with 5 levels: Lockdown → Restricted → Balanced → Permissive → Unrestricted
+- Visual icons per level (red shield → purple zap), live checkmark on active
+- **Shift+Tab keyboard shortcut** cycles profiles globally (wraps 1→2→3→4→5→1)
+- Backend: `GET /api/safety/profile` + `POST /api/safety/profile` — sets `JARVIS_BYPASS_PERMISSIONS` and `JARVIS_CODE_PERMISSION`
 
 ### Files Added
-- `interface/webui/src/components/techy/ThinkingPicker.tsx` — Thinking level dropdown
-- `interface/webui/src/components/techy/SlashCommands.tsx` — Command system
-- `interface/webui/src/components/techy/ChatInput.tsx` — Enhanced with commands & thinking
+- `interface/webui/src/components/techy/ContextProgress.tsx` — Token usage display
+- `interface/webui/src/components/techy/ConnectorAuth.tsx` — Connector credential management
+- `interface/webui/src/components/techy/SafetyProfile.tsx` — 5-level safety selector
 
 ### Files Modified
-- `core/web/server.py` — Added thinking_level to settings API, added remote sessions endpoint
-- `interface/webui/src/App.tsx` — Added connection status & auto-greeting
-- `interface/webui/src/components/techy/TechShell.tsx` — Connection handling, auto-hi
-- `interface/webui/src/components/techy/ChatInput.tsx` — Slash commands, thinking picker
-- `interface/webui/src/components/techy/DotGrid.tsx` — Infinite canvas
-- `interface/webui/src/components/techy/ChatHistory.tsx` — Remote sessions section with cyan theme
-- `interface/webui/src/components/MarkdownTextRenderer.tsx` — Tables, lists, headings
-- `interface/webui/src/globals.css` — Blue scrollbar styling
-- `interface/webui/src/lib/types.ts` — Added thinking_level, source, status to ChatSummary
-- `interface/webui/src/lib/api.ts` — Added thinking_level to updateSettings, added listRemoteSessions
-- `interface/webui/src/lib/jarvis-client.ts` — Added thinking_level to messages
-- `interface/webui/src/hooks/useSessions.ts` — Added remote sessions loading
-- `interface/webui/src/hooks/useJarvisStream.ts` — Added thinking_level to send
+- `core/web/server.py` — Added 5 new endpoints (context/usage, connectors/*, safety/profile)
+- `interface/webui/src/components/techy/TechShell.tsx` — Shift+Tab handler, 3 new panel states + sidebar icons
+- `interface/webui/src/lib/types.ts` — Added ContextUsage, ConnectorInfo, SafetyProfile types
+- `interface/webui/src/lib/api.ts` — Added getContextUsage, listConnectors, setConnectorAuth, get/setSafetyProfile
+
+---
+
+## WebUI Feature Expansion
+
+### 10 New Feature Panels
+
+All integrated into the existing techy-style UI (glass-morphism dark theme, draggable panels, blue accent palette):
+
+| Feature | Component | Files |
+|---------|-----------|-------|
+| **Model Picker** | `ModelPicker.tsx` | Browse & switch LLM models grouped by provider, capability badges (reasoning/vision/tool_call) |
+| **MCP Servers** | `McpPanel.tsx` | List/add/remove MCP servers, connection status indicators, transport type display |
+| **Heartbeat Monitor** | `HeartbeatPanel.tsx` | Start/stop heartbeat scheduler, view file contents, last result display |
+| **Rewind Dialog** | `RewindDialog.tsx` | Browse session checkpoints, rewind to any message, file change indicators |
+| **Config/Settings** | `ConfigPanel.tsx` | Thinking level selector, working preference toggles (code/file/git ops) with slide animation |
+| **Voice Input** | `VoiceInput.tsx` | MediaRecorder API integration, recording state animation, sends blob to `/api/voice/transcribe` |
+| **Feedback Widget** | `FeedbackWidget.tsx` | 3-emoji rating (good/ok/bad), optional detail message, persisted to `~/.jarvis/feedback.jsonl` |
+| **Debug Console** | `DebugConsole.tsx` | Terminal-style command input, history with output display, available commands: ping/agent_status/health/clear_logs |
+| **Question Dialog** | `QuestionDialog.tsx` | Renders `user_input` WebSocket events as structured forms with option buttons or free-text input |
+| **Approval Dialog** | `ApprovalDialog.tsx` | Enhanced amber-themed tool approval overlay with always-allow toggle |
+
+### TopMenu Redesign
+- Added dropdown menu (click "JARVIS" label) listing all tool panels
+- Quick-action buttons for Model Picker, MCP Servers, Settings
+- Status indicator badges for pending questions and approval requests
+
+### Slash Commands Expansion
+- New commands open UI panels directly: `/model`, `/mcp`, `/heartbeat`(`/hb`), `/debug`(`/dbg`), `/feedback`(`/fb`)
+- `/config` and `/rewind` now trigger their respective panels instead of sending text to AI
+- All UI-triggering commands wired through ChatInput props to TechShell
+
+### Backend API Endpoints Added (12 new)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/models` | List available models with capabilities |
+| `GET /api/providers` | List configured LLM providers |
+| `POST /api/settings/model` | Switch active model at runtime |
+| `GET /api/mcp/servers` | List MCP server configs |
+| `POST /api/mcp/servers` | Add a new MCP server |
+| `DELETE /api/mcp/servers/{name}` | Remove an MCP server |
+| `GET /api/heartbeat` | Heartbeat system status |
+| `POST /api/heartbeat/start|stop` | Control heartbeat scheduler |
+| `GET /api/sessions/{id}/checkpoints` | List rewind checkpoints |
+| `POST /api/sessions/{id}/rewind` | Rewind to a checkpoint |
+| `POST /api/voice/transcribe` | Voice transcription (placeholder) |
+| `POST /api/feedback` | Submit feedback (persisted to JSONL) |
+| `GET /api/debug/logs` | Get recent debug log entries |
+| `POST /api/debug/command` | Execute debug command |
+
+### WebSocket Question/Approval Flow
+- `useJarvisStream` now handles `user_input` events, exposing `pendingQuestion` / `answerQuestion`
+- `user_input` answers sent as regular messages back to agent
+- `approval_request` events rendered through `ApprovalDialog` component
+
+### DotGrid Canvas Fix
+- Fixed negative modulo bug where `-N % 48` produced negative results, causing dots to shift incorrectly when panning with negative offsets
+- Replaced with proper `mod(n, m) = ((n % m) + m) % m`
+- Added `ResizeObserver` for reliable canvas sizing on layout changes
+- Simplified draw loop to always render visible columns/rows without gap at edges
+
+### Files Added
+- `interface/webui/src/components/techy/ModelPicker.tsx` — Model browsing & selection
+- `interface/webui/src/components/techy/McpPanel.tsx` — MCP server management
+- `interface/webui/src/components/techy/HeartbeatPanel.tsx` — Heartbeat monitoring
+- `interface/webui/src/components/techy/RewindDialog.tsx` — Session rewind UI
+- `interface/webui/src/components/techy/ConfigPanel.tsx` — Settings & preferences
+- `interface/webui/src/components/techy/VoiceInput.tsx` — Voice recording UI
+- `interface/webui/src/components/techy/FeedbackWidget.tsx` — Feedback collection
+- `interface/webui/src/components/techy/DebugConsole.tsx` — Developer debug console
+- `interface/webui/src/components/techy/QuestionDialog.tsx` — Question form from WebSocket
+- `interface/webui/src/components/techy/ApprovalDialog.tsx` — Tool approval overlay
+
+### Files Modified
+- `core/web/server.py` — 14 new API endpoints, model/MCP/heartbeat/rewind/voice/feedback/debug
+- `interface/webui/src/components/techy/TechShell.tsx` — All panels wired with visibility state, question/approval integration
+- `interface/webui/src/components/techy/TopMenu.tsx` — Dropdown menu, quick actions, status badges
+- `interface/webui/src/components/techy/ChatInput.tsx` — VoiceInput integration, UI-triggering slash commands
+- `interface/webui/src/components/techy/SlashCommands.tsx` — Added /model /heartbeat /debug /feedback commands
+- `interface/webui/src/components/techy/DotGrid.tsx` — Proper modulo, ResizeObserver, reliable sizing
+- `interface/webui/src/hooks/useJarvisStream.ts` — `user_input` event handling, `pendingQuestion`/`answerQuestion`
+- `interface/webui/src/lib/types.ts` — Added types for ModelInfo, ProviderInfo, MCPServer, Heartbeat, Rewind, Voice, Feedback, Debug
+- `interface/webui/src/lib/api.ts` — Added 15 new API methods for all new endpoints
 
 ---
 

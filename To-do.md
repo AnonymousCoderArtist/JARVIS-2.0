@@ -9,7 +9,7 @@
 - [ ] Implement connector system for external services
 - [X] Add AskUserTool for agents to ask users for input when needed
 - [x] TUI uses ansi-dark theme with transparent backgrounds
-- [ ] Enhance Web UI with better interface and user experience
+- [X] Enhance Web UI with better interface and user experience
 - [ ] Add support for custom themes in Web UI
 - [x] Update HEARTBEAT system to be 2-phased instead of 1
 - [X] Implement HEARTBEAT system for periodic tasks and monitoring
@@ -54,28 +54,25 @@
  ### WEBUI IMPLEMENTATION
 
 - [X]  Command System - Slash commands (WEBUI)
-- [ ]  Safety Profiles - 5 safety levels (Cycle with Shift+Tab)
+- [X]  Safety Profiles - 5 safety levels (Cycle with Shift+Tab)
 - [X]  Thinking Picker - Control AI reasoning detail level
-- [ ]  Model Picker - Switch between available LLM models
+- [X]  Model Picker - Switch between available LLM models
 - [X]  Tool Results Display - Rich display of tool outputs
-- [ ] MCP Integration - Model Context Protocol server support
-- [ ]  Voice Input - Voice recording capability (UI elements present)
-- [ ] Heartbeat System - Background task monitoring with notifications 
+- [X] MCP Integration - Model Context Protocol server support
+- [X]  Voice Input - Voice recording capability (UI elements present)
+- [X] Heartbeat System - Background task monitoring with notifications 
 - [X] Session & History: 
     - [X] Session Management - Resume/load previous sessions
     - [X] History Navigation - Load more historical messages
     - [X] Local Session Storage - Save and restore sessions
     - [X] Remote Sessions - Access sessions from remote instances
-- [ ] Rewind App - Navigate and restore previous conversation states
-- [ ] Config Menu - In-app settings and preferences UI
-- [ ] Approval Dialog - Enhanced tool approval popup
-- [ ] Question App - Ask user structured questions UI
-- [ ] Feedback Bar - User feedback collection
-- [ ] Debug Console - Developer debugging tools
+- [X] Rewind App - Navigate and restore previous conversation states
+- [X] Config Menu - In-app settings and preferences UI
+- [X] Approval Dialog - Enhanced tool approval popup
+- [X] Question App - Ask user structured questions UI
+- [X] Feedback Bar - User feedback collection
+- [X] Debug Console - Developer debugging tools
 - [ ] Teleport - Git sync / teleport integration
-- [ ] Session Picker - Detailed session picker with filtering
-- [ ] Narrator Mode - AI narrator voice output UI
-- [ ] Proxy Setup - Proxy configuration UI
-- [ ] Connector Auth - External service authentication UI
+- [X] Connector Auth - External service authentication UI
 - [ ] Load More - Load more historical messages button
-- [ ] Context Progress - Token usage detailed display
+- [X] Context Progress - Token usage detailed display

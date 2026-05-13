@@ -114,6 +114,133 @@ export interface SettingsUpdate {
   thinking_level?: string;
 }
 
+// ── Model Picker types ──────────────────────────────────────────────────
+export interface ModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  family: string;
+  capabilities: {
+    reasoning: boolean;
+    vision: boolean;
+    tool_call: boolean;
+  };
+}
+
+export interface ProviderInfo {
+  provider_id: string;
+  sdk_mode: string;
+  default_model: string;
+  enabled: boolean;
+  models: string[];
+  has_api_key: boolean;
+  base_url: string;
+}
+
+// ── MCP types ──────────────────────────────────────────────────────────
+export interface MCPServerInfo {
+  name: string;
+  command: string;
+  transport: string;
+  disabled: boolean;
+  lifecycle: string;
+  connected: boolean;
+  tool_count: number;
+}
+
+export interface MCPToolInfo {
+  name: string;
+  server: string;
+  description?: string;
+  input_schema?: Record<string, unknown>;
+}
+
+// ── Heartbeat types ─────────────────────────────────────────────────────
+export interface HeartbeatStatus {
+  enabled: boolean;
+  interval: string;
+  is_running: boolean;
+  last_run: string | null;
+  last_result: string | null;
+  heartbeat_file: string;
+  has_heartbeat_file: boolean;
+}
+
+// ── Rewind types ────────────────────────────────────────────────────────
+export interface Checkpoint {
+  index: number;
+  content: string;
+  timestamp: string;
+  has_file_changes: boolean;
+}
+
+export interface RewindResponse {
+  success: boolean;
+  rewound_to: number;
+  message_content: string;
+}
+
+// ── Voice types ─────────────────────────────────────────────────────────
+export interface VoiceTranscribeResponse {
+  success: boolean;
+  text: string;
+  note?: string;
+}
+
+// ── Feedback types ──────────────────────────────────────────────────────
+export interface FeedbackSubmit {
+  rating: number;
+  message?: string;
+  page?: string;
+}
+
+// ── Debug types ─────────────────────────────────────────────────────────
+export interface DebugLogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+}
+
+export interface DebugCommandResult {
+  output: string;
+  success: boolean;
+}
+
+// ── Context / Token Usage types ────────────────────────────────────────
+export interface TokenUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
+export interface ContextUsage {
+  usage: TokenUsage;
+  limits: { context: number; output: number };
+  model: string;
+  message_count: number;
+}
+
+// ── Connector types ────────────────────────────────────────────────────
+export interface ConnectorInfo {
+  id: string;
+  display_name: string;
+  auth_type: string;
+  connected: boolean;
+  auth_configured: boolean;
+  sync_state: string;
+}
+
+// ── Safety Profile types ────────────────────────────────────────────────
+export interface SafetyProfile {
+  id: number;
+  name: string;
+  desc: string;
+  bypass: boolean;
+  code: string;
+  files: string;
+  dangerous: string;
+}
+
 export type ConnectionStatus =
   | "idle"
   | "connecting"

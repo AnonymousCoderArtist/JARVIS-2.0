@@ -151,3 +151,193 @@ export async function listRemoteSessions(
 ): Promise<RemoteSessionsResponse> {
   return request<RemoteSessionsResponse>(`${base}/api/sessions/remote`, token);
 }
+
+// ── Model Picker API ───────────────────────────────────────────────────
+
+export interface ModelListResponse {
+  models: Array<{
+    id: string;
+    name: string;
+    provider: string;
+    family: string;
+    capabilities: { reasoning: boolean; vision: boolean; tool_call: boolean };
+  }>;
+  current_model: string;
+}
+
+export interface ProviderListResponse {
+  providers: Array<{
+    provider_id: string;
+    sdk_mode: string;
+    default_model: string;
+    enabled: boolean;
+    models: string[];
+    has_api_key: boolean;
+    base_url: string;
+  }>;
+}
+
+export async function listModels(token: string, base: string = ""): Promise<ModelListResponse> {
+  return request<ModelListResponse>(`${base}/api/models`, token);
+}
+
+export async function listProviders(token: string, base: string = ""): Promise<ProviderListResponse> {
+  return request<ProviderListResponse>(`${base}/api/providers`, token);
+}
+
+export async function setActiveModel(token: string, model: string, provider?: string, base: string = ""): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`${base}/api/settings/model`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ model, provider }),
+  });
+}
+
+// ── MCP API ────────────────────────────────────────────────────────────
+
+export interface MCPServerListResponse {
+  servers: Array<{
+    name: string;
+    command: string;
+    transport: string;
+    disabled: boolean;
+    lifecycle: string;
+    connected: boolean;
+    tool_count: number;
+  }>;
+}
+
+export async function listMCPServers(token: string, base: string = ""): Promise<MCPServerListResponse> {
+  return request<MCPServerListResponse>(`${base}/api/mcp/servers`, token);
+}
+
+export async function addMCPServer(token: string, config: Record<string, unknown>, base: string = ""): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`${base}/api/mcp/servers`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(config),
+  });
+}
+
+export async function removeMCPServer(token: string, name: string, base: string = ""): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`${base}/api/mcp/servers/${encodeURIComponent(name)}`, token, {
+    method: "DELETE",
+  });
+}
+
+// ── Heartbeat API ──────────────────────────────────────────────────────
+
+export async function getHeartbeatStatus(token: string, base: string = ""): Promise<{
+  enabled: boolean; interval: string; is_running: boolean;
+  last_run: string | null; last_result: string | null;
+  heartbeat_file: string; has_heartbeat_file: boolean;
+}> {
+  return request(`${base}/api/heartbeat`, token);
+}
+
+export async function startHeartbeat(token: string, base: string = ""): Promise<{ success: boolean }> {
+  return request(`${base}/api/heartbeat/start`, token, { method: "POST" });
+}
+
+export async function stopHeartbeat(token: string, base: string = ""): Promise<{ success: boolean }> {
+  return request(`${base}/api/heartbeat/stop`, token, { method: "POST" });
+}
+
+// ── Rewind API ─────────────────────────────────────────────────────────
+
+export async function getSessionCheckpoints(token: string, sessionId: string, base: string = ""): Promise<{
+  session_id: string; checkpoints: Array<{ index: number; content: string; timestamp: string; has_file_changes: boolean }>;
+}> {
+  return request(`${base}/api/sessions/${encodeURIComponent(sessionId)}/checkpoints`, token);
+}
+
+export async function rewindSession(token: string, sessionId: string, messageIndex: number, restoreFiles?: boolean, base: string = ""): Promise<{
+  success: boolean; rewound_to: number; message_content: string;
+}> {
+  return request(`${base}/api/sessions/${encodeURIComponent(sessionId)}/rewind`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ message_index: messageIndex, restore_files: restoreFiles }),
+  });
+}
+
+// ── Voice API ──────────────────────────────────────────────────────────
+
+export async function transcribeVoice(token: string, audioBlob: Blob, base: string = ""): Promise<{ success: boolean; text: string }> {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "recording.webm");
+  const res = await fetch(`${base}/api/voice/transcribe`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  return res.json();
+}
+
+// ── Feedback API ───────────────────────────────────────────────────────
+
+export async function submitFeedback(token: string, data: { rating: number; message?: string; page?: string }, base: string = ""): Promise<{ success: boolean }> {
+  return request(`${base}/api/feedback`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Debug API ──────────────────────────────────────────────────────────
+
+export async function getDebugLogs(token: string, base: string = ""): Promise<{ logs: string[] }> {
+  return request(`${base}/api/debug/logs`, token);
+}
+
+export async function runDebugCommand(token: string, command: string, args?: Record<string, unknown>, base: string = ""): Promise<{ output: string; success: boolean }> {
+  return request(`${base}/api/debug/command`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ command, args }),
+  });
+}
+
+// ── Context / Token Usage API ──────────────────────────────────────────
+
+export async function getContextUsage(token: string, base: string = ""): Promise<{
+  usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  limits: { context: number; output: number };
+  model: string;
+  message_count: number;
+}> {
+  return request(`${base}/api/context/usage`, token);
+}
+
+// ── Connector Auth API ─────────────────────────────────────────────────
+
+export async function listConnectors(token: string, base: string = ""): Promise<{
+  connectors: Array<{ id: string; display_name: string; auth_type: string; connected: boolean; auth_configured: boolean; sync_state: string }>;
+}> {
+  return request(`${base}/api/connectors`, token);
+}
+
+export async function setConnectorAuth(token: string, name: string, credentials: Record<string, unknown>, base: string = ""): Promise<{ success: boolean; connected: boolean }> {
+  return request(`${base}/api/connectors/${encodeURIComponent(name)}/auth`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(credentials),
+  });
+}
+
+// ── Safety Profile API ─────────────────────────────────────────────────
+
+export async function getSafetyProfile(token: string, base: string = ""): Promise<{
+  profiles: Array<{ id: number; name: string; desc: string; bypass: boolean; code: string; files: string; dangerous: string }>;
+  current: { id: number; name: string; desc: string };
+}> {
+  return request(`${base}/api/safety/profile`, token);
+}
+
+export async function setSafetyProfile(token: string, profileId: number, base: string = ""): Promise<{ success: boolean }> {
+  return request(`${base}/api/safety/profile`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ profile_id: profileId }),
+  });
+}

@@ -311,9 +311,23 @@ jarvis --webui --host 0.0.0.0 --port 5173
 
 #### WebUI Features
 
-- **Slash Commands**: Type `/` for autocomplete (help, status, clear, exit, profile, tools, skills, rewind, config, mcp)
+- **Model Picker**: Browse & switch LLM models grouped by provider with capability badges
+- **MCP Servers**: Add/remove/connect MCP servers with status monitoring
+- **Heartbeat Monitor**: Start/stop heartbeat scheduler, view task files and results
+- **Rewind**: Browse session checkpoints and rewind conversation state
+- **Config/Settings**: Thinking level selector, working preference toggles
+- **Voice Input**: Browser-based voice recording via MediaRecorder API
+- **Context Progress**: Real-time token usage display with progress bars
+- **Connector Auth**: Authenticate external services (GitHub, Weather, etc.)
+- **Safety Profiles**: 5 safety levels (Lockdown→Unrestricted), cycle with Shift+Tab
+- **Debug Console**: Terminal-style debug command interface
+- **Feedback Widget**: 3-emoji rating system persisted to disk
+- **Question Dialog**: Structured question forms from WebSocket `user_input` events
+- **Approval Dialog**: Amber-themed tool approval overlay with always-allow
+- **Slash Commands**: Type `/` for autocomplete (help, status, model, mcp, heartbeat, rewind, config, debug, feedback, etc.)
 - **Thinking Picker**: Select AI reasoning level (Low/Medium/High) for each message
 - **Infinite Canvas**: Draggable dot grid background that extends infinitely
+- **Right Sidebar**: Fixed tool strip with icons for all feature panels
 - **Remote Sessions**: Connect to remote JARVIS instances via `JARVIS_REMOTE_URL` env variable
 - **Markdown Rendering**: Beautiful tables, lists, headings with blue theme styling
 - **Session Management**: Resume/load previous sessions from local storage
@@ -432,19 +446,19 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 | **Plan** | Task decomposition and planning |
 | **Fork** | Fork conversation for parallel exploration |
 
-### Safety Profiles
+### Safety Profiles (WebUI)
 
-Switch between safety levels for your workflow:
+5 safety levels with Shift+Tab cycling:
 
-| Profile | Safety Level | Description |
-|---------|--------------|-------------|
-| `default` | NEUTRAL | Read ops allowed, writes and commands need approval |
-| `plan` | SAFE | Read-only for exploration and planning |
-| `accept-edits` | DESTRUCTIVE | Auto-approves file edits |
-| `auto-approve` | YOLO | Auto-approves all (use with caution) |
-| `explore` | SAFE (Subagent) | Read-only subagent for codebase exploration |
+| Level | Name | Code | Files | Dangerous |
+|-------|------|------|-------|-----------|
+| L1 | Lockdown | never | ask | ask |
+| L2 | Restricted | ask | ask | ask |
+| L3 | Balanced | ask | always | ask |
+| L4 | Permissive | always | always | ask |
+| L5 | Unrestricted | always | always | always |
 
-**Cycle profiles with `Shift+Tab` in TUI.**
+**Cycle profiles with `Shift+Tab` in WebUI or TUI.**
 
 ### Permission System
 

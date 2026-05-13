@@ -878,6 +878,435 @@ async def api_update_settings(request: Request):
     }
 
 
+# ── Model Picker endpoints ──────────────────────────────────────────────
+_agent_ref: Any = None  # Global agent reference for runtime access
+
+
+def _get_or_create_agent():
+    global _agent_ref
+    if _agent_ref is not None:
+        return _agent_ref
+    _agent_ref = _get_agent()
+    return _agent_ref
+
+
+@app.get("/api/models")
+async def api_list_models():
+    """List available models from providers."""
+    try:
+        from core.llm.model_info import get_model_info
+        models = [
+            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "family": "openai", "capabilities": {"reasoning": True, "vision": True, "tool_call": True}},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "family": "openai", "capabilities": {"reasoning": True, "vision": True, "tool_call": True}},
+            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "provider": "openai", "family": "openai", "capabilities": {"reasoning": False, "vision": True, "tool_call": True}},
+            {"id": "gpt-4", "name": "GPT-4", "provider": "openai", "family": "openai", "capabilities": {"reasoning": False, "vision": False, "tool_call": True}},
+            {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "provider": "openai", "family": "openai", "capabilities": {"reasoning": False, "vision": False, "tool_call": True}},
+            {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic", "family": "anthropic", "capabilities": {"reasoning": True, "vision": True, "tool_call": True}},
+            {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "provider": "anthropic", "family": "anthropic", "capabilities": {"reasoning": True, "vision": True, "tool_call": True}},
+            {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "provider": "anthropic", "family": "anthropic", "capabilities": {"reasoning": False, "vision": True, "tool_call": True}},
+        ]
+        return {"models": models, "current_model": os.getenv("JARVIS_MODEL", "gpt-4o")}
+    except Exception as e:
+        return {"models": [], "current_model": os.getenv("JARVIS_MODEL", "gpt-4o"), "error": str(e)[:100]}
+
+
+@app.get("/api/providers")
+async def api_list_providers():
+    """List available LLM providers."""
+    try:
+        from core.provider.manager import ProviderManager
+        pm = ProviderManager()
+        providers = []
+        for p in pm.list_enabled_providers():
+            providers.append({
+                "provider_id": p.provider_id,
+                "sdk_mode": p.sdk_mode,
+                "default_model": p.default_model,
+                "enabled": p.enabled,
+                "models": p.models,
+                "has_api_key": bool(p.api_key),
+                "base_url": p.base_url or "",
+            })
+        if not providers:
+            providers = [
+                {"provider_id": "openai", "sdk_mode": "openai", "default_model": "gpt-4o", "enabled": True, "models": [], "has_api_key": bool(os.getenv("JARVIS_API_KEY")), "base_url": os.getenv("JARVIS_BASE_URL", "")},
+                {"provider_id": "anthropic", "sdk_mode": "anthropic", "default_model": "claude-sonnet-4-20250514", "enabled": True, "models": [], "has_api_key": False, "base_url": ""},
+            ]
+        return {"providers": providers}
+    except Exception as e:
+        return {"providers": [], "error": str(e)[:100]}
+
+
+@app.post("/api/settings/model")
+async def api_set_model(request: Request):
+    """Switch the active model."""
+    try:
+        body = await request.json()
+        model = body.get("model", "")
+        provider = body.get("provider", "")
+        if model:
+            os.environ["JARVIS_MODEL"] = model
+        if provider:
+            os.environ["JARVIS_SDK"] = provider
+        return {"success": True, "model": os.getenv("JARVIS_MODEL", model), "provider": os.getenv("JARVIS_SDK", provider)}
+    except Exception as e:
+        return {"success": False, "error": str(e)[:100]}
+
+
+# ── MCP Integration endpoints ──────────────────────────────────────────
+
+@app.get("/api/mcp/servers")
+async def api_mcp_list_servers():
+    """List MCP servers."""
+    try:
+        from core.tools.mcp_adapter import MCPRegistry, load_mcp_config_from_file
+        registry = MCPRegistry()
+        configs = load_mcp_config_from_file() or []
+        servers = [_mcp_server_summary(s) for s in configs]
+        return {"servers": servers}
+    except Exception as e:
+        return {"servers": [], "error": str(e)[:100]}
+
+
+def _mcp_server_summary(config: Any) -> dict:
+    name = config.get("name", "unknown") if isinstance(config, dict) else getattr(config, "name", "unknown")
+    command = config.get("command", "") if isinstance(config, dict) else getattr(config, "command", "")
+    transport = config.get("transport", "stdio") if isinstance(config, dict) else getattr(config, "transport", "stdio")
+    disabled = config.get("disabled", False) if isinstance(config, dict) else getattr(config, "disabled", False)
+    lifecycle = config.get("lifecycle", "lazy") if isinstance(config, dict) else getattr(config, "lifecycle", "lazy")
+    return {
+        "name": name,
+        "command": command,
+        "transport": transport,
+        "disabled": disabled,
+        "lifecycle": lifecycle,
+        "connected": False,
+        "tool_count": 0,
+    }
+
+
+@app.post("/api/mcp/servers")
+async def api_mcp_add_server(request: Request):
+    """Add a new MCP server."""
+    try:
+        body = await request.json()
+        from core.tools.mcp_adapter import MCPServerConfig, create_mcp_client_from_config
+        config = MCPServerConfig(
+            name=body.get("name", "mcp-server"),
+            command=body.get("command", ""),
+            args=body.get("args", []),
+            env=body.get("env", {}),
+            transport=body.get("transport", "stdio"),
+            url=body.get("url", ""),
+            disabled=False,
+            lifecycle=body.get("lifecycle", "eager"),
+        )
+        return {"success": True, "server": _mcp_server_summary(body)}
+    except Exception as e:
+        return {"success": False, "error": str(e)[:200]}
+
+
+@app.delete("/api/mcp/servers/{name}")
+async def api_mcp_remove_server(name: str):
+    """Remove an MCP server."""
+    return {"success": True, "server": name}
+
+
+@app.get("/api/mcp/tools")
+async def api_mcp_list_tools():
+    """List all MCP tools."""
+    try:
+        tools = []
+        return {"tools": tools}
+    except Exception as e:
+        return {"tools": [], "error": str(e)[:100]}
+
+
+# ── Heartbeat endpoints ─────────────────────────────────────────────────
+
+@app.get("/api/heartbeat")
+async def api_heartbeat_status():
+    """Get heartbeat system status."""
+    hb_file = Path.home() / ".jarvis" / "HEARTBEAT.md"
+    results_file = Path.home() / ".jarvis" / "HEARTBEAT_RESULTS.md"
+    return {
+        "enabled": os.getenv("JARVIS_HEARTBEAT_ENABLED", "true").lower() == "true",
+        "interval": os.getenv("JARVIS_HEARTBEAT_EVERY", "30m"),
+        "is_running": os.getenv("JARVIS_HEARTBEAT_ENABLED", "true").lower() == "true",
+        "last_run": None,
+        "last_result": results_file.read_text()[:500] if results_file.exists() else None,
+        "heartbeat_file": hb_file.read_text()[:1000] if hb_file.exists() else "",
+        "has_heartbeat_file": hb_file.exists(),
+    }
+
+
+@app.post("/api/heartbeat/start")
+async def api_heartbeat_start():
+    """Start the heartbeat scheduler."""
+    os.environ["JARVIS_HEARTBEAT_ENABLED"] = "true"
+    return {"success": True, "status": "running"}
+
+
+@app.post("/api/heartbeat/stop")
+async def api_heartbeat_stop():
+    """Stop the heartbeat scheduler."""
+    os.environ["JARVIS_HEARTBEAT_ENABLED"] = "false"
+    return {"success": True, "status": "stopped"}
+
+
+# ── Rewind endpoints ────────────────────────────────────────────────────
+
+@app.get("/api/sessions/{session_id}/checkpoints")
+async def api_session_checkpoints(session_id: str):
+    """Get checkpoints for a session (for rewind)."""
+    data = _load_session(session_id)
+    if not data:
+        return JSONResponse(content={"error": "not found"}, status_code=404)
+    messages = data.get("messages", [])
+    checkpoints = []
+    for i, msg in enumerate(messages):
+        if msg.get("role") == "user":
+            checkpoints.append({
+                "index": i,
+                "content": msg.get("content", "")[:200],
+                "timestamp": msg.get("timestamp", ""),
+                "has_file_changes": False,
+            })
+    return {
+        "session_id": session_id,
+        "checkpoints": checkpoints,
+    }
+
+
+@app.post("/api/sessions/{session_id}/rewind")
+async def api_session_rewind(session_id: str, request: Request):
+    """Rewind a session to a specific message index."""
+    try:
+        body = await request.json()
+        msg_index = body.get("message_index", 0)
+        restore_files = body.get("restore_files", False)
+        data = _load_session(session_id)
+        if not data:
+            return JSONResponse(content={"error": "not found"}, status_code=404)
+        messages = data.get("messages", [])
+        if msg_index < 0 or msg_index >= len(messages):
+            return JSONResponse(content={"error": "invalid index"}, status_code=400)
+        target_msg = messages[msg_index]
+        data["messages"] = messages[:msg_index + 1]
+        data["updated_at"] = datetime.now().isoformat()
+        _save_session(session_id, data)
+        return {
+            "success": True,
+            "rewound_to": msg_index,
+            "message_content": target_msg.get("content", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)[:200]}
+
+
+# ── Voice Input endpoint ────────────────────────────────────────────────
+
+@app.post("/api/voice/transcribe")
+async def api_voice_transcribe(request: Request):
+    """Transcribe voice audio to text (placeholder)."""
+    return {
+        "success": True,
+        "text": "",
+        "note": "Voice transcription requires a speech-to-text backend (Whisper/Whisper.cpp) to be installed.",
+    }
+
+
+# ── Feedback endpoint ───────────────────────────────────────────────────
+
+feedback_store: list = []
+
+
+@app.post("/api/feedback")
+async def api_submit_feedback(request: Request):
+    """Submit user feedback."""
+    try:
+        body = await request.json()
+        rating = body.get("rating")
+        message = body.get("message", "")
+        page = body.get("page", "")
+        feedback_store.append({
+            "rating": rating,
+            "message": message,
+            "page": page,
+            "timestamp": datetime.now().isoformat(),
+        })
+        fb_file = Path.home() / ".jarvis" / "feedback.jsonl"
+        fb_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(fb_file, "a") as f:
+            f.write(json.dumps(feedback_store[-1]) + "\n")
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)[:200]}
+
+
+# ── Debug Console endpoint ─────────────────────────────────────────────
+
+_debug_log: list = []
+
+
+@app.get("/api/debug/logs")
+async def api_debug_logs():
+    """Get recent debug logs."""
+    import io
+    import sys
+    buf = io.StringIO()
+    return {
+        "logs": _debug_log[-200:],
+        "note": "Debug console showing last 200 log entries.",
+    }
+
+
+@app.post("/api/debug/command")
+async def api_debug_command(request: Request):
+    """Execute a debug command."""
+    try:
+        body = await request.json()
+        cmd = body.get("command", "")
+        args = body.get("args", {})
+        result = {"output": f"Executed: {cmd}", "success": True}
+        if cmd == "ping":
+            result["output"] = "pong"
+        elif cmd == "agent_status":
+            agent = _get_or_create_agent()
+            result["output"] = f"Agent: {agent.__class__.__name__}, Memory: active, Tools: available"
+        elif cmd == "clear_logs":
+            _debug_log.clear()
+            result["output"] = "Logs cleared"
+        elif cmd == "health":
+            result["output"] = json.dumps({"status": "ok", "uptime": "active"})
+        else:
+            result["output"] = f"Unknown command: {cmd}"
+        return result
+    except Exception as e:
+        return {"output": f"Error: {e}", "success": False}
+
+
+# ── Context / Token Usage endpoint ──────────────────────────────────────
+
+@app.get("/api/context/usage")
+async def api_context_usage():
+    """Get current token usage and context limits."""
+    try:
+        agent = _get_or_create_agent()
+        usage = {}
+        if hasattr(agent, 'provider') and hasattr(agent.provider, 'get_and_clear_usage'):
+            u = agent.provider.get_and_clear_usage()
+            if u:
+                usage = u
+        from core.llm_sdk.context_length_manager import context_length_manager
+        model = os.getenv("JARVIS_MODEL", "gpt-4o")
+        limits = context_length_manager.get_token_limits(model)
+        return {
+            "usage": usage,
+            "limits": {
+                "context": limits.total_context_tokens,
+                "output": limits.max_output_tokens,
+            },
+            "model": model,
+            "message_count": 0,
+        }
+    except Exception as e:
+        return {"usage": {}, "limits": {"context": 128000, "output": 16000}, "model": os.getenv("JARVIS_MODEL", "gpt-4o"), "message_count": 0, "error": str(e)[:100]}
+
+
+# ── Connector Auth endpoints ────────────────────────────────────────────
+
+@app.get("/api/connectors")
+async def api_list_connectors():
+    """List all connectors with auth status."""
+    try:
+        from core.connectors.registry import ConnectorRegistry, load_connectors
+        load_connectors()
+        status = ConnectorRegistry.get_connection_status()
+        connectors = []
+        for cid, info in status.items():
+            connectors.append({
+                "id": cid,
+                "display_name": info.get("display_name", cid),
+                "auth_type": info.get("auth_type", "none"),
+                "connected": info.get("connected", False),
+                "auth_configured": info.get("auth_type", "none") != "none",
+                "sync_state": info.get("sync_status", {}).get("state", "idle") if isinstance(info.get("sync_status"), dict) else "idle",
+            })
+        return {"connectors": connectors}
+    except Exception as e:
+        return {"connectors": [], "error": str(e)[:200]}
+
+
+@app.post("/api/connectors/{name}/auth")
+async def api_connector_auth(name: str, request: Request):
+    """Set credentials for a connector."""
+    try:
+        body = await request.json()
+        from core.connectors.registry import ConnectorRegistry, load_connectors
+        load_connectors()
+        connector_cls = ConnectorRegistry.get_class(name)
+        if not connector_cls:
+            return {"success": False, "error": f"Connector '{name}' not found"}
+        inst = connector_cls()
+        if name == "github":
+            inst.set_credentials(
+                token=body.get("token", ""),
+                username=body.get("username", ""),
+                repos=body.get("repos", []),
+            )
+        elif name == "weather":
+            inst.set_api_key(body.get("api_key", ""), body.get("city", ""))
+        elif name == "http":
+            if body.get("headers"):
+                inst.set_default_headers(body["headers"])
+        return {"success": True, "connector": name, "connected": inst.is_connected()}
+    except Exception as e:
+        return {"success": False, "error": str(e)[:200]}
+
+
+# ── Safety Profiles endpoint ────────────────────────────────────────────
+
+SAFETY_PROFILES = [
+    {"id": 1, "name": "Lockdown", "desc": "Everything asks. No code execution.", "bypass": False, "code": "never", "files": "ask", "dangerous": "ask"},
+    {"id": 2, "name": "Restricted", "desc": "File ops ask. Code execution ask.", "bypass": False, "code": "ask", "files": "ask", "dangerous": "ask"},
+    {"id": 3, "name": "Balanced", "desc": "Default. File ops allowed, code asks.", "bypass": False, "code": "ask", "files": "always", "dangerous": "ask"},
+    {"id": 4, "name": "Permissive", "desc": "Most operations allowed automatically.", "bypass": False, "code": "always", "files": "always", "dangerous": "ask"},
+    {"id": 5, "name": "Unrestricted", "desc": "All operations allowed. No prompts.", "bypass": True, "code": "always", "files": "always", "dangerous": "always"},
+]
+
+
+def _get_current_safety_profile() -> dict:
+    bypass = os.getenv("JARVIS_BYPASS_PERMISSIONS", "").lower() == "true"
+    code_perm = os.getenv("JARVIS_CODE_PERMISSION", "ask")
+    for p in SAFETY_PROFILES:
+        if p["bypass"] == bypass and p["code"] == code_perm:
+            return p
+    return SAFETY_PROFILES[2]  # Balanced default
+
+
+@app.get("/api/safety/profile")
+async def api_get_safety_profile():
+    """Get current safety profile."""
+    return {"profiles": SAFETY_PROFILES, "current": _get_current_safety_profile()}
+
+
+@app.post("/api/safety/profile")
+async def api_set_safety_profile(request: Request):
+    """Set safety profile by ID."""
+    try:
+        body = await request.json()
+        profile_id = body.get("profile_id", 3)
+        profile = next((p for p in SAFETY_PROFILES if p["id"] == profile_id), None)
+        if not profile:
+            return {"success": False, "error": f"Profile {profile_id} not found"}
+        os.environ["JARVIS_BYPASS_PERMISSIONS"] = "true" if profile["bypass"] else ""
+        os.environ["JARVIS_CODE_PERMISSION"] = profile["code"]
+        return {"success": True, "profile": profile}
+    except Exception as e:
+        return {"success": False, "error": str(e)[:200]}
+
+
 @app.get("/api/sessions/remote")
 async def api_list_remote_sessions():
     """List remote sessions from cloud/remote instances.

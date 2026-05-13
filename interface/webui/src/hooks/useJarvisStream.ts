@@ -11,19 +11,19 @@ import type {
 } from "@/lib/types";
 
 interface StreamBuffer {
-  /** ID of the assistant message currently receiving deltas. */
   messageId: string;
-  /** Sequence of deltas accumulated in order. */
   parts: string[];
 }
 
-/**
- * Subscribe to a chat by ID. Returns the in-memory message list for the chat,
- * a streaming flag, and a ``send`` function.
- */
 export interface SendImage {
   media: OutboundMedia;
   preview: UIImage;
+}
+
+interface PendingQuestion {
+  question: string;
+  options?: string[];
+  resolve: (answer: string) => void;
 }
 
 export function useJarvisStream(
@@ -45,6 +45,11 @@ export function useJarvisStream(
     toolCallId: string;
   } | null;
   sendApprovalResponse: (approved: boolean, alwaysAllow?: boolean) => void;
+  pendingQuestion: {
+    question: string;
+    options?: string[];
+  } | null;
+  answerQuestion: (answer: string) => void;
 } {
   const { client } = useClient();
   const [messages, setMessages] = useState<UIMessage[]>(initialMessages);
@@ -59,10 +64,13 @@ export function useJarvisStream(
     requiredPermissions: string[];
     toolCallId: string;
   } | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<{
+    question: string;
+    options?: string[];
+  } | null>(null);
+  const pendingQuestionRef = useRef<PendingQuestion | null>(null);
   const buffer = useRef<StreamBuffer | null>(null);
   const streamEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // We still keep thinking for the global spinner/status, but we'll also store it in messages
   const [thinking, setThinking] = useState<string>("");
 
   useEffect(() => {
@@ -70,6 +78,18 @@ export function useJarvisStream(
   }, [client]);
 
   const dismissStreamError = useCallback(() => setStreamError(null), []);
+
+  const answerQuestion = useCallback((answer: string) => {
+    if (pendingQuestionRef.current) {
+      pendingQuestionRef.current.resolve(answer);
+      pendingQuestionRef.current = null;
+    }
+    setPendingQuestion(null);
+    // Send the answer as a regular message so the agent gets it
+    if (chatId && answer.trim()) {
+      client.sendMessage(chatId, answer, undefined, { type: "message_options" });
+    }
+  }, [chatId, client]);
 
   useEffect(() => {
     setMessages(initialMessages);
@@ -100,7 +120,6 @@ export function useJarvisStream(
 
       const getActiveAssistantId = () => {
         if (buffer.current?.messageId) return buffer.current.messageId;
-        // If no buffer, find the last streaming assistant message
         for (let i = messages.length - 1; i >= 0; i--) {
           if (messages[i].role === "assistant" && messages[i].isStreaming) {
             return messages[i].id;
@@ -129,17 +148,17 @@ export function useJarvisStream(
         return id;
       };
 
-if (ev.event === "delta") {
-         const id = ensureAssistantMessage();
-         if (buffer.current && buffer.current.messageId === id) {
-           buffer.current.parts.push(ev.text);
-           const combined = buffer.current!.parts.join("");
-           setMessages((prev) =>
-             prev.map((m) => (m.id === id ? { ...m, content: combined } : m)),
-           );
-         }
-         return;
-       }
+      if (ev.event === "delta") {
+        const id = ensureAssistantMessage();
+        if (buffer.current && buffer.current.messageId === id) {
+          buffer.current.parts.push(ev.text);
+          const combined = buffer.current!.parts.join("");
+          setMessages((prev) =>
+            prev.map((m) => (m.id === id ? { ...m, content: combined } : m)),
+          );
+        }
+        return;
+      }
 
       if (ev.event === "reasoning") {
         const id = ensureAssistantMessage();
@@ -162,7 +181,7 @@ if (ev.event === "delta") {
             if (m.id !== id) return m;
             const toolCalls = [...(m.toolCalls || [])];
             toolCalls.push({
-              id: crypto.randomUUID(), // Local ID for tracking
+              id: crypto.randomUUID(),
               name: ev.tool_name,
               args: ev.tool_args,
             });
@@ -202,6 +221,14 @@ if (ev.event === "delta") {
           prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m)),
         );
         buffer.current = null;
+        return;
+      }
+
+      if (ev.event === "user_input") {
+        const question = ev.question;
+        const options = ev.options;
+        pendingQuestionRef.current = { question, options, resolve: () => {} };
+        setPendingQuestion({ question, options });
         return;
       }
 
@@ -256,7 +283,7 @@ if (ev.event === "delta") {
               m.id === activeId
                 ? {
                     ...m,
-                    content: content || m.content, // Preserve existing content if event text is empty
+                    content: content || m.content,
                     isStreaming: false,
                     createdAt: Date.now(),
                     ...(ev.buttons && ev.buttons.length > 0 ? { buttons: ev.buttons } : {}),
@@ -289,7 +316,7 @@ if (ev.event === "delta") {
       unsub();
       buffer.current = null;
     };
-  }, [chatId, client, messages.length]); // messages.length to re-bind closure if needed
+  }, [chatId, client, messages.length]);
 
   const send = useCallback(
     (content: string, images?: SendImage[], thinkingLevel?: string) => {
@@ -339,5 +366,7 @@ if (ev.event === "delta") {
     dismissStreamError,
     pendingApproval,
     sendApprovalResponse,
+    pendingQuestion,
+    answerQuestion,
   };
 }
