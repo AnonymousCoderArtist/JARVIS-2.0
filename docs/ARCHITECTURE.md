@@ -390,3 +390,51 @@ JarvisSettings
 
 **Why are MCP tools wrapped as BaseTool instances?**
 > Uniform tool interface. By wrapping each MCP server tool as a `BaseTool`, the existing tool dispatch, permission checking, and callback infrastructure works identically for MCP tools as for built-in tools — no special-casing needed in the agent loop.
+
+---
+
+## What to Change vs What NOT to Touch
+
+### ✅ Safe for Users to Change
+
+| Area | What | Where |
+|------|------|-------|
+| **LLM model** | Switch provider/model | `providers.json`, `settings.json`, or `/api/settings/model` |
+| **Agent profile** | Change agent behavior/safety | `settings.json` → `agent.profile` |
+| **Safety level** | Restrict permissiveness | `settings.json` → `agent.safety_profile` or Shift+Tab in TUI |
+| **Tools** | Enable/disable tool categories | `settings.json` → `permissions` |
+| **Heartbeat** | Periodic background awareness | `settings.json` → `heartbeat.enabled`, `.interval`, `.active_hours` |
+| **WebUI colors** | Full theme | `interface/webui/src/globals.css` → `:root` CSS variables |
+| **System prompt** | Agent instructions | `core/agents/prompts/` → `jarvis_v2.py`, `explore.py`, etc. |
+| **Custom agents** | New agent definitions | `~/.jarvis/agents/` as `.py` files |
+| **Custom tools** | New tool implementations | `core/tools/` or MCP server |
+| **MCP servers** | Connect external tools | `.mcp.json` or `/api/mcp/servers` |
+| **Connectors** | External data sources | `settings.json` → `connectors` or `/api/connectors` |
+| **WebUI** | Look and feel | `interface/webui/` — all React components and CSS |
+| **Settings file** | All runtime config | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
+| **Sandbox** | Command execution security | `settings.json` → `sandbox` |
+
+### ⚠️ Proceed with Caution (Understand Before Changing)
+
+| Area | Why | Where |
+|------|-----|-------|
+| **Agent loop** | Core decision loop; breaks streaming, tool execution, approval flow | `core/agents/base.py` |
+| **Tool registry** | Tool discovery and permission checks | `core/tools/registry.py`, `core/tools/__init__.py` |
+| **SDK adapter** | All LLM communication goes through this | `core/llm/sdk_adapter.py` |
+| **Provider SDKs** | Provider-specific API format | `core/llm_sdk/openai/sdk.py`, `core/llm_sdk/anthropic/sdk.py` |
+| **WebSocket protocol** | Real-time message format between backend and UIs | `core/web/server.py` WebSocket handler |
+| **Permission system** | Tool allow/deny/ask logic | `core/tools/permissions.py`, `core/tools/permission_manager.py` |
+| **Config models** | Setting schema changes break existing configs | `core/config/models.py` |
+| **API endpoints** | Changes break WebUI and external integrations | `core/web/server.py` |
+
+### 🚫 Don't Touch Unless You Understand the Full System
+
+| Area | Why | Where |
+|------|-----|-------|
+| **`ConversationHistory`** | Stateful message store — changing ordering/format breaks all consumers | `core/history.py` |
+| **`ToolOutput` / `ToolInput`** | Base models — all tools inherit from these | `core/tools/base.py` |
+| **`BaseLLMProvider.generate_with_tools()`** | Contract between agent loop and LLM — changing it breaks every provider | `core/llm/base.py` |
+| **WebUI CSS variables naming** | All 30+ components reference these by name | `globals.css` `:root` |
+| **Thread component state contracts** | ThreadShell, ThreadComposer, ThreadMessages have specific prop contracts | `interface/webui/src/components/thread/` |
+| **`JarvisClient` WebSocket message format** | Frontend-backend protocol — must stay in sync | `interface/webui/src/lib/jarvis-client.ts` and `core/web/server.py` |
+| **`useJarvisStream` hook return shape** | All consuming components depend on this | `interface/webui/src/hooks/useJarvisStream.ts` |

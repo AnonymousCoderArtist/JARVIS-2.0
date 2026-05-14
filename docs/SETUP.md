@@ -806,3 +806,43 @@ jarvis --version
 # Or open an issue at:
 # https://github.com/OEvortex/JARVIS/issues
 ```
+
+---
+
+## What You Can (Safely) Change
+
+These are the parts of JARVIS designed for user customization:
+
+| What | How | File / Command |
+|------|-----|----------------|
+| **LLM model & provider** | Edit or create a provider config | `providers.json` |
+| **Agent personality** | Switch profile or write a custom agent | `settings.json` → `agent.profile` or `~/.jarvis/agents/` |
+| **Safety level** | Restrict what the agent can do | `settings.json` → `agent.safety_profile` |
+| **WebUI colors** | Change CSS variable values | `interface/webui/src/globals.css` `:root` |
+| **System prompt** | Edit the agent's instructions | `core/agents/prompts/` |
+| **Tools enabled** | Allow/deny/ask per tool | `settings.json` → `permissions` |
+| **MCP servers** | Connect external tools | `.mcp.json` or `jarvis --mcp-add` |
+| **Custom tools** | Write your own tool | See [custom-tools.md](custom-tools.md) |
+| **Custom agents** | Define new agent types | See [custom-agents.md](custom-agents.md) |
+| **Config values** | All runtime settings | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
+| **Sandbox settings** | Toggle sandbox on/off | `settings.json` → `sandbox.enabled` |
+
+## What You Should NOT Touch
+
+These are **internal invariants**. Changing them will break things subtly or catastrophically:
+
+| File(s) | Why Leave It Alone |
+|---------|-------------------|
+| `core/agents/base.py` | Core agent loop — streaming, tool dispatch, approval flow |
+| `core/tools/base.py` | `ToolInput` / `ToolOutput` base models — all tools inherit these |
+| `core/tools/registry.py` | Tool discovery and registration — changing breaks every tool |
+| `core/llm/base.py` | LLM provider contract — changing breaks all integrations |
+| `core/llm/sdk_adapter.py` | All provider SDKs go through this adapter |
+| `core/history.py` | Message store — all consumers depend on its format |
+| `core/web/server.py` | API routing — changing endpoints breaks all frontends |
+| `core/config/models.py` | Settings schema — existing config files will fail to load |
+| `interface/webui/src/globals.css` `:root` variable *names* | OK to change *values* but renaming breaks all 30+ components |
+| `interface/webui/src/lib/jarvis-client.ts` WebSocket message format | Must stay in sync with `core/web/server.py` |
+| `interface/webui/src/hooks/useJarvisStream.ts` return shape | All consuming components depend on this |
+
+**Rule of thumb:** If a file is imported by 5+ other files across different directories, assume changing its public interface will have cascading effects. If you must change it, update all callers in the same commit.

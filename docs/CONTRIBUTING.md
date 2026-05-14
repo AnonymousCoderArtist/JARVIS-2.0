@@ -308,3 +308,40 @@ There is no global state library. State flows through:
 - **Hooks** in `hooks/` — `useJarvisStream()`, `useSessions()`, `useTheme()`, `useAttachedImages()`, `useClipboardAndDrop()`
 - **`useClient()`** — accessor hook for the client context (must be inside `<ClientProvider>`)
 - Local component state for UI concerns (dialogs, toggles, etc.)
+
+---
+
+## What to Change vs What NOT to Touch (for Contributors)
+
+### Safe to Modify
+
+| Area | Notes |
+|------|-------|
+| **Adding a new tool** | Create a `BaseTool` subclass, add to `core/tools/__init__.py` `_LAZY_IMPORTS` |
+| **Adding a new provider** | Implement `BaseLLMSDK`, add to `providers.json` |
+| **Adding a new API endpoint** | Add route in `core/web/server.py`, call it from `interface/webui/src/lib/api.ts` |
+| **WebUI component** | Create in `components/` following existing patterns |
+| **CSS variables** | Change `:root` values in `globals.css` (never rename existing variables) |
+| **New MCP server tool** | Just configure it — no code changes needed |
+| **New connector** | Implement `BaseConnector`, register in `core/connectors/` |
+| **New agent profile** | Add to `core/agents/builtin_profiles.py` or custom in `~/.jarvis/agents/` |
+| **Prompts** | Edit `core/agents/prompts/` |
+| **Tests** | Add to `tests/` or `interface/webui/src/tests/` |
+
+### Requires Careful Coordination
+
+| Change | Must Update In Sync |
+|--------|---------------------|
+| WebSocket message format | `core/web/server.py` + `interface/webui/src/lib/jarvis-client.ts` |
+| `useJarvisStream` return type | Hook + all consuming components |
+| `ToolInput` / `ToolOutput` models | `core/tools/base.py` + all tools + permission system |
+| API endpoint contract | `core/web/server.py` + `interface/webui/src/lib/api.ts` |
+| Settings model schema | `core/config/models.py` + existing user config files |
+| CSS variable *names* | `globals.css` + all 30+ components referencing them |
+| `JarvisClient` constructor | `lib/jarvis-client.ts` + `ClientProvider` + `App.tsx` |
+
+### Never Change Alone (Must Update All Consumers)
+
+- `BaseLLMProvider` interface — every provider SDK + agent loop
+- `ConversationHistory` message format — CLI, TUI, WebUI, API endpoints all read it
+- Permission data model (`ToolPermission`, `PermissionScope`, etc.) — permission manager, approval UI, and agent loop all depend on these types
