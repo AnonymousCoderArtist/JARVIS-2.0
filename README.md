@@ -3,8 +3,8 @@
 # JARVIS v2.0
 <img align="center" height="150" src="https://i.pinimg.com/originals/20/e0/83/20e0839cefb31bc03e058be16bacc26e.gif"  />
 
-<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/github/v/release/OEvortex/JARVIS?label=version&style=for-the-badge&color=blue"></a>
-<a href="https://github.com/OEvortex/JARVIS/blob/main/LICENSE"><img src="https://img.shields.io/github/license/OEvortex/JARVIS?style=for-the-badge&color=green"></a>
+<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge"></a>
 <a href="https://github.com/OEvortex/JARVIS/stargazers"><img src="https://img.shields.io/github/stars/OEvortex/JARVIS?style=for-the-badge&color=yellow"></a>
 <a href="https://github.com/OEvortex/JARVIS/issues"><img src="https://img.shields.io/github/issues/OEvortex/JARVIS?style=for-the-badge&color=red"></a>
 
