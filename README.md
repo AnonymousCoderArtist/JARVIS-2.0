@@ -12,6 +12,12 @@
 
 </div>
 
+<div align="center">
+
+[📖 Docs](docs/SUMMARY.md) • [🚀 Setup](docs/SETUP.md) • [🏗️ Architecture](docs/ARCHITECTURE.md) • [📡 API](docs/API.md) • [💻 Contributing](docs/CONTRIBUTING.md)
+
+</div>
+
 ---
 
 ## 🚀 Overview
@@ -167,57 +173,42 @@ graph TB
 
 ```
 JARVIS/
-├── core/
-│   ├── agents/          # Agent system
-│   │   ├── base.py          # Abstract BaseAgent
-│   │   ├── jarvis_v2.py     # Main JARVIS agent
-│   │   ├── explore_agent.py    # Codebase exploration
-│   │   ├── plan_agent.py       # Planning subagent
-│   │   ├── fork_subagent.py   # Fork context subagent
-│   │   ├── heartbeat_scheduler.py  # Nanobot-style heartbeat
-│   │   ├── manager.py        # AgentManager
-│   │   ├── profiles.py       # Profile definitions
-│   │   ├── builtin_agents.py # Built-in agents
-│   │   └── system_prompts.py # Prompt management
-│   ├── config/          # Configuration
-│   │   ├── settings.py   # App settings
-│   │   └── models.py    # Pydantic models
-│   ├── tools/           # Tool system
-│   │   ├── registry.py # Tool registry
-│   │   ├── base.py     # BaseTool class
-│   │   ├── permissions.py   # Permission system
-│   │   ├── file_tools.py    # File operations
-│   │   ├── code_tools.py    # Bash, REPL, tests
-│   │   ├── mcp_adapter.py   # MCP integration
-│   │   ├── skill_tool.py    # Skill invocation
-│   │   ├── skill_manage_tool.py  # Skill management
-│   │   ├── memory_tool.py   # Memory operations
-│   │   ├── web_tools.py     # Web fetching
-│   │   ├── grep_tool.py     # Pattern search
-│   │   └── background_tools.py  # Background tasks
-│   ├── llm_sdk/        # LLM provider SDKs
-│   │   ├── openai/     # OpenAI adapter
-│   │   ├── anthropic/  # Anthropic adapter
-│   │   ├── copilot/    # Copilot adapter
-│   │   └── base/       # Base interface
-│   ├── learn/          # Learning system
-│   │   ├── learning_manager.py  # Main learning
-│   │   ├── pattern_detector.py   # Pattern detection
-│   ├── connectors/     # Connectors system
-│   │   ├── manager.py # ConnectorManager
-│   │   └── filesystem.py  # Filesystem connector
-│   ├── memory/         # Memory system
-│   ├── skills/         # Skill management
-│   ├── learn/          # Learning system
-│   └── web/            # Web server
-├── interface/
-│   ├── cli/            # Rich CLI interface
-│   ├── textual_ui/    # TUI interface (Textual)
-│   └── webui/          # WebUI (TypeScript + FastAPI)
-├── jarvis/            # Entry point
-│   └── cli.py         # CLI launcher
-├── tests/             # Test suite
-└── docs/              # Documentation
+├── core/                   # Python backend
+│   ├── agents/                # Agent system (base.py, jarvis_v2.py, manager.py, profiles, prompts/)
+│   ├── tools/                 # Tool system (registry, base, permissions, 20+ tools, MCP, sandbox)
+│   ├── llm/                   # LLM provider abstraction (SDKAdapter, model info)
+│   ├── llm_sdk/               # Provider SDKs (openai/, anthropic/)
+│   ├── provider/              # Provider manager & models
+│   ├── config/                # Settings (JSON + env overrides)
+│   ├── connectors/            # External data connectors (github, http, rss, weather, filesystem)
+│   ├── learn/                 # Learning system (pattern detection, skill crystallization)
+│   ├── skills/                # Skill management (CRUD, sources, trace collection)
+│   ├── rewind/                # Conversation checkpointing with file snapshots
+│   ├── watchers/              # Passive file/event watchers
+│   ├── web/                   # FastAPI web server (REST + WebSocket endpoints)
+│   └── agents/                # Agent lifecycle, prompts, builtins
+├── interface/             # User interfaces
+│   ├── cli/                   # prompt_toolkit-based CLI
+│   ├── textual_ui/            # Textual-based TUI (30+ widgets)
+│   └── webui/                 # React/TypeScript WebUI (Vite + Tailwind + shadcn)
+├── jarvis/                # Entry point & launcher
+├── tests/                 # Python test suite (pytest)
+├── docs/                  # 📖 Documentation
+│   ├── SUMMARY.md            # Entry point with quick-links
+│   ├── SETUP.md              # Installation & configuration
+│   ├── ARCHITECTURE.md       # Full system architecture
+│   ├── API.md                # REST + WebSocket API reference
+│   ├── CONTRIBUTING.md       # Development guide
+│   ├── custom-agents.md      # Custom agent profiles
+│   ├── custom-tools.md       # Writing new tools
+│   ├── MCP.md                # MCP server integration
+│   ├── SANDBOX.md            # Sandboxed execution
+│   ├── watchers.md           # File/event watchers
+│   └── webui-theme.md        # CSS variable theming
+├── main.py               # Application entry point
+├── providers.json         # LLM provider definitions
+├── pyproject.toml          # Python project config
+└── .env.example           # Environment variables template
 ```
 
 ---
@@ -654,39 +645,74 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 
 ---
 
+## 📚 Documentation
+
+| Doc | For |
+|-----|-----|
+| [📖 SUMMARY.md](docs/SUMMARY.md) | Entry point — quick-links + AI agent instructions |
+| [🚀 SETUP.md](docs/SETUP.md) | Installing, configuring, and running JARVIS |
+| [🏗️ ARCHITECTURE.md](docs/ARCHITECTURE.md) | Understanding the full system — agents, tools, LLM, frontends |
+| [📡 API.md](docs/API.md) | REST + WebSocket API reference for building on top |
+| [💻 CONTRIBUTING.md](docs/CONTRIBUTING.md) | Developing JARVIS — code style, tests, PRs |
+| [🤖 custom-agents.md](docs/custom-agents.md) | Creating custom agent profiles |
+| [🔧 custom-tools.md](docs/custom-tools.md) | Writing new tools |
+| [🔌 MCP.md](docs/MCP.md) | Connecting MCP servers |
+| [📦 SANDBOX.md](docs/SANDBOX.md) | Sandboxed command execution |
+| [👁️ watchers.md](docs/watchers.md) | File/event watchers |
+| [🎨 webui-theme.md](docs/webui-theme.md) | Customizing WebUI colors |
+
+---
+
+## ✅ What You Can Change vs What NOT to Touch
+
+### Safe to Customize
+
+| What | How |
+|------|-----|
+| **LLM model/provider** | Edit `providers.json` or `settings.json` |
+| **Agent behavior** | Switch profile or write a custom agent (`~/.jarvis/agents/`) |
+| **Safety level** | `settings.json` → `agent.safety_profile` or Shift+Tab |
+| **WebUI colors** | Edit CSS variables in `interface/webui/src/globals.css` |
+| **System prompt** | Edit files in `core/agents/prompts/` |
+| **Tool permissions** | `settings.json` → `permissions` |
+| **MCP servers** | Configure in `.mcp.json` |
+| **Custom tools** | Write a `BaseTool` subclass — see [custom-tools.md](docs/custom-tools.md) |
+| **All settings** | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
+
+### Don't Touch (Internal Invariants)
+
+| File(s) | Why |
+|---------|-----|
+| `core/agents/base.py` | Agent loop — streaming, tool dispatch, approval |
+| `core/tools/base.py` | `ToolInput`/`ToolOutput` — all tools inherit these |
+| `core/tools/registry.py` | Tool discovery — changing breaks every tool |
+| `core/llm/base.py` + `sdk_adapter.py` | All LLM communication goes through these |
+| `core/history.py` | Message store — all consumers depend on its format |
+| `core/web/server.py` | API routes — changing endpoints breaks all frontends |
+| `core/config/models.py` | Settings schema — existing configs will fail to load |
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full breakdown.
+
+---
+
 ## 💻 Development
 
-### Running Tests
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the full development guide.
 
 ```bash
 # Run all tests
 pytest tests/ -v
 
-# Run specific test file
-pytest tests/test_async_agents.py -v
-
-# Run single test
-pytest tests/test_async_agents.py::test_function_name -v
-```
-
-### Code Quality
-
-```bash
-# Format code
-black core/ interface/ jarvis/
-
-# Lint
+# Lint & format
 ruff check core/ interface/ jarvis/
-
-# Type check
-ty check .
+ruff format core/ interface/ jarvis/
 ```
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+Contributions are welcome! See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the full guide.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
