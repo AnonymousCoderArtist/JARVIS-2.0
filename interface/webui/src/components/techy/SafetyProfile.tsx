@@ -42,22 +42,15 @@ export function SafetyProfile({ open, onClose, onProfileChange }: SafetyProfileP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div
-        className="w-full max-w-sm overflow-hidden rounded-2xl"
-        style={{
-          background: "linear-gradient(180deg, rgba(10, 20, 45, 0.98) 0%, rgba(6, 12, 28, 0.98) 100%)",
-          border: "1px solid rgba(26, 90, 255, 0.3)",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
-        }}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(26, 90, 255, 0.15)" }}>
+      <div className="techy-dialog w-full max-w-sm overflow-hidden rounded-2xl">
+        <div className="techy-header flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4" style={{ color: "rgba(100, 160, 255, 0.8)" }} />
-            <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "rgba(200, 220, 255, 0.9)" }}>
+            <Shield className="h-4 w-4" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.8)" }} />
+            <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9)" }}>
               Safety Profile
             </span>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-blue-500/10" style={{ color: "rgba(100, 140, 220, 0.6)" }}>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-blue-500/10" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
             <XIcon className="h-4 w-4" />
           </button>
         </div>
@@ -72,8 +65,8 @@ export function SafetyProfile({ open, onClose, onProfileChange }: SafetyProfileP
                 onClick={() => switchProfile(p.id)}
                 className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-left transition-all"
                 style={{
-                  background: active ? "rgba(26, 90, 255, 0.1)" : "rgba(26, 90, 255, 0.03)",
-                  border: active ? `1px solid ${PROFILE_COLORS[i]}40` : "1px solid rgba(26, 90, 255, 0.08)",
+                  background: active ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1)" : "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.03)",
+                  border: active ? `1px solid ${PROFILE_COLORS[i]}40` : "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.08)",
                 }}
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: `${PROFILE_COLORS[i]}15` }}>
@@ -81,18 +74,18 @@ export function SafetyProfile({ open, onClose, onProfileChange }: SafetyProfileP
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold" style={{ color: active ? "rgba(200, 230, 255, 0.9)" : "rgba(150, 180, 220, 0.6)" }}>
+                    <span className="text-xs font-bold" style={{ color: active ? "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9)" : "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.6)" }}>
                       {p.name}
                     </span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(26, 90, 255, 0.08)", color: "rgba(100, 140, 220, 0.4)" }}>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.08)", color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
                       L{p.id}
                     </span>
                   </div>
-                  <div className="text-[10px] mt-0.5" style={{ color: "rgba(100, 140, 220, 0.4)" }}>{p.desc}</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>{p.desc}</div>
                 </div>
                 {active && (
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full" style={{ background: "rgba(26, 90, 255, 0.2)" }}>
-                    <CheckIcon className="h-3 w-3" style={{ color: "rgba(100, 180, 255, 0.8)" }} />
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full" style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.2)" }}>
+                    <CheckIcon className="h-3 w-3" style={{ color: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.8)" }} />
                   </div>
                 )}
               </button>
@@ -101,7 +94,7 @@ export function SafetyProfile({ open, onClose, onProfileChange }: SafetyProfileP
         </div>
 
         {current && (
-          <div className="px-5 py-3 border-t text-[9px] text-center" style={{ borderColor: "rgba(26, 90, 255, 0.1)", color: "rgba(100, 140, 220, 0.35)" }}>
+          <div className="px-5 py-3 border-t border-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.1)] text-[9px] text-center" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.35)" }}>
             Press Shift+Tab to cycle profiles · Current: {current.name}
           </div>
         )}

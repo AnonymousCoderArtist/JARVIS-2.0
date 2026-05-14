@@ -45,9 +45,9 @@ export function ThinkingPicker({
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-all"
         style={{
-          background: "rgba(26, 90, 255, 0.15)",
-          border: "1px solid rgba(26, 90, 255, 0.25)",
-          color: "rgba(120, 160, 255, 0.9)",
+          background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15)",
+          border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.25)",
+          color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9)",
         }}
       >
         <Brain className="h-3 w-3" />
@@ -57,14 +57,9 @@ export function ThinkingPicker({
 
       {isOpen && (
         <div
-          className="absolute bottom-full left-0 mb-2 min-w-[160px] overflow-hidden rounded-xl"
-          style={{
-            background: "linear-gradient(180deg, rgba(10, 20, 45, 0.95) 0%, rgba(6, 12, 28, 0.95) 100%)",
-            border: "1px solid rgba(26, 90, 255, 0.3)",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(26, 90, 255, 0.1)",
-          }}
+          className="absolute bottom-full left-0 mb-2 min-w-[160px] overflow-hidden rounded-xl techy-suggestions"
         >
-          <div className="px-3 py-2 text-[10px] uppercase tracking-wider" style={{ color: "rgba(100, 140, 220, 0.6)" }}>
+          <div className="px-3 py-2 text-[10px] uppercase tracking-wider" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
             Thinking Level
           </div>
           {levels.map((level) => (
@@ -79,18 +74,18 @@ export function ThinkingPicker({
               <div className="flex flex-1 flex-col">
                 <span
                   className="text-sm font-medium"
-                  style={{ color: level.name === currentLevel ? "rgba(26, 90, 255, 1)" : "rgba(200, 220, 255, 0.9)" }}
+                  style={{ color: level.name === currentLevel ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 1)" : "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9)" }}
                 >
                   {level.label}
                 </span>
-                <span className="text-[10px]" style={{ color: "rgba(100, 140, 220, 0.6)" }}>
+                <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
                   {level.description}
                 </span>
               </div>
               {level.name === currentLevel && (
                 <div
                   className="h-1.5 w-1.5 rounded-full"
-                  style={{ background: "rgba(26, 90, 255, 0.8)" }}
+                  style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.8)" }}
                 />
               )}
             </button>

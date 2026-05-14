@@ -8,13 +8,13 @@ import type { ConnectionStatus } from "@/lib/types";
 const COPY: Record<ConnectionStatus, { color: string }> = {
   idle: { color: "bg-card/40 text-muted-foreground" },
   connecting: {
-    color: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    color: "bg-[rgba(var(--warning-r),var(--warning-g),var(--warning-b),0.1)] text-[rgba(var(--warning-r),var(--warning-g),var(--warning-b),0.7)]",
   },
   open: {
-    color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    color: "bg-[rgba(var(--success-r),var(--success-g),var(--success-b),0.1)] text-[rgba(var(--success-r),var(--success-g),var(--success-b),0.7)]",
   },
   reconnecting: {
-    color: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    color: "bg-[rgba(var(--warning-r),var(--warning-g),var(--warning-b),0.1)] text-[rgba(var(--warning-r),var(--warning-g),var(--warning-b),0.7)]",
   },
   closed: {
     color: "bg-card/40 text-muted-foreground",

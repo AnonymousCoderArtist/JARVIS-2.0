@@ -89,27 +89,26 @@ export default function App() {
     return (
       <div 
         className="flex h-full w-full items-center justify-center"
-        style={{ background: "#050a14" }}
       >
         <div className="flex flex-col items-center gap-4">
           <div 
             className="h-10 w-10 animate-pulse rounded-full"
             style={{
-              background: "radial-gradient(circle, rgba(26,90,255,0.4), transparent)",
-              boxShadow: "0 0 30px rgba(26,90,255,0.3)",
+              background: "radial-gradient(circle, rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.4), transparent)",
+              boxShadow: "0 0 30px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3)",
             }}
           />
-          <div className="flex items-center gap-2 text-xs tracking-[0.2em] uppercase" style={{ color: "rgba(120, 160, 255, 0.6)" }}>
+          <div className="flex items-center gap-2 text-xs tracking-[0.2em] uppercase" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
             <span 
               className="relative flex h-2 w-2"
             >
               <span 
                 className="absolute inline-flex h-full w-full animate-ping rounded-full"
-                style={{ background: "rgba(26, 90, 255, 0.5)" }}
+                style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.5)" }}
               />
               <span 
                 className="relative inline-flex h-2 w-2 rounded-full"
-                style={{ background: "rgba(26, 90, 255, 0.8)" }}
+                style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.8)" }}
               />
             </span>
             {t("app.loading.connecting")}
@@ -123,23 +122,22 @@ export default function App() {
     return (
       <div 
         className="flex h-full w-full items-center justify-center px-4 text-center"
-        style={{ background: "#050a14" }}
       >
         <div className="flex max-w-md flex-col items-center gap-3">
           <div 
             className="h-10 w-10 rounded-full opacity-60"
             style={{
-              background: "radial-gradient(circle, rgba(26,90,255,0.3), transparent)",
+              background: "radial-gradient(circle, rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3), transparent)",
               filter: "grayscale(1)",
             }}
           />
-          <p className="text-lg font-semibold tracking-wider" style={{ color: "#e0e8ff" }}>
+          <p className="text-lg font-semibold tracking-wider" style={{ color: "hsl(var(--foreground))" }}>
             {t("app.error.title")}
           </p>
-          <p className="text-sm" style={{ color: "rgba(120, 160, 255, 0.5)" }}>
+          <p className="text-sm" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)" }}>
             {state.message}
           </p>
-          <p className="text-xs" style={{ color: "rgba(100, 140, 220, 0.4)" }}>
+          <p className="text-xs" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
             {t("app.error.gatewayHint")}
           </p>
         </div>

@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 
+const SPHERE_STROKE_BASE = { r: 26, g: 90, b: 255 };
+const SPHERE_STROKE_SEC_BASE = { r: 0, g: 68, b: 204 };
+
 interface TechSphereProps {
   onClick?: () => void;
   className?: string;
@@ -67,7 +70,7 @@ export function TechSphere({ onClick, className, style }: TechSphereProps) {
         const strokeVal = 2.5 + percent * 1.0;
         const alpha = 0.7 + percent * 0.3;
         data.el.style.strokeWidth = String(strokeVal);
-        data.el.style.stroke = `rgba(${Math.round(26 + percent * 54)}, ${Math.round(90 + percent * 70)}, 255, ${alpha})`;
+        data.el.style.stroke = `rgba(${Math.round(SPHERE_STROKE_BASE.r + percent * 54)}, ${Math.round(SPHERE_STROKE_BASE.g + percent * 70)}, 255, ${alpha})`;
         data.el.style.transform = `translate(${(percent - 0.5) * 5}px, ${(percent - 0.5) * 5}px)`;
       }
 
@@ -75,7 +78,7 @@ export function TechSphere({ onClick, className, style }: TechSphereProps) {
         const data = secAnimData[i];
         const percent = (1 - Math.cos(data.offset + data.speed * elapsed)) / 2;
         const alpha = 0.4 + percent * 0.5;
-        data.el.style.stroke = `rgba(${Math.round(0 + percent * 34)}, ${Math.round(68 + percent * 112)}, ${Math.round(204 + percent * 51)}, ${alpha})`;
+        data.el.style.stroke = `rgba(${Math.round(SPHERE_STROKE_SEC_BASE.r + percent * 34)}, ${Math.round(SPHERE_STROKE_SEC_BASE.g + percent * 112)}, ${Math.round(SPHERE_STROKE_SEC_BASE.b + percent * 51)}, ${alpha})`;
         data.el.style.strokeWidth = String(2 + percent * 0.8);
         data.el.style.transform = `translate(${(percent - 0.5) * 5}px, ${(percent - 0.5) * 5}px)`;
       }
@@ -85,7 +88,6 @@ export function TechSphere({ onClick, className, style }: TechSphereProps) {
 
     function introAnimation() {
       if (typeof (window as any).anime === "undefined") {
-        // Fallback: start continuous animation immediately
         startTime = performance.now();
         animRaf = requestAnimationFrame(animate);
         return;
@@ -116,7 +118,6 @@ export function TechSphere({ onClick, className, style }: TechSphereProps) {
 
     introAnimation();
 
-    // Subtle mouse interaction (throttled)
     let mouseX = 0,
       mouseY = 0;
     let targetRX = 0,
@@ -168,7 +169,7 @@ export function TechSphere({ onClick, className, style }: TechSphereProps) {
         style={{
           width: 200,
           height: 200,
-          filter: "drop-shadow(0 0 20px rgba(26, 90, 255, 0.3))",
+          filter: `drop-shadow(0 0 20px rgba(${SPHERE_STROKE_BASE.r}, ${SPHERE_STROKE_BASE.g}, ${SPHERE_STROKE_BASE.b}, 0.3))`,
           willChange: "transform",
         }}
       >

@@ -47,22 +47,15 @@ export function ModelPicker({ open, onClose, currentModel, onModelChange }: Mode
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl"
-        style={{
-          background: "linear-gradient(180deg, rgba(10, 20, 45, 0.98) 0%, rgba(6, 12, 28, 0.98) 100%)",
-          border: "1px solid rgba(26, 90, 255, 0.3)",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 30px rgba(26,90,255,0.1)",
-        }}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(26, 90, 255, 0.15)" }}>
+      <div className="techy-dialog w-full max-w-lg overflow-hidden rounded-2xl">
+        <div className="techy-header flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4" style={{ color: "rgba(100, 160, 255, 0.8)" }} />
-            <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "rgba(200, 220, 255, 0.9)" }}>
+            <Bot className="h-4 w-4" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.8)" }} />
+            <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9)" }}>
               Model Picker
             </span>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg transition-colors hover:bg-blue-500/10" style={{ color: "rgba(100, 140, 220, 0.6)" }}>
+          <button onClick={onClose} className="p-1 rounded-lg transition-colors hover:bg-blue-500/10" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -71,7 +64,7 @@ export function ModelPicker({ open, onClose, currentModel, onModelChange }: Mode
           {Object.entries(grouped).map(([provider, providerModels]) => (
             <div key={provider}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(100, 160, 255, 0.6)" }}>
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.6)" }}>
                   {provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : provider}
                 </span>
               </div>
@@ -82,21 +75,21 @@ export function ModelPicker({ open, onClose, currentModel, onModelChange }: Mode
                     onClick={() => { setSelectedModel(m.id); setSelectedProvider(m.provider); }}
                     className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
                     style={{
-                      background: selectedModel === m.id ? "rgba(26, 90, 255, 0.12)" : "transparent",
-                      border: selectedModel === m.id ? "1px solid rgba(26, 90, 255, 0.3)" : "1px solid transparent",
+                      background: selectedModel === m.id ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12)" : "transparent",
+                      border: selectedModel === m.id ? "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3)" : "1px solid transparent",
                     }}
                   >
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full" style={{ border: "1px solid rgba(26, 90, 255, 0.3)" }}>
-                      {selectedModel === m.id && <Check className="h-3 w-3" style={{ color: "rgba(100, 180, 255, 0.9)" }} />}
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full" style={{ border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3)" }}>
+                      {selectedModel === m.id && <Check className="h-3 w-3" style={{ color: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.9)" }} />}
                     </div>
                     <div className="flex-1">
-                      <div className="text-sm font-medium" style={{ color: selectedModel === m.id ? "rgba(200, 230, 255, 0.95)" : "rgba(150, 180, 220, 0.7)" }}>
+                      <div className="text-sm font-medium" style={{ color: selectedModel === m.id ? "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)" : "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.7)" }}>
                         {m.name}
                       </div>
-                      <div className="text-[10px]" style={{ color: "rgba(100, 140, 220, 0.4)" }}>{m.id}</div>
+                      <div className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>{m.id}</div>
                     </div>
                     <div className="flex gap-1">
-                      {m.capabilities.reasoning && <Sparkles className="h-3 w-3" style={{ color: "rgba(255, 200, 50, 0.6)" }} />}
+                      {m.capabilities.reasoning && <Sparkles className="h-3 w-3" style={{ color: "rgba(var(--warning-r), var(--warning-g), var(--warning-b), 0.6)" }} />}
                     </div>
                   </button>
                 ))}
@@ -105,11 +98,11 @@ export function ModelPicker({ open, onClose, currentModel, onModelChange }: Mode
           ))}
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t" style={{ borderColor: "rgba(26, 90, 255, 0.15)" }}>
+        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.15)]">
           <button
             onClick={onClose}
             className="px-4 py-2 text-xs font-medium rounded-xl transition-all"
-            style={{ color: "rgba(100, 140, 220, 0.7)", background: "rgba(26, 90, 255, 0.05)" }}
+            style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.7)", background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.05)" }}
           >
             Cancel
           </button>
@@ -118,9 +111,9 @@ export function ModelPicker({ open, onClose, currentModel, onModelChange }: Mode
             disabled={saving || !selectedModel}
             className="flex items-center gap-2 px-5 py-2 text-xs font-medium rounded-xl transition-all disabled:opacity-40"
             style={{
-              background: saved ? "rgba(50, 200, 100, 0.2)" : "linear-gradient(135deg, rgba(26,90,255,0.3), rgba(0,80,200,0.2))",
-              border: saved ? "1px solid rgba(50, 200, 100, 0.3)" : "1px solid rgba(26,90,255,0.35)",
-              color: saved ? "rgba(100, 220, 150, 0.9)" : "rgba(200, 220, 255, 0.8)",
+              background: saved ? "rgba(var(--success-r), var(--success-g), var(--success-b), 0.2)" : "linear-gradient(135deg, rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3), rgba(var(--brand-r), var(--brand-g), calc(var(--brand-b) - 55), 0.2))",
+              border: saved ? "1px solid rgba(var(--success-r), var(--success-g), var(--success-b), 0.3)" : "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.35)",
+              color: saved ? "rgba(var(--success-r), var(--success-g), var(--success-b), 0.9)" : "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.8)",
             }}
           >
             {saved ? <Check className="h-3 w-3" /> : saving ? "Saving..." : "Apply Model"}

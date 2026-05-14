@@ -2,9 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens — Dark blue techy theme */
+/* ===================================================================
+   DESIGN TOKENS — RGB Channel Variables
+   
+   All reusable colors live here. Use `rgba(var(--r), var(--g), var(--b), a)`
+   in components. Change values in ONE place to retheme entirely.
+   =================================================================== */
+
 @layer base {
   :root {
+    /* shadcn/ui design tokens */
     --background: 220 60% 4%;
     --foreground: 220 60% 92%;
     --card: 220 50% 6%;
@@ -30,6 +37,48 @@
     --sidebar-accent: 220 40% 12%;
     --sidebar-accent-foreground: 220 60% 92%;
     --sidebar-border: 220 40% 18%;
+
+    /* === Color palette (RGB channels) ===
+       Usage: rgba(var(--c-r), var(--c-g), var(--c-b), <alpha>) */
+    --brand-r: 26;   --brand-g: 90;   --brand-b: 255;     /* Primary accent blue */
+    --text-bright-r: 200; --text-bright-g: 220; --text-bright-b: 255; /* Titles / headings */
+    --text-body-r: 180;  --text-body-g: 200;  --text-body-b: 230;   /* Body / paragraphs */
+    --text-muted-r: 100; --text-muted-g: 140; --text-muted-b: 220;  /* Labels / secondary */
+    --text-dim-r: 100;   --text-dim-g: 140;   --text-dim-b: 220;    /* Hints / de-emphasized */
+    --text-badge-r: 120; --text-badge-g: 160; --text-badge-b: 255;  /* Connection status */
+
+    /* Panel surfaces */
+    --panel-bg-start-r: 8;   --panel-bg-start-g: 16;   --panel-bg-start-b: 38;
+    --panel-bg-end-r: 5;     --panel-bg-end-g: 10;     --panel-bg-end-b: 24;
+
+    --dialog-bg-start-r: 10; --dialog-bg-start-g: 20;  --dialog-bg-start-b: 45;
+    --dialog-bg-end-r: 6;    --dialog-bg-end-g: 12;    --dialog-bg-end-b: 28;
+
+    /* Approve dialog amber palette */
+    --amber-r: 255; --amber-g: 180; --amber-b: 50;
+    --amber-text-r: 255; --amber-text-g: 220; --amber-text-b: 150;
+    --amber-muted-r: 200; --amber-muted-g: 180; --amber-muted-b: 120;
+
+    /* Status */
+    --success-r: 50;   --success-g: 200;  --success-b: 100;
+    --warning-r: 255;  --warning-g: 180;  --warning-b: 50;
+    --error-r: 200;    --error-g: 80;     --error-b: 80;
+    --info-r: 100;     --info-g: 200;     --info-b: 255;
+
+    /* Debug console green palette */
+    --green-bright-r: 100; --green-bright-g: 220; --green-bright-b: 100;
+    --green-pale-r: 200;   --green-pale-g: 255;   --green-pale-b: 200;
+
+    /* Element borders */
+    --border-accent-light: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15);
+    --border-accent: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+    --border-accent-strong: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.35);
+
+    /* Panel shadows */
+    --shadow-panel: 0 8px 40px rgba(0, 0, 0, 0.4),
+                    0 0 40px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --shadow-dialog: 0 8px 40px rgba(0, 0, 0, 0.6);
   }
 
   .dark {
@@ -80,6 +129,356 @@
   }
 }
 
+@layer components {
+  /* ===================================================================
+     REUSABLE TECHY COMPONENT CLASSES
+     Use these instead of inline style={{}} for consistent, themeable UI.
+     =================================================================== */
+
+  /* --- Panels & Dialogs --- */
+  .techy-panel {
+    background: linear-gradient(180deg,
+      rgba(var(--panel-bg-start-r), var(--panel-bg-start-g), var(--panel-bg-start-b), 0.92) 0%,
+      rgba(var(--panel-bg-end-r), var(--panel-bg-end-g), var(--panel-bg-end-b), 0.92) 100%
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .techy-dialog {
+    background: linear-gradient(180deg,
+      rgba(var(--dialog-bg-start-r), var(--dialog-bg-start-g), var(--dialog-bg-start-b), 0.98) 0%,
+      rgba(var(--dialog-bg-end-r), var(--dialog-bg-end-g), var(--dialog-bg-end-b), 0.98) 100%
+    );
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+    box-shadow: var(--shadow-dialog);
+  }
+
+  .techy-dialog-amber {
+    background: linear-gradient(180deg,
+      rgba(20, 15, 10, 0.98) 0%,
+      rgba(12, 8, 5, 0.98) 100%
+    );
+    border: 1px solid rgba(var(--amber-r), var(--amber-g), var(--amber-b), 0.3);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6),
+                0 0 30px rgba(255, 150, 0, 0.08);
+  }
+
+  .techy-dialog-debug {
+    background: linear-gradient(180deg,
+      rgba(5, 10, 25, 0.99) 0%,
+      rgba(2, 5, 15, 0.99) 100%
+    );
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.25);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7);
+  }
+
+  /* --- Panel / Dialog Headers --- */
+  .techy-header {
+    border-bottom: 1px solid rgba(var(--border-accent-light));
+    background: linear-gradient(180deg,
+      rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.06) 0%,
+      transparent 100%
+    );
+  }
+
+  .techy-header-amber {
+    border-bottom: 1px solid rgba(var(--amber-r), var(--amber-g), var(--amber-b), 0.12);
+  }
+
+  .techy-header-debug {
+    border-bottom: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12);
+  }
+
+  /* --- Button / Tab States --- */
+  .techy-btn-active {
+    background: linear-gradient(135deg,
+      rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.2),
+      rgba(0, 100, 255, 0.08)
+    );
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.35);
+    box-shadow: 0 0 20px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15),
+                inset 0 0 10px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.05);
+  }
+
+  .techy-btn-selected {
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+  }
+
+  .techy-btn-unselected {
+    background: transparent;
+    border: 1px solid transparent;
+  }
+
+  .techy-btn-active-amber {
+    background: linear-gradient(135deg,
+      rgba(var(--amber-r), var(--amber-g), var(--amber-b), 0.2),
+      rgba(200, 120, 20, 0.15)
+    );
+    border: 1px solid rgba(var(--amber-r), var(--amber-g), var(--amber-b), 0.3);
+    color: rgba(var(--amber-text-r), var(--amber-text-g), var(--amber-text-b), 0.8);
+  }
+
+  /* --- Status Dots --- */
+  .techy-dot {
+    @apply relative inline-flex;
+    width: 8px;
+    height: 8px;
+  }
+
+  .techy-dot-ping {
+    @apply absolute inline-flex h-full w-full animate-ping rounded-full;
+  }
+
+  .techy-dot-solid {
+    @apply relative inline-flex rounded-full;
+    width: 8px;
+    height: 8px;
+  }
+
+  /* --- Text Colors --- */
+  .techy-text-title {
+    color: rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9);
+  }
+
+  .techy-text-body {
+    color: rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.9);
+  }
+
+  .techy-text-muted {
+    color: rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6);
+  }
+
+  .techy-text-dim {
+    color: rgba(var(--text-dim-r), var(--text-dim-g), var(--text-dim-b), 0.4);
+  }
+
+  .techy-text-badge {
+    color: rgba(var(--text-badge-r), var(--text-badge-g), var(--text-badge-b), 0.9);
+  }
+
+  /* --- Icon Colors --- */
+  .techy-icon {
+    color: rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.8);
+  }
+
+  .techy-icon-muted {
+    color: rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6);
+  }
+
+  /* --- Dividers --- */
+  .techy-divider {
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent,
+      rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12),
+      transparent
+    );
+  }
+
+  .techy-divider-v {
+    width: 1px;
+    background: linear-gradient(180deg,
+      transparent,
+      rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12),
+      transparent
+    );
+  }
+
+  /* --- Status Badges --- */
+  .techy-badge {
+    @apply px-2 py-0.5 rounded-full text-[9px] whitespace-nowrap;
+  }
+
+  .techy-badge-question {
+    background: rgba(100, 160, 255, 0.15);
+    border: 1px solid rgba(100, 160, 255, 0.2);
+    color: rgba(150, 200, 255, 0.7);
+  }
+
+  .techy-badge-approval {
+    background: rgba(var(--amber-r), var(--amber-g), var(--amber-b), 0.15);
+    border: 1px solid rgba(var(--amber-r), var(--amber-g), var(--amber-b), 0.2);
+    color: rgba(var(--amber-text-r), var(--amber-text-g), var(--amber-text-b), 0.7);
+  }
+
+  /* --- Sent message bubbles --- */
+  .techy-bubble-user {
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.2);
+  }
+
+  .techy-bubble-assistant {
+    background: rgba(15, 25, 45, 0.6);
+    border: 1px solid rgba(40, 70, 120, 0.2);
+  }
+
+  .techy-bubble-reasoning {
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.06);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12);
+  }
+
+  /* --- Session items --- */
+  .techy-session-active {
+    background: linear-gradient(135deg,
+      rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15),
+      rgba(0, 100, 255, 0.05)
+    );
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.35);
+    box-shadow: 0 0 15px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1);
+  }
+
+  .techy-session-inactive {
+    background: rgba(10, 20, 40, 0.4);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.08);
+  }
+
+  .techy-session-active-remote {
+    background: linear-gradient(135deg,
+      rgba(34, 211, 238, 0.15),
+      rgba(6, 182, 212, 0.05)
+    );
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.1);
+  }
+
+  .techy-session-inactive-remote {
+    background: rgba(8, 30, 40, 0.4);
+    border: 1px solid rgba(34, 211, 238, 0.08);
+  }
+
+  /* --- Connection Bar --- */
+  .techy-connection-bar {
+    background: linear-gradient(180deg,
+      rgba(var(--dialog-bg-start-r), var(--dialog-bg-start-g), var(--dialog-bg-start-b), 0.95) 0%,
+      rgba(var(--dialog-bg-end-r), var(--dialog-bg-end-g), var(--dialog-bg-end-b), 0.95) 100%
+    );
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  /* --- Input bar --- */
+  .techy-input-bar {
+    background: linear-gradient(180deg,
+      rgba(var(--dialog-bg-start-r), var(--dialog-bg-start-g), var(--dialog-bg-start-b), 0.9) 0%,
+      rgba(var(--dialog-bg-end-r), var(--dialog-bg-end-g), var(--dialog-bg-end-b), 0.9) 100%
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 30px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .techy-suggestions {
+    background: linear-gradient(180deg,
+      rgba(var(--dialog-bg-start-r), var(--dialog-bg-start-g), var(--dialog-bg-start-b), 0.98) 0%,
+      rgba(var(--dialog-bg-end-r), var(--dialog-bg-end-g), var(--dialog-bg-end-b), 0.98) 100%
+    );
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.35);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
+                0 0 20px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15);
+  }
+
+  /* --- Sidebar buttons --- */
+  .techy-sidebar-btn {
+    color: rgba(100, 160, 255, 0.5);
+    position: relative;
+    display: flex;
+    height: 2.25rem;
+    width: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    transition: all 150ms;
+  }
+  .techy-sidebar-btn:hover {
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1);
+  }
+
+  .techy-tooltip {
+    position: absolute;
+    right: 100%;
+    margin-right: 0.5rem;
+    top: 50%;
+    translate: 0 -50%;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 10px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 150ms;
+    pointer-events: none;
+    background: rgba(5, 10, 22, 0.95);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.2);
+    color: rgba(180, 200, 240, 0.8);
+  }
+  .group:hover .techy-tooltip {
+    opacity: 1;
+  }
+
+  /* --- Scroll areas (dark blue) --- */
+  .techy-scroll-bg {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  /* --- Top Menu --- */
+  .techy-topmenu {
+    background: linear-gradient(180deg,
+      rgba(8, 16, 35, 0.9) 0%,
+      rgba(5, 10, 22, 0.85) 100%
+    );
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.25);
+    border-radius: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3),
+                0 0 20px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .techy-topmenu-inner {
+    background: radial-gradient(ellipse at 50% 0%,
+      rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.08) 0%,
+      transparent 60%
+    );
+  }
+
+  .techy-sphere-response {
+    background: linear-gradient(180deg,
+      rgba(var(--panel-bg-start-r), var(--panel-bg-start-g), var(--panel-bg-start-b), 0.57),
+      rgba(var(--panel-bg-end-r), var(--panel-bg-end-g), var(--panel-bg-end-b), 0.47)
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4),
+                0 0 25px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .techy-feedback {
+    background: linear-gradient(180deg,
+      rgba(var(--dialog-bg-start-r), var(--dialog-bg-start-g), var(--dialog-bg-start-b), 0.98) 0%,
+      rgba(var(--dialog-bg-end-r), var(--dialog-bg-end-g), var(--dialog-bg-end-b), 0.98) 100%
+    );
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  /* --- Right sidebar --- */
+  .techy-right-sidebar {
+    background: linear-gradient(180deg,
+      rgba(8, 16, 35, 0.85) 0%,
+      rgba(5, 10, 22, 0.8) 100%
+    );
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15);
+    border-right: none;
+  }
+}
+
 @layer utilities {
   .shadow-inner-right {
     box-shadow: inset -9px 0 6px -1px rgb(0 0 0 / 0.02);
@@ -120,7 +519,7 @@
   /* Subtle scrollbar with blue theme. */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgba(26, 90, 255, 0.4) transparent;
+    scrollbar-color: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.4) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
@@ -130,11 +529,11 @@
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(26, 90, 255, 0.4);
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.4);
     border-radius: 3px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: rgba(26, 90, 255, 0.6);
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.6);
   }
 
   /* All scrollbars use blue theme */
@@ -146,10 +545,10 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgba(26, 90, 255, 0.3);
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3);
     border-radius: 3px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: rgba(26, 90, 255, 0.5);
+    background: rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.5);
   }
 }

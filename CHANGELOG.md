@@ -6,6 +6,52 @@ This document summarizes all the fixes, improvements, and UI updates made to the
 
 ---
 
+## WebUI Design Token Refactoring
+
+### Problem
+The WebUI had ~400+ hardcoded `rgba()` color values spread across 30 component files. Changing the theme required editing every file individually — colors like `rgba(26, 90, 255, ...)` and `rgba(200, 220, 255, ...)` were duplicated everywhere with no single source of truth.
+
+### Solution
+Introduced a centralized **design token system** using CSS custom properties (RGB channel variables) in `globals.css`, and **reusable component CSS classes** for common UI patterns.
+
+### What Changed
+
+**1. Design Tokens in `globals.css`**
+- Added RGB channel CSS variables in `:root`:
+  - `--brand-r/g/b` — primary accent blue (was 26, 90, 255)
+  - `--text-bright-r/g/b` — headings/titles (was 200, 220, 255)
+  - `--text-body-r/g/b` — body text (was 180, 200, 230)
+  - `--text-muted-r/g/b` — labels/secondary (was 100, 140, 220)
+  - `--success-r/g/b`, `--error-r/g/b`, `--warning-r/g/b` — status colors
+  - `--dialog-bg-start/end-r/g/b` — panel gradient colors
+
+**2. 25 Reusable CSS Component Classes**
+- `.techy-panel`, `.techy-dialog`, `.techy-dialog-amber`, `.techy-dialog-debug`
+- `.techy-header`, `.techy-header-amber`, `.techy-header-debug`
+- `.techy-btn-active`, `.techy-btn-selected`, `.techy-btn-active-amber`
+- `.techy-topmenu`, `.techy-input-bar`, `.techy-suggestions`, `.techy-connection-bar`
+- `.techy-bubble-user`, `.techy-bubble-assistant`, `.techy-bubble-reasoning`
+- `.techy-text-title`, `.techy-text-body`, `.techy-text-muted`, `.techy-text-dim`
+- `.techy-badge-question`, `.techy-badge-approval`
+- `.techy-sphere-response`, `.techy-feedback`, `.techy-right-sidebar`, `.techy-sidebar-btn`
+
+**3. 29 Component Files Refactored**
+Every hardcoded `rgba()` and hex color replaced with CSS variable references. Common inline style blocks replaced with `.techy-*` CSS classes.
+
+### How to Theme
+Change RGB values in ONE file (`src/globals.css` `:root`) — everything cascades.
+
+### Files Changed
+- `interface/webui/src/globals.css` — Design tokens + 25 reusable component classes
+- `interface/webui/src/App.tsx` — Loading/error state colors
+- `interface/webui/src/components/MarkdownTextRenderer.tsx` — All markdown element colors
+- `interface/webui/src/components/CodeBlock.tsx` — Syntax highlighting UI colors
+- `interface/webui/src/components/ConnectionBadge.tsx` — Status badge colors
+- `interface/webui/src/components/thread/ToolCallBlock.tsx` — Tool call status colors
+- `interface/webui/src/components/techy/` (25 files) — All panel, dialog, and component colors
+
+---
+
 ## Platform Compatibility Fixes
 
 ### Windows vs Linux Conditional Imports

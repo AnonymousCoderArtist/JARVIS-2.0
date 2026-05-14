@@ -83,27 +83,18 @@ export function ToolCallBox({ toolCalls, pos, onPosChange, canvasOffset }: ToolC
   return (
     <div
       ref={containerRef}
-      className="absolute z-30 flex flex-col overflow-hidden rounded-2xl"
+      className="absolute z-30 flex flex-col overflow-hidden rounded-2xl techy-panel"
       style={{
         left: pos.x,
         top: pos.y,
         width: size.width,
         height: size.height,
-        background:
-          "linear-gradient(180deg, rgba(8, 16, 38, 0.92) 0%, rgba(5, 10, 24, 0.92) 100%)",
-        backdropFilter: "blur(20px)",
-        border: "1px solid rgba(26, 90, 255, 0.3)",
-        boxShadow:
-          "0 8px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(26, 90, 255, 0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
       }}
     >
       {/* Header / drag handle */}
       <div
-        className="flex items-center justify-between px-4 py-2 rounded-t-2xl"
+        className="flex items-center justify-between px-4 py-2 rounded-t-2xl techy-header"
         style={{
-          borderBottom: "1px solid rgba(30, 80, 180, 0.25)",
-          background:
-            "linear-gradient(180deg, rgba(26,90,255,0.06) 0%, transparent 100%)",
           cursor: "grab",
         }}
       >
@@ -111,18 +102,18 @@ export function ToolCallBox({ toolCalls, pos, onPosChange, canvasOffset }: ToolC
           <span className="relative flex h-2 w-2">
             <span
               className="absolute inline-flex h-full w-full animate-ping rounded-full"
-              style={{ background: "rgba(26, 90, 255, 0.5)" }}
+              style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.5)" }}
             />
             <span
               className="relative inline-flex h-2 w-2 rounded-full"
-              style={{ background: "rgba(26, 90, 255, 0.9)" }}
+              style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.9)" }}
             />
           </span>
-          <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-blue-200/80">
+          <span className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.8)" }}>
             Tool Calls
           </span>
         </div>
-        <span className="text-[10px] text-slate-500">
+        <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)" }}>
           {toolCalls.length} total
         </span>
       </div>
@@ -131,7 +122,7 @@ export function ToolCallBox({ toolCalls, pos, onPosChange, canvasOffset }: ToolC
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {visibleCalls.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <span className="text-[10px] tracking-widest text-slate-700 uppercase">
+            <span className="text-[10px] tracking-widest uppercase" style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.35)" }}>
               IDLE
             </span>
           </div>
@@ -141,8 +132,8 @@ export function ToolCallBox({ toolCalls, pos, onPosChange, canvasOffset }: ToolC
             key={tc.id}
             className="flex items-center gap-3 rounded-xl px-3 py-2"
             style={{
-              background: "rgba(10, 20, 40, 0.5)",
-              border: "1px solid rgba(26, 90, 255, 0.1)",
+              background: "rgba(var(--dialog-bg-start-r), var(--dialog-bg-start-g), var(--dialog-bg-start-b), 0.5)",
+              border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1)",
             }}
           >
             <span
@@ -150,19 +141,19 @@ export function ToolCallBox({ toolCalls, pos, onPosChange, canvasOffset }: ToolC
               style={{
                 background:
                   tc.status === "running"
-                    ? "rgba(26, 90, 255, 0.8)"
+                    ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.8)"
                     : tc.status === "completed"
-                      ? "rgba(60, 180, 100, 0.8)"
-                      : "rgba(220, 60, 60, 0.8)",
+                      ? "rgba(var(--success-r), var(--success-g), var(--success-b), 0.8)"
+                      : "rgba(var(--error-r), var(--error-g), var(--error-b), 0.8)",
                 boxShadow:
                   tc.status === "running"
-                    ? "0 0 6px rgba(26, 90, 255, 0.6)"
+                    ? "0 0 6px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.6)"
                     : "none",
               }}
             />
             <div className="flex flex-1 flex-col">
-              <span className="text-[11px] text-blue-200/90">{tc.name}</span>
-              <span className="text-[9px] tracking-wider uppercase text-slate-600">
+              <span className="text-[11px]" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9)" }}>{tc.name}</span>
+              <span className="text-[9px] tracking-wider uppercase" style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.4)" }}>
                 {tc.status}
               </span>
             </div>
@@ -176,7 +167,7 @@ export function ToolCallBox({ toolCalls, pos, onPosChange, canvasOffset }: ToolC
         className="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize"
         style={{
           background:
-            "linear-gradient(135deg, transparent 45%, rgba(26,90,255,0.3) 50%)",
+            "linear-gradient(135deg, transparent 45%, rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3) 50%)",
         }}
       />
     </div>

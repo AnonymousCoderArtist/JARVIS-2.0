@@ -212,7 +212,7 @@ export function TechShell() {
       className="relative h-full w-full overflow-hidden"
       style={{
         background:
-          "radial-gradient(ellipse at 50% 50%, rgba(10, 22, 50, 1) 0%, rgba(5, 10, 20, 1) 70%)",
+          "radial-gradient(ellipse at 50% 50%, hsl(220 60% 10%) 0%, hsl(220 60% 4%) 70%)",
       }}
     >
       {/* === CANVAS + WIDGETS (no container transform — each element handles its own offset) === */}
@@ -270,7 +270,7 @@ export function TechShell() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(circle at 50% 50%, rgba(26, 90, 255, 0.04) 0%, transparent 60%)",
+            "radial-gradient(circle at 50% 50%, rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.04) 0%, transparent 60%)",
         }}
       />
 
@@ -293,25 +293,18 @@ export function TechShell() {
       {/* Connection Status */}
       {connectionStatus !== "open" && (
         <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2">
-          <div
-            className="flex items-center gap-3 rounded-full px-4 py-2"
-            style={{
-              background: "linear-gradient(180deg, rgba(10, 20, 45, 0.95) 0%, rgba(6, 12, 28, 0.95) 100%)",
-              border: "1px solid rgba(26, 90, 255, 0.3)",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
-            }}
-          >
+          <div className="techy-connection-bar flex items-center gap-3 rounded-full px-4 py-2">
             <div className="relative flex h-3 w-3">
               <span
                 className="absolute inline-flex h-full w-full animate-ping rounded-full"
-                style={{ background: connectionStatus === "connecting" ? "rgba(26, 90, 255, 0.5)" : "rgba(255, 100, 100, 0.5)" }}
+                style={{ background: connectionStatus === "connecting" ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.5)" : "rgba(255, 100, 100, 0.5)" }}
               />
               <span
                 className="relative inline-flex h-3 w-3 rounded-full"
-                style={{ background: connectionStatus === "connecting" ? "rgba(26, 90, 255, 0.8)" : "rgba(255, 100, 100, 0.8)" }}
+                style={{ background: connectionStatus === "connecting" ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.8)" : "rgba(255, 100, 100, 0.8)" }}
               />
             </div>
-            <span className="text-xs font-medium tracking-wide" style={{ color: "rgba(120, 160, 255, 0.9)" }}>
+            <span className="techy-text-badge text-xs font-medium tracking-wide">
               {connectionStatus === "connecting" ? "Connecting to JARVIS..." : 
                connectionStatus === "reconnecting" ? "Reconnecting..." : 
                connectionStatus === "closed" ? "Disconnected" : "Connecting..."}
@@ -358,15 +351,7 @@ export function TechShell() {
       />
 
       {/* ===== FIXED RIGHT SIDEBAR ===== */}
-      <div
-        className="fixed right-0 top-1/2 z-50 -translate-y-1/2 flex flex-col items-center gap-3 py-3 px-2 rounded-l-2xl"
-        style={{
-          background: "linear-gradient(180deg, rgba(8, 16, 35, 0.85) 0%, rgba(5, 10, 22, 0.8) 100%)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(26, 90, 255, 0.15)",
-          borderRight: "none",
-        }}
-      >
+      <div className="fixed right-0 top-1/2 z-50 -translate-y-1/2 flex flex-col items-center gap-3 py-3 px-2 rounded-l-2xl techy-right-sidebar">
         {[
           { icon: Bot, label: "Model", action: () => setModelPickerOpen(true) },
           { icon: Wifi, label: "MCP", action: () => setMcpPanelOpen(true) },
@@ -381,19 +366,11 @@ export function TechShell() {
           <button
             key={label}
             onClick={action}
-            className="group relative flex h-9 w-9 items-center justify-center rounded-xl transition-all hover:bg-blue-500/10"
-            style={{ color: "rgba(100, 160, 255, 0.5)" }}
+            className="techy-sidebar-btn"
             title={label}
           >
             <Icon className="h-4 w-4" />
-            <span
-              className="absolute right-full mr-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-              style={{
-                background: "rgba(5, 10, 22, 0.95)",
-                border: "1px solid rgba(26, 90, 255, 0.2)",
-                color: "rgba(180, 200, 240, 0.8)",
-              }}
-            >
+            <span className="techy-tooltip">
               {label}
             </span>
           </button>

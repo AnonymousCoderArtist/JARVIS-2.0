@@ -52,8 +52,8 @@ export function VoiceInput({ onTranscript }: VoiceInputProps) {
       disabled={transcribing}
       className="flex h-8 w-8 items-center justify-center rounded-lg transition-all disabled:opacity-40"
       style={{
-        color: recording ? "rgba(255, 80, 80, 0.9)" : "rgba(100, 140, 220, 0.5)",
-        background: recording ? "rgba(255, 80, 80, 0.15)" : "transparent",
+        color: recording ? "rgba(var(--error-r), var(--error-g), var(--error-b), 0.9)" : "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)",
+        background: recording ? "rgba(var(--error-r), var(--error-g), var(--error-b), 0.15)" : "transparent",
       }}
     >
       {transcribing ? <Loader2 className="h-4 w-4 animate-spin" /> : recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}

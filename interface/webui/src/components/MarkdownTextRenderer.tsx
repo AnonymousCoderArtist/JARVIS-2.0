@@ -15,7 +15,7 @@ interface MarkdownTextRendererProps {
 
 function Table({ children }: { children: React.ReactNode }) {
   return (
-    <div className="my-4 overflow-x-auto rounded-lg border" style={{ borderColor: "rgba(26, 90, 255, 0.25)" }}>
+    <div className="my-4 overflow-x-auto rounded-lg border" style={{ borderColor: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.25)" }}>
       <table
         className="w-full border-collapse"
       >
@@ -28,7 +28,7 @@ function Table({ children }: { children: React.ReactNode }) {
 function TableHead({ children }: { children: React.ReactNode }) {
   return (
     <thead>
-      <tr style={{ background: "rgba(26, 90, 255, 0.15)" }}>
+      <tr style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15)" }}>
         {children}
       </tr>
     </thead>
@@ -41,7 +41,7 @@ function TableBody({ children }: { children: React.ReactNode }) {
 
 function TableRow({ children }: { children: React.ReactNode }) {
   return (
-    <tr className="border-b" style={{ borderColor: "rgba(26, 90, 255, 0.1)" }}>
+    <tr className="border-b" style={{ borderColor: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1)" }}>
       {children}
     </tr>
   );
@@ -53,7 +53,7 @@ function TableCell({ children, isHeader = false }: { children: React.ReactNode; 
     <Tag
       className="px-3 py-2 text-sm"
       style={{
-        color: isHeader ? "rgba(200, 220, 255, 0.95)" : "rgba(180, 200, 230, 0.85)",
+        color: isHeader ? "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)" : "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.85)",
         fontWeight: isHeader ? 600 : 400,
       }}
     >
@@ -146,63 +146,63 @@ export default function MarkdownTextRenderer({
           },
           p({ children }) {
             return (
-              <p className="my-2" style={{ color: "rgba(180, 200, 230, 0.9)" }}>
+              <p className="my-2" style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.9)" }}>
                 {children}
               </p>
             );
           },
           h1({ children }) {
             return (
-              <h1 className="text-xl font-semibold mt-4 mb-2" style={{ color: "rgba(200, 220, 255, 0.95)" }}>
+              <h1 className="text-xl font-semibold mt-4 mb-2" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)" }}>
                 {children}
               </h1>
             );
           },
           h2({ children }) {
             return (
-              <h2 className="text-lg font-semibold mt-4 mb-2" style={{ color: "rgba(200, 220, 255, 0.95)" }}>
+              <h2 className="text-lg font-semibold mt-4 mb-2" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)" }}>
                 {children}
               </h2>
             );
           },
           h3({ children }) {
             return (
-              <h3 className="text-base font-semibold mt-3 mb-1" style={{ color: "rgba(200, 220, 255, 0.95)" }}>
+              <h3 className="text-base font-semibold mt-3 mb-1" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)" }}>
                 {children}
               </h3>
             );
           },
           ul({ children }) {
             return (
-              <ul className="my-2 ml-4 list-disc" style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+              <ul className="my-2 ml-4 list-disc" style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.85)" }}>
                 {children}
               </ul>
             );
           },
           ol({ children }) {
             return (
-              <ol className="my-2 ml-4 list-decimal" style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+              <ol className="my-2 ml-4 list-decimal" style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.85)" }}>
                 {children}
               </ol>
             );
           },
           li({ children }) {
             return (
-              <li className="my-1" style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+              <li className="my-1" style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.85)" }}>
                 {children}
               </li>
             );
           },
           strong({ children }) {
             return (
-              <strong style={{ color: "rgba(200, 220, 255, 0.95)", fontWeight: 600 }}>
+              <strong style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)", fontWeight: 600 }}>
                 {children}
               </strong>
             );
           },
           em({ children }) {
             return (
-              <em style={{ color: "rgba(180, 200, 230, 0.85)" }}>
+              <em style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.85)" }}>
                 {children}
               </em>
             );

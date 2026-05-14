@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Cloud, CloudOff } from "lucide-react";
 import type { ChatSummary } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface ChatHistoryProps {
   open: boolean;
@@ -71,36 +72,27 @@ export function ChatHistory({
   return (
     <div
       ref={panelRef}
-      className="absolute z-30 flex flex-col overflow-hidden rounded-2xl"
+      className="techy-panel absolute z-30 flex flex-col overflow-hidden rounded-2xl"
       style={{
         left: pos.x,
         top: pos.y,
         width: 300,
         height: 420,
-        background:
-          "linear-gradient(180deg, rgba(8, 16, 38, 0.92) 0%, rgba(5, 10, 24, 0.92) 100%)",
-        backdropFilter: "blur(20px)",
-        border: "1px solid rgba(26, 90, 255, 0.3)",
-        boxShadow:
-          "0 8px 40px rgba(0, 0, 0, 0.4), 0 0 40px rgba(26, 90, 255, 0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
       }}
     >
       {/* Header / drag handle */}
       <div
-        className="flex items-center justify-between px-5 py-3 rounded-t-2xl"
+        className="techy-header flex items-center justify-between px-5 py-3 rounded-t-2xl"
         style={{
-          borderBottom: "1px solid rgba(30, 80, 180, 0.25)",
-          background:
-            "linear-gradient(180deg, rgba(26,90,255,0.06) 0%, transparent 100%)",
           cursor: "grab",
         }}
       >
-        <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-blue-200/80">
+        <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[rgba(var(--text-bright-r),var(--text-bright-g),var(--text-bright-b),0.8)]">
           Conversations
         </span>
         <button
           onClick={onClose}
-          className="text-[10px] tracking-[0.15em] uppercase text-slate-500 transition-colors hover:text-blue-300"
+          className="text-[10px] tracking-[0.15em] uppercase text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.5)] hover:text-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.7)] transition-colors"
         >
           [ close ]
         </button>
@@ -110,7 +102,7 @@ export function ChatHistory({
       <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
         {sessions.filter(s => s.source !== "remote").length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <span className="text-[10px] tracking-widest text-slate-700 uppercase">
+            <span className="text-[10px] tracking-widest text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.35)] uppercase">
               NO LOCAL CHATS
             </span>
           </div>
@@ -121,28 +113,22 @@ export function ChatHistory({
             <button
               key={s.key}
               onClick={() => onSelect(s.key)}
-              className="w-full rounded-xl px-4 py-2.5 text-left transition-all duration-200"
-              style={{
-                background: isActive
-                  ? "linear-gradient(135deg, rgba(26,90,255,0.15), rgba(0,100,255,0.05))"
-                  : "rgba(10, 20, 40, 0.4)",
-                border: isActive
-                  ? "1px solid rgba(26, 90, 255, 0.35)"
-                  : "1px solid rgba(26, 90, 255, 0.08)",
-                boxShadow: isActive
-                  ? "0 0 15px rgba(26, 90, 255, 0.1)"
-                  : "none",
-              }}
+              className={cn(
+                "w-full rounded-xl px-4 py-2.5 text-left transition-all duration-200",
+                isActive ? "techy-session-active" : "techy-session-inactive"
+              )}
             >
               <span
-                className="block text-xs leading-relaxed"
-                style={{
-                  color: isActive ? "#c8d8ff" : "#8899bb",
-                }}
+                className={cn(
+                  "block text-xs leading-relaxed",
+                  isActive
+                    ? "text-[rgba(var(--text-bright-r),var(--text-bright-g),var(--text-bright-b),0.9)]"
+                    : "text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.6)]"
+                )}
               >
                 {s.preview || `Chat ${s.chatId.slice(0, 8)}`}
               </span>
-              <span className="block text-[9px] tracking-wider text-slate-600 uppercase">
+              <span className="block text-[9px] tracking-wider text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.4)] uppercase">
                 {s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : "New"}
               </span>
             </button>
@@ -155,7 +141,7 @@ export function ChatHistory({
         <>
           <div
             className="flex items-center gap-2 px-5 py-2"
-            style={{ borderTop: "1px solid rgba(30, 80, 180, 0.15)" }}
+            style={{ borderTop: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15)" }}
           >
             <Cloud className="h-3 w-3 text-cyan-400" />
             <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-cyan-400/80">
@@ -169,33 +155,27 @@ export function ChatHistory({
                 <button
                   key={s.key}
                   onClick={() => onSelect(s.key)}
-                  className="w-full rounded-xl px-4 py-2.5 text-left transition-all duration-200"
-                  style={{
-                    background: isActive
-                      ? "linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(6, 182, 212, 0.05))"
-                      : "rgba(8, 30, 40, 0.4)",
-                    border: isActive
-                      ? "1px solid rgba(34, 211, 238, 0.35)"
-                      : "1px solid rgba(34, 211, 238, 0.08)",
-                    boxShadow: isActive
-                      ? "0 0 15px rgba(34, 211, 238, 0.1)"
-                      : "none",
-                  }}
+                  className={cn(
+                    "w-full rounded-xl px-4 py-2.5 text-left transition-all duration-200",
+                    isActive ? "techy-session-active-remote" : "techy-session-inactive-remote"
+                  )}
                 >
                   <span
-                    className="block text-xs leading-relaxed"
-                    style={{
-                      color: isActive ? "#67e8f9" : "#8899bb",
-                    }}
+                    className={cn(
+                      "block text-xs leading-relaxed",
+                      isActive
+                        ? "text-[rgba(34,211,238,0.9)]"
+                        : "text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.6)]"
+                    )}
                   >
                     {s.title || s.preview || `Remote ${s.chatId.slice(0, 8)}`}
                   </span>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[9px] tracking-wider text-cyan-500/60 uppercase">
+                    <span className="text-[9px] tracking-wider text-[rgba(6,182,212,0.6)] uppercase">
                       {s.status || "remote"}
                     </span>
                     {s.updatedAt && (
-                      <span className="text-[9px] tracking-wider text-slate-600 uppercase">
+                      <span className="text-[9px] tracking-wider text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.4)] uppercase">
                         {new Date(s.updatedAt).toLocaleDateString()}
                       </span>
                     )}
@@ -211,13 +191,13 @@ export function ChatHistory({
       {sessions.filter(s => s.source === "remote").length === 0 && (
         <div
           className="flex items-center gap-2 px-5 py-2"
-          style={{ borderTop: "1px solid rgba(30, 80, 180, 0.15)" }}
+          style={{ borderTop: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15)" }}
         >
-          <CloudOff className="h-3 w-3 text-slate-600" />
-          <span className="text-[9px] tracking-wider text-slate-600 uppercase">
+          <CloudOff className="h-3 w-3 text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.4)]" />
+          <span className="text-[9px] tracking-wider text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.4)] uppercase">
             No remote sessions
           </span>
-          <span className="text-[8px] text-slate-700">
+          <span className="text-[8px] text-[rgba(var(--text-body-r),var(--text-body-g),var(--text-body-b),0.35)]">
             (set JARVIS_REMOTE_URL)
           </span>
         </div>

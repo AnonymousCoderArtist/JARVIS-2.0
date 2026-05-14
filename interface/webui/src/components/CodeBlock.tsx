@@ -52,7 +52,7 @@ export function CodeBlock({ language, code, className }: CodeBlockProps) {
     <div
       className={cn(
         "overflow-hidden rounded-lg border",
-        isDark ? "border-white/10" : "border-black/10",
+        isDark ? "border-[rgba(255,255,255,0.1)]" : "border-[rgba(0,0,0,0.1)]",
         className,
       )}
     >
@@ -60,8 +60,8 @@ export function CodeBlock({ language, code, className }: CodeBlockProps) {
         className={cn(
           "flex items-center justify-between px-4 py-1.5 text-xs font-medium",
           isDark
-            ? "bg-zinc-800 text-zinc-300"
-            : "bg-zinc-100 text-zinc-600",
+            ? "bg-[rgba(0,0,0,0.3)] text-[rgba(255,255,255,0.7)]"
+            : "bg-[rgba(0,0,0,0.05)] text-[rgba(0,0,0,0.5)]",
         )}
       >
         <span className="lowercase font-mono">
@@ -73,8 +73,8 @@ export function CodeBlock({ language, code, className }: CodeBlockProps) {
           className={cn(
             "inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono transition-colors",
             isDark
-              ? "text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
-              : "text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700",
+              ? "text-[rgba(255,255,255,0.5)] hover:bg-[rgba(255,255,255,0.1)] hover:text-[rgba(255,255,255,0.8)]"
+              : "text-[rgba(0,0,0,0.4)] hover:bg-[rgba(0,0,0,0.05)] hover:text-[rgba(0,0,0,0.6)]",
           )}
           aria-label={t("code.copyAria")}
         >

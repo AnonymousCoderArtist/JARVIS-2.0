@@ -12,23 +12,8 @@ export function TopMenu({
   hasActiveQuestion, hasPendingApproval,
 }: TopMenuProps) {
   return (
-    <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2"
-      style={{
-        background:
-          "linear-gradient(180deg, rgba(8, 16, 35, 0.9) 0%, rgba(5, 10, 22, 0.85) 100%)",
-        backdropFilter: "blur(16px)",
-        border: "1px solid rgba(26, 90, 255, 0.25)",
-        borderRadius: "20px",
-        boxShadow:
-          "0 4px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(26, 90, 255, 0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
-      }}
-    >
-      <div className="flex items-center gap-6 rounded-full px-6 py-2"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 0%, rgba(26,90,255,0.08) 0%, transparent 60%)",
-        }}
-      >
+    <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 techy-topmenu">
+      <div className="flex items-center gap-6 rounded-full px-6 py-2 techy-topmenu-inner">
         <button
           onClick={() => onTabChange?.("chat")}
           className={cn(
@@ -39,15 +24,7 @@ export function TopMenu({
           )}
         >
           {activeTab === "chat" && (
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(26,90,255,0.2), rgba(0,100,255,0.08))",
-                border: "1px solid rgba(26,90,255,0.35)",
-                boxShadow: "0 0 20px rgba(26,90,255,0.15), inset 0 0 10px rgba(26,90,255,0.05)",
-              }}
-            />
+            <span className="absolute inset-0 rounded-full techy-btn-active" />
           )}
           <span className="relative z-10 flex items-center gap-1.5">
             <ChatIcon />
@@ -55,21 +32,21 @@ export function TopMenu({
           </span>
         </button>
 
-        <span className="h-4 w-px" style={{ background: "linear-gradient(180deg, transparent, rgba(26,90,255,0.3), transparent)" }} />
+        <span className="h-4 w-px" style={{ background: "linear-gradient(180deg, transparent, rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3), transparent)" }} />
 
         <div className="relative px-3 py-0.5">
           <span
             className="text-sm font-bold tracking-[0.35em] uppercase"
             style={{
-              color: "#e0e8ff",
-              textShadow: "0 0 15px rgba(26,90,255,0.5), 0 0 30px rgba(26,90,255,0.2)",
+              color: "hsl(var(--foreground))",
+              textShadow: "0 0 15px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.5), 0 0 30px rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.2)",
             }}
           >
             Jarvis
           </span>
         </div>
 
-        <span className="h-4 w-px" style={{ background: "linear-gradient(180deg, transparent, rgba(26,90,255,0.3), transparent)" }} />
+        <span className="h-4 w-px" style={{ background: "linear-gradient(180deg, transparent, rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3), transparent)" }} />
 
         <button
           onClick={() => onTabChange?.("user")}
@@ -81,15 +58,7 @@ export function TopMenu({
           )}
         >
           {activeTab === "user" && (
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(26,90,255,0.2), rgba(0,100,255,0.08))",
-                border: "1px solid rgba(26,90,255,0.35)",
-                boxShadow: "0 0 20px rgba(26,90,255,0.15), inset 0 0 10px rgba(26,90,255,0.05)",
-              }}
-            />
+            <span className="absolute inset-0 rounded-full techy-btn-active" />
           )}
           <span className="relative z-10 flex items-center gap-1.5">
             <BotIcon />
@@ -101,14 +70,12 @@ export function TopMenu({
       {(hasActiveQuestion || hasPendingApproval) && (
         <div className="absolute -bottom-6 left-1/2 flex -translate-x-1/2 gap-2 mt-1">
           {hasActiveQuestion && (
-            <div className="px-2 py-0.5 rounded-full text-[9px] whitespace-nowrap"
-              style={{ background: "rgba(100, 160, 255, 0.15)", border: "1px solid rgba(100, 160, 255, 0.2)", color: "rgba(150, 200, 255, 0.7)" }}>
+            <div className="techy-badge techy-badge-question">
               Question pending
             </div>
           )}
           {hasPendingApproval && (
-            <div className="px-2 py-0.5 rounded-full text-[9px] whitespace-nowrap animate-pulse"
-              style={{ background: "rgba(255, 180, 50, 0.15)", border: "1px solid rgba(255, 180, 50, 0.2)", color: "rgba(255, 200, 100, 0.7)" }}>
+            <div className="techy-badge techy-badge-approval animate-pulse">
               Approval needed
             </div>
           )}

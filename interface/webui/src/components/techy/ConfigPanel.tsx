@@ -47,22 +47,15 @@ export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl"
-        style={{
-          background: "linear-gradient(180deg, rgba(10, 20, 45, 0.98) 0%, rgba(6, 12, 28, 0.98) 100%)",
-          border: "1px solid rgba(26, 90, 255, 0.3)",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
-        }}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(26, 90, 255, 0.15)" }}>
+      <div className="techy-dialog w-full max-w-lg overflow-hidden rounded-2xl">
+        <div className="techy-header flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2">
-            <Settings className="h-4 w-4" style={{ color: "rgba(100, 160, 255, 0.8)" }} />
-            <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "rgba(200, 220, 255, 0.9)" }}>
+            <Settings className="h-4 w-4" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.8)" }} />
+            <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.9)" }}>
               Settings
             </span>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-blue-500/10" style={{ color: "rgba(100, 140, 220, 0.6)" }}>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-blue-500/10" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -72,26 +65,26 @@ export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelPro
             <>
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Sliders className="h-3 w-3" style={{ color: "rgba(100, 160, 255, 0.6)" }} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(100, 140, 220, 0.5)" }}>Model</span>
+                  <Sliders className="h-3 w-3" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.6)" }} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)" }}>Model</span>
                 </div>
                 <button
                   onClick={onOpenModelPicker}
                   className="flex w-full items-center justify-between px-4 py-3 rounded-xl transition-all hover:bg-blue-500/8"
-                  style={{ background: "rgba(26, 90, 255, 0.06)", border: "1px solid rgba(26, 90, 255, 0.15)" }}
+                  style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.06)", border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15)" }}
                 >
                   <div className="text-left">
-                    <div className="text-sm font-medium" style={{ color: "rgba(200, 220, 255, 0.85)" }}>{settings.agent.model}</div>
-                    <div className="text-[10px]" style={{ color: "rgba(100, 140, 220, 0.4)" }}>Provider: {settings.agent.provider}</div>
+                    <div className="text-sm font-medium" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.85)" }}>{settings.agent.model}</div>
+                    <div className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>Provider: {settings.agent.provider}</div>
                   </div>
-                  <span className="text-[10px]" style={{ color: "rgba(100, 140, 220, 0.4)" }}>Change →</span>
+                  <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>Change →</span>
                 </button>
               </div>
 
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Brain className="h-3 w-3" style={{ color: "rgba(100, 160, 255, 0.6)" }} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(100, 140, 220, 0.5)" }}>Thinking Level</span>
+                  <Brain className="h-3 w-3" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.6)" }} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)" }}>Thinking Level</span>
                 </div>
                 <div className="space-y-1">
                   {(settings.thinking_levels || []).map(tl => (
@@ -100,18 +93,18 @@ export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelPro
                       onClick={() => handleThinkingChange(tl.name)}
                       className="flex w-full items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all"
                       style={{
-                        background: settings.agent.thinking_level === tl.name ? "rgba(26, 90, 255, 0.12)" : "transparent",
-                        border: settings.agent.thinking_level === tl.name ? "1px solid rgba(26, 90, 255, 0.3)" : "1px solid transparent",
+                        background: settings.agent.thinking_level === tl.name ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12)" : "transparent",
+                        border: settings.agent.thinking_level === tl.name ? "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3)" : "1px solid transparent",
                       }}
                     >
-                      <div className="flex h-4 w-4 items-center justify-center rounded-full" style={{ border: "1px solid rgba(26, 90, 255, 0.3)" }}>
-                        {settings.agent.thinking_level === tl.name && <div className="h-2 w-2 rounded-full" style={{ background: "rgba(100, 180, 255, 0.8)" }} />}
+                      <div className="flex h-4 w-4 items-center justify-center rounded-full" style={{ border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3)" }}>
+                        {settings.agent.thinking_level === tl.name && <div className="h-2 w-2 rounded-full" style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.8)" }} />}
                       </div>
                       <div>
-                        <div className="text-xs font-medium" style={{ color: settings.agent.thinking_level === tl.name ? "rgba(200, 230, 255, 0.85)" : "rgba(150, 180, 220, 0.6)" }}>
+                        <div className="text-xs font-medium" style={{ color: settings.agent.thinking_level === tl.name ? "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.85)" : "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.6)" }}>
                           {tl.label}
                         </div>
-                        <div className="text-[9px]" style={{ color: "rgba(100, 140, 220, 0.35)" }}>{tl.description}</div>
+                        <div className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.35)" }}>{tl.description}</div>
                       </div>
                     </button>
                   ))}
@@ -120,8 +113,8 @@ export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelPro
 
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Shield className="h-3 w-3" style={{ color: "rgba(100, 160, 255, 0.6)" }} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(100, 140, 220, 0.5)" }}>Preferences</span>
+                  <Shield className="h-3 w-3" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.6)" }} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)" }}>Preferences</span>
                 </div>
                 <div className="space-y-2">
                   {PREFERENCES.map(pref => {
@@ -131,23 +124,23 @@ export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelPro
                         key={pref.key}
                         onClick={() => togglePref(pref.key)}
                         className="flex items-center justify-between px-4 py-2.5 rounded-xl cursor-pointer transition-all hover:bg-blue-500/6"
-                        style={{ background: "rgba(26, 90, 255, 0.04)", border: "1px solid rgba(26, 90, 255, 0.08)" }}
+                        style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.04)", border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.08)" }}
                       >
                         <div>
-                          <div className="text-xs font-medium" style={{ color: "rgba(200, 220, 255, 0.7)" }}>{pref.label}</div>
-                          <div className="text-[9px]" style={{ color: "rgba(100, 140, 220, 0.35)" }}>{pref.desc}</div>
+                          <div className="text-xs font-medium" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.7)" }}>{pref.label}</div>
+                          <div className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.35)" }}>{pref.desc}</div>
                         </div>
                         <div
                           className="relative flex h-5 w-9 cursor-pointer rounded-full transition-all duration-200"
                           style={{
-                            background: on ? "rgba(50, 200, 100, 0.3)" : "rgba(26, 90, 255, 0.15)",
-                            border: on ? "1px solid rgba(50, 200, 100, 0.3)" : "1px solid rgba(26, 90, 255, 0.15)",
+                            background: on ? "rgba(var(--success-r), var(--success-g), var(--success-b), 0.3)" : "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15)",
+                            border: on ? "1px solid rgba(var(--success-r), var(--success-g), var(--success-b), 0.3)" : "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.15)",
                           }}
                         >
                           <div
                             className="flex h-4 w-4 items-center justify-center rounded-full transition-all duration-200"
                             style={{
-                              background: on ? "rgba(50, 200, 100, 0.9)" : "rgba(100, 140, 220, 0.4)",
+                              background: on ? "rgba(var(--success-r), var(--success-g), var(--success-b), 0.9)" : "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)",
                               transform: on ? "translateX(18px)" : "translateX(2px)",
                               margin: "1px",
                             }}

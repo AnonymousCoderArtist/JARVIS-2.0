@@ -157,14 +157,9 @@ export function SlashCommands({ value, onChange, onCommand: _onCommand, inputRef
   return (
     <div
       ref={suggestionsRef}
-      className="absolute bottom-full left-0 mb-2 w-72 overflow-hidden rounded-xl"
-      style={{
-        background: "linear-gradient(180deg, rgba(10, 20, 45, 0.98) 0%, rgba(6, 12, 28, 0.98) 100%)",
-        border: "1px solid rgba(26, 90, 255, 0.35)",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(26, 90, 255, 0.15)",
-      }}
+      className="absolute bottom-full left-0 mb-2 w-72 overflow-hidden rounded-xl techy-suggestions"
     >
-      <div className="px-3 py-2 text-[10px] uppercase tracking-wider" style={{ color: "rgba(100, 140, 220, 0.6)" }}>
+      <div className="px-3 py-2 text-[10px] uppercase tracking-wider" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
         Commands
       </div>
       {matches.map((cmd, index) => (
@@ -173,32 +168,32 @@ export function SlashCommands({ value, onChange, onCommand: _onCommand, inputRef
           onClick={() => selectCommand(cmd)}
           className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-blue-500/10"
           style={{
-            background: index === selectedIndex ? "rgba(26, 90, 255, 0.1)" : "transparent",
+            background: index === selectedIndex ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1)" : "transparent",
           }}
         >
           <div className="flex flex-1 flex-col">
-            <span className="text-sm font-medium" style={{ color: "rgba(200, 220, 255, 0.95)" }}>
+            <span className="text-sm font-medium" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)" }}>
               {cmd.aliases[0]}
             </span>
-            <span className="text-[10px]" style={{ color: "rgba(100, 140, 220, 0.6)" }}>
+            <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
               {cmd.description}
             </span>
           </div>
           {cmd.usage && (
-            <span className="text-[10px]" style={{ color: "rgba(100, 140, 220, 0.4)" }}>
+            <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
               {cmd.usage}
             </span>
           )}
         </button>
       ))}
-      <div className="flex items-center justify-between px-3 py-1.5" style={{ borderTop: "1px solid rgba(26, 90, 255, 0.1)" }}>
-        <span className="text-[9px]" style={{ color: "rgba(100, 140, 220, 0.4)" }}>
+      <div className="flex items-center justify-between border-t border-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.1)] px-3 py-1.5">
+        <span className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
           ↑↓ Navigate
         </span>
-        <span className="text-[9px]" style={{ color: "rgba(100, 140, 220, 0.4)" }}>
+        <span className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
           Enter Select
         </span>
-        <span className="text-[9px]" style={{ color: "rgba(100, 140, 220, 0.4)" }}>
+        <span className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
           Esc Close
         </span>
       </div>

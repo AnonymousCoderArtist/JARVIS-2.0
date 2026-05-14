@@ -16,9 +16,9 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
   return (
     <div className={cn(
       "mb-2 flex flex-col overflow-hidden rounded-lg border text-xs transition-all",
-      isPending && "border-blue-200/50 bg-blue-50/10 dark:border-blue-900/30 dark:bg-blue-950/5",
-      isSuccess && "border-emerald-200/50 bg-emerald-50/10 dark:border-emerald-900/30 dark:bg-emerald-950/5",
-      isError && "border-rose-200/50 bg-rose-50/10 dark:border-rose-900/30 dark:bg-rose-950/5"
+      isPending && "border-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.2)] bg-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.05)] dark:border-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.2)] dark:bg-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.05)]",
+      isSuccess && "border-[rgba(var(--success-r),var(--success-g),var(--success-b),0.2)] bg-[rgba(var(--success-r),var(--success-g),var(--success-b),0.05)] dark:border-[rgba(var(--success-r),var(--success-g),var(--success-b),0.2)] dark:bg-[rgba(var(--success-r),var(--success-g),var(--success-b),0.05)]",
+      isError && "border-[rgba(var(--error-r),var(--error-g),var(--error-b),0.2)] bg-[rgba(var(--error-r),var(--error-g),var(--error-b),0.05)] dark:border-[rgba(var(--error-r),var(--error-g),var(--error-b),0.2)] dark:bg-[rgba(var(--error-r),var(--error-g),var(--error-b),0.05)]"
     )}>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
@@ -26,11 +26,11 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
       >
         <div className="flex items-center gap-2">
           {isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.8)]" />
           ) : isSuccess ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-[rgba(var(--success-r),var(--success-g),var(--success-b),0.8)]" />
           ) : (
-            <XCircle className="h-3.5 w-3.5 text-rose-500" />
+            <XCircle className="h-3.5 w-3.5 text-[rgba(var(--error-r),var(--error-g),var(--error-b),0.8)]" />
           )}
           <span className="font-mono font-medium tracking-tight">
             {toolCall.name}
@@ -59,12 +59,12 @@ export function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
           {!isPending && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider opacity-50">
-                <CheckCircle2 className={cn("h-3 w-3", isSuccess ? "text-emerald-500" : "text-rose-500")} />
+                <CheckCircle2 className={cn("h-3 w-3", isSuccess ? "text-[rgba(var(--success-r),var(--success-g),var(--success-b),0.8)]" : "text-[rgba(var(--error-r),var(--error-g),var(--error-b),0.8)]")} />
                 Output
               </div>
               <pre className={cn(
                 "max-h-60 overflow-auto rounded-md p-2 font-mono text-[10px]",
-                isSuccess ? "bg-emerald-500/5" : "bg-rose-500/5"
+                isSuccess ? "bg-[rgba(var(--success-r),var(--success-g),var(--success-b),0.05)]" : "bg-[rgba(var(--error-r),var(--error-g),var(--error-b),0.05)]"
               )}>
                 {toolCall.result}
               </pre>
