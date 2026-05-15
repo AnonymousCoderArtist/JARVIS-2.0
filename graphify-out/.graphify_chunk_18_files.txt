@@ -1,5 +1,0 @@
-/home/anonymouslokesh/Desktop/JARVIS/interface/textual_ui/notifications/__init__.py
-/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/components/settings/SettingsView.tsx
-/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/providers/ClientProvider.tsx
-/home/anonymouslokesh/Desktop/JARVIS/interface/webui/src/workers/imageEncode.worker.ts
-/home/anonymouslokesh/Desktop/JARVIS/scripts/train_classifier.py

@@ -147,3 +147,7 @@ tmp/
 .mcp.json
 .pi
 .kilo/
+.opencode/
+
+# graphify output
+graphify-out/
