@@ -1171,9 +1171,6 @@ async def api_debug_command(request: Request):
         result = {"output": f"Executed: {cmd}", "success": True}
         if cmd == "ping":
             result["output"] = "pong"
-        elif cmd == "agent_status":
-            agent = _get_or_create_agent()
-            result["output"] = f"Agent: {agent.__class__.__name__}, Memory: active, Tools: available"
         elif cmd == "clear_logs":
             _debug_log.clear()
             result["output"] = "Logs cleared"

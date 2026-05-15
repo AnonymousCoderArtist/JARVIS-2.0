@@ -13,7 +13,7 @@ from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
-from core.tools.agent_tool import AgentStatusTool, AgentsTool
+from core.tools.agent_tool import AgentsTool
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
@@ -255,7 +255,6 @@ def create_tool_registry() -> AsyncToolRegistry:
 
     # Register agent tools
     tool_registry.register(AgentsTool())
-    tool_registry.register(AgentStatusTool())
     # Register watcher status tool
     from core.tools.watcher_tool import WatcherStatusTool
     tool_registry.register(WatcherStatusTool())

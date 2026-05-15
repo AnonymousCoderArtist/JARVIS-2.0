@@ -460,11 +460,3 @@ class AgentsTool(AgentTool):
     name = "agents"
 
 
-class AgentStatusTool(AgentTool):
-    """Alias for AgentTool - kept for backward compatibility.
-
-    Status/results polling is no longer needed. Subagent completions
-    are delivered automatically via push notifications.
-    """
-    name = "agent_status"
-    description = "Launch subagents and manage background tasks"

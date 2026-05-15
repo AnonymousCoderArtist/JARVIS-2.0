@@ -35,7 +35,6 @@ DEFAULT = AgentProfile(
             # Agent tools
             "agents": {"permission": "ask"},
             "activate_skill": {"permission": "ask"},
-            "agent_status": {"permission": "ask"},
         },
     },
 )

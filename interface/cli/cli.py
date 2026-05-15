@@ -28,7 +28,7 @@ from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
 from core.skills.manager import SkillManager
-from core.tools.agent_tool import AgentStatusTool, AgentsTool
+from core.tools.agent_tool import AgentsTool
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
 from core.tools.code_tools import BashTool, RunTestsTool
@@ -248,7 +248,6 @@ class CLIInterface:
         from core.tools import AskUserQuestionTool
         self.tool_registry.register(AskUserQuestionTool())
         self.tool_registry.register(AgentsTool())
-        self.tool_registry.register(AgentStatusTool())
         from core.tools import SkillTool
         self.tool_registry.register(SkillTool())
         # Register worktree tools

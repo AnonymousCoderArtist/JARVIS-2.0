@@ -11,12 +11,9 @@ from core.tools.agent.agent_memory import (
     clear_subagent_activities,
     get_subagent_activities,
 )
-from core.tools.agent.agent_tool import AgentStatusTool, AgentsTool, AgentTool
+from core.tools.agent.agent_tool import AgentsTool, AgentTool
 from core.tools.agent.background_task import (
     BackgroundAgentTask,
-    clear_completed_background_agents,
-    get_background_agent,
-    get_completed_background_agents,
     list_background_agents,
 )
 from core.tools.agent.constants import (
@@ -35,14 +32,10 @@ from core.tools.agent.utils import get_agent_param
 __all__ = [
     "AgentTool",
     "AgentsTool",
-    "AgentStatusTool",
     "BackgroundAgentTask",
     "SubagentActivity",
     "get_agent_param",
-    "get_background_agent",
     "list_background_agents",
-    "get_completed_background_agents",
-    "clear_completed_background_agents",
     "add_subagent_activity",
     "get_subagent_activities",
     "clear_subagent_activities",

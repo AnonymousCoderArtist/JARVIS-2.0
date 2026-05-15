@@ -54,19 +54,6 @@ _background_agents: dict[str, BackgroundAgentTask] = {}
 _background_lock = asyncio.Lock()
 
 
-async def get_background_agent(task_id: str) -> BackgroundAgentTask | None:
-    """Get a background agent task by ID.
-    
-    Args:
-        task_id: The unique task identifier
-        
-    Returns:
-        The BackgroundAgentTask if found, None otherwise
-    """
-    async with _background_lock:
-        return _background_agents.get(task_id)
-
-
 async def list_background_agents() -> list[BackgroundAgentTask]:
     """List all background agent tasks.
     
@@ -75,21 +62,3 @@ async def list_background_agents() -> list[BackgroundAgentTask]:
     """
     async with _background_lock:
         return list(_background_agents.values())
-
-
-async def get_completed_background_agents() -> list[BackgroundAgentTask]:
-    """Get list of completed background agent tasks.
-    
-    Returns:
-        List of BackgroundAgentTask instances with status 'completed'
-    """
-    async with _background_lock:
-        return [agent for agent in _background_agents.values() if agent.status == "completed"]
-
-
-async def clear_completed_background_agents() -> None:
-    """Clear completed background agent tasks from the registry."""
-    async with _background_lock:
-        completed_task_ids = [task_id for task_id, agent in _background_agents.items() if agent.status == "completed"]
-        for task_id in completed_task_ids:
-            del _background_agents[task_id]

@@ -18,7 +18,7 @@ from .base import BaseTool, ToolInput, ToolOutput
 
 if TYPE_CHECKING:
     # These are for type-checkers only; runtime imports are lazy.
-    from .agent_tool import AgentStatusTool, AgentsTool, AgentTool
+    from .agent_tool import AgentsTool, AgentTool
     from .ask_user_question_tool import AskUserQuestionTool
     from .background_tools import ListBackgroundProcessesTool, ReadBackgroundOutputTool
     from .code_tools import BashTool, RunTestsTool
@@ -110,7 +110,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     # Agent tools
     "AgentTool": "core.tools.agent_tool:AgentTool",
     "AgentsTool": "core.tools.agent_tool:AgentsTool",
-    "AgentStatusTool": "core.tools.agent_tool:AgentStatusTool",
+
     # Skill tool
     "SkillTool": "core.tools.skill_manage_tool:SkillTool",
     # Ask user

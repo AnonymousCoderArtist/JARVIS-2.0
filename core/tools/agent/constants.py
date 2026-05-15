@@ -2,7 +2,6 @@
 
 # Tool names
 AGENT_TOOL_NAME = "agents"
-AGENT_STATUS_TOOL_NAME = "agent_status"
 
 # Built-in agent type strings
 EXPLORE_AGENT_TYPE = "explore"
