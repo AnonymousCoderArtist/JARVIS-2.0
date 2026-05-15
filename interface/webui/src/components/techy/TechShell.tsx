@@ -5,6 +5,7 @@ import { TechSphere } from "./TechSphere";
 import { ChatPanel } from "./ChatPanel";
 import { ChatInput } from "./ChatInput";
 import { ToolCallBox } from "./ToolCallBox";
+import { ToolCallWidget } from "./ToolCallWidget";
 import { ChatHistory } from "./ChatHistory";
 import { SphereResponse } from "./SphereResponse";
 
@@ -155,37 +156,29 @@ export function TechShell() {
     if (connectionStatus === "open" && chatId && !hasGreetedRef.current) {
       hasGreetedRef.current = true;
       setTimeout(() => {
-        send("hi", undefined, "medium");
+        send("hi");
       }, 150);
     }
   }, [connectionStatus, chatId, send]);
 
   const toolCalls = useMemo(() => extractToolCalls(messages), [messages]);
-  const [pendingMessage, setPendingMessage] = useState<{ content: string; thinkingLevel: string } | null>(null);
 
   const handleSend = useCallback(
-    (content: string, thinkingLevel?: string) => {
+    (content: string) => {
       if (!chatId) {
-        setPendingMessage({ content, thinkingLevel: thinkingLevel || "medium" });
         void createChat().then((id) => {
           if (id) {
             const key = `websocket:${id}`;
             setActiveKey(key);
+            send(content);
           }
         });
         return;
       }
-      send(content, undefined, thinkingLevel);
+      send(content);
     },
     [chatId, createChat, send]
   );
-
-  useEffect(() => {
-    if (chatId && pendingMessage) {
-      send(pendingMessage.content, undefined, pendingMessage.thinkingLevel);
-      setPendingMessage(null);
-    }
-  }, [chatId, pendingMessage, send]);
 
   // Canvas offset
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
@@ -349,6 +342,9 @@ export function TechShell() {
         onOpenDebug={() => setDebugOpen(true)}
         onOpenFeedback={() => setFeedbackOpen(true)}
       />
+
+      {/* Active Tool Call Widget */}
+      <ToolCallWidget messages={messages} isStreaming={isStreaming} />
 
       {/* ===== FIXED RIGHT SIDEBAR ===== */}
       <div className="fixed right-0 top-1/2 z-50 -translate-y-1/2 flex flex-col items-center gap-3 py-3 px-2 rounded-l-2xl techy-right-sidebar">

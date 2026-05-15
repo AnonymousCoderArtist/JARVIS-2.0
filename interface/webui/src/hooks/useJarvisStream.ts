@@ -34,7 +34,7 @@ export function useJarvisStream(
   messages: UIMessage[];
   isStreaming: boolean;
   thinking: string;
-  send: (content: string, images?: SendImage[], thinkingLevel?: string) => void;
+  send: (content: string, images?: SendImage[]) => void;
   setMessages: React.Dispatch<React.SetStateAction<UIMessage[]>>;
   streamError: StreamError | null;
   dismissStreamError: () => void;
@@ -87,7 +87,7 @@ export function useJarvisStream(
     setPendingQuestion(null);
     // Send the answer as a regular message so the agent gets it
     if (chatId && answer.trim()) {
-      client.sendMessage(chatId, answer, undefined, { type: "message_options" });
+      client.sendMessage(chatId, answer);
     }
   }, [chatId, client]);
 
@@ -319,7 +319,7 @@ export function useJarvisStream(
   }, [chatId, client, messages.length]);
 
   const send = useCallback(
-    (content: string, images?: SendImage[], thinkingLevel?: string) => {
+    (content: string, images?: SendImage[]) => {
       if (!chatId) return;
       const hasImages = !!images && images.length > 0;
       if (!hasImages && !content.trim()) return;
@@ -337,7 +337,7 @@ export function useJarvisStream(
       ]);
       setIsStreaming(true);
       const wireMedia = hasImages ? images!.map((i) => i.media) : undefined;
-      client.sendMessage(chatId, content, wireMedia, { type: "message_options", thinking_level: thinkingLevel });
+      client.sendMessage(chatId, content, wireMedia);
     },
     [chatId, client],
   );

@@ -1,13 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Send } from "lucide-react";
-import { ThinkingPicker } from "./ThinkingPicker";
 import { COMMANDS, type Command } from "./SlashCommands";
 import { VoiceInput } from "./VoiceInput";
 
 interface ChatInputProps {
-  onSend: (content: string, thinkingLevel?: string) => void;
+  onSend: (content: string) => void;
   disabled?: boolean;
-  initialThinkingLevel?: string;
   onOpenModelPicker?: () => void;
   onOpenMcpPanel?: () => void;
   onOpenHeartbeat?: () => void;
@@ -18,12 +16,11 @@ interface ChatInputProps {
 }
 
 export function ChatInput({
-  onSend, disabled, initialThinkingLevel = "medium",
+  onSend, disabled,
   onOpenModelPicker, onOpenMcpPanel, onOpenHeartbeat,
   onOpenRewind, onOpenConfig, onOpenDebug, onOpenFeedback,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
-  const [thinkingLevel, setThinkingLevel] = useState(initialThinkingLevel);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [wasCommandSelected, setWasCommandSelected] = useState(false);
@@ -80,19 +77,19 @@ export function ChatInput({
         window.location.reload();
         break;
       case "help":
-        onSend("Please list all available commands with descriptions.", thinkingLevel);
+        onSend("Please list all available commands with descriptions.");
         break;
       case "status":
-        onSend("Show system status", thinkingLevel);
+        onSend("Show system status");
         break;
       case "profile":
-        onSend(args ? `Switch to profile: ${args}` : "Show available profiles", thinkingLevel);
+        onSend(args ? `Switch to profile: ${args}` : "Show available profiles");
         break;
       case "tools":
-        onSend("List all available tools", thinkingLevel);
+        onSend("List all available tools");
         break;
       case "skills":
-        onSend(args ? `Activate skill: ${args}` : "List all skills", thinkingLevel);
+        onSend(args ? `Activate skill: ${args}` : "List all skills");
         break;
       case "config":
         onOpenConfig?.();
@@ -116,9 +113,9 @@ export function ChatInput({
         onOpenHeartbeat?.();
         break;
       default:
-        onSend(value.trim(), thinkingLevel);
+        onSend(value.trim());
     }
-  }, [onSend, thinkingLevel, value, onOpenConfig, onOpenMcpPanel, onOpenRewind, onOpenModelPicker, onOpenDebug, onOpenFeedback, onOpenHeartbeat]);
+  }, [onSend, value, onOpenConfig, onOpenMcpPanel, onOpenRewind, onOpenModelPicker, onOpenDebug, onOpenFeedback, onOpenHeartbeat]);
 
   const submit = useCallback(() => {
     const trimmed = value.trim();
@@ -131,7 +128,7 @@ export function ChatInput({
 
     if (wasCommandSelected) {
       setWasCommandSelected(false);
-      onSend(trimmed, thinkingLevel);
+      onSend(trimmed);
       setValue("");
       setShowSuggestions(false);
       return;
@@ -154,7 +151,7 @@ export function ChatInput({
       }
     }
     
-    onSend(trimmed, thinkingLevel);
+    onSend(trimmed);
     setValue("");
     setShowSuggestions(false);
     setWasCommandSelected(false);
@@ -164,41 +161,47 @@ export function ChatInput({
         el.style.height = "auto";
       }
     });
-  }, [disabled, onSend, value, thinkingLevel, showSuggestions, matchingCommands, selectedIndex, selectCommand, wasCommandSelected, handleCommand]);
+  }, [disabled, onSend, value, showSuggestions, matchingCommands, selectedIndex, selectCommand, wasCommandSelected, handleCommand]);
 
   const onKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
-    if (!showSuggestions) return;
+    if (showSuggestions) {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          e.stopPropagation();
+          setSelectedIndex(i => (i + 1) % matchingCommands.length);
+          return;
+        case "ArrowUp":
+          e.preventDefault();
+          e.stopPropagation();
+          setSelectedIndex(i => (i - 1 + matchingCommands.length) % matchingCommands.length);
+          return;
+        case "Enter":
+          if (matchingCommands[selectedIndex]) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectCommand(matchingCommands[selectedIndex]);
+          }
+          return;
+        case "Escape":
+          e.preventDefault();
+          e.stopPropagation();
+          setShowSuggestions(false);
+          return;
+        case "Tab":
+          if (matchingCommands[selectedIndex]) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectCommand(matchingCommands[selectedIndex]);
+          }
+          return;
+      }
+      return;
+    }
 
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        e.stopPropagation();
-        setSelectedIndex(i => (i + 1) % matchingCommands.length);
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        e.stopPropagation();
-        setSelectedIndex(i => (i - 1 + matchingCommands.length) % matchingCommands.length);
-        break;
-      case "Enter":
-        if (matchingCommands[selectedIndex]) {
-          e.preventDefault();
-          e.stopPropagation();
-          selectCommand(matchingCommands[selectedIndex]);
-        }
-        break;
-      case "Escape":
-        e.preventDefault();
-        e.stopPropagation();
-        setShowSuggestions(false);
-        break;
-      case "Tab":
-        if (matchingCommands[selectedIndex]) {
-          e.preventDefault();
-          e.stopPropagation();
-          selectCommand(matchingCommands[selectedIndex]);
-        }
-        break;
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submit();
     }
   };
 
@@ -267,15 +270,8 @@ export function ChatInput({
       >
         <div className="flex flex-1 flex-col gap-2">
           <div className="flex items-center gap-2">
-            <ThinkingPicker
-              currentLevel={thinkingLevel}
-              onLevelChange={setThinkingLevel}
-            />
-            <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)" }}>
-              │
-            </span>
             <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
-              Type / for commands
+              Type / for commands · Enter send · Shift+Enter newline
             </span>
           </div>
           <textarea

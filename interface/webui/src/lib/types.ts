@@ -91,16 +91,10 @@ export interface SettingsPayload {
     provider: string;
     resolved_provider: string | null;
     has_api_key: boolean;
-    thinking_level?: string;
   };
   providers: Array<{
     name: string;
     label: string;
-  }>;
-  thinking_levels?: Array<{
-    name: string;
-    label: string;
-    description: string;
   }>;
   runtime: {
     config_path: string;
@@ -111,7 +105,6 @@ export interface SettingsPayload {
 export interface SettingsUpdate {
   model?: string;
   provider?: string;
-  thinking_level?: string;
 }
 
 // ── Model Picker types ──────────────────────────────────────────────────
@@ -330,7 +323,6 @@ export type Outbound =
       chat_id: string;
       content: string;
       media?: OutboundMedia[];
-      thinking_level?: string;
     }
   | {
       type: "approval_response";

@@ -35,8 +35,9 @@ async def _openai_stream_chunks(
 
         delta = chunk.choices[0].delta
 
-        if delta.reasoning_content:
-            yield {"type": "reasoning", "content": delta.reasoning_content}
+        reasoning_delta = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
+        if reasoning_delta:
+            yield {"type": "reasoning", "content": reasoning_delta}
         elif delta.content:
             yield {"type": "text", "content": delta.content}
 

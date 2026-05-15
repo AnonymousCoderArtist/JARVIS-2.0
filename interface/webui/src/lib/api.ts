@@ -127,7 +127,6 @@ export async function updateSettings(
   const query = new URLSearchParams();
   if (update.model !== undefined) query.set("model", update.model);
   if (update.provider !== undefined) query.set("provider", update.provider);
-  if (update.thinking_level !== undefined) query.set("thinking_level", update.thinking_level);
   return request<SettingsPayload>(`${base}/api/settings/update?${query}`, token);
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useClient } from "@/providers/ClientProvider";
-import { fetchSettings, updateSettings } from "@/lib/api";
-import { X, Settings, Sliders, Brain, Shield, Check } from "lucide-react";
+import { fetchSettings } from "@/lib/api";
+import { X, Settings, Sliders, Shield, Check } from "lucide-react";
 
 interface ConfigPanelProps {
   open: boolean;
@@ -18,8 +18,7 @@ const PREFERENCES = [
 export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelProps) {
   const { token } = useClient();
   const [settings, setSettings] = useState<{
-    agent: { model: string; provider: string; thinking_level?: string };
-    thinking_levels?: Array<{ name: string; label: string; description: string }>;
+    agent: { model: string; provider: string };
   } | null>(null);
   const [prefs, setPrefs] = useState<Record<string, boolean>>({
     code_execution: true,
@@ -33,11 +32,6 @@ export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelPro
   }, [token]);
 
   useEffect(() => { if (open) load(); }, [open, load]);
-
-  const handleThinkingChange = useCallback(async (level: string) => {
-    await updateSettings(token, { thinking_level: level });
-    load();
-  }, [token, load]);
 
   const togglePref = useCallback((key: string) => {
     setPrefs(prev => ({ ...prev, [key]: !prev[key] }));
@@ -79,36 +73,6 @@ export function ConfigPanel({ open, onClose, onOpenModelPicker }: ConfigPanelPro
                   </div>
                   <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>Change →</span>
                 </button>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Brain className="h-3 w-3" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.6)" }} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.5)" }}>Thinking Level</span>
-                </div>
-                <div className="space-y-1">
-                  {(settings.thinking_levels || []).map(tl => (
-                    <button
-                      key={tl.name}
-                      onClick={() => handleThinkingChange(tl.name)}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all"
-                      style={{
-                        background: settings.agent.thinking_level === tl.name ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.12)" : "transparent",
-                        border: settings.agent.thinking_level === tl.name ? "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3)" : "1px solid transparent",
-                      }}
-                    >
-                      <div className="flex h-4 w-4 items-center justify-center rounded-full" style={{ border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.3)" }}>
-                        {settings.agent.thinking_level === tl.name && <div className="h-2 w-2 rounded-full" style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.8)" }} />}
-                      </div>
-                      <div>
-                        <div className="text-xs font-medium" style={{ color: settings.agent.thinking_level === tl.name ? "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.85)" : "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.6)" }}>
-                          {tl.label}
-                        </div>
-                        <div className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.35)" }}>{tl.description}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div>

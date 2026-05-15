@@ -338,18 +338,12 @@ Returns the current agent configuration:
     "model": "gpt-4o",
     "provider": "openai",
     "resolved_provider": "openai",
-    "has_api_key": true,
-    "thinking_level": "medium"
+    "has_api_key": true
   },
   "providers": [
     {"name": "auto", "label": "Auto"},
     {"name": "openai", "label": "OpenAI"},
     {"name": "anthropic", "label": "Anthropic"}
-  ],
-  "thinking_levels": [
-    {"name": "low", "label": "Low", "description": "Minimal reasoning"},
-    {"name": "medium", "label": "Medium", "description": "Balanced reasoning"},
-    {"name": "high", "label": "High", "description": "Detailed reasoning"}
   ],
   "runtime": {
     "config_path": "/home/user/.jarvis/config.json"
@@ -361,7 +355,7 @@ Returns the current agent configuration:
 ### Update Settings
 
 ```
-GET /api/settings/update?model=gpt-4o&provider=openai&thinking_level=high
+GET /api/settings/update?model=gpt-4o&provider=openai
 ```
 
 Query parameters:
@@ -370,9 +364,8 @@ Query parameters:
 |------------------|----------------------------|
 | `model`          | Any model ID (see below)   |
 | `provider`       | `auto`, `openai`, `anthropic` |
-| `thinking_level` | `low`, `medium`, `high`    |
 
-> **Note**: This is a GET endpoint for historical reasons. `POST /api/settings` is canonical for write operations. The `model` and `thinking_level` changes take effect immediately in environment variables but require a server restart to change the actual LLM provider instance.
+> **Note**: This is a GET endpoint for historical reasons. `POST /api/settings` is canonical for write operations. Model changes take effect immediately in environment variables but require a server restart to change the actual LLM provider instance.
 
 Returns the same shape as `GET /api/settings`.
 

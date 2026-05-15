@@ -34,7 +34,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | **🍴 Fork Subagent** | Fork conversation context for parallel exploration |
 | **🔌 MCP Integration** | Connect to external MCP servers (stdio/HTTP transports) |
 | **🌐 WebUI** | Full-featured browser-based interface with FastAPI backend |
-| **🎨 Techy WebUI** | Modern dark UI with infinite canvas, dot grid, slash commands, thinking picker |
+| **🎨 Techy WebUI** | Modern dark UI with infinite canvas, dot grid, slash commands, active tool call widget |
 | **💡 Learning System** | Pattern detection, skill creation, and self-evaluation |
 | **💾 Semantic Memory** | Memory management for knowledge retrieval |
 | **💻 Dual Interfaces** | Rich CLI, modern TUI (Textual), and WebUI |
@@ -57,7 +57,7 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | ✅ Fork Subagent | Ready |
 | ✅ CLI Interface | Stable |
 | ✅ TUI Interface | Complete (Default) |
-| ✅ WebUI | Complete (with slash commands, thinking picker, remote sessions) |
+| ✅ WebUI | Complete (with slash commands, active tool call widget, remote sessions) |
 | ✅ Permission System | Complete |
 | ✅ MCP Integration | Complete |
 | ✅ Learning System | Complete |
@@ -316,7 +316,8 @@ jarvis --webui --host 0.0.0.0 --port 5173
 - **Question Dialog**: Structured question forms from WebSocket `user_input` events
 - **Approval Dialog**: Amber-themed tool approval overlay with always-allow
 - **Slash Commands**: Type `/` for autocomplete (help, status, model, mcp, heartbeat, rewind, config, debug, feedback, etc.)
-- **Thinking Picker**: Select AI reasoning level (Low/Medium/High) for each message
+- **Active Tool Call Widget**: Compact pill showing running tool names with animated status dots
+- **Enter to Send**: Press Enter to send, Shift+Enter for newline
 - **Infinite Canvas**: Draggable dot grid background that extends infinitely
 - **Right Sidebar**: Fixed tool strip with icons for all feature panels
 - **Remote Sessions**: Connect to remote JARVIS instances via `JARVIS_REMOTE_URL` env variable

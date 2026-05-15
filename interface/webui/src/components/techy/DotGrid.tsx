@@ -47,7 +47,7 @@ export function DotGrid({ offset, onOffsetChange }: DotGridProps) {
         const py = r * SPACING + gy;
         ctx.beginPath();
         ctx.arc(px, py, 1, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.18)";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
         ctx.fill();
       }
     }

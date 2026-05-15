@@ -6,6 +6,122 @@ This document summarizes all the fixes, improvements, and UI updates made to the
 
 ---
 
+## System Prompt Optimization (Token-Efficient)
+
+### Problem
+System prompts across all agents used verbose narrative paragraphs, consuming excessive tokens (~4,872 total) while providing no structural advantage for model comprehension.
+
+### Solution
+Rewrote all prompts using **Markdown + XML hybrid format**: Markdown for readable structure (headings, lists, tables), XML tags for critical constraints that must not be ignored. Removed narrative fluff, combined behaviors into single directives.
+
+### Token Reduction
+
+| Prompt | Role | Before → After | Reduction |
+|--------|------|----------------|-----------|
+| `explore.py` | 🔍 Codebase Analysis | 525 → 480 tokens | -9% |
+| `plan.py` | 📋 Architecture Planning | 800 → 695 tokens | -13% |
+| `verification.py` | ✅ Testing Specialist | 700 → 667 tokens | -5% |
+| `jarvis_v2.py` | 🤖 Main Agent | 2,287 → 1,879 tokens | -18% |
+| `__init__.py` General Purpose | ⚡ Multi-step Tasks | 120 → 88 tokens | -27% |
+| `__init__.py` Fork | 🍴 Parallel Execution | 130 → 90 tokens | -31% |
+| `__init__.py` JARVIS Help | ❓ Help Agent | 170 → 130 tokens | -24% |
+| `__init__.py` Statusline | 💻 Shell Specialist | 140 → 96 tokens | -31% |
+
+**Total: ~4,872 → ~4,125 tokens (15% reduction)**
+
+### Files Changed
+- `core/agents/prompts/explore.py` — XML `<constraints>` for read-only, dense directive lists
+- `core/agents/prompts/plan.py` — XML `<constraints>`, condensed plan format + examples
+- `core/agents/prompts/verification.py` — XML `<personality>`, compressed methodology
+- `core/agents/prompts/jarvis_v2.py` — XML `<editing-rules>`, `<output-rules>`, `<task-rules>`, `<security-rules>`, `<safety-rules>`, `<response-rules>`
+- `core/agents/prompts/__init__.py` — Inline prompts for general-purpose, fork, help, statusline
+
+---
+
+## WebUI: Thinking Level Picker Removed
+
+### Problem
+The thinking level selector (Low/Medium/High) was unused — reasoning is controlled at the model/provider level, not the UI level.
+
+### Solution
+Removed the `ThinkingPicker` component and all associated `thinking_level` plumbing from the frontend.
+
+### What Changed
+- Removed `ThinkingPicker` from `ChatInput.tsx` — no more dropdown in the input bar
+- Removed "Thinking Level" section from `ConfigPanel.tsx`
+- Removed `thinkingLevel` parameter from `send()`, `handleSend()`, `client.sendMessage()`
+- Removed `thinking_level` from `SettingsPayload`, `SettingsUpdate`, `Outbound` types
+- Removed `thinking_level` query param from `updateSettings` API call
+
+### Kept Intact
+ThinkingIndicator, ThinkingBlock, reasoning display, SphereResponse, `thinking` state, `reasoning`/`reasoning_end` WebSocket events — all reasoning *display* functionality remains.
+
+### Files Changed
+- `interface/webui/src/components/techy/ChatInput.tsx`
+- `interface/webui/src/components/techy/TechShell.tsx`
+- `interface/webui/src/components/techy/ConfigPanel.tsx`
+- `interface/webui/src/hooks/useJarvisStream.ts`
+- `interface/webui/src/lib/jarvis-client.ts`
+- `interface/webui/src/lib/types.ts`
+- `interface/webui/src/lib/api.ts`
+
+---
+
+## WebUI: Enter Sends, Shift+Enter Newline
+
+### Problem
+Pressing Enter in the chat input did not send the message — users had to click the send button.
+
+### Solution
+Added `Enter` → send, `Shift+Enter` → newline behavior (standard LLM UI pattern).
+
+### Files Changed
+- `interface/webui/src/components/techy/ChatInput.tsx` — `onKeyDown` handler sends on Enter (no Shift), preserves newline on Shift+Enter
+
+---
+
+## WebUI: Active Tool Call Widget
+
+### Problem
+No visible indication of what tools the LLM was actively calling during streaming.
+
+### Solution
+Added `ToolCallWidget` — a compact pill widget that appears above the chat input bar showing running tool names with animated status dots. Auto-hides when all tools complete or streaming stops.
+
+### Files Added
+- `interface/webui/src/components/techy/ToolCallWidget.tsx`
+
+### Files Modified
+- `interface/webui/src/components/techy/TechShell.tsx` — imports and renders `ToolCallWidget`
+
+---
+
+## WebUI: Dot Grid Color Changed
+
+### Problem
+Dot grid dots were brand blue (`rgba(var(--brand-r), ...)`), making them blend with the background on dark themes.
+
+### Solution
+Changed dot color to white (`rgba(255, 255, 255, 0.25)`) for better visibility.
+
+### Files Changed
+- `interface/webui/src/components/techy/DotGrid.tsx` — line 50
+
+---
+
+## OpenAI SDK: `reasoning_content` AttributeError Fix
+
+### Problem
+`'ChoiceDelta' object has no attribute 'reasoning_content'` — the OpenAI SDK's `ChoiceDelta` doesn't expose `reasoning_content` on all models (only DeepSeek-compatible ones). Direct attribute access crashed streaming with tools.
+
+### Solution
+Changed `delta.reasoning_content` to `getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)` — safe fallback for models without reasoning support.
+
+### Files Changed
+- `core/llm_sdk/openai/sdk.py` — line 38
+
+---
+
 ## WebUI Design Token Refactoring
 
 ### Problem
@@ -237,7 +353,7 @@ All integrated into the existing techy-style UI (glass-morphism dark theme, drag
 | **MCP Servers** | `McpPanel.tsx` | List/add/remove MCP servers, connection status indicators, transport type display |
 | **Heartbeat Monitor** | `HeartbeatPanel.tsx` | Start/stop heartbeat scheduler, view file contents, last result display |
 | **Rewind Dialog** | `RewindDialog.tsx` | Browse session checkpoints, rewind to any message, file change indicators |
-| **Config/Settings** | `ConfigPanel.tsx` | Thinking level selector, working preference toggles (code/file/git ops) with slide animation |
+| **Config/Settings** | `ConfigPanel.tsx` | Working preference toggles (code/file/git ops) with slide animation |
 | **Voice Input** | `VoiceInput.tsx` | MediaRecorder API integration, recording state animation, sends blob to `/api/voice/transcribe` |
 | **Feedback Widget** | `FeedbackWidget.tsx` | 3-emoji rating (good/ok/bad), optional detail message, persisted to `~/.jarvis/feedback.jsonl` |
 | **Debug Console** | `DebugConsole.tsx` | Terminal-style command input, history with output display, available commands: ping/agent_status/health/clear_logs |
