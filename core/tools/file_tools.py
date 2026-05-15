@@ -235,16 +235,11 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 if not isinstance(fp, str) or not fp:
                     return (None, None, f"File {index + 1}: Missing or invalid filePath", None, None)
 
-                if self.file_ops is not None:
-                    if not await self.file_ops.file_exists(fp):
-                        return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
-                    content = await self.file_ops.read_file(fp, offset=off or 1, limit=lim or 0)
-                    lines = content.splitlines(keepends=True) if content else []
-                else:
-                    if not os.path.exists(fp):
-                        return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
-                    async with aiofiles.open(fp, encoding=encoding) as f:
-                        lines = await f.readlines()
+                if not os.path.exists(fp):
+                    return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
+
+                async with aiofiles.open(fp, encoding=encoding) as f:
+                    lines = await f.readlines()
                 total_lines = len(lines)
 
                 # Apply offset (default 1) and limit
@@ -403,25 +398,20 @@ Returns success message with file path and size."""
                     error="Invalid file content: content parameter must be a string. Please provide the file content as a string."
                 )
 
-            # Check if file already exists — use operations backend
-            if self.file_ops is not None:
-                if await self.file_ops.file_exists(file_path):
-                    return ToolOutput(
-                        success=False, result=None,
-                        error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead."
-                    )
-                await self.file_ops.write_file(file_path, content)
-            else:
-                if os.path.exists(file_path):
-                    return ToolOutput(
-                        success=False, result=None,
-                        error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead."
-                    )
-                parent_dir = os.path.dirname(file_path)
-                if parent_dir:
-                    os.makedirs(parent_dir, exist_ok=True)
-                async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
-                    await f.write(content)
+            # Check if file already exists
+            if os.path.exists(file_path):
+                return ToolOutput(
+                    success=False, result=None,
+                    error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead."
+                )
+
+            # Create parent directories if they don't exist
+            parent_dir = os.path.dirname(file_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+
+            async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
+                await f.write(content)
 
             # Record the write operation
             current_file_states.record_write(file_path)
@@ -529,14 +519,12 @@ Supports permission checks for restricted paths."""
 
             if not os.path.exists(path):
                 return ToolOutput(success=False, result=None, error=f"Directory not found: {path}. Please verify the directory path is correct and exists. Use glob to search for directories if you're unsure of the exact path.")
-
             if not os.path.isdir(path):
                 return ToolOutput(success=False, result=None, error=f"Path is not a directory: {path}. The provided path exists but is a file, not a directory. Please provide a directory path or use read to read this file.")
 
             items = []
             for item in os.listdir(path):
                 item_path = os.path.join(path, item)
-                # If name ends with /, it's a folder, otherwise a file (Copilot Chat convention)
                 name_with_suffix = item + "/" if os.path.isdir(item_path) else item
                 items.append(name_with_suffix)
 
@@ -546,6 +534,10 @@ Supports permission checks for restricted paths."""
                 metadata={"path": path, "count": len(items)}
             )
 
+        except FileNotFoundError as e:
+            return ToolOutput(success=False, result=None, error=f"Directory not found: {e}. Please verify the directory path is correct and exists. Use glob to search for directories if you're unsure of the exact path.")
+        except NotADirectoryError as e:
+            return ToolOutput(success=False, result=None, error=f"Path is not a directory: {e}. The provided path exists but is a file, not a directory. Please provide a directory path or use read to read this file.")
         except Exception as e:
             return ToolOutput(
                 success=False,

@@ -379,6 +379,10 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         use_concurrent_tools=True
     )
 
+    # Wire extension hooks into the agent's HookRegistry
+    if extension_runner:
+        extension_runner.rebind_hooks(jarvis_agent.hook_registry)
+
     # Rebuild system prompt with dynamic tool descriptions
     jarvis_agent.rebuild_system_prompt()
 

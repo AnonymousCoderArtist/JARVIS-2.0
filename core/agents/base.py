@@ -811,12 +811,16 @@ class BaseAgent(ABC):
                                 if self.reasoning_callback:
                                     self.reasoning_callback(chunk_thinking)
                             elif chunk["type"] == "tool_calls":
-                                for tc in cast(list[dict[str, Any]], chunk.get("tool_calls", [])):
-                                    tool_calls.append(ToolCall(
-                                        id=tc.get("id", ""),
-                                        name=tc.get("name", ""),
-                                        arguments=tc.get("arguments", "")
-                                    ))
+                                for tc in chunk.get("tool_calls", []):
+                                    if hasattr(tc, "name"):
+                                        # Already a ToolCall object
+                                        tool_calls.append(tc)
+                                    elif isinstance(tc, dict):
+                                        tool_calls.append(ToolCall(
+                                            id=tc.get("id", ""),
+                                            name=tc.get("name", ""),
+                                            arguments=tc.get("arguments", "")
+                                        ))
                             elif chunk["type"] == "tool_call":
                                 tool_calls.append(cast(ToolCall, chunk["tool_call"]))
                         else:
@@ -942,7 +946,22 @@ class BaseAgent(ABC):
         })
 
         # Execute tool calls
-        tool_calls = cast(list[dict[str, Any]], response.get("tool_calls", []))
+        raw_tool_calls = response.get("tool_calls", [])
+
+        # Normalize ToolCall objects to dict format
+        tool_calls: list[dict[str, Any]] = []
+        for tc in raw_tool_calls:
+            if hasattr(tc, "name") and hasattr(tc, "arguments"):
+                # ToolCall dataclass
+                tool_calls.append({
+                    "function": {"name": tc.name, "arguments": tc.arguments},
+                    "id": getattr(tc, "id", ""),
+                })
+            elif isinstance(tc, dict):
+                tool_calls.append(tc)
+            else:
+                logger.warning("Unknown tool call type: %s", type(tc))
+
         tool_results: list[dict[str, Any]] = []
 
         if use_concurrent and len(tool_calls) > 1 and hasattr(self.tools, 'execute_tools_concurrent'):
@@ -1006,6 +1025,7 @@ class BaseAgent(ABC):
                         "result": None,
                         "error": before_result.reason,
                         "content": tool_result_content,
+                        "tool_call_id": tool_call_id,
                         "blocked": True,
                     })
                     continue
@@ -1088,12 +1108,17 @@ class BaseAgent(ABC):
                 else:
                     tool_result_content = f"Tool {tool_name} failed. Error: {err_val}. Please adjust your approach and try again with different parameters."
 
+                # Append injected content from AFTER_TOOL_CALL hooks (e.g. type errors)
+                if after_result.inject:
+                    tool_result_content += after_result.inject
+
                 tool_results.append({
                     "tool": tool_name,
                     "success": success,
                     "result": res_val,
                     "error": err_val,
-                    "content": tool_result_content
+                    "content": tool_result_content,
+                    "tool_call_id": tool_call_id,
                 })
 
         # Add tool results to working message history as user message
@@ -1239,6 +1264,7 @@ class BaseAgent(ABC):
                     "success": output.success,
                     "result": output.result,
                     "error": err_msg,
+                    "tool_call_id": tool_call.get("id", ""),
                     "content": (
                         f"Tool {tool_name} executed successfully. Result: {output.result}"
                         if output.success

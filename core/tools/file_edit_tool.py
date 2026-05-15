@@ -192,17 +192,12 @@ Supports multiple replacements in single call."""
                     errors.append(f"Replacement {i + 1}: The old_string and new_string are identical. No change will be made.")
                     continue
 
-                if self.file_ops is not None:
-                    if not await self.file_ops.file_exists(file_path):
-                        errors.append(f"Replacement {i + 1}: File not found: {file_path}. Please verify the file path is correct and the file exists.")
-                        continue
-                    content = await self.file_ops.read_file(file_path)
-                else:
-                    if not os.path.exists(file_path):
-                        errors.append(f"Replacement {i + 1}: File not found: {file_path}. Please verify the file path is correct and the file exists.")
-                        continue
-                    with open(file_path, encoding="utf-8") as f:
-                        content = f.read()
+                if not os.path.exists(file_path):
+                    errors.append(f"Replacement {i + 1}: File not found: {file_path}. Please verify the file path is correct and the file exists. Use list_directory or glob to find the correct file path.")
+                    continue
+
+                with open(file_path, encoding="utf-8") as f:
+                    content = f.read()
 
                 count = content.count(old_string)
                 if count == 0:
@@ -215,12 +210,8 @@ Supports multiple replacements in single call."""
 
                 new_content = content.replace(old_string, new_string, 1)
 
-                # Write the modified content back via operations backend
-                if self.file_ops is not None:
-                    await self.file_ops.write_file(file_path, new_content)
-                else:
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        f.write(new_content)
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(new_content)
 
                 diff_output = self._generate_diff(content, new_content, file_path)
                 results.append({

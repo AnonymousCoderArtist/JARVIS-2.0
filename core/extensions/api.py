@@ -178,12 +178,14 @@ class ExtensionAPI:
             tool_registry.register(tool)
 
         # --- Flush event subscriptions ---
-        for event_type, handler in self._event_subscriptions:
-            event_bus.subscribe(event_type, handler)
+        if event_bus is not None:
+            for event_type, handler in self._event_subscriptions:
+                event_bus.subscribe(event_type, handler)
 
         # --- Flush hook registrations ---
-        for stage, handler in self._hook_registrations:
-            hook_registry.register(stage, handler)
+        if hook_registry is not None:
+            for stage, handler in self._hook_registrations:
+                hook_registry.register(stage, handler)
 
         return conflicts
 

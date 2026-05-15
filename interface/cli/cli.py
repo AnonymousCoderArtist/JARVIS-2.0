@@ -126,6 +126,7 @@ class CLIInterface:
         self.bypass = bypass
         self.tool_registry = AsyncToolRegistry()
         self.jarvis_agent: CodingAgent | None = None
+        self.extension_runner = None
         self.resume_session = resume_session
 
         # Initialize conversation history
@@ -280,6 +281,9 @@ class CLIInterface:
                 for c in tool_conflicts:
                     print(f"Extension '{ext_name}' overrode tool '{c['tool']}'")
 
+        # Store runner for deferred hook binding after agent creation
+        self.extension_runner = runner
+
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
         if self.sdk == "anthropic":
@@ -327,6 +331,10 @@ class CLIInterface:
             bypass_tool_permissions=self.bypass,
             use_concurrent_tools=True
         )
+
+        # Wire extension hooks into the agent's HookRegistry
+        if self.extension_runner:
+            self.extension_runner.rebind_hooks(self.jarvis_agent.hook_registry)
 
         # Set bypass mode on agent
         if self.bypass:

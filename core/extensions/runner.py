@@ -175,6 +175,21 @@ class ExtensionRunner:
         self._bound_apis.clear()
 
     # ------------------------------------------------------------------
+    # Deferred hook binding
+    # ------------------------------------------------------------------
+
+    def rebind_hooks(self, hook_registry) -> None:
+        """Wire pending hook registrations into a live HookRegistry.
+
+        Called after the agent is created (which owns the HookRegistry).
+        This allows extensions registered at load time to have their hooks
+        active even though the HookRegistry didn't exist at bind() time.
+        """
+        for api in self._bound_apis:
+            for stage, handler in api._hook_registrations:
+                hook_registry.register(stage, handler)
+
+    # ------------------------------------------------------------------
     # Runtime accessors
     # ------------------------------------------------------------------
 

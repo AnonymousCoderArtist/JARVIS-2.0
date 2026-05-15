@@ -1,8 +1,9 @@
 """Tool Registry for managing tools"""
 
-from __future__ import annotations
-
+import importlib.util
+import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Coroutine
 
 from .base import BaseTool, ToolOutput
@@ -12,16 +13,12 @@ class ToolRegistry:
     """Registry for managing tools"""
 
     def __init__(self, llm_provider=None, model=None, config_getter=None):
-        from core.tools.operations import OperationsRegistry
-
         self._tools: dict[str, BaseTool] = {}
         self.llm_provider = llm_provider
         self.model = model
         self.config_getter = config_getter
         self.active_skills: dict[str, str] = {}
         self.event_queue = None
-        self.event_bus = None  # Set by BaseAgent after construction
-        self.operations_registry = OperationsRegistry()
 
     def register(self, tool: BaseTool):
         """
@@ -37,8 +34,6 @@ class ToolRegistry:
         # Inject event queue if available
         if self.event_queue is not None:
             tool.event_queue = self.event_queue
-        # Inject operations registry
-        tool.operations_registry = self.operations_registry
 
         self._tools[tool.name] = tool
 
@@ -53,7 +48,6 @@ class ToolRegistry:
             self.event_queue = event_queue
         for tool in self._tools.values():
             tool.tool_registry = self
-            tool.operations_registry = self.operations_registry
             if llm_provider is not None:
                 tool.llm_provider = llm_provider
             if model is not None:
@@ -97,8 +91,6 @@ class ToolRegistry:
         Returns:
             ToolOutput with execution results
         """
-        import time
-
         tool = self.get(name)
         if not tool:
             return ToolOutput(
@@ -107,60 +99,82 @@ class ToolRegistry:
                 error=f"Tool '{name}' not found",
             )
 
-        # Emit ToolCallStarted event if event bus is available
-        ts = time.time()
-        tool_call_id = f"tool_{name}_{int(ts * 1000)}"
+        return await tool.safe_execute(input_data)
 
-        if self.event_bus is not None:
-            from core.events.types import ToolCallStarted
-            try:
-                await self.event_bus.emit(
-                    ToolCallStarted(timestamp=ts, tool_name=name, tool_call_id=tool_call_id, args=input_data)
-                )
-            except Exception:
-                pass
+    def register_plugin(self, plugin_path: str):
+        """
+        Dynamically load a tool plugin
 
+        Args:
+            plugin_path: Path to the plugin Python file
+        """
         try:
-            result = await tool.safe_execute(input_data)
+            path = Path(plugin_path)
+            if not path.exists():
+                raise FileNotFoundError(f"Plugin file not found: {plugin_path}")
 
-            # Emit ToolCallEnded event
-            if self.event_bus is not None:
-                from core.events.types import ToolCallEnded
-                try:
-                    duration = (time.time() - ts) * 1000
-                    await self.event_bus.emit(
-                        ToolCallEnded(
-                            timestamp=time.time(),
-                            tool_name=name,
-                            tool_call_id=tool_call_id,
-                            result=getattr(result, 'result', None),
-                            duration_ms=duration,
-                            success=getattr(result, 'success', False),
-                        )
-                    )
-                except Exception:
-                    pass
-
-            return result
-        except Exception as exc:
-            # Emit ToolCallError event
-            if self.event_bus is not None:
-                from core.events.types import ToolCallError
-                try:
-                    duration = (time.time() - ts) * 1000
-                    await self.event_bus.emit(
-                        ToolCallError(
-                            timestamp=time.time(),
-                            tool_name=name,
-                            tool_call_id=tool_call_id,
-                            error=str(exc),
-                            duration_ms=duration,
-                        )
-                    )
-                except Exception:
-                    pass
-            return ToolOutput(
-                success=False,
-                result=None,
-                error=str(exc),
+            spec = importlib.util.spec_from_file_location(
+                f"tool_plugin_{path.stem}", plugin_path
             )
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Failed to load plugin: {plugin_path}")
+
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[f"tool_plugin_{path.stem}"] = module
+            spec.loader.exec_module(module)
+
+            # Look for classes that inherit from BaseTool
+            registered_count = 0
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (
+                    isinstance(attr, type)
+                    and issubclass(attr, BaseTool)
+                    and attr != BaseTool
+                ):
+                    try:
+                        tool_instance = attr(
+                            tool_registry=self,
+                            llm_provider=self.llm_provider,
+                            model=self.model
+                        )
+                        self.register(tool_instance)
+                        registered_count += 1
+                        print(f"Registered tool plugin: {tool_instance.name}")
+                    except Exception as e:
+                        print(f"Failed to instantiate tool {attr_name}: {str(e)}")
+
+            if registered_count == 0:
+                raise ImportError(f"No valid tool class found in {plugin_path}")
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to load tool plugin {plugin_path}: {str(e)}") from e
+
+    def discover_and_register_plugins(self) -> int:
+        """
+        Discover and register tool plugins from .jarvis/tools/ directories.
+        
+        Returns:
+            Number of successfully registered plugins
+        """
+        search_paths = [
+            Path.home() / ".jarvis" / "tools",
+            Path.cwd() / ".jarvis" / "tools",
+        ]
+        
+        registered_count = 0
+        processed_files = set()
+        
+        for path in search_paths:
+            if path.exists() and path.is_dir():
+                for file in path.glob("*.py"):
+                    resolved_file = file.resolve()
+                    if resolved_file not in processed_files:
+                        processed_files.add(resolved_file)
+                        try:
+                            self.register_plugin(str(resolved_file))
+                            registered_count += 1
+                        except Exception as e:
+                            print(f"Error loading plugin from {resolved_file}: {e}")
+                            
+        return registered_count
