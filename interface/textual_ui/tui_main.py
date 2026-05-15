@@ -270,10 +270,21 @@ def create_tool_registry() -> AsyncToolRegistry:
     from core.tools.tool_search_tool import ToolSearchTool
     tool_registry.register(ToolSearchTool())
 
-    # Discover and register custom tools from .jarvis/tools/
-    tool_registry.discover_and_register_plugins()
-
     return tool_registry
+
+
+async def load_extensions(tool_registry, event_bus=None, hook_registry=None):
+    """Discover and load extensions via the ExtensionRunner system."""
+    from core.extensions import ExtensionRunner
+
+    runner = ExtensionRunner()
+    await runner.discover_and_load(project_dir=".")
+    conflicts = await runner.bind(tool_registry, event_bus, hook_registry)
+    if conflicts:
+        for ext_name, tool_conflicts in conflicts.items():
+            for c in tool_conflicts:
+                logger.info("Extension '%s' overrode tool '%s'", ext_name, c["tool"])
+    return runner
 
 
 def create_sdk_instance(sdk: str, api_key: str | None, base_url: str | None) -> Any:
@@ -303,6 +314,10 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
 
     # Initialize tool registry with all JARVIS tools
     tool_registry = create_tool_registry()
+
+    # Load extensions (custom tools, hooks, etc.)
+    import asyncio
+    extension_runner = asyncio.run(load_extensions(tool_registry))
 
     # Create SDK instance based on parameters
     sdk_instance = create_sdk_instance(sdk, apikey, base_url)

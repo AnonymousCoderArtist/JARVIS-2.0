@@ -245,62 +245,6 @@ class Settings:
         except Exception as e:
             print(f"Warning: Failed to save config: {e}")
 
-    @staticmethod
-    def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-        """Deep merge two dictionaries, with override taking precedence."""
-        result = base.copy()
-        for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = Settings._deep_merge(result[key], value)
-            else:
-                result[key] = value
-        return result
-
-    def get(self, section: str, key: str | None = None, default: Any = None) -> Any:
-        """Get a configuration value."""
-        if key is None:
-            return getattr(self._config, section, default)
-
-        section_data = getattr(self._config, section, None)
-        if isinstance(section_data, dict):
-            return section_data.get(key, default)
-        elif hasattr(section_data, key):
-            return getattr(section_data, key, default)
-        return default
-
-    def get_section(self, section: str) -> dict[str, Any]:
-        """Get an entire configuration section as dict"""
-        data = getattr(self._config, section, None)
-        if hasattr(data, "model_dump"):
-            return data.model_dump()
-        return data if isinstance(data, dict) else {}
-
-    def set(self, section: str, key: str | None, value: Any = None):
-        """Set a configuration value."""
-        if key is None:
-            setattr(self._config, section, value)
-            return
-
-        section_obj = getattr(self._config, section, None)
-        if isinstance(section_obj, dict):
-            section_obj[key] = value
-        elif hasattr(section_obj, "__dict__"):
-            setattr(section_obj, key, value)
-
-    def model_dump(self) -> dict[str, Any]:
-        """Convert config to dictionary for agent lifecycle."""
-        return self._config.model_dump()
-
-    def save(self) -> None:
-        """Save configuration to JSON file"""
-        try:
-            # Ensure parent directory exists
-            self._config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._config_path, "w", encoding="utf-8") as f:
-                json.dump(self._config.model_dump(), f, indent=4)
-        except Exception as e:
-            print(f"Warning: Failed to save config: {e}")
-
     # Convenience properties
     @property
     def app_name(self) -> str:

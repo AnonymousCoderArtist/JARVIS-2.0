@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, TypeAlias, cast
 
 from core.config.settings import Settings
@@ -987,6 +988,31 @@ class BaseAgent(ABC):
                 if self.tool_call_callback:
                     self.tool_call_callback(tool_name, tool_args)
 
+                # Run BEFORE_TOOL_CALL hooks
+                before_ctx = HookContext(
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    agent_name=getattr(self, "name", ""),
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )
+                before_result = await self._run_hooks(HookStage.BEFORE_TOOL_CALL, before_ctx)
+                if before_result.block:
+                    tool_result_content = f"Tool '{tool_name}' blocked by hook: {before_result.reason}"
+                    tool_results.append({
+                        "tool": tool_name,
+                        "success": False,
+                        "result": None,
+                        "error": before_result.reason,
+                        "content": tool_result_content,
+                        "blocked": True,
+                    })
+                    continue
+                # Use modified args if hook returned them
+                if before_result.modify:
+                    tool_args = {**tool_args, **before_result.modify}
+
                 # Execute tool with retry for transient errors
                 max_retries = 2  # Up to 2 retries (3 total attempts)
                 result = None
@@ -1007,6 +1033,25 @@ class BaseAgent(ABC):
                     # Exponential backoff: 1s, 2s
                     import asyncio as _asyncio
                     await _asyncio.sleep(2 ** attempt)
+
+                # Run AFTER_TOOL_CALL hooks
+                success = getattr(result, "success", False)
+                res_val = getattr(result, "result", None)
+                err_val = getattr(result, "error", None)
+                if not success and not err_val and res_val:
+                    err_val = str(res_val)
+
+                after_ctx = HookContext(
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    tool_result=res_val,
+                    tool_error=err_val,
+                    agent_name=getattr(self, "name", ""),
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )
+                after_result = await self._run_hooks(HookStage.AFTER_TOOL_CALL, after_ctx)
 
                 if self.tool_result_callback:
                     self.tool_result_callback(tool_name, tool_args, result)

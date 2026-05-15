@@ -188,6 +188,11 @@ class CLIInterface:
                 model=self.model
             )
 
+    async def _initialize_systems_async(self):
+        """Async initialization: load extensions and MCP servers."""
+        await self._load_extensions()
+        await self._initialize_mcp_servers_async()
+
     async def _initialize_mcp_servers_async(self):
         """Initialize MCP servers using lazy lifecycle model."""
         try:
@@ -259,8 +264,21 @@ class CLIInterface:
         from core.tools.watcher_tool import WatcherStatusTool
         self.tool_registry.register(WatcherStatusTool())
 
-        # Discover and register custom tools from .jarvis/tools/
-        self.tool_registry.discover_and_register_plugins()
+    async def _load_extensions(self):
+        """Discover and load extensions via the ExtensionRunner system."""
+        from core.extensions import ExtensionRunner
+
+        runner = ExtensionRunner()
+        await runner.discover_and_load(project_dir=".")
+        conflicts = await runner.bind(
+            self.tool_registry,
+            getattr(self, '_event_bus', None),
+            getattr(self, '_hook_registry', None),
+        )
+        if conflicts:
+            for ext_name, tool_conflicts in conflicts.items():
+                for c in tool_conflicts:
+                    print(f"Extension '{ext_name}' overrode tool '{c['tool']}'")
 
     def _initialize_agents(self):
         # Create SDK instance based on CLI parameters
@@ -521,7 +539,8 @@ class CLIInterface:
         )
         self._show_help()
 
-        # Initialize MCP servers asynchronously
+        # Initialize MCP servers and extensions asynchronously
+        await self._load_extensions()
         await self._initialize_mcp_servers_async()
 
         # Start background watchers
