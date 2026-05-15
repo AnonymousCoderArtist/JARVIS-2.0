@@ -210,38 +210,9 @@ class BaseAgent(ABC):
         Add an entry to agent memory
 
         Args:
-            entry: Dictionary with memory entry data.
-                  Supports both role-based format (role, content, tool_calls, tool_call_id)
-                  and legacy format (content, response, type).
+            entry: Dictionary with message data (role, content, tool_calls, tool_call_id)
         """
         self.memory.append(entry)
-
-    def get_memory_context(self, limit: int = 5) -> str:
-        """
-        Get formatted memory context for legacy format entries.
-
-        Only includes entries that use the old format (content + response keys).
-        Role-based entries (with "role" key) are handled separately by _build_messages.
-
-        Args:
-            limit: Maximum number of memory entries to include
-
-        Returns:
-            Formatted memory context string
-        """
-        # Filter for legacy-format entries only (those without "role" key)
-        legacy_entries = [e for e in self.memory if "role" not in e]
-        recent_memory = legacy_entries[-limit:] if legacy_entries else []
-        if not recent_memory:
-            return ""
-
-        context_parts = []
-        for entry in recent_memory:
-            content = entry.get('content', '')
-            if content:
-                context_parts.append(f"- {content}")
-
-        return "Relevant context:\n" + "\n".join(context_parts)
 
     def get_role_memory(self) -> list[MessageDict]:
         """Get all role-based messages from memory.
@@ -635,14 +606,13 @@ class BaseAgent(ABC):
         """
         Build message list with system, user, and full conversation history.
 
-        This loads the ENTIRE role-based message history from memory (not just
-        the last 5 entries) and passes it with proper roles to the LLM.
-        Legacy format entries (content+response without role) are formatted
-        as a summary string appended to the system prompt.
+        Loads ALL role-based messages from memory with proper roles (not just
+        the last 5 entries). Use include_memory=False for sub-agents that
+        should not inherit the main agent's conversation history.
 
         Args:
             user_content: User input content
-            include_memory: Whether to include memory context
+            include_memory: Whether to include previous conversation history
 
         Returns:
             List of message dictionaries with proper roles
@@ -652,13 +622,7 @@ class BaseAgent(ABC):
         ]
 
         if include_memory:
-            # Add legacy format entries as memory context (summary string)
-            memory_context = self.get_memory_context()
-            if memory_context:
-                messages.append({"role": "system", "content": memory_context})
-
             # Add ALL role-based messages from memory with proper roles
-            # This replaces the old limit=5 approach with full history
             role_messages = self.get_role_memory()
             messages.extend(role_messages)
 

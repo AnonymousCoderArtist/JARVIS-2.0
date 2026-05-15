@@ -484,23 +484,8 @@ class CLIInterface:
         try:
             await asyncio.wait_for(self.jarvis_agent.process(text), timeout=self.config_manager.config.behavior.timeout_seconds)
             
-            # Save assistant response to history if not already persisted
-            # (jarvis_v2.py saves it via add_role_message + history.append_message,
-            # but we still check for the case where history wasn't available)
-            from core.history import create_assistant_message
-            saved = False
-            for entry in reversed(self.jarvis_agent.memory):
-                if entry.get("role") == "assistant" and entry.get("content"):
-                    saved = True
-                    break
-                if "response" in entry and entry.get("response"):
-                    saved = True
-                    break
-            # Only save if agent didn't already persist it
-            if not saved and self.jarvis_agent.history is None:
-                self.history.append_message(create_assistant_message(
-                    self.jarvis_agent._last_response_text or ""
-                ))
+            # Assistant response is already persisted by jarvis_v2 via
+            # add_role_message + self.history.append_message
         except asyncio.TimeoutError:
             self.display_manager.stop_streaming()
             self.display_manager.show_error("Task timed out.")

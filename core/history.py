@@ -419,7 +419,7 @@ class ConversationHistory:
     Manages conversation history storage and retrieval.
     Uses JSONL format matching OpenAI/Anthropic SDK message format.
     Supports both per-session files (~/.jarvis/history/{session_id}.jsonl)
-    and project-level .jarvis-history files.
+    and project-level .jarvis/history/{session_id}.jsonl files.
     """
 
     def __init__(
@@ -588,22 +588,6 @@ class ConversationHistory:
             cwd=os.getcwd(),
             name=f"Session {self.session_id[:8]}..."
         )
-
-    @classmethod
-    def from_file(cls, path: Path) -> "ConversationHistory":
-        """Load conversation history from a specific file.
-
-        Creates a ConversationHistory instance reading from the given path.
-        The session_id is derived from the filename.
-
-        Args:
-            path: Path to a .jsonl or .jarvis-history file
-
-        Returns:
-            ConversationHistory instance reading from that file
-        """
-        session_id = path.stem if path.suffix == ".jsonl" else str(uuid.uuid4())
-        return cls(session_id=session_id, history_file=path)
 
 
 # ============================================================================

@@ -117,9 +117,7 @@ class RewindManager:
     def get_rewindable_messages(self) -> list[tuple[int, str]]:
         """Return (message_index, content) for each user message.
 
-        Supports two message formats:
-        - Standard: {"role": "user", "content": "..."}
-        - Agent memory: {"content": "...", "response": "..."}
+        Format: {"role": "user", "content": "..."}
         """
         results: list[tuple[int, str]] = []
         for i, msg in enumerate(self._messages):
@@ -127,14 +125,7 @@ class RewindManager:
             if not content:
                 continue
             role = msg.get("role")
-            # Standard role-based format
             if role == "user":
-                results.append((i, str(content)))
-            # Agent memory format: entries with "content" but no "role"
-            elif role is None and "response" not in msg and not msg.get("type"):
-                results.append((i, str(content)))
-            # Agent memory format: entries with both "content" and "response"
-            elif role is None and "response" in msg:
                 results.append((i, str(content)))
         return results
 
@@ -146,9 +137,7 @@ class RewindManager:
         Saves the current session, truncates messages, optionally restores
         files, and forks to a new session.
 
-        Supports two message formats:
-        - Standard: {"role": "user", "content": "..."}
-        - Agent memory: {"content": "...", "response": "..."}
+        Format: {"role": "user", "content": "..."}
 
         Returns a tuple of (message_content, restore_errors).
 
@@ -163,18 +152,10 @@ class RewindManager:
         role = user_msg.get("role")
         content = user_msg.get("content")
 
-        # Validate this is a user message (support both formats)
-        is_user_msg = (
-            role == "user"
-            or (role is None and content and ("response" not in user_msg or "response" in user_msg))
-        )
-        if not is_user_msg or not content:
+        if role != "user" or not content:
             raise RewindError(f"Message at index {message_index} is not a user message")
 
-        # Extract clean message content (strip "Task: " prefix if present)
         message_content = str(content)
-        if message_content.startswith("Task: "):
-            message_content = message_content[6:]
 
         restore_errors: list[str] = []
 

@@ -34,6 +34,7 @@ class TestRewindManagerMessageFormats:
         return RewindManager(messages, save, reset)
 
     def test_standard_user_role_messages(self):
+        """Messages with role='user' are returned as rewindable."""
         msgs = [
             {"role": "user", "content": "hello"},
             {"role": "assistant", "content": "hi"},
@@ -43,37 +44,26 @@ class TestRewindManagerMessageFormats:
         result = mgr.get_rewindable_messages()
         assert result == [(0, "hello"), (2, "how are you")]
 
-    def test_agent_memory_format_with_response(self):
-        """Agent memory entries have content+response but no role key."""
+    def test_non_user_role_skipped(self):
+        """Messages without role='user' are not returned."""
         msgs = [
-            {"content": "Task: write a function", "response": "done", "type": "coding_task"},
-            {"content": "Task: fix the bug", "response": "fixed", "type": "coding_task"},
+            {"role": "assistant", "content": "hi"},
+            {"role": "tool", "content": "result", "tool_call_id": "call_1"},
         ]
         mgr = self._make_manager(msgs)
         result = mgr.get_rewindable_messages()
-        assert len(result) == 2
-        assert result[0] == (0, "Task: write a function")
-        assert result[1] == (1, "Task: fix the bug")
+        assert result == []
 
-    def test_agent_memory_format_without_response(self):
-        """Agent memory entries without 'response' key but no 'role' either."""
-        msgs = [
-            {"content": "greeting"},
-        ]
-        mgr = self._make_manager(msgs)
-        result = mgr.get_rewindable_messages()
-        assert result == [(0, "greeting")]
-
-    def test_mixed_formats(self):
-        """Both standard and agent-memory entries in the same list."""
+    def test_mixed_messages(self):
+        """Only role='user' entries are returned."""
         msgs = [
             {"role": "user", "content": "hi"},
             {"role": "assistant", "content": "hello"},
-            {"content": "Task: do thing", "response": "done"},
+            {"role": "tool", "content": "result"},
         ]
         mgr = self._make_manager(msgs)
         result = mgr.get_rewindable_messages()
-        assert result == [(0, "hi"), (2, "Task: do thing")]
+        assert result == [(0, "hi")]
 
     def test_empty_messages_list(self):
         mgr = self._make_manager([])
@@ -140,8 +130,8 @@ class TestRewindToMessage:
     @pytest.mark.asyncio
     async def test_rewind_agent_memory_format(self):
         msgs = [
-            {"content": "Task: do stuff", "response": "done", "type": "coding_task"},
-            {"content": "Task: more stuff", "response": "also done", "type": "coding_task"},
+            {"role": "user", "content": "do stuff"},
+            {"role": "user", "content": "more stuff"},
         ]
         save_called = []
         reset_called = []
@@ -149,18 +139,8 @@ class TestRewindToMessage:
 
         content, errors = await mgr.rewind_to_message(1, restore_files=False)
 
-        # Should strip "Task: " prefix
         assert content == "more stuff"
         assert len(msgs) == 1  # truncated to before index 1
-
-    @pytest.mark.asyncio
-    async def test_rewind_strips_task_prefix(self):
-        msgs = [
-            {"content": "Task: write tests", "response": "ok"},
-        ]
-        mgr = self._make_manager(msgs)
-        content, _ = await mgr.rewind_to_message(0, restore_files=False)
-        assert content == "write tests"
 
     @pytest.mark.asyncio
     async def test_rewind_no_task_prefix_unchanged(self):

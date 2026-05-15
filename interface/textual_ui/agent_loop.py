@@ -407,30 +407,13 @@ class AgentLoop:
     @property
     def messages(self) -> list[LLMMessage]:
         """Get messages from conversation history (full)."""
-        # Use ConversationHistory as source of truth for full history
-        # Falls back to agent.memory for legacy format compatibility
         try:
             history_messages = self.history.get_full_history(coalesce=True)
             if history_messages:
                 return self._history_to_llm_messages(history_messages)
         except Exception:
             pass
-
-        # Fallback: convert agent memory to TUI LLMMessage format
-        messages: list[LLMMessage] = []
-        for entry in self.agent.memory:
-            role_val = entry.get('role', '')
-            content = entry.get('content', '')
-            response = entry.get('response', '')
-
-            if role_val == 'user' or content:
-                messages.append(LLMMessage(role=Role.user, content=str(content or "")))
-            if role_val == 'assistant' or response:
-                messages.append(LLMMessage(role=Role.assistant, content=str(response or "")))
-            if role_val == 'tool':
-                messages.append(LLMMessage(role=Role.tool, content=str(content or "")))
-
-        return messages
+        return []
 
     def _history_to_llm_messages(self, history_messages: list) -> list[LLMMessage]:
         """Convert HistoryMessage list to TUI LLMMessage list."""
@@ -479,9 +462,6 @@ class AgentLoop:
                 self.agent.add_role_message(role="assistant", content=msg.content)
             elif msg.role == Role.tool:
                 self.agent.add_role_message(role="tool", content=msg.content)
-            else:
-                # Legacy format fallback
-                self.agent.add_to_memory({"content": msg.content})
 
     async def reload_with_initial_messages(self, base_config: Settings | None = None) -> None:
         """Reload agent with initial messages."""

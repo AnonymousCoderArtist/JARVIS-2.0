@@ -37,9 +37,6 @@ class FakeStreamingAgent:
         self.model = "gpt-4o"
         self._config_getter = None
 
-    def get_memory_context(self) -> str:
-        return ""
-
     def set_config_getter(self, config_getter) -> None:
         self._config_getter = config_getter
 
