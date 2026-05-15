@@ -149,7 +149,7 @@ async def jarvis_extension(api):
     # Swap backends via the API
     # ------------------------------------------------------------------
 
-    api._ops_registry = getattr(api, "_ops_registry", None)
-    if api._ops_registry:
-        api._ops_registry.set_bash_ops(SSHBashOps(), origin="ssh_operations")
-        api._ops_registry.set_file_ops(SSHFileOps(), origin="ssh_operations")
+    ops = api.operations_registry
+    if ops is not None:
+        ops.set_bash_ops(SSHBashOps(), origin="ssh_operations")
+        ops.set_file_ops(SSHFileOps(), origin="ssh_operations")
