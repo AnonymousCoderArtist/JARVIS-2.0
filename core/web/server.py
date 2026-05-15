@@ -1188,41 +1188,36 @@ async def api_debug_command(request: Request):
 @app.get("/api/context/usage")
 async def api_context_usage():
     """Get current token usage and context limits."""
+    model = os.getenv("JARVIS_MODEL", "gpt-4o")
+    from core.llm_sdk.context_length_manager import context_length_manager
+    try:
+        limits = context_length_manager.get_token_limits(model)
+    except Exception:
+        limits = type('L', (), {'total_context_tokens': 128000, 'max_output_tokens': 16384})()
+
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     try:
         agent = _get_or_create_agent()
-        usage = {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-        }
         if hasattr(agent, 'provider') and hasattr(agent.provider, 'get_and_clear_usage'):
             u = agent.provider.get_and_clear_usage()
-            if u:
+            if u and isinstance(u, dict):
                 usage = {
                     "prompt_tokens": u.get("prompt_tokens", 0) or u.get("input_tokens", 0),
                     "completion_tokens": u.get("completion_tokens", 0) or u.get("output_tokens", 0),
                     "total_tokens": u.get("total_tokens", 0),
                 }
-        from core.llm_sdk.context_length_manager import context_length_manager
-        model = os.getenv("JARVIS_MODEL", "gpt-4o")
-        limits = context_length_manager.get_token_limits(model)
-        return {
-            "usage": usage,
-            "limits": {
-                "context": limits.total_context_tokens,
-                "output": limits.max_output_tokens,
-            },
-            "model": model,
-            "message_count": 0,
-        }
-    except Exception as e:
-        logger.warning(f"Context usage error: {e}")
-        return {
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            "limits": {"context": 128000, "output": 16384},
-            "model": os.getenv("JARVIS_MODEL", "gpt-4o"),
-            "message_count": 0,
-        }
+    except Exception:
+        pass
+
+    return {
+        "usage": usage,
+        "limits": {
+            "context": limits.total_context_tokens,
+            "output": limits.max_output_tokens,
+        },
+        "model": model,
+        "message_count": 0,
+    }
 
 
 # ── Connector Auth endpoints ────────────────────────────────────────────

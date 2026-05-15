@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useState, useCallback } from "react";
 import type { UIMessage } from "@/lib/types";
+import { X } from "lucide-react";
 
 interface ActiveToolCall {
   id: string;
@@ -38,23 +39,26 @@ function extractActiveToolCalls(messages: UIMessage[]): ActiveToolCall[] {
 }
 
 export function ToolCallWidget({ messages, isStreaming }: ToolCallWidgetProps) {
-  const activeCalls = useMemo(() => extractActiveToolCalls(messages), [messages]);
-  const hasRunning = activeCalls.some(tc => tc.status === "running");
+  const activeCalls = useCallback(() => extractActiveToolCalls(messages), [messages]);
+  const [closed, setClosed] = useState(false);
 
-  if (!isStreaming && activeCalls.length === 0) return null;
-  if (!hasRunning && activeCalls.every(tc => tc.status === "completed")) return null;
+  const calls = activeCalls();
+  const hasRunning = calls.some(tc => tc.status === "running");
+  const displayCalls = [...calls.filter(tc => tc.status === "running"), ...calls.filter(tc => tc.status === "completed").slice(0, 1)].slice(0, 3);
 
-  const runningCalls = activeCalls.filter(tc => tc.status === "running");
-  const recentCompleted = activeCalls.filter(tc => tc.status === "completed").slice(0, 1);
-  const displayCalls = [...runningCalls, ...recentCompleted].slice(0, 3);
+  if (!isStreaming && calls.length === 0) return null;
+  if (closed && !hasRunning) return null;
 
   return (
     <div
-      className="fixed left-1/2 z-40 -translate-x-1/2"
-      style={{ bottom: "6rem" }}
+      className="flex-shrink-0"
+      style={{
+        alignSelf: "center",
+        marginBottom: "0.5rem",
+      }}
     >
       <div
-        className="flex items-center gap-2 rounded-full px-4 py-2"
+        className="flex items-center gap-2 rounded-full px-3 py-1.5"
         style={{
           background: "rgba(var(--panel-bg-start-r), var(--panel-bg-start-g), var(--panel-bg-start-b), 0.92)",
           backdropFilter: "blur(20px)",
@@ -72,7 +76,7 @@ export function ToolCallWidget({ messages, isStreaming }: ToolCallWidgetProps) {
             style={{ background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.9)" }}
           />
         </span>
-        <div className="flex items-center gap-1.5 overflow-hidden">
+        <div className="flex items-center gap-1.5 overflow-hidden max-w-[160px]">
           {displayCalls.map((tc) => (
             <div key={tc.id} className="flex items-center gap-1.5">
               <span
@@ -105,6 +109,13 @@ export function ToolCallWidget({ messages, isStreaming }: ToolCallWidgetProps) {
             </div>
           ))}
         </div>
+        <button
+          onClick={() => setClosed(true)}
+          className="flex items-center justify-center rounded-full hover:bg-red-500/10 p-0.5 ml-1"
+          title="Close"
+        >
+          <X className="h-3 w-3" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }} />
+        </button>
       </div>
     </div>
   );
