@@ -1,9 +1,8 @@
 """Tool Registry for managing tools"""
 
-import importlib.util
-import sys
+from __future__ import annotations
+
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, Coroutine
 
 from .base import BaseTool, ToolOutput
@@ -165,86 +164,3 @@ class ToolRegistry:
                 result=None,
                 error=str(exc),
             )
-
-    def register_plugin(self, plugin_path: str):
-        """
-        Dynamically load a tool plugin
-
-        This method is **legacy** — consider creating a proper extension
-        file in ``.jarvis/extensions/`` instead.  Behind the scenes, this
-        still routes through the ``ExtensionAPI`` pattern.
-
-        Args:
-            plugin_path: Path to the plugin Python file
-        """
-        try:
-            path = Path(plugin_path)
-            if not path.exists():
-                raise FileNotFoundError(f"Plugin file not found: {plugin_path}")
-
-            # Legacy plugin loading via importlib
-            spec = importlib.util.spec_from_file_location(
-                f"tool_plugin_{path.stem}", plugin_path
-            )
-            if spec is None or spec.loader is None:
-                raise ImportError(f"Failed to load plugin: {plugin_path}")
-
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[f"tool_plugin_{path.stem}"] = module
-            spec.loader.exec_module(module)
-
-            # Look for classes that inherit from BaseTool
-            registered_count = 0
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if (
-                    isinstance(attr, type)
-                    and issubclass(attr, BaseTool)
-                    and attr != BaseTool
-                ):
-                    try:
-                        tool_instance = attr(
-                            tool_registry=self,
-                            llm_provider=self.llm_provider,
-                            model=self.model
-                        )
-                        self.register(tool_instance)
-                        registered_count += 1
-                        print(f"Registered tool plugin: {tool_instance.name}")
-                    except Exception as e:
-                        print(f"Failed to instantiate tool {attr_name}: {str(e)}")
-
-            if registered_count == 0:
-                raise ImportError(f"No valid tool class found in {plugin_path}")
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to load tool plugin {plugin_path}: {str(e)}") from e
-
-    def discover_and_register_plugins(self) -> int:
-        """
-        Discover and register tool plugins from .jarvis/tools/ directories.
-        
-        Returns:
-            Number of successfully registered plugins
-        """
-        search_paths = [
-            Path.home() / ".jarvis" / "tools",
-            Path.cwd() / ".jarvis" / "tools",
-        ]
-        
-        registered_count = 0
-        processed_files = set()
-        
-        for path in search_paths:
-            if path.exists() and path.is_dir():
-                for file in path.glob("*.py"):
-                    resolved_file = file.resolve()
-                    if resolved_file not in processed_files:
-                        processed_files.add(resolved_file)
-                        try:
-                            self.register_plugin(str(resolved_file))
-                            registered_count += 1
-                        except Exception as e:
-                            print(f"Error loading plugin from {resolved_file}: {e}")
-                            
-        return registered_count

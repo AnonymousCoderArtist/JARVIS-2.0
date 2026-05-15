@@ -235,23 +235,16 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 if not isinstance(fp, str) or not fp:
                     return (None, None, f"File {index + 1}: Missing or invalid filePath", None, None)
 
-                if not os.path.exists(fp):
-                    return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
-
-                # Check for file deduplication
-                entry = current_file_states.get(fp)
-                if entry and entry.can_dedup and entry.offset == off and entry.limit == lim:
-                    try:
-                        current_mtime = os.path.getmtime(fp)
-                    except OSError:
-                        current_mtime = 0.0
-
-                    if current_mtime == entry.mtime:
-                        # File unchanged - return dedup message
-                        return (fp, f"[File unchanged since last read: {fp}]", None, off or 1, lim or 0)
-
-                async with aiofiles.open(fp, encoding=encoding) as f:
-                    lines = await f.readlines()
+                if self.file_ops is not None:
+                    if not await self.file_ops.file_exists(fp):
+                        return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
+                    content = await self.file_ops.read_file(fp, offset=off or 1, limit=lim or 0)
+                    lines = content.splitlines(keepends=True) if content else []
+                else:
+                    if not os.path.exists(fp):
+                        return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
+                    async with aiofiles.open(fp, encoding=encoding) as f:
+                        lines = await f.readlines()
                 total_lines = len(lines)
 
                 # Apply offset (default 1) and limit
@@ -410,21 +403,25 @@ Returns success message with file path and size."""
                     error="Invalid file content: content parameter must be a string. Please provide the file content as a string."
                 )
 
-            # Check if file already exists
-            if os.path.exists(file_path):
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead. The write tool is only for creating new files."
-                )
-
-            # Create parent directories if they don't exist
-            parent_dir = os.path.dirname(file_path)
-            if parent_dir:
-                os.makedirs(parent_dir, exist_ok=True)
-
-            async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
-                await f.write(content)
+            # Check if file already exists — use operations backend
+            if self.file_ops is not None:
+                if await self.file_ops.file_exists(file_path):
+                    return ToolOutput(
+                        success=False, result=None,
+                        error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead."
+                    )
+                await self.file_ops.write_file(file_path, content)
+            else:
+                if os.path.exists(file_path):
+                    return ToolOutput(
+                        success=False, result=None,
+                        error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead."
+                    )
+                parent_dir = os.path.dirname(file_path)
+                if parent_dir:
+                    os.makedirs(parent_dir, exist_ok=True)
+                async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
+                    await f.write(content)
 
             # Record the write operation
             current_file_states.record_write(file_path)

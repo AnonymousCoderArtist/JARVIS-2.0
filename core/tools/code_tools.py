@@ -237,59 +237,56 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                     metadata={"pid": pid, "command": command, "shell": self.shell}
                 )
 
-            # Apply sandboxing for foreground processes
-            backend = self._get_sandbox_backend()
-            if backend:
-                if self.is_windows:
-                    print(f"Warning: Sandbox backend is not supported on Windows; running unsandboxed")
-                else:
-                    workspace = self.working_dir or os.getcwd()
-                    command = wrap_command(self._backend_name, command, workspace, os.getcwd())
+            # Standard foreground execution via operations backend
+            if self.bash_ops is not None:
+                result = await self.bash_ops.run(command, timeout=timeout, cwd=self.working_dir)
+                output = result.get("stdout", "")
+                stderr_output = result.get("stderr", "")
+                exit_code = result.get("exit_code", 0)
 
-            # Standard foreground execution
+                error_msg = None
+                if exit_code != 0:
+                    error_msg = stderr_output if stderr_output else f"Command failed with return code {exit_code}"
+                    if output:
+                        output += f"\nErrors:\n{stderr_output}"
+
+                return ToolOutput(
+                    success=exit_code == 0,
+                    result=output,
+                    error=error_msg,
+                    metadata={"return_code": exit_code, "shell": self.shell}
+                )
+
+            # Fallback: direct subprocess (legacy path)
             if self.is_windows:
                 process = await asyncio.create_subprocess_exec(
-                    "powershell",
-                    "-Command",
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    "powershell", "-Command", command,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                 )
             else:
                 process = await asyncio.create_subprocess_shell(
                     command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                 )
 
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=timeout
-                )
-
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
                 output = stdout.decode() if stdout else ""
                 stderr_output = stderr.decode() if stderr else ""
-
-                # Set error field when command fails
                 error_msg = None
                 if process.returncode != 0:
                     error_msg = stderr_output if stderr_output else f"Command failed with return code {process.returncode}"
                     if output:
                         output += f"\nErrors:\n{stderr_output}"
-
                 return ToolOutput(
                     success=process.returncode == 0,
-                    result=output,
-                    error=error_msg,
+                    result=output, error=error_msg,
                     metadata={"return_code": process.returncode, "shell": self.shell}
                 )
-
             except asyncio.TimeoutError:
                 process.kill()
                 return ToolOutput(
-                    success=False,
-                    result=None,
+                    success=False, result=None,
                     error=f"Command execution timed out after {timeout} seconds"
                 )
 

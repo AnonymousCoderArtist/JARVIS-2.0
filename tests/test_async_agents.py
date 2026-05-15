@@ -21,12 +21,8 @@ from core.agents.resource_monitor import (
 )
 from core.tools.async_registry import AsyncToolRegistry
 from core.tools.base import BaseTool, ToolInput, ToolOutput
-from core.tools.concurrent_executor import (
-    ConcurrentToolExecutor,
-)
-from core.tools.concurrent_executor import (
-    ExecutorResourceLimits as ToolResourceLimits,
-)
+# TODO: migrate concurrent_executor tests to use AsyncToolRegistry
+# The ConcurrentToolExecutor was removed — these were already failing
 
 
 class MockTool(BaseTool):

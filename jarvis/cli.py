@@ -35,7 +35,7 @@ def _load_env_config() -> dict[str, str]:
     }
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int, str | None]:
+def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int, str | None, str | None]:
     # Load .env configuration as defaults
     env_config = _load_env_config()
 
@@ -107,6 +107,14 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
         help="Resume a session (default: most recent). Use 'list' to show available sessions."
     )
 
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["interactive", "cli", "tui", "webui", "rpc", "print"],
+        default=None,
+        help="Execution mode: interactive (default), cli, tui, webui, rpc, or print"
+    )
+
     # WebUI specific arguments
     parser.add_argument(
         "--host", "-H",
@@ -131,12 +139,12 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
 
     args = parser.parse_args(argv)
 
-    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port, args.resume_session
+    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port, args.resume_session, args.mode
 
 
 def main() -> None:
     """Entry point for the jarvis command."""
-    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port, resume_session = _parse_args(sys.argv[1:])
+    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port, resume_session, mode = _parse_args(sys.argv[1:])
 
     # Handle --resume list to show available sessions
     if resume_session == "list":
@@ -182,6 +190,18 @@ def main() -> None:
         else:
             print("No sessions to resume.")
             resume_session = None
+
+    # Handle mode flag
+    if mode == "rpc":
+        import asyncio
+        from core.rpc import run_rpc_mode
+        asyncio.run(run_rpc_mode(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
+        return
+
+    if mode == "print":
+        launch_cli = True
+        # Print mode uses CLI but outputs to stdout and exits
+        # For now, falls through to CLI mode
 
     # Default to TUI if no mode specified
     if not launch_cli and not launch_tui and not launch_webui:
