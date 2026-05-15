@@ -691,13 +691,13 @@ Response:
 GET /api/context/usage
 ```
 
-Returns current token consumption and context window limits:
+Returns cumulative token consumption and context window limits:
 
 ```json
 {
   "usage": {
-    "input_tokens": 1234,
-    "output_tokens": 567,
+    "prompt_tokens": 1234,
+    "completion_tokens": 567,
     "total_tokens": 1801
   },
   "limits": {
@@ -709,7 +709,7 @@ Returns current token consumption and context window limits:
 }
 ```
 
-Usage data is fetched via `provider.get_and_clear_usage()` (destructive read — resets counters). Limits come from `context_length_manager.get_token_limits(model)`.
+Usage data is accumulated after each turn end in the WebSocket handler (like the TUI's `Stats.update_from_agent()` pattern). Limits come from `context_length_manager.get_token_limits(model)`. Returns cumulative session-level totals, not per-turn data.
 
 ### Debug Logs
 

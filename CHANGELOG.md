@@ -6,6 +6,38 @@ This document summarizes all the fixes, improvements, and UI updates made to the
 
 ---
 
+## Context Usage Fix & WebUI Layout Improvements
+
+### Problem
+The `/api/context/usage` REST endpoint always returned zero tokens because it checked `hasattr(agent, 'provider')` but the agent stores its LLM provider as `self.llm`. The WebUI `ContextUsageBar` component polled this endpoint but showed 0% at all times.
+
+Additionally, the WebUI input had nested `fixed` positioning (ChatInput wrapped in a fixed container inside another fixed container), causing incorrect layout behavior.
+
+### Backend Fix
+- **Fixed attribute name**: `agent.provider` → `agent.llm` in `/api/context/usage` endpoint
+- **Added cumulative token accumulation**: After each `agent.process(content)` completes in the WebSocket handler, token usage is read via `agent.llm.get_and_clear_usage()` and accumulated into a module-level `_accumulated_usage` dict (mirrors the TUI's `Stats.update_from_agent()` pattern)
+- **REST endpoint returns accumulated data**: Uses `_accumulated_usage` by default, falls back to live `get_and_clear_usage()` if no accumulated data yet
+
+### WebUI Frontend
+- **New `ContextUsageBar.tsx`**: Always-visible inline context usage indicator in the bottom bar, polls every 5s, color-coded progress bar (green <70%, yellow 70-80%, orange 80-90%, red >90%) matching the TUI pattern
+- **Fixed ChatInput layout**: Removed nested `fixed` positioning wrapper — ChatInput now uses `relative` positioning, parent container handles the fixed placement
+- **Inline tool calls in ChatPanel**: Tool calls from the last assistant message render directly inside the chat panel (spinner for pending, checkmark for success, X for error)
+- **ToolCallBox repositioned**: Initial position moved from far-right (`window.innerWidth - 340`) to directly next to ChatPanel (`window.innerWidth / 2 + 260`)
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `core/web/server.py` | Fixed `agent.provider` → `agent.llm`, added `_accumulated_usage` + accumulation after turn end |
+| `interface/webui/src/components/techy/ContextUsageBar.tsx` | **New** — inline always-visible context usage bar with color-coded progress |
+| `interface/webui/src/components/techy/ChatInput.tsx` | Fixed nested `fixed` positioning → `relative` |
+| `interface/webui/src/components/techy/ChatPanel.tsx` | Added `ToolCallsInline` component showing tool calls inside chat panel |
+| `interface/webui/src/components/techy/TechShell.tsx` | Added `ContextUsageBar` import, repositioned ToolCallBox, restructured bottom bar |
+
+### Files Added
+- `interface/webui/src/components/techy/ContextUsageBar.tsx`
+
+---
+
 ## System Prompt Optimization (Token-Efficient)
 
 ### Problem

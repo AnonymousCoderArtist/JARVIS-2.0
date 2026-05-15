@@ -308,7 +308,7 @@ jarvis --webui --host 0.0.0.0 --port 5173
 - **Rewind**: Browse session checkpoints and rewind conversation state
 - **Config/Settings**: Thinking level selector, working preference toggles
 - **Voice Input**: Browser-based voice recording via MediaRecorder API
-- **Context Progress**: Real-time token usage display with progress bars
+- **Context Progress**: Real-time token usage display with progress bars, always-visible inline context bar with color-coded thresholds
 - **Connector Auth**: Authenticate external services (GitHub, Weather, etc.)
 - **Safety Profiles**: 5 safety levels (Lockdown→Unrestricted), cycle with Shift+Tab
 - **Debug Console**: Terminal-style debug command interface
