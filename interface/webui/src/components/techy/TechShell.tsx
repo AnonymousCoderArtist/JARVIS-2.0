@@ -330,21 +330,21 @@ export function TechShell() {
         />
       </div>
 
-      {/* Chat Input */}
-      <ChatInput
-        onSend={handleSend}
-        disabled={isStreaming && !chatId}
-        onOpenModelPicker={() => setModelPickerOpen(true)}
-        onOpenMcpPanel={() => setMcpPanelOpen(true)}
-        onOpenHeartbeat={() => setHeartbeatOpen(true)}
-        onOpenRewind={() => setRewindOpen(true)}
-        onOpenConfig={() => setConfigOpen(true)}
-        onOpenDebug={() => setDebugOpen(true)}
-        onOpenFeedback={() => setFeedbackOpen(true)}
-      />
-
-      {/* Active Tool Call Widget */}
-      <ToolCallWidget messages={messages} isStreaming={isStreaming} />
+      {/* Chat Input + Tool Call Widget */}
+      <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-end gap-3 px-4">
+        <ChatInput
+          onSend={handleSend}
+          disabled={isStreaming && !chatId}
+          onOpenModelPicker={() => setModelPickerOpen(true)}
+          onOpenMcpPanel={() => setMcpPanelOpen(true)}
+          onOpenHeartbeat={() => setHeartbeatOpen(true)}
+          onOpenRewind={() => setRewindOpen(true)}
+          onOpenConfig={() => setConfigOpen(true)}
+          onOpenDebug={() => setDebugOpen(true)}
+          onOpenFeedback={() => setFeedbackOpen(true)}
+        />
+        <ToolCallWidget messages={messages} isStreaming={isStreaming} />
+      </div>
 
       {/* ===== FIXED RIGHT SIDEBAR ===== */}
       <div className="fixed right-0 top-1/2 z-50 -translate-y-1/2 flex flex-col items-center gap-3 py-3 px-2 rounded-l-2xl techy-right-sidebar">
