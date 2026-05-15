@@ -56,7 +56,7 @@ JARVIS uses a **lazy MCP** architecture inspired by [pi-mcp-adapter](https://git
 
 ### Configuration File
 
-MCP servers are configured in `.mcp.json` in your working directory or `~/.jarvis/mcp_servers.json`:
+MCP servers are configured in `.mcp.json` in your working directory or `~/.jarvis/mcp.json`:
 
 ```json
 {
@@ -88,7 +88,7 @@ JARVIS supports multiple configuration formats:
 }
 ```
 
-**Array style** (`.mcp.json` or `mcp_servers.json`):
+**Array style** (`.mcp.json` with `mcp_servers` key or bare array):
 ```json
 [
   {

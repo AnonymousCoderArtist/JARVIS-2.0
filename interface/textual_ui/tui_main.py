@@ -130,7 +130,7 @@ def load_mcp_servers_from_config(config_path: Path | None = None) -> list[dict]:
         if not config_path.exists():
             # Try in JARVIS config directory
             jarvis_dir = Path.home() / ".jarvis"
-            config_path = jarvis_dir / "mcp_servers.json"
+            config_path = jarvis_dir / "mcp.json"
 
     if not config_path.exists():
         return []

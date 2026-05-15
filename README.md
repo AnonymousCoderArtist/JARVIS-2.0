@@ -472,7 +472,7 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 JARVIS supports connecting to external MCP servers for extended capabilities:
 
 ```json
-// .mcp.json (or ~/.jarvis/mcp_servers.json)
+// .mcp.json (or ~/.jarvis/mcp.json)
 {
   "mcp_servers": [
     {
