@@ -8,7 +8,7 @@ import time
 from collections import deque
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, TypeAlias, cast
@@ -382,49 +382,85 @@ class AgentLoop:
             # Create new session
             self.history = ConversationHistory()
         self.session_id = self.history.session_id
-        
-        # Load history into agent memory if resuming a session
+
+        # Share history with agent so it can persist tool calls/results
+        self.agent.history = self.history
+
+        # Load full history into agent memory if resuming a session
         if resume_session:
-            messages = self.history.get_messages()
+            # Use get_full_history with coalescing for proper role alternation
+            messages = self.history.get_full_history(coalesce=True)
             for msg in messages:
-                entry: dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
-                # Add OpenAI tool calls if present
+                entry: dict[str, Any] = {"role": msg.role}
+                if msg.content is not None:
+                    entry["content"] = msg.content
                 if msg.tool_calls:
                     entry["tool_calls"] = msg.tool_calls
                 if msg.tool_call_id:
                     entry["tool_call_id"] = msg.tool_call_id
-                # Add Anthropic tool_use if present
                 if msg.tool_use:
                     entry["tool_use"] = msg.tool_use
-                # Add Anthropic tool_result if present
                 if msg.tool_result:
                     entry["tool_result"] = msg.tool_result
                 self.agent.add_to_memory(entry)
 
     @property
     def messages(self) -> list[LLMMessage]:
-        """Get messages from agent's memory."""
-        # Convert agent memory to TUI LLMMessage format
+        """Get messages from conversation history (full)."""
+        # Use ConversationHistory as source of truth for full history
+        # Falls back to agent.memory for legacy format compatibility
+        try:
+            history_messages = self.history.get_full_history(coalesce=True)
+            if history_messages:
+                return self._history_to_llm_messages(history_messages)
+        except Exception:
+            pass
+
+        # Fallback: convert agent memory to TUI LLMMessage format
         messages: list[LLMMessage] = []
         for entry in self.agent.memory:
+            role_val = entry.get('role', '')
             content = entry.get('content', '')
             response = entry.get('response', '')
 
-            # Add user message
-            if content:
-                messages.append(LLMMessage(
-                    role=Role.user,
-                    content=str(content)
-                ))
-
-            # Add assistant response
-            if response:
-                messages.append(LLMMessage(
-                    role=Role.assistant,
-                    content=str(response)
-                ))
+            if role_val == 'user' or content:
+                messages.append(LLMMessage(role=Role.user, content=str(content or "")))
+            if role_val == 'assistant' or response:
+                messages.append(LLMMessage(role=Role.assistant, content=str(response or "")))
+            if role_val == 'tool':
+                messages.append(LLMMessage(role=Role.tool, content=str(content or "")))
 
         return messages
+
+    def _history_to_llm_messages(self, history_messages: list) -> list[LLMMessage]:
+        """Convert HistoryMessage list to TUI LLMMessage list."""
+        def extract_text(content: str | list | None) -> str:
+            if content is None:
+                return ""
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        parts.append(block.get("text", ""))
+                    elif isinstance(block, dict) and block.get("type") == "tool_result":
+                        parts.append(str(block.get("content", "")))
+                return "\n".join(parts)
+            return str(content)
+
+        result: list[LLMMessage] = []
+        for msg in history_messages:
+            if msg.role == "system":
+                continue
+            content = extract_text(msg.content)
+            if msg.role == "user":
+                result.append(LLMMessage(role=Role.user, content=content))
+            elif msg.role == "assistant":
+                result.append(LLMMessage(role=Role.assistant, content=content))
+            elif msg.role == "tool":
+                result.append(LLMMessage(role=Role.tool, content=content))
+        return result
 
     async def teleport_to_vibe_code(self, prompt: str | None) -> AsyncGenerator[Event, None]:
         """Stub for teleport functionality."""
@@ -433,14 +469,19 @@ class AgentLoop:
         yield AssistantEvent(content="Teleport to vibe code not fully implemented in adapter.")
 
     def reset_messages(self, messages: list[LLMMessage]) -> None:
-        """Reset agent memory with new messages."""
+        """Reset agent memory with new messages (role-based format)."""
         self.agent.clear_memory()
         self.rewind_manager.on_messages_reset()
         for msg in messages:
             if msg.role == Role.user:
-                self.agent.add_to_memory({"content": msg.content})
+                self.agent.add_role_message(role="user", content=msg.content)
             elif msg.role == Role.assistant:
-                self.agent.add_to_memory({"response": msg.content})
+                self.agent.add_role_message(role="assistant", content=msg.content)
+            elif msg.role == Role.tool:
+                self.agent.add_role_message(role="tool", content=msg.content)
+            else:
+                # Legacy format fallback
+                self.agent.add_to_memory({"content": msg.content})
 
     async def reload_with_initial_messages(self, base_config: Settings | None = None) -> None:
         """Reload agent with initial messages."""
@@ -462,6 +503,10 @@ class AgentLoop:
         """
         Compact conversation history using LLM summarization.
 
+        Saves a compaction boundary marker and summary to the conversation
+        history file, matching OpenClaude's approach of preserving compacted
+        context in the persistent transcript.
+
         Args:
             extra_instructions: Additional instructions for summarization
             auto_triggered: Whether this was triggered automatically
@@ -481,10 +526,22 @@ class AgentLoop:
             strategy = strategy or self._compaction_strategy
             summary = await self._run_llm_summarization(extra_instructions, strategy)
 
-            # Clear old memory and store summary
+            # Save compaction boundary and summary to persistent history
+            from core.history import create_system_message, create_user_message
+            compaction_marker = create_system_message(
+                f"[Compaction Boundary - {datetime.now(timezone.utc).isoformat()}] "
+                f"Previous {messages_before} messages summarized."
+            )
+            self.history.append_message(compaction_marker)
+            compaction_summary = create_user_message(
+                f"Previous conversation context summary:\n{summary}"
+            )
+            self.history.append_message(compaction_summary)
+
+            # Clear old memory and store summary as role-based message
             self.agent.clear_memory()
             self.rewind_manager.on_messages_reset()
-            self.agent.add_to_memory({"content": summary})
+            self.agent.add_role_message(role="system", content=summary)
 
             # Update stats
             tokens_after = self.stats.context_tokens

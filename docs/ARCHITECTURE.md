@@ -88,8 +88,10 @@ BaseAgent (ABC)          — core/agents/base.py
   └── PlanAgent          — core/agents/plan_agent.py
 ```
 
-`BaseAgent` (1257 lines) provides:
-- **Agent loop** (`_process_with_tools`): calls LLM with message history + tool definitions, executes any tool calls the model returns, appends results as user messages, and repeats until the model returns a plain-text response.
+`BaseAgent` (~1400 lines) provides:
+- **Agent loop** (`_process_with_tools`): calls LLM with full message history + tool definitions, executes any tool calls the model returns, appends results, and repeats until the model returns a plain-text response. Tool calls/results are persisted as **proper role-based messages** (assistant with `tool_calls`, tool with `tool_call_id`) — no more injecting into user messages.
+- **Full history pipeline**: `_build_messages()` loads ALL role-based messages from `self.memory` via `get_role_memory()`, not just the last 5 entries. Legacy format entries (pre-role dicts) are still supported as a summary context string.
+- **ConversationHistory integration**: tool calls and results are automatically saved to `self.history` (a `ConversationHistory` instance shared with the UI layer), ensuring complete conversation transcripts in JSONL format.
 - **Streaming**: when a `stream_callback` is set, the agent uses streaming LLM calls and emits text chunks in real time to the UI.
 - **Approval flow** (`_should_execute_tool`): for each tool call, checks permission level (always/never/ask), session rules, and invokes the `approval_callback` if user confirmation is needed. Supports "allow always" session rules.
 - **Concurrent tool execution**: via `AsyncToolRegistry.execute_tools_concurrent`, multiple independent tool calls are dispatched in parallel using `asyncio.gather`.
@@ -108,8 +110,14 @@ BaseAgent (ABC)          — core/agents/base.py
 ```
 User Message
   │
+  ├── AgentLoop saves user message → ConversationHistory (JSONL)
   ▼
-_build_messages() ────► system prompt + memory + user content
+_build_messages()
+  │
+  ├── system prompt
+  ├── legacy memory context (pre-role entries as summary string)
+  ├── ALL role-based messages from get_role_memory()    ← replaces limit=5
+  └── current user message
   │
   ▼
 _generate_with_tools() ──► LLM returns text or tool_calls
@@ -119,11 +127,21 @@ _generate_with_tools() ──► LLM returns text or tool_calls
   │                       ├── _should_execute_tool() [permission check]
   │                       ├── execute_tool() via ToolRegistry
   │                       ├── tool_call_callback / tool_result_callback
-  │                       └── append results as user message
+  │                       ├── persist to self.memory:
+  │                       │   ├── add_role_message("assistant", tool_calls)
+  │                       │   └── add_role_message("tool", result)
+  │                       ├── persist to self.history:
+  │                       │   ├── HistoryMessage(role="assistant", tool_calls)
+  │                       │   └── HistoryMessage(role="tool", result)
+  │                       └── append to working messages for LLM
   │                       │
   │                       └── loop back to LLM
   │
   └── text? ──► return final response
+                   │
+                   ├── JarvisV2: add_role_message("user", input)
+                   ├── JarvisV2: add_role_message("assistant", response)
+                   └── AgentLoop saves assistant response → ConversationHistory
 ```
 
 ---
@@ -328,12 +346,22 @@ JarvisSettings
 ```
 1. User types a message in CLI/TUI/WebUI
          │
-2. Interface calls agent.process(user_input)
+2. Interface saves user message to ConversationHistory JSONL
+   (create_user_message → ~/.jarvis/history/{session_id}.jsonl
+    or {project_root}/.jarvis/history/{session_id}.jsonl)
          │
-3. JarvisV2._build_messages() constructs:
-   [system_prompt, memory, context, user_message]
+3. Interface calls agent.process(user_input)
          │
-4. BaseAgent._process_with_tools() calls LLM via
+4. JarvisV2._build_messages() constructs:
+   [system_prompt, legacy_memory_context,
+    ALL role-based messages from get_role_memory(),
+    user_message]
+         │
+         │  Note: role-based messages include previous turns'
+         │  user, assistant (with tool_calls), and tool (with results)
+         │  entries — loaded from self.memory without the old limit=5 cutoff.
+         │
+5. BaseAgent._process_with_tools() calls LLM via
    llm.generate_with_tools(messages, tool_definitions)
          │
          ├── LLM returns {content, tool_calls}
@@ -348,24 +376,103 @@ JarvisSettings
          │           ├── tool.safe_execute(args) → ToolOutput
          │           │   └── callbacks: tool_call_callback, tool_result_callback
          │           │
-         │           └── Append tool result as user message
+         │           ├── Persist to self.memory (role-based):
+         │           │   ├── add_role_message("assistant", tool_calls=...)
+         │           │   └── add_role_message("tool", tool_call_id, content)
+         │           │
+         │           ├── Persist to self.history (ConversationHistory JSONL):
+         │           │   ├── HistoryMessage(role="assistant", tool_calls=[...])
+         │           │   └── HistoryMessage(role="tool", tool_call_id, content)
+         │           │
+         │           └── Append to working message list
          │           │
          │           └── Loop back to LLM with updated history
          │
          └── LLM returns plain text → final response
                   │
-5. Interface displays response (streamed or complete)
+6. Interface displays response (streamed or complete)
                   │
-6. JarvisV2 post-processes:
+7. JarvisV2 post-processes:
+   ├── add_role_message("user", input) — persists user input to memory
+   ├── add_role_message("assistant", response) — persists response to memory
+   ├── history.append_message(assistant_msg) — persists response to JSONL
    ├── Logs M1 trace to LearningManager (every 5 interactions)
    ├── Runs SkillCrystallizer on execution trace
-   ├── Stores in agent memory
    └── (Optional) Heartbeat scheduler checks for pending tasks
 ```
 
 ---
 
-## 12. Key Design Decisions
+---
+
+## 12. Conversation History Management
+
+### Architecture
+
+Conversation history uses a two-tier storage system:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ConversationHistory                       │
+│                    core/history.py                           │
+│                                                             │
+│  persistent store: ~/.jarvis/history/{id}.jsonl             │
+│              or:   {project}/.jarvis/history/{id}.jsonl     │
+│                                                             │
+│  Format: JSONL (one JSON dict per line)                     │
+│  Roles: system, user, assistant, tool                       │
+│  Tool calls: OpenAI format (tool_calls) or Anthropic (tool_use) │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+               ┌────────────┴────────────┐
+               ▼                         ▼
+     self.history (Agent)      self.agent.memory
+     Persistent JSONL          Working memory (dict list)
+     ┌────────────────┐        ┌─────────────────────────┐
+     │ HistoryMessage │        │ Role-based dicts:       │
+     │   role, content│        │ {"role":"user",...}     │
+     │   tool_calls,  │        │ {"role":"assistant",...}│
+     │   tool_call_id │        │ {"role":"tool",...}     │
+     └────────────────┘        └─────────────────────────┘
+```
+
+### Message Flow
+
+| Step | What | Where |
+|------|------|-------|
+| User input received | `create_user_message(prompt)` appended | `ConversationHistory` JSONL |
+| Agent processes | `_build_messages()` loads ALL role messages from `self.memory` | `BaseAgent._build_messages()` |
+| Tool called | Assistant message with `tool_calls` saved to both | `self.memory` + `self.history` |
+| Tool result | Tool message with `tool_call_id` saved to both | `self.memory` + `self.history` |
+| Final response | Assistant message saved to both | `self.memory` + `self.history` |
+
+### SDK Format Converters
+
+`core/history.py` provides bidirectional converters matching both provider SDKs:
+
+| Function | Input | Output |
+|----------|-------|--------|
+| `to_openai_format()` | `list[HistoryMessage]` | `list[dict]` — OpenAI Chat Completions format |
+| `to_anthropic_format()` | `list[HistoryMessage]` | `(system, list[dict])` — Anthropic Messages format |
+| `from_openai_format()` | `list[dict]` | `list[HistoryMessage]` |
+| `from_anthropic_format()` | `(system, list[dict])` | `list[HistoryMessage]` |
+| `messages_to_role_dicts()` | `list[HistoryMessage]` | `list[dict]` with coalescing applied |
+
+### Message Coalescing
+
+`coalesce_messages()` merges consecutive same-role messages (except `tool` and `system`) to satisfy strict `user` ↔ `assistant` alternation required by OpenAI, vLLM, and Ollama. This is applied automatically when loading full history.
+
+### Project-Level History
+
+If a project has a `.jarvis/history/` directory (e.g., `{project_root}/.jarvis/history/`), it is used instead of `~/.jarvis/history/`. The directory is auto-discovered by walking up from the current working directory.
+
+### Compaction
+
+When the context window approaches its limit (default 80% threshold), `compact()` runs an LLM-based summarization. The summary is saved to the history file as a compaction boundary marker followed by a user message containing the summary text. This mirrors OpenClaude's `autoCompact.ts` approach of preserving compacted context in the transcript.
+
+---
+
+## 13. Key Design Decisions
 
 **Why a single-agent architecture (JarvisV2) rather than multi-agent orchestration?**
 > Simplicity and reliability. A single agent with a rich tool set avoids the coordination overhead, context fragmentation, and failure modes of multi-agent systems. The tool system provides equivalent modularity — tools encapsulate all "agent-like" behavior (sub-agent delegation via the `agents` tool, MCP adapters, skill activation) without the complexity of agent-to-agent handoff.
@@ -373,8 +480,8 @@ JarvisSettings
 **Why the SDKAdapter pattern instead of direct API calls?**
 > Provider independence. `SDKAdapter` normalizes the typed SDK interface (`BaseLLMSDK`) into the dict-based `BaseLLMProvider` contract. This means adding a new provider only requires implementing `BaseLLMSDK` — no changes to the agent loop, tool system, or UI layers.
 
-**Why are tool results injected as user messages rather than a tool role?**
-> LLM compatibility. Some models (especially older OpenAI versions) do not reliably support a dedicated `tool` role. Injecting tool results as user messages with consistent formatting achieves identical behavior across all providers without branch logic in the agent loop.
+**Why are tool results now persisted as tool role messages instead of user messages?**
+> Standardization. With the new role-based memory system, tool results are persisted as proper `{"role": "tool", "tool_call_id": "...", "content": "..."}` messages in both `agent.memory` and `ConversationHistory`. The working message list passed to the LLM during a turn still uses user messages for backward compatibility, but the persistent store uses the SDK-standard tool role that both OpenAI and Anthropic support. This allows full conversation transcripts to be replayed into any provider without format conversion issues.
 
 **Why JSON config files instead of YAML/TOML/env-only?**
 > Simplicity + overridability. JSON is universally parseable, supports nested structures natively, and the layered merge (global → project → env → runtime) gives users flexible setup without requiring environment variables for every option.

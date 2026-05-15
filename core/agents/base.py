@@ -12,6 +12,7 @@ from enum import Enum
 from typing import Any, TypeAlias, cast
 
 from core.config.settings import Settings
+from core.history import ConversationHistory, messages_to_role_dicts
 from core.llm.base import BaseLLMProvider, MessageDict
 from core.llm_sdk.base.sdk import ToolCall
 from core.llm_sdk.tool_parser import (
@@ -114,6 +115,9 @@ class BaseAgent(ABC):
         self._config_getter: ConfigGetter = config_getter or (lambda: Settings())
         self.bypass_tool_permissions: bool = bypass_tool_permissions
 
+        # Conversation history (persistent, role-based)
+        self.history: ConversationHistory | None = None
+
         # Auto-discovery of project context files (JARVIS v2 mode)
         self._auto_discover_context: bool = auto_discover_context
         if auto_discover_context:
@@ -206,13 +210,18 @@ class BaseAgent(ABC):
         Add an entry to agent memory
 
         Args:
-            entry: Dictionary with memory entry data
+            entry: Dictionary with memory entry data.
+                  Supports both role-based format (role, content, tool_calls, tool_call_id)
+                  and legacy format (content, response, type).
         """
         self.memory.append(entry)
 
     def get_memory_context(self, limit: int = 5) -> str:
         """
-        Get formatted memory context
+        Get formatted memory context for legacy format entries.
+
+        Only includes entries that use the old format (content + response keys).
+        Role-based entries (with "role" key) are handled separately by _build_messages.
 
         Args:
             limit: Maximum number of memory entries to include
@@ -220,7 +229,9 @@ class BaseAgent(ABC):
         Returns:
             Formatted memory context string
         """
-        recent_memory = self.memory[-limit:] if self.memory else []
+        # Filter for legacy-format entries only (those without "role" key)
+        legacy_entries = [e for e in self.memory if "role" not in e]
+        recent_memory = legacy_entries[-limit:] if legacy_entries else []
         if not recent_memory:
             return ""
 
@@ -231,6 +242,51 @@ class BaseAgent(ABC):
                 context_parts.append(f"- {content}")
 
         return "Relevant context:\n" + "\n".join(context_parts)
+
+    def get_role_memory(self) -> list[MessageDict]:
+        """Get all role-based messages from memory.
+
+        Filters memory entries that have a "role" key and returns them
+        as properly formatted message dicts for LLM consumption.
+        This replaces the old summary-string approach.
+
+        Returns:
+            List of message dicts with role, content, tool_calls, tool_call_id
+        """
+        role_entries: list[MessageDict] = [e for e in self.memory if "role" in e]
+        result: list[MessageDict] = []
+        for entry in role_entries:
+            d: MessageDict = {"role": entry["role"], "content": entry.get("content", "")}
+            if entry.get("tool_calls"):
+                d["tool_calls"] = entry["tool_calls"]
+            if entry.get("tool_call_id"):
+                d["tool_call_id"] = entry["tool_call_id"]
+            result.append(d)
+        return result
+
+    def add_role_message(
+        self,
+        role: str,
+        content: str = "",
+        tool_calls: list[dict] | None = None,
+        tool_call_id: str | None = None,
+    ) -> None:
+        """Add a proper role-based message to memory.
+
+        Args:
+            role: Message role (user, assistant, tool, system)
+            content: Message content
+            tool_calls: Tool calls for assistant messages
+            tool_call_id: Tool call ID for tool messages
+        """
+        entry: MessageDict = {"role": role}
+        if content:
+            entry["content"] = content
+        if tool_calls:
+            entry["tool_calls"] = tool_calls
+        if tool_call_id:
+            entry["tool_call_id"] = tool_call_id
+        self.memory.append(entry)
 
     def update_context(self, key: str, value: Any) -> None:
         """
@@ -577,7 +633,12 @@ class BaseAgent(ABC):
 
     def _build_messages(self, user_content: str, include_memory: bool = True) -> list[MessageDict]:
         """
-        Build message list with system, user, and memory context
+        Build message list with system, user, and full conversation history.
+
+        This loads the ENTIRE role-based message history from memory (not just
+        the last 5 entries) and passes it with proper roles to the LLM.
+        Legacy format entries (content+response without role) are formatted
+        as a summary string appended to the system prompt.
 
         Args:
             user_content: User input content
@@ -590,11 +651,16 @@ class BaseAgent(ABC):
             {"role": "system", "content": self.system_prompt}
         ]
 
-        # Add memory context if available
         if include_memory:
+            # Add legacy format entries as memory context (summary string)
             memory_context = self.get_memory_context()
             if memory_context:
                 messages.append({"role": "system", "content": memory_context})
+
+            # Add ALL role-based messages from memory with proper roles
+            # This replaces the old limit=5 approach with full history
+            role_messages = self.get_role_memory()
+            messages.extend(role_messages)
 
         # Add user message
         messages.append({"role": "user", "content": user_content})
@@ -947,11 +1013,51 @@ class BaseAgent(ABC):
                     "content": tool_result_content
                 })
 
-        # Add tool results to conversation history as user message
+        # Add tool results to working message history as user message
+        # (keeps the LLM loop running with proper alternation)
+        tool_content = "\n".join([str(tr["content"]) for tr in tool_results])
         updated_messages.append({
             "role": "user",
-            "content": "\n".join([str(tr["content"]) for tr in tool_results])
+            "content": tool_content
         })
+
+        # Persist assistant message (with tool_calls) to memory for history
+        self.add_role_message(
+            role="assistant",
+            content=response.get("content", ""),
+            tool_calls=tool_calls,
+        )
+
+        # Persist tool result messages to memory (proper tool role)
+        for tr in tool_results:
+            self.add_role_message(
+                role="tool",
+                content=str(tr.get("content", "")),
+                tool_call_id=str(tr.get("tool_call_id", "")),
+            )
+
+        # Also persist to conversation history if available
+        if self.history is not None:
+            from core.history import (
+                HistoryMessage,
+                create_assistant_message,
+                create_tool_message,
+            )
+            self.history.append_message(
+                HistoryMessage(
+                    role="assistant",
+                    content=response.get("content", ""),
+                    tool_calls=tool_calls,
+                )
+            )
+            for tr in tool_results:
+                self.history.append_message(
+                    HistoryMessage(
+                        role="tool",
+                        content=str(tr.get("content", "")),
+                        tool_call_id=str(tr.get("tool_call_id", "")),
+                    )
+                )
 
         return updated_messages
 

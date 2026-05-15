@@ -2932,9 +2932,10 @@ class VibeApp(App):  # noqa: PLR0904
         new_session = self.agent_loop.history.session_id
         self.agent_loop.session_id = new_session
         
-        # Clear agent memory
+        # Clear agent memory and update history reference
         if self.agent_loop.agent:
             self.agent_loop.agent.clear_memory()
+            self.agent_loop.agent.history = self.agent_loop.history
             self.agent_loop.agent.rebuild_system_prompt()
         
         self.notify(

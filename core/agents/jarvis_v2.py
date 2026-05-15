@@ -308,8 +308,19 @@ class JarvisV2(BaseAgent):
         self.execution_trace = []
 
         # Build messages with proper roles using base class method
-        user_content = self._build_prompt(input, context)
-        messages = self._build_messages(user_content, include_memory=True)
+        messages = self._build_messages(input, include_memory=True)
+
+        # Append context as a separate user message if provided
+        if context:
+            ctx_parts = []
+            if "current_file" in context:
+                ctx_parts.append(f"Current file: {context['current_file']}")
+            if "project_path" in context:
+                ctx_parts.append(f"Project path: {context['project_path']}")
+            if "file_content" in context:
+                ctx_parts.append(f"File content:\n{context['file_content']}")
+            if ctx_parts:
+                messages.append({"role": "user", "content": "\n".join(ctx_parts)})
 
         # Always use streaming when stream_callback is set (TUI mode)
         # This ensures real-time updates in the TUI
@@ -324,12 +335,14 @@ class JarvisV2(BaseAgent):
         if self.learning_manager and self._interactions_since_learning >= 5:
             await self._learn_from_interaction(input, response)
 
-        # Add to memory
-        self.add_to_memory({
-            "content": f"Task: {input}",
-            "response": response,
-            "type": "coding_task"
-        })
+        # Add to memory as proper role-based messages
+        self.add_role_message(role="user", content=input)
+        self.add_role_message(role="assistant", content=response)
+
+        # Also persist to conversation history if available
+        if self.history is not None:
+            from core.history import create_assistant_message
+            self.history.append_message(create_assistant_message(response))
 
         # Crystallize execution path into a reusable skill (GenericAgent-style)
         try:
@@ -368,20 +381,6 @@ class JarvisV2(BaseAgent):
             # Log but don't fail
             import logging
             logging.getLogger(__name__).debug(f"M1 Trace logging failed: {e}")
-
-    def _build_prompt(self, input: str, context: dict | None) -> str:
-        """Build the prompt for the coding task"""
-        prompt = f"Task: {input}\n\n"
-
-        if context:
-            if "current_file" in context:
-                prompt += f"Current file: {context['current_file']}\n"
-            if "project_path" in context:
-                prompt += f"Project path: {context['project_path']}\n"
-            if "file_content" in context:
-                prompt += f"\nFile content:\n{context['file_content']}\n"
-
-        return prompt
 
     async def plan(self, task: str) -> list[dict]:
         """

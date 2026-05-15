@@ -314,28 +314,24 @@ class CLIInterface:
         if self.bypass:
             self.jarvis_agent.bypass_tool_permissions = True
 
+        # Share conversation history with agent
+        self.jarvis_agent.history = self.history
+
         # Initialize heartbeat system if enabled in config
         self.jarvis_agent.initialize_heartbeat(lambda: self.agent_manager.config)
         if self.jarvis_agent.heartbeat_scheduler:
             asyncio.create_task(self.jarvis_agent.start_heartbeat())
 
-        # Load history into agent memory if resuming a session
+        # Load full history into agent memory if resuming a session
         if self.resume_session:
-            messages = self.history.get_messages()
+            messages = self.history.get_full_history(coalesce=True)
             for msg in messages:
-                entry: dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
-                # Add OpenAI tool calls if present
-                if msg.tool_calls:
-                    entry["tool_calls"] = msg.tool_calls
-                if msg.tool_call_id:
-                    entry["tool_call_id"] = msg.tool_call_id
-                # Add Anthropic tool_use if present
-                if msg.tool_use:
-                    entry["tool_use"] = msg.tool_use
-                # Add Anthropic tool_result if present (stored in content as array)
-                if msg.tool_result:
-                    entry["tool_result"] = msg.tool_result
-                self.jarvis_agent.add_to_memory(entry)
+                self.jarvis_agent.add_role_message(
+                    role=msg.role,
+                    content=str(msg.content or ""),
+                    tool_calls=msg.tool_calls,
+                    tool_call_id=msg.tool_call_id,
+                )
 
         # Initialize learning manager (only if enabled in settings)
         settings = Settings()
@@ -488,13 +484,23 @@ class CLIInterface:
         try:
             await asyncio.wait_for(self.jarvis_agent.process(text), timeout=self.config_manager.config.behavior.timeout_seconds)
             
-            # Save assistant response to history
+            # Save assistant response to history if not already persisted
+            # (jarvis_v2.py saves it via add_role_message + history.append_message,
+            # but we still check for the case where history wasn't available)
             from core.history import create_assistant_message
-            # Get the last assistant message from agent memory
+            saved = False
             for entry in reversed(self.jarvis_agent.memory):
                 if entry.get("role") == "assistant" and entry.get("content"):
-                    self.history.append_message(create_assistant_message(entry.get("content", "")))
+                    saved = True
                     break
+                if "response" in entry and entry.get("response"):
+                    saved = True
+                    break
+            # Only save if agent didn't already persist it
+            if not saved and self.jarvis_agent.history is None:
+                self.history.append_message(create_assistant_message(
+                    self.jarvis_agent._last_response_text or ""
+                ))
         except asyncio.TimeoutError:
             self.display_manager.stop_streaming()
             self.display_manager.show_error("Task timed out.")
@@ -511,9 +517,10 @@ class CLIInterface:
         # Create new conversation history (new session)
         self.history = ConversationHistory()
         
-        # Clear agent memory
+        # Clear agent memory and update history reference
         if self.jarvis_agent:
             self.jarvis_agent.clear_memory()
+            self.jarvis_agent.history = self.history
             self.jarvis_agent.rebuild_system_prompt()
         
         return old_session_id
