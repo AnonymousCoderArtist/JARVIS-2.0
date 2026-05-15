@@ -50,7 +50,8 @@ export function ToolCallWidget({ messages, isStreaming }: ToolCallWidgetProps) {
 
   return (
     <div
-      className="fixed bottom-24 left-1/2 z-40 -translate-x-1/2"
+      className="fixed left-1/2 z-40 -translate-x-1/2"
+      style={{ bottom: "6rem" }}
     >
       <div
         className="flex items-center gap-2 rounded-full px-4 py-2"

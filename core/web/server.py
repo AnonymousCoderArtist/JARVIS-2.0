@@ -1190,11 +1190,19 @@ async def api_context_usage():
     """Get current token usage and context limits."""
     try:
         agent = _get_or_create_agent()
-        usage = {}
+        usage = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
         if hasattr(agent, 'provider') and hasattr(agent.provider, 'get_and_clear_usage'):
             u = agent.provider.get_and_clear_usage()
             if u:
-                usage = u
+                usage = {
+                    "prompt_tokens": u.get("prompt_tokens", 0) or u.get("input_tokens", 0),
+                    "completion_tokens": u.get("completion_tokens", 0) or u.get("output_tokens", 0),
+                    "total_tokens": u.get("total_tokens", 0),
+                }
         from core.llm_sdk.context_length_manager import context_length_manager
         model = os.getenv("JARVIS_MODEL", "gpt-4o")
         limits = context_length_manager.get_token_limits(model)
@@ -1208,7 +1216,13 @@ async def api_context_usage():
             "message_count": 0,
         }
     except Exception as e:
-        return {"usage": {}, "limits": {"context": 128000, "output": 16000}, "model": os.getenv("JARVIS_MODEL", "gpt-4o"), "message_count": 0, "error": str(e)[:100]}
+        logger.warning(f"Context usage error: {e}")
+        return {
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "limits": {"context": 128000, "output": 16384},
+            "model": os.getenv("JARVIS_MODEL", "gpt-4o"),
+            "message_count": 0,
+        }
 
 
 # ── Connector Auth endpoints ────────────────────────────────────────────
