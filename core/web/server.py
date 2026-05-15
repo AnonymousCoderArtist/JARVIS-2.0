@@ -42,6 +42,9 @@ _agent: Any = None
 # In-memory token store (in production, use Redis or similar)
 _tokens: dict = {}
 
+# Accumulated token usage (cumulative session-level, like TUI Stats)
+_accumulated_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
 # Pending approvals: maps tool_call_id -> {
 #   "future": asyncio.Future,
 #   "tool_name": str,
@@ -482,6 +485,19 @@ async def ws_endpoint(websocket: WebSocket):
                         history.append_message(create_user_message(content))
 
                     response = await agent.process(content)
+
+                    # Accumulate token usage after processing (like TUI Stats.update_from_agent)
+                    try:
+                        if hasattr(agent, 'llm') and hasattr(agent.llm, 'get_and_clear_usage'):
+                            u = agent.llm.get_and_clear_usage()
+                            if u and isinstance(u, dict):
+                                p = int(u.get('prompt_tokens') or u.get('input_tokens', 0))
+                                c = int(u.get('completion_tokens') or u.get('output_tokens', 0))
+                                _accumulated_usage["prompt_tokens"] += p
+                                _accumulated_usage["completion_tokens"] += c
+                                _accumulated_usage["total_tokens"] += p + c
+                    except Exception:
+                        pass
 
                     # Save assistant response to history
                     if _connection_info.get("session_id") and response:
@@ -1195,19 +1211,18 @@ async def api_context_usage():
     except Exception:
         limits = type('L', (), {'total_context_tokens': 128000, 'max_output_tokens': 16384})()
 
-    usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-    try:
-        agent = _get_or_create_agent()
-        if hasattr(agent, 'provider') and hasattr(agent.provider, 'get_and_clear_usage'):
-            u = agent.provider.get_and_clear_usage()
-            if u and isinstance(u, dict):
-                usage = {
-                    "prompt_tokens": u.get("prompt_tokens", 0) or u.get("input_tokens", 0),
-                    "completion_tokens": u.get("completion_tokens", 0) or u.get("output_tokens", 0),
-                    "total_tokens": u.get("total_tokens", 0),
-                }
-    except Exception:
-        pass
+    usage = dict(_accumulated_usage)
+    if not any(usage.values()):
+        try:
+            agent = _get_or_create_agent()
+            if hasattr(agent, 'llm') and hasattr(agent.llm, 'get_and_clear_usage'):
+                u = agent.llm.get_and_clear_usage()
+                if u and isinstance(u, dict):
+                    p = int(u.get("prompt_tokens") or u.get("input_tokens", 0))
+                    c = int(u.get("completion_tokens") or u.get("output_tokens", 0))
+                    usage = {"prompt_tokens": p, "completion_tokens": c, "total_tokens": p + c}
+        except Exception:
+            pass
 
     return {
         "usage": usage,

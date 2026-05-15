@@ -219,7 +219,7 @@ export function ChatInput({
 
   return (
     <div
-      className="fixed bottom-5 left-1/2 z-50 w-full max-w-xl -translate-x-1/2 px-4"
+      className="relative w-full max-w-xl"
     >
       {showSuggestions && matchingCommands.length > 0 && (
         <div

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { UIMessage } from "@/lib/types";
 import { ScrambleText } from "./ScrambleText";
 import { cn } from "@/lib/utils";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 interface ChatPanelProps {
   open: boolean;
@@ -11,6 +12,47 @@ interface ChatPanelProps {
   pos: { x: number; y: number };
   onPosChange?: (pos: { x: number; y: number }) => void;
   canvasOffset: { x: number; y: number };
+}
+
+function ToolCallsInline({ messages }: { messages: UIMessage[] }) {
+  const lastAssistant = [...messages].reverse().find(m => m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0);
+  if (!lastAssistant?.toolCalls) return null;
+
+  return (
+    <div className="space-y-1.5 px-1">
+      {lastAssistant.toolCalls.map((tc) => {
+        const pending = tc.result === undefined;
+        const success = tc.success !== false;
+        const Icon = pending ? Loader2 : success ? CheckCircle2 : XCircle;
+        const color = pending
+          ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.7)"
+          : success
+            ? "rgba(var(--success-r), var(--success-g), var(--success-b), 0.7)"
+            : "rgba(var(--error-r), var(--error-g), var(--error-b), 0.7)";
+
+        return (
+          <div
+            key={tc.id}
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+            style={{
+              background: "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.06)",
+              border: "1px solid rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1)",
+            }}
+          >
+            <Icon className="h-3 w-3 flex-shrink-0" style={{ color }} />
+            <span className="text-[11px] font-medium" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.8)" }}>
+              {tc.name}
+            </span>
+            {pending && (
+              <span className="text-[9px] ml-auto tracking-wider uppercase" style={{ color: "rgba(var(--text-body-r), var(--text-body-g), var(--text-body-b), 0.4)" }}>
+                Running...
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function ChatPanel({ open, messages, isStreaming, onClose, pos, onPosChange, canvasOffset }: ChatPanelProps) {
@@ -167,6 +209,9 @@ export function ChatPanel({ open, messages, isStreaming, onClose, pos, onPosChan
             </div>
           </div>
         ))}
+
+        {/* Tool calls inline */}
+        <ToolCallsInline messages={messages} />
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ import { ConfigPanel } from "./ConfigPanel";
 import { DebugConsole } from "./DebugConsole";
 import { FeedbackWidget } from "./FeedbackWidget";
 import { ContextProgress } from "./ContextProgress";
+import { ContextUsageBar } from "./ContextUsageBar";
 import { ConnectorAuth } from "./ConnectorAuth";
 import { SafetyProfile } from "./SafetyProfile";
 import { QuestionDialog } from "./QuestionDialog";
@@ -192,7 +193,7 @@ export function TechShell() {
     y: 90,
   });
   const [toolBoxPos, setToolBoxPos] = useState({
-    x: typeof window !== "undefined" ? window.innerWidth - 340 : 500,
+    x: typeof window !== "undefined" ? Math.min(window.innerWidth / 2 + 260, window.innerWidth - 300) : 500,
     y: 90,
   });
   const [historyPos, setHistoryPos] = useState({
@@ -330,20 +331,25 @@ export function TechShell() {
         />
       </div>
 
-      {/* Chat Input + Tool Call Widget */}
-      <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-end gap-3 px-4">
-        <ChatInput
-          onSend={handleSend}
-          disabled={isStreaming && !chatId}
-          onOpenModelPicker={() => setModelPickerOpen(true)}
-          onOpenMcpPanel={() => setMcpPanelOpen(true)}
-          onOpenHeartbeat={() => setHeartbeatOpen(true)}
-          onOpenRewind={() => setRewindOpen(true)}
-          onOpenConfig={() => setConfigOpen(true)}
-          onOpenDebug={() => setDebugOpen(true)}
-          onOpenFeedback={() => setFeedbackOpen(true)}
-        />
-        <ToolCallWidget messages={messages} isStreaming={isStreaming} />
+      {/* Chat Input + Tool Call Widget + Context Usage */}
+      <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 flex flex-col items-center gap-2 px-4">
+        <div className="flex items-end gap-3">
+          <ChatInput
+            onSend={handleSend}
+            disabled={isStreaming && !chatId}
+            onOpenModelPicker={() => setModelPickerOpen(true)}
+            onOpenMcpPanel={() => setMcpPanelOpen(true)}
+            onOpenHeartbeat={() => setHeartbeatOpen(true)}
+            onOpenRewind={() => setRewindOpen(true)}
+            onOpenConfig={() => setConfigOpen(true)}
+            onOpenDebug={() => setDebugOpen(true)}
+            onOpenFeedback={() => setFeedbackOpen(true)}
+          />
+          <div className="flex flex-col gap-2">
+            <ToolCallWidget messages={messages} isStreaming={isStreaming} />
+            <ContextUsageBar />
+          </div>
+        </div>
       </div>
 
       {/* ===== FIXED RIGHT SIDEBAR ===== */}
