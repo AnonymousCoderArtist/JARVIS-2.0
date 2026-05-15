@@ -601,6 +601,45 @@ class BaseAgent(ABC):
 
         return messages
 
+    def _drain_and_inject_notifications(
+        self, messages: list[MessageDict]
+    ) -> list[MessageDict]:
+        """Drain pending subagent notifications and inject them as a user message.
+
+        This is called at the start of each agent loop iteration. Any pending
+        notifications from completed/failed background agents are formatted as
+        XML and appended to the message history so the LLM sees them automatically.
+
+        Progress updates are excluded — they are UI-only, matching OpenClaude's design.
+
+        Args:
+            messages: Current message history
+
+        Returns:
+            Updated message history with notification context appended
+        """
+        from core.agents.notification_queue import (
+            NotificationMode,
+            format_notifications_for_llm,
+            get_notification_queue,
+        )
+
+        queue = get_notification_queue()
+        notifications = queue.drain(
+            agent_id="",
+            exclude_modes={NotificationMode.PROGRESS_UPDATE},
+        )
+
+        if not notifications:
+            return messages
+
+        notification_text = format_notifications_for_llm(notifications)
+        if notification_text:
+            messages = messages.copy()
+            messages.append({"role": "user", "content": notification_text})
+
+        return messages
+
     async def _process_with_tools(
         self,
         messages: list[MessageDict],
@@ -615,6 +654,9 @@ class BaseAgent(ABC):
         3. Repeat until LLM returns no tool calls
         4. Return final response
 
+        Before each LLM call, pending subagent notifications are drained and
+        injected as user messages so the LLM sees them automatically.
+
         Args:
             messages: Message history with proper roles
             stream: Whether to stream the response
@@ -626,6 +668,9 @@ class BaseAgent(ABC):
         updated_messages = messages.copy()
 
         while True:
+            # Drain pending subagent notifications and inject as context
+            updated_messages = self._drain_and_inject_notifications(updated_messages)
+
             # Always try streaming when stream_callback is set (TUI mode)
             # This ensures real-time updates in the TUI
             if self.stream_callback:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
@@ -32,6 +33,41 @@ from .fork_subagent import (
 logger = logging.getLogger(__name__)
 
 
+def _enqueue_completion_notification(
+    task_id: str,
+    agent_name: str,
+    status: str,
+    result: str = "",
+    error: str = "",
+    tool_uses: int = 0,
+    token_usage: int = 0,
+    duration_ms: float = 0.0,
+    tool_use_id: str = "",
+    worktree_path: str = "",
+    worktree_branch: str = "",
+) -> None:
+    """Enqueue a notification for the main agent about subagent completion."""
+    from core.agents.notification_queue import enqueue_agent_notification
+
+    summary = f"Subagent '{agent_name}' {status}"
+    if error:
+        summary += f" - {error}"
+
+    enqueue_agent_notification(
+        task_id=task_id,
+        agent_name=agent_name,
+        status=status,
+        summary=summary,
+        result=result or error,
+        tool_use_id=tool_use_id,
+        total_tokens=token_usage,
+        tool_uses=tool_uses,
+        duration_ms=duration_ms,
+        worktree_path=worktree_path,
+        worktree_branch=worktree_branch,
+    )
+
+
 async def _run_agent_in_background(
     task_id: str,
     agent_name: str,
@@ -41,6 +77,7 @@ async def _run_agent_in_background(
     model,
     config_getter,
     event_queue=None,
+    tool_use_id: str = "",
 ):
     """Run an agent in the background and update status when done.
 
@@ -53,25 +90,45 @@ async def _run_agent_in_background(
         model: Model name to use
         config_getter: Configuration getter function
         event_queue: Optional event queue for UI updates
+        tool_use_id: The tool call ID that launched this subagent
     """
     from core.agents import EXPLORE, PLAN
     from core.config.settings import Settings
 
     from .utils import create_agent, extract_token_usage, make_config_getter
 
-    # Define callback to track tool usage
+    start_time = time.time()
+    notified = False  # Prevent duplicate notifications
+    last_progress_tool_count = 0  # Track for progress emission
+
+    # Define callback to track tool usage and emit progress
     def _on_tool_call(tool_name: str, tool_args: dict) -> None:
-        """Increment tool usage counter"""
+        """Increment tool usage counter and emit progress updates."""
         import asyncio
         async def _update():
+            nonlocal last_progress_tool_count
             async with _background_lock:
                 if task_id in _background_agents:
-                    _background_agents[task_id].tool_uses += 1
-                    _background_agents[task_id].current_activity = f"{tool_name}"
+                    task = _background_agents[task_id]
+                    task.tool_uses += 1
+                    task.current_activity = f"{tool_name}"
+                    tool_count = task.tool_uses
+
+                    # Emit progress update every 3 tool calls
+                    if tool_count - last_progress_tool_count >= 3:
+                        last_progress_tool_count = tool_count
+                        from core.agents.notification_queue import enqueue_progress_update
+                        enqueue_progress_update(
+                            task_id=task_id,
+                            agent_name=agent_name,
+                            progress=min(0.9, tool_count * 0.05),
+                            activity=f"Currently using {tool_name}",
+                        )
+
         asyncio.create_task(_update())
 
     def _on_tool_result(tool_name: str, tool_args: dict[str, Any], result: Any) -> None:
-        """Clear current activity after tool completes"""
+        """Clear current activity after tool completes."""
         import asyncio
         async def _update():
             async with _background_lock:
@@ -145,6 +202,16 @@ async def _run_agent_in_background(
                     _background_agents[task_id].status = "completed"
                     _background_agents[task_id].result = result
                     _background_agents[task_id].completed_at = datetime.now()
+            duration_ms = (time.time() - start_time) * 1000
+            _enqueue_completion_notification(
+                task_id=task_id,
+                agent_name=agent_name,
+                status="completed",
+                result=result,
+                duration_ms=duration_ms,
+                tool_use_id=tool_use_id,
+            )
+            notified = True
             return
 
         else:
@@ -153,26 +220,65 @@ async def _run_agent_in_background(
                     _background_agents[task_id].status = "failed"
                     _background_agents[task_id].error = f"Unknown agent: {agent_name}"
                     _background_agents[task_id].completed_at = datetime.now()
+            duration_ms = (time.time() - start_time) * 1000
+            _enqueue_completion_notification(
+                task_id=task_id,
+                agent_name=agent_name,
+                status="failed",
+                error=f"Unknown agent: {agent_name}",
+                duration_ms=duration_ms,
+                tool_use_id=tool_use_id,
+            )
+            notified = True
             return
 
         # Execute the task
         result = await subagent.process(prompt)
         token_usage = extract_token_usage(result)
+        duration_ms = (time.time() - start_time) * 1000
 
-        # Update with result
+        # Update with result and enqueue notification
         async with _background_lock:
             if task_id in _background_agents:
-                _background_agents[task_id].status = "completed"
-                _background_agents[task_id].result = result
-                _background_agents[task_id].token_usage = token_usage
-                _background_agents[task_id].completed_at = datetime.now()
+                task = _background_agents[task_id]
+                task.status = "completed"
+                task.result = result
+                task.token_usage = token_usage
+                task.completed_at = datetime.now()
+                tool_uses = task.tool_uses
+
+                _enqueue_completion_notification(
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    status="completed",
+                    result=result,
+                    tool_uses=tool_uses,
+                    token_usage=token_usage,
+                    duration_ms=duration_ms,
+                    tool_use_id=tool_use_id,
+                )
+                notified = True
 
     except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
         async with _background_lock:
             if task_id in _background_agents:
-                _background_agents[task_id].status = "failed"
-                _background_agents[task_id].error = str(e)
-                _background_agents[task_id].completed_at = datetime.now()
+                task = _background_agents[task_id]
+                task.status = "failed"
+                task.error = str(e)
+                task.completed_at = datetime.now()
+                tool_uses = task.tool_uses
+
+                _enqueue_completion_notification(
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    status="failed",
+                    error=str(e),
+                    tool_uses=tool_uses,
+                    duration_ms=duration_ms,
+                    tool_use_id=tool_use_id,
+                )
+                notified = True
 
 
 async def _run_forked_agent(
@@ -186,6 +292,7 @@ async def _run_forked_agent(
     event_queue=None,
     inherit_memory: list[dict[str, Any]] | None = None,
     fork_config: dict[str, Any] | None = None,
+    tool_use_id: str = "",
 ):
     """Run a forked agent with worktree isolation and context inheritance.
 
@@ -206,6 +313,7 @@ async def _run_forked_agent(
         event_queue: Optional event queue for UI updates
         inherit_memory: Optional memory to inherit from parent agent
         fork_config: Optional configuration from fork marker in prompt
+        tool_use_id: The tool call ID that launched this subagent
     """
     from core.tools.agent.constants import (
         EXPLORE_ALLOWED_TOOLS,
@@ -215,14 +323,34 @@ async def _run_forked_agent(
     )
     from .utils import extract_token_usage
 
-    # Define callback to track tool usage
+    start_time = time.time()
+
+    start_time = time.time()
+    last_progress_tool_count = 0
+
+    # Define callback to track tool usage and emit progress
     def _on_tool_call(tool_name: str, tool_args: dict) -> None:
-        """Increment tool usage counter"""
+        """Increment tool usage counter and emit progress updates."""
         async def _update():
+            nonlocal last_progress_tool_count
             async with _background_lock:
                 if task_id in _background_agents:
-                    _background_agents[task_id].tool_uses += 1
-                    _background_agents[task_id].current_activity = f"{tool_name}"
+                    task = _background_agents[task_id]
+                    task.tool_uses += 1
+                    task.current_activity = f"{tool_name}"
+                    tool_count = task.tool_uses
+
+                    # Emit progress update every 3 tool calls
+                    if tool_count - last_progress_tool_count >= 3:
+                        last_progress_tool_count = tool_count
+                        from core.agents.notification_queue import enqueue_progress_update
+                        enqueue_progress_update(
+                            task_id=task_id,
+                            agent_name=agent_name,
+                            progress=min(0.9, tool_count * 0.05),
+                            activity=f"Currently using {tool_name}",
+                        )
+
         asyncio.create_task(_update())
 
     def _on_tool_result(tool_name: str, tool_args: dict[str, Any], result: Any) -> None:
@@ -273,26 +401,55 @@ async def _run_forked_agent(
 
         # Try to capture token usage from result if available
         token_usage = extract_token_usage(result)
+        duration_ms = (time.time() - start_time) * 1000
 
-        # Update with result
+        # Update with result and enqueue notification
         async with _background_lock:
             if task_id in _background_agents:
-                _background_agents[task_id].status = "completed"
-                _background_agents[task_id].result = result
-                _background_agents[task_id].token_usage = token_usage
-                _background_agents[task_id].completed_at = datetime.now()
+                task = _background_agents[task_id]
+                task.status = "completed"
+                task.result = result
+                task.token_usage = token_usage
+                task.completed_at = datetime.now()
+                tool_uses = task.tool_uses
+
+                _enqueue_completion_notification(
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    status="completed",
+                    result=result,
+                    tool_uses=tool_uses,
+                    token_usage=token_usage,
+                    duration_ms=duration_ms,
+                    tool_use_id=tool_use_id,
+                    worktree_path=str(fork_metadata.worktree_path) if fork_metadata and fork_metadata.worktree_path else "",
+                    worktree_branch="",
+                )
 
         # Complete fork tracking and cleanup
         if fork_metadata:
             await complete_fork(fork_metadata.fork_id, status="completed")
 
     except Exception as e:
-        # Update error status
+        duration_ms = (time.time() - start_time) * 1000
+        # Update error status and enqueue notification
         async with _background_lock:
             if task_id in _background_agents:
-                _background_agents[task_id].status = "failed"
-                _background_agents[task_id].error = str(e)
-                _background_agents[task_id].completed_at = datetime.now()
+                task = _background_agents[task_id]
+                task.status = "failed"
+                task.error = str(e)
+                task.completed_at = datetime.now()
+                tool_uses = task.tool_uses
+
+                _enqueue_completion_notification(
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    status="failed",
+                    error=str(e),
+                    tool_uses=tool_uses,
+                    duration_ms=duration_ms,
+                    tool_use_id=tool_use_id,
+                )
 
         # Complete fork tracking with failure status
         if fork_metadata:

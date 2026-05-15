@@ -1,4 +1,9 @@
-"""Main agent tool class for subagent management."""
+"""Main agent tool class for subagent management.
+
+Subagent results are delivered via push notifications (the notification queue),
+not polling. The main agent's loop automatically drains notifications each turn
+and injects them as context - no explicit status/results polling needed.
+"""
 
 from __future__ import annotations
 
@@ -14,10 +19,6 @@ from .background_task import (
     BackgroundAgentTask,
     _background_agents,
     _background_lock,
-    clear_completed_background_agents,
-    get_background_agent,
-    get_completed_background_agents,
-    list_background_agents,
 )
 from .constants import (
     DEFAULT_MAX_TOKENS,
@@ -27,7 +28,7 @@ from .constants import (
     VERIFICATION_ALLOWED_TOOLS,
 )
 from .filtered_registry import _FilteredToolRegistry
-from .utils import create_agent, get_agent_param, make_config_getter
+from .utils import create_agent, make_config_getter
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +38,11 @@ class AgentTool(BaseTool):
 
     Use this tool whenever you need to:
     1. Delegate tasks to specialized subagents (explore/plan/jarvis-help/verification/statusline-setup)
-    2. Get immediate results from subagents (foreground mode)
-    3. Monitor progress of background agent tasks
-    4. Retrieve results from completed background work
+    2. Get immediate results from subagents (foreground mode - recommended)
 
-    Usage rules (Foreground is recommended):
-    - Prefer runInBackground=false (default): Agent runs synchronously, tool calls appear in your conversation, you get results immediately
-    - Only use runInBackground=true when you need to do other work while waiting for a long-running task
-    - When using background mode, use 'status' or 'results' action to check progress and get results
-    - Use 'list' operation to see all active agents before launching new ones
+    Subagent completion is handled automatically via push notifications:
+    - Foreground mode: blocks until done, result is returned + enqueued as notification
+    - Background mode: returns immediately, notification is pushed to the main agent on completion
 
     Available subagents:
     - explore: Codebase exploration, file analysis, pattern finding (read-only)
@@ -55,84 +52,62 @@ class AgentTool(BaseTool):
     - statusline-setup: Shell prompt customization guidance (read-only)
     """
     name = "agents"
-    description = "Launch subagents (explore/plan/jarvis-help/verification/statusline-setup) for codebase analysis, planning, help, and testing. Defaults to foreground mode for immediate results."
+    description = "Launch specialized subagents (explore, plan, jarvis-help, verification, statusline-setup) for delegating codebase analysis, implementation planning, documentation/help lookups, post-implementation testing, and shell prompt customization. Foreground mode (default, runInBackground=false): subagent runs synchronously, results appear inline in your conversation and you get them immediately — no extra steps needed. Background mode (runInBackground=true): subagent starts and returns control to you right away; when it finishes, a <task-notification> XML message is automatically injected into your conversation by the system so you never need to manually poll or check status. If you launch multiple background agents, each one's notification will arrive independently as they complete. Use list_agents to discover available subagent types and their capabilities."
 
     input_schema = {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "description": "Action to perform: 'launch', 'list_agents', 'list_tasks', 'status', 'results'",
-                "enum": ["launch", "list_agents", "list_tasks", "status", "results"],
+                "description": "Operation to perform: 'launch' to delegate a task to a subagent (default), 'list_agents' to see all available subagent types with descriptions, 'list_tasks' to see currently running background tasks",
+                "enum": ["launch", "list_agents", "list_tasks"],
                 "default": "launch",
             },
             "agentName": {
                 "type": "string",
-                "description": "Name of specialized subagent to launch",
+                "description": "Which subagent to use. Available: explore (read-only codebase analysis, file searching, pattern finding), plan (task decomposition and implementation planning), jarvis-help (JARVIS features, tools, and configuration guidance), verification (post-implementation testing and quality assurance), statusline-setup (shell prompt customization). Use list_agents to see full descriptions.",
                 "minLength": 1
             },
             "prompt": {
                 "type": "string",
-                "description": "Task description to send to the subagent",
+                "description": "Clear, detailed task description for the subagent. Include specific files, patterns, or requirements. The subagent will work autonomously on this prompt.",
                 "minLength": 1
             },
             "runInBackground": {
                 "type": "boolean",
-                "description": "Run agent in background (async) or foreground (sync).",
+                "description": "False (default, recommended): subagent runs synchronously, results appear in your conversation immediately. True: subagent runs asynchronously in the background; you'll receive an automatic <task-notification> XML message when it completes — no manual polling needed. Only use background when you have other work to do while waiting.",
                 "default": False
             },
-            "taskId": {
-                "type": "string",
-                "description": "Task ID for status/results queries",
-                "minLength": 1
-            },
-            "resultsAction": {
-                "type": "string",
-                "description": "For 'results' action: 'check', 'retrieve', or 'clear'",
-                "enum": ["check", "retrieve", "clear"]
-            }
         },
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Get parameters
         action = self._get_param(input_data, "action")
         agent_name = self._get_param(input_data, "agentName")
         prompt = self._get_param(input_data, "prompt")
         runInBackground = self._get_param(input_data, "runInBackground", "run_in_background") or False
-        taskId = self._get_param(input_data, "taskId")
-        resultsAction = self._get_param(input_data, "resultsAction")
+        tool_use_id = self._get_param(input_data, "tool_use_id") or ""
 
-        # Backwards-compatible inference
         if action is None:
             if isinstance(agent_name, str) and isinstance(prompt, str):
                 action = "launch"
-            elif isinstance(resultsAction, str):
-                action = "results"
-            elif isinstance(taskId, str):
-                action = "status"
             else:
                 action = "list_agents"
 
-        # Validate action
-        if action not in ["launch", "list_agents", "list_tasks", "status", "results"]:
+        if action not in ["launch", "list_agents", "list_tasks"]:
             return ToolOutput(
                 success=False,
                 result=None,
-                error=f"Invalid action: {action}. Must be 'launch', 'list_agents', 'list_tasks', 'status', or 'results'."
+                error=f"Invalid action: {action}. Must be 'launch', 'list_agents', or 'list_tasks'."
             )
 
         try:
             if action == "launch":
-                return await self._handle_launch(agent_name, prompt, runInBackground)
+                return await self._handle_launch(agent_name, prompt, runInBackground, tool_use_id)
             elif action == "list_agents":
                 return await self._handle_list_agents()
             elif action == "list_tasks":
-                return await self._handle_status("list")
-            elif action == "status":
-                return await self._handle_status(taskId)
-            elif action == "results":
-                return await self._handle_results(resultsAction, taskId)
+                return await self._handle_list_tasks()
             else:
                 return ToolOutput(success=False, result=None, error="Internal error: unhandled action")
 
@@ -175,7 +150,7 @@ class AgentTool(BaseTool):
         )
 
 
-    async def _handle_launch(self, agent_name: str, prompt: str, runInBackground: bool) -> ToolOutput:
+    async def _handle_launch(self, agent_name: str, prompt: str, runInBackground: bool, tool_use_id: str = "") -> ToolOutput:
         """Handle agent launch operation"""
         # Validate parameters
         if not isinstance(agent_name, str) or not isinstance(prompt, str):
@@ -256,6 +231,7 @@ class AgentTool(BaseTool):
                     model=model,
                     config_getter=config_getter,
                     event_queue=event_queue,
+                    tool_use_id=tool_use_id,
                 )
             )
 
@@ -266,7 +242,7 @@ class AgentTool(BaseTool):
 
             return ToolOutput(
                 success=True,
-                result=f"Background agent '{agent_name}' started. Task ID: {task_id}. Use operation 'status' with this task ID to check progress and get results.",
+                result=f"Background agent '{agent_name}' started. Task ID: {task_id}. You'll be notified automatically when it completes.",
                 metadata={
                     "agent": agent_name,
                     "task_id": task_id,
@@ -276,8 +252,10 @@ class AgentTool(BaseTool):
                 }
             )
         else:
-            # Run synchronously (blocking) - for backwards compatibility
+            # Run synchronously (blocking) - foreground mode
+            import time
             from core.agents import EXPLORE, PLAN
+            from core.agents.notification_queue import enqueue_agent_notification
             from core.config.settings import Settings
 
             _agent_allowed = {
@@ -301,20 +279,41 @@ class AgentTool(BaseTool):
                     config_getter=conf_getter,
                     allowed_tools=_agent_allowed[agent_name],
                 )
+
+                start_time = time.time()
                 result = await subagent.process(prompt)
+                duration_ms = (time.time() - start_time) * 1000
+
+                # Enqueue notification for foreground agent completion
+                # This ensures the main agent loop picks it up as context
+                token_usage = 0
+                if isinstance(result, dict) and "usage" in result:
+                    token_usage = result.get("usage", {}).get("total_tokens", 0)
+
+                enqueue_agent_notification(
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    status="completed",
+                    summary=f"Subagent '{agent_name}' completed",
+                    result=result,
+                    tool_use_id=tool_use_id,
+                    total_tokens=token_usage,
+                    duration_ms=duration_ms,
+                )
 
                 return ToolOutput(
                     success=True,
                     result=result,
-                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False, "task_id": task_id}
                 )
 
             elif agent_name == "statusline-setup":
                 # statusline-setup is read-only guidance
+                result = f"I can help with statusline customization for bash, zsh, PowerShell, and other shells.\n\n{prompt}"
                 return ToolOutput(
                     success=True,
-                    result=f"I can help with statusline customization for bash, zsh, PowerShell, and other shells.\n\n{prompt}",
-                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False}
+                    result=result,
+                    metadata={"agent": agent_name, "prompt_length": len(prompt), "background": False, "task_id": task_id}
                 )
 
             else:
@@ -325,7 +324,7 @@ class AgentTool(BaseTool):
 
                 if custom_agent:
                     return await self._handle_custom_agent(
-                        custom_agent, prompt, llm_provider, tool_registry, model, config_getter
+                        custom_agent, prompt, llm_provider, tool_registry, model, config_getter, tool_use_id
                     )
 
                 # Build list of available agents
@@ -347,8 +346,11 @@ class AgentTool(BaseTool):
         tool_registry,
         model,
         config_getter,
+        tool_use_id: str = "",
     ) -> ToolOutput:
         """Handle a custom agent loaded from .jarvis/agents/"""
+        import time
+        from core.agents.notification_queue import enqueue_agent_notification
         from core.config.settings import Settings
         from typing import Any
 
@@ -408,229 +410,49 @@ class AgentTool(BaseTool):
             config_getter=custom_config_getter,
         )
 
+        task_id = str(uuid.uuid4())
+        start_time = time.time()
         result = await subagent.process(prompt)
+        duration_ms = (time.time() - start_time) * 1000
+
+        enqueue_agent_notification(
+            task_id=task_id,
+            agent_name=definition.name,
+            status="completed",
+            summary=f"Subagent '{definition.name}' completed",
+            result=result,
+            tool_use_id=tool_use_id,
+            duration_ms=duration_ms,
+        )
 
         return ToolOutput(
             success=True,
             result=result,
-            metadata={"agent": definition.name, "prompt_length": len(prompt), "background": False}
+            metadata={"agent": definition.name, "prompt_length": len(prompt), "background": False, "task_id": task_id}
         )
 
-    async def _handle_status(self, taskId: str) -> ToolOutput:
-        """Handle agent status operation"""
-        if not isinstance(taskId, str) or not taskId:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error="Invalid taskId: must be a non-empty string. Use 'list' to see all background agents."
-            )
+    async def _handle_list_tasks(self) -> ToolOutput:
+        """List currently running background agents (info only - not for polling)."""
+        from .background_task import list_background_agents
 
-        try:
-            if taskId.lower() == "list":
-                # List all background agents
-                agents = await list_background_agents()
-                if not agents:
-                    return ToolOutput(
-                        success=True,
-                        result="No background agents running.",
-                        metadata={"count": 0}
-                    )
-
-                # Format list
-                lines = [f"Total background agents: {len(agents)}\n"]
-                for agent in agents:
-                    lines.append(
-                        f"- Task ID: {agent.task_id}\n"
-                        f"  Agent: {agent.agent_name}\n"
-                        f"  Status: {agent.status}\n"
-                        f"  Created: {agent.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    )
-                    if agent.completed_at:
-                        lines.append(f"  Completed: {agent.completed_at.strftime('%Y-%m-%d %H:%M:%S')}\n")
-
-                return ToolOutput(
-                    success=True,
-                    result="\n".join(lines),
-                    metadata={"count": len(agents), "agents": [
-                        {"taskId": a.task_id, "agent": a.agent_name, "status": a.status}
-                        for a in agents
-                    ]}
-                )
-
-            # Get specific agent status
-            agent = await get_background_agent(taskId)
-            if not agent:
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error=f"Task ID '{taskId}' not found. Use 'list' to see available background agents."
-                )
-
-            # Format the response based on status
-            if agent.status == "completed":
-                result_text = f"Background agent completed!\n\nOutput:\n{agent.result}"
-            elif agent.status == "failed":
-                result_text = f"Background agent failed!\n\nError: {agent.error}"
-            elif agent.status == "running":
-                result_text = f"Background agent is still running...\n\nTask: {agent.prompt[:100]}...\n\nIMPORTANT: Do NOT check status again immediately. Do OTHER meaningful work first (read files, search patterns, etc.) before checking again. Check status only when you actually need the result or have completed other tasks."
-            else:
-                result_text = f"Background agent status: {agent.status}\n\nDo other work before checking again."
-
+        agents = await list_background_agents()
+        if not agents:
             return ToolOutput(
                 success=True,
-                result=result_text,
-                metadata={
-                    "task_id": agent.task_id,
-                    "agent": agent.agent_name,
-                    "status": agent.status,
-                    "prompt": agent.prompt,
-                    "result": agent.result if agent.status == "completed" else None,
-                    "error": agent.error if agent.status == "failed" else None,
-                    "created_at": agent.created_at.isoformat(),
-                    "completed_at": agent.completed_at.isoformat() if agent.completed_at else None,
-                }
+                result="No background agents running.",
+                metadata={"count": 0}
             )
 
-        except Exception as e:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error=f"Failed to get agent status: {str(e)}"
-            )
+        lines = [f"Background agents: {len(agents)}"]
+        for agent in agents:
+            status_icon = "🔄" if agent.status == "running" else "✅" if agent.status == "completed" else "❌"
+            lines.append(f"  {status_icon} Task: {agent.task_id[:8]} | Agent: {agent.agent_name} | Status: {agent.status} | Activity: {agent.current_activity or 'idle'}")
 
-    async def _handle_results(self, action: str, taskId: str | None = None) -> ToolOutput:
-        """Handle agent results operation"""
-        if not isinstance(action, str) or action not in ["check", "retrieve", "clear"]:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error="Invalid action: must be 'check', 'retrieve', or 'clear'. Please provide a valid action."
-            )
-
-        try:
-            if action == "check":
-                # Check for completed background agents
-                completed_agents = await get_completed_background_agents()
-                if not completed_agents:
-                    return ToolOutput(
-                        success=True,
-                        result="No completed background agents found.",
-                        metadata={"completed_count": 0}
-                    )
-
-                # Format list of completed agents
-                lines = [f"Found {len(completed_agents)} completed background agent(s):"]
-                for agent in completed_agents:
-                    lines.append(
-                        f"- Task ID: {agent.task_id} | Agent: {agent.agent_name} | Status: {agent.status}"
-                    )
-
-                return ToolOutput(
-                    success=True,
-                    result="\n".join(lines),
-                    metadata={
-                        "completed_count": len(completed_agents),
-                        "agents": [
-                            {"taskId": a.task_id, "agent": a.agent_name, "status": a.status}
-                            for a in completed_agents
-                        ]
-                    }
-                )
-
-            elif action == "retrieve":
-                if taskId:
-                    # Retrieve specific task
-                    agent = await get_background_agent(taskId)
-                    if not agent:
-                        return ToolOutput(
-                            success=False,
-                            result=None,
-                            error=f"Task ID '{taskId}' not found."
-                        )
-                    if agent.status != "completed":
-                        return ToolOutput(
-                            success=False,
-                            result=None,
-                            error=f"Task ID '{taskId}' is not completed (status: {agent.status})."
-                        )
-
-                    # Return the result and clear this specific task
-                    await clear_completed_background_agents()
-
-                    return ToolOutput(
-                        success=True,
-                        result=f"Background agent result:\n\n{agent.result}",
-                        metadata={
-                            "task_id": agent.task_id,
-                            "agent": agent.agent_name,
-                            "status": agent.status,
-                            "result": agent.result,
-                            "prompt": agent.prompt
-                        }
-                    )
-                else:
-                    # Retrieve all completed agents
-                    completed_agents = await get_completed_background_agents()
-                    if not completed_agents:
-                        return ToolOutput(
-                            success=True,
-                            result="No completed background agents to retrieve.",
-                            metadata={"retrieved_count": 0}
-                        )
-
-                    # Combine results and clear all completed tasks
-                    results = []
-                    metadata_list = []
-                    for agent in completed_agents:
-                        results.append(f"=== Agent {agent.agent_name} (Task ID: {agent.task_id}) ===")
-                        results.append(f"Prompt: {agent.prompt}")
-                        results.append(f"Result:\n{agent.result}")
-                        results.append("")
-
-                        metadata_list.append({
-                            "taskId": agent.task_id,
-                            "agent": agent.agent_name,
-                            "prompt": agent.prompt,
-                            "result": agent.result,
-                            "status": agent.status
-                        })
-
-                    await clear_completed_background_agents()
-
-                    return ToolOutput(
-                        success=True,
-                        result="\n".join(results).strip(),
-                        metadata={
-                            "retrieved_count": len(completed_agents),
-                            "agents": metadata_list
-                        }
-                    )
-
-            elif action == "clear":
-                # Clear all completed background agents
-                completed_agents = await get_completed_background_agents()
-                cleared_count = len(completed_agents)
-                await clear_completed_background_agents()
-
-                return ToolOutput(
-                    success=True,
-                    result=f"Cleared {cleared_count} completed background agent(s).",
-                    metadata={"cleared_count": cleared_count}
-                )
-            else:
-                # This should never happen due to validation above, but type checker needs it
-                return ToolOutput(
-                    success=False,
-                    result=None,
-                    error="Internal error: unhandled results action type"
-                )
-
-        except Exception as e:
-            return ToolOutput(
-                success=False,
-                result=None,
-                error=f"Failed to process background agent results: {str(e)}"
-            )
+        return ToolOutput(
+            success=True,
+            result="\n".join(lines),
+            metadata={"count": len(agents)}
+        )
 
 
 class AgentsTool(AgentTool):
@@ -639,51 +461,10 @@ class AgentsTool(AgentTool):
 
 
 class AgentStatusTool(AgentTool):
-    """Specialized tool for checking agent status.
+    """Alias for AgentTool - kept for backward compatibility.
 
-    This tool provides a simpler interface focused on status and results
-    operations for background agents.
+    Status/results polling is no longer needed. Subagent completions
+    are delivered automatically via push notifications.
     """
     name = "agent_status"
-    description = "Check the status and results of background agents"
-
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "action": {
-                "type": "string",
-                "description": "Action to perform: 'status', 'results', or 'list'",
-                "enum": ["status", "results", "list"],
-                "default": "status"
-            },
-            "taskId": {
-                "type": "string",
-                "description": "Task ID for status/results queries, or 'list' for all tasks",
-                "minLength": 1
-            },
-            "resultsAction": {
-                "type": "string",
-                "description": "For 'results' action: 'check', 'retrieve', or 'clear'",
-                "enum": ["check", "retrieve", "clear"]
-            }
-        }
-    }
-
-    async def execute(self, input_data: ToolInput) -> ToolOutput:
-        # Default action to 'status' if not provided
-        action = self._get_param(input_data, "action") or "status"
-        # If taskId not provided but action is status, default to 'list'
-        taskId = self._get_param(input_data, "taskId")
-        if action == "status" and not taskId:
-            taskId = "list"
-
-        # Call base execute with adjusted input
-        if action == "status":
-            return await self._handle_status(taskId)
-        elif action == "results":
-            resultsAction = self._get_param(input_data, "resultsAction") or "check"
-            return await self._handle_results(resultsAction, taskId)
-        elif action == "list":
-            return await self._handle_status("list")
-
-        return await super().execute(input_data)
+    description = "Launch subagents and manage background tasks"
