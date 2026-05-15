@@ -12,6 +12,28 @@ from enum import Enum
 from typing import Any, TypeAlias, cast
 
 from core.config.settings import Settings
+from core.events import (
+    AgentEnded,
+    AgentError,
+    AgentStarted,
+    EventBus,
+    HookContext,
+    HookRegistry,
+    HookResult,
+    HookStage,
+    MessageComplete,
+    MessageDelta,
+    ProgressUpdated,
+    SessionStarted,
+    SessionShutdown,
+    StatusUpdated,
+    ThinkingDelta,
+    ToolCallEnded,
+    ToolCallError,
+    ToolCallStarted,
+    TurnEnded,
+    TurnStarted,
+)
 from core.history import ConversationHistory, messages_to_role_dicts
 from core.llm.base import BaseLLMProvider, MessageDict
 from core.llm_sdk.base.sdk import ToolCall
@@ -78,6 +100,8 @@ class BaseAgent(ABC):
         bypass_tool_permissions: bool = False,
         use_concurrent_tools: bool = True,
         auto_discover_context: bool = True,
+        event_bus: EventBus | None = None,
+        hook_registry: HookRegistry | None = None,
     ):
         self.llm: BaseLLMProvider = llm_provider
         self.tools: ToolRegistry = tool_registry
@@ -118,6 +142,13 @@ class BaseAgent(ABC):
         # Conversation history (persistent, role-based)
         self.history: ConversationHistory | None = None
 
+        # --- Event system ---
+        self.event_bus: EventBus = event_bus or EventBus()
+        self.hook_registry: HookRegistry = hook_registry or HookRegistry()
+        # Wire the event bus into the tool registry so tool execution
+        # events are automatically emitted.
+        self.tools.event_bus = self.event_bus
+
         # Auto-discovery of project context files (JARVIS v2 mode)
         self._auto_discover_context: bool = auto_discover_context
         if auto_discover_context:
@@ -138,20 +169,62 @@ class BaseAgent(ABC):
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
 
+    # ------------------------------------------------------------------
+    # Event helpers
+    # ------------------------------------------------------------------
+
+    async def _emit(self, event: Any) -> None:
+        """Emit an event via the event bus (best-effort)."""
+        try:
+            await self.event_bus.emit(event)
+        except Exception:
+            logger.exception("Failed to emit event %s", type(event).__name__)
+
+    async def _run_hooks(
+        self, stage: HookStage, ctx: HookContext | None = None
+    ) -> HookResult:
+        """Run lifecycle hooks for *stage* (best-effort)."""
+        try:
+            return await self.hook_registry.run(stage, ctx)
+        except Exception:
+            logger.exception("Hook stage %s failed", stage.value)
+            return HookResult(proceed=True)
+
     def _build_system_prompt(self) -> None:
         """Build the full system prompt with dynamic context sections.
 
         Tool descriptions are NOT injected here — they are sent to the model
         via the native tool calling API (tools parameter), which already
         provides names, descriptions, and schemas to the model.
+
+        This method now also injects:
+        - Discovered ``AGENTS.md`` / ``CLAUDE.md`` context files
+        - System context (working directory, etc.)
+        - Progressive skill descriptions (name + when_to_use)
+        - Active skill full content
         """
         from core.agents.prompts.constants import get_system_context
+        from core.resources import discover_all, read_context_files
         system_context = get_system_context()
 
         full_prompt = self.base_system_prompt
+
+        # --- Discovered context files (AGENTS.md, CLAUDE.md, etc.) ---
+        try:
+            project_dir = getattr(self, "_config_getter", lambda: None)()
+            cwd = getattr(project_dir, "cwd", None) if project_dir else None
+            resources = discover_all(project_dir=cwd)
+            ctx_content = read_context_files(resources.context_files)
+            if ctx_content:
+                full_prompt += f"\n\n---\n\n## Project Context Files\n\n{ctx_content}"
+        except Exception:
+            logger.debug("Failed to discover context files", exc_info=True)
+
+        # --- System context ---
         if system_context:
             full_prompt = f"{full_prompt}\n\n---\n\n{system_context}"
 
+        # --- Active skills (full content, loaded via activate_skill tool) ---
         if hasattr(self.tools, 'active_skills') and self.tools.active_skills:
             skills_section = "\n\n---\n\n## Active Skills\n\n"
             active_skills = cast(dict[str, str], self.tools.active_skills)
@@ -159,6 +232,7 @@ class BaseAgent(ABC):
                 skills_section += f"### {skill_name}\n{skill_content}\n\n"
             full_prompt += skills_section
 
+        # --- Available skill descriptions (progressive disclosure, no full content) ---
         try:
             from core.skills import SkillManager
             skill_manager = SkillManager()
@@ -1268,17 +1342,25 @@ class BaseAgent(ABC):
         Returns:
             Agent response string
         """
+        import time
+
+        # Emit AgentStarted event
+        ts = time.time()
+        await self._emit(AgentStarted(timestamp=ts, agent_name=self.__class__.__name__, input=input))
+
         stages = ["Understanding", "Planning", "Execution", "Verification"]
         total_stages = len(stages)
 
         if self.status_callback:
             self.status_callback("Starting processing...")
+        await self._emit(StatusUpdated(timestamp=time.time(), status="Starting processing...", message="Starting processing..."))
 
         # Stage 1: Understanding
         if self.progress_callback:
             self.progress_callback(stages[0], 0.0)
         if self.status_callback:
             self.status_callback(f"Stage 1/{total_stages}: {stages[0]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[0], progress=0.0))
         await asyncio.sleep(0)  # Yield control
 
         # Stage 2: Planning
@@ -1286,6 +1368,7 @@ class BaseAgent(ABC):
             self.progress_callback(stages[1], 0.25)
         if self.status_callback:
             self.status_callback(f"Stage 2/{total_stages}: {stages[1]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[1], progress=0.25))
         await asyncio.sleep(0)  # Yield control
 
         # Stage 3: Execution (the actual processing)
@@ -1293,15 +1376,22 @@ class BaseAgent(ABC):
             self.progress_callback(stages[2], 0.5)
         if self.status_callback:
             self.status_callback(f"Stage 3/{total_stages}: {stages[2]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[2], progress=0.5))
 
         # Process normally
-        result = await self.process(input, context)
+        try:
+            result = await self.process(input, context)
+        except Exception as e:
+            logger.exception("Processing failed")
+            await self._emit(AgentError(timestamp=time.time(), agent_name=self.__class__.__name__, error=str(e)))
+            raise
 
         # Stage 4: Verification
         if self.progress_callback:
             self.progress_callback(stages[3], 0.75)
         if self.status_callback:
             self.status_callback(f"Stage 4/{total_stages}: {stages[3]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[3], progress=0.75))
         await asyncio.sleep(0)  # Yield control
 
         # Complete
@@ -1309,6 +1399,8 @@ class BaseAgent(ABC):
             self.progress_callback("Complete", 1.0)
         if self.status_callback:
             self.status_callback("Processing complete")
+        await self._emit(StatusUpdated(timestamp=time.time(), status="Complete", message="Processing complete"))
+        await self._emit(AgentEnded(timestamp=time.time(), agent_name=self.__class__.__name__, output=result))
 
         return result
 

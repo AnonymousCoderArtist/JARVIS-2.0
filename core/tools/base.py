@@ -76,6 +76,7 @@ class BaseTool(ABC):
         self.llm_provider = llm_provider
         self.model = model
         self.event_queue = None
+        self.operations_registry = None  # Set by ToolRegistry.register()
 
     @abstractmethod
     async def execute(self, input_data: ToolInput) -> ToolOutput:
@@ -88,6 +89,31 @@ class BaseTool(ABC):
         Returns:
             ToolOutput with execution results
         """
+
+    # ------------------------------------------------------------------
+    # Operations accessors — convenience for tool implementations
+    # ------------------------------------------------------------------
+
+    @property
+    def file_ops(self):
+        """Access the active file operations backend."""
+        if self.operations_registry is not None:
+            return self.operations_registry.file_ops
+        return None
+
+    @property
+    def bash_ops(self):
+        """Access the active bash operations backend."""
+        if self.operations_registry is not None:
+            return self.operations_registry.bash_ops
+        return None
+
+    @property
+    def edit_ops(self):
+        """Access the active edit operations backend."""
+        if self.operations_registry is not None:
+            return self.operations_registry.edit_ops
+        return None
         pass
 
     async def execute_async(self, input_data: ToolInput, timeout: float | None = None) -> ToolOutput:

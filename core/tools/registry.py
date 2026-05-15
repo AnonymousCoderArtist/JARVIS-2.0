@@ -13,12 +13,16 @@ class ToolRegistry:
     """Registry for managing tools"""
 
     def __init__(self, llm_provider=None, model=None, config_getter=None):
+        from core.tools.operations import OperationsRegistry
+
         self._tools: dict[str, BaseTool] = {}
         self.llm_provider = llm_provider
         self.model = model
         self.config_getter = config_getter
         self.active_skills: dict[str, str] = {}
         self.event_queue = None
+        self.event_bus = None  # Set by BaseAgent after construction
+        self.operations_registry = OperationsRegistry()
 
     def register(self, tool: BaseTool):
         """
@@ -34,6 +38,8 @@ class ToolRegistry:
         # Inject event queue if available
         if self.event_queue is not None:
             tool.event_queue = self.event_queue
+        # Inject operations registry
+        tool.operations_registry = self.operations_registry
 
         self._tools[tool.name] = tool
 
@@ -48,6 +54,7 @@ class ToolRegistry:
             self.event_queue = event_queue
         for tool in self._tools.values():
             tool.tool_registry = self
+            tool.operations_registry = self.operations_registry
             if llm_provider is not None:
                 tool.llm_provider = llm_provider
             if model is not None:
@@ -91,6 +98,8 @@ class ToolRegistry:
         Returns:
             ToolOutput with execution results
         """
+        import time
+
         tool = self.get(name)
         if not tool:
             return ToolOutput(
@@ -99,11 +108,71 @@ class ToolRegistry:
                 error=f"Tool '{name}' not found",
             )
 
-        return await tool.safe_execute(input_data)
+        # Emit ToolCallStarted event if event bus is available
+        ts = time.time()
+        tool_call_id = f"tool_{name}_{int(ts * 1000)}"
+
+        if self.event_bus is not None:
+            from core.events.types import ToolCallStarted
+            try:
+                await self.event_bus.emit(
+                    ToolCallStarted(timestamp=ts, tool_name=name, tool_call_id=tool_call_id, args=input_data)
+                )
+            except Exception:
+                pass
+
+        try:
+            result = await tool.safe_execute(input_data)
+
+            # Emit ToolCallEnded event
+            if self.event_bus is not None:
+                from core.events.types import ToolCallEnded
+                try:
+                    duration = (time.time() - ts) * 1000
+                    await self.event_bus.emit(
+                        ToolCallEnded(
+                            timestamp=time.time(),
+                            tool_name=name,
+                            tool_call_id=tool_call_id,
+                            result=getattr(result, 'result', None),
+                            duration_ms=duration,
+                            success=getattr(result, 'success', False),
+                        )
+                    )
+                except Exception:
+                    pass
+
+            return result
+        except Exception as exc:
+            # Emit ToolCallError event
+            if self.event_bus is not None:
+                from core.events.types import ToolCallError
+                try:
+                    duration = (time.time() - ts) * 1000
+                    await self.event_bus.emit(
+                        ToolCallError(
+                            timestamp=time.time(),
+                            tool_name=name,
+                            tool_call_id=tool_call_id,
+                            error=str(exc),
+                            duration_ms=duration,
+                        )
+                    )
+                except Exception:
+                    pass
+            return ToolOutput(
+                success=False,
+                result=None,
+                error=str(exc),
+            )
 
     def register_plugin(self, plugin_path: str):
         """
         Dynamically load a tool plugin
+
+        This method is **legacy** — consider creating a proper extension
+        file in ``.jarvis/extensions/`` instead.  Behind the scenes, this
+        still routes through the ``ExtensionAPI`` pattern.
 
         Args:
             plugin_path: Path to the plugin Python file
@@ -113,6 +182,7 @@ class ToolRegistry:
             if not path.exists():
                 raise FileNotFoundError(f"Plugin file not found: {plugin_path}")
 
+            # Legacy plugin loading via importlib
             spec = importlib.util.spec_from_file_location(
                 f"tool_plugin_{path.stem}", plugin_path
             )
