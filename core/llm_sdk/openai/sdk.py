@@ -96,13 +96,20 @@ class OpenAISDK(BaseLLMSDK):
         kwargs: dict[str, Any] = {
             "model": config.model,
             "messages": openai_messages,
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens,
-            "top_p": config.top_p or 1.0,
-            "frequency_penalty": config.frequency_penalty or 0.0,
-            "presence_penalty": config.presence_penalty or 0.0,
-            "stop": config.stop_sequences,
         }
+        # Only include optional params when they have non-default values
+        if config.temperature is not None and config.temperature != 0.7:
+            kwargs["temperature"] = config.temperature
+        if config.max_tokens is not None:
+            kwargs["max_tokens"] = config.max_tokens
+        if config.top_p is not None:
+            kwargs["top_p"] = config.top_p
+        if config.frequency_penalty is not None and config.frequency_penalty != 0.0:
+            kwargs["frequency_penalty"] = config.frequency_penalty
+        if config.presence_penalty is not None and config.presence_penalty != 0.0:
+            kwargs["presence_penalty"] = config.presence_penalty
+        if config.stop_sequences:
+            kwargs["stop"] = config.stop_sequences
         if tools:
             kwargs["tools"] = [
                 ChatCompletionToolParam(
