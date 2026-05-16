@@ -225,12 +225,24 @@ class MCPMetadataCache:
             except re.error:
                 pattern = re.compile(re.escape(query), re.IGNORECASE)
         else:
-            pattern = re.compile(re.escape(query), re.IGNORECASE)
+            # Fuzzy matching: split query into words, all must appear (AND logic)
+            words = query.split()
+            if words:
+                # Build pattern: each word must appear somewhere in the text
+                word_patterns = [re.compile(re.escape(w), re.IGNORECASE) for w in words]
+            else:
+                word_patterns = []
 
         for smeta in servers_to_search.values():
             for tool in smeta.tools:
-                if pattern.search(tool.name) or pattern.search(tool.description) or pattern.search(tool.original_name):
-                    matches.append(tool)
+                searchable_text = f"{tool.name} {tool.description} {tool.original_name}"
+                if regex:
+                    if pattern.search(searchable_text): #ty: ignore
+                        matches.append(tool)
+                elif word_patterns: #ty: ignore
+                    # All words must match somewhere in the searchable text
+                    if all(p.search(searchable_text) for p in word_patterns):  # ty:ignore[possibly-unresolved-reference]
+                        matches.append(tool)
 
         return matches
 

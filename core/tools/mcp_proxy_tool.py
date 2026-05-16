@@ -385,6 +385,7 @@ class MCPProxyTool(BaseTool):
             tool_meta = cache.get_tool_by_prefixed_name(tool_name)
             if tool_meta:
                 server = tool_meta.server_name
+                tool_name = tool_meta.original_name
             else:
                 # Try to find by original name across servers
                 for sname in self._mcp_registry._configs:
