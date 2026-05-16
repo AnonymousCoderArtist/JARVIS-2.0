@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
-from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
 from core.evals import (
     EvalConfig,
     EvalMetrics,
@@ -14,6 +12,8 @@ from core.evals import (
     RewardConfig,
     RewardFunction,
 )
+
+from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
 from core.learn import (
     LearningConfig,
     LearningManager,

@@ -39,18 +39,18 @@ def _generate_diff(original: str, new: str, filename: str) -> str:
 def _generate_new_file_diff(content: str, filename: str) -> str:
     """Generate diff for a new file (shows all content as added)."""
     lines = content.splitlines(keepends=True) if content else []
-    
+
     diff_lines = []
     diff_lines.append(f"--- a/{filename}\n")
     diff_lines.append(f"+++ b/{filename}\n")
     diff_lines.append(f"@@ -0,0 +{len(lines)} @@\n")
-    
+
     for line in lines:
         if line.endswith('\n'):
             diff_lines.append(f"+{line}")
         else:
             diff_lines.append(f"+{line}\n")
-    
+
     return "".join(diff_lines)
 
 
@@ -238,18 +238,6 @@ TIPS: Use offset/limit to paginate through large files. Always read before edit.
                 if not os.path.exists(fp):
                     return (None, None, f"File {index + 1}: File not found: {fp}", None, None)
 
-                # Check for file deduplication
-                entry = current_file_states.get(fp)
-                if entry and entry.can_dedup and entry.offset == off and entry.limit == lim:
-                    try:
-                        current_mtime = os.path.getmtime(fp)
-                    except OSError:
-                        current_mtime = 0.0
-
-                    if current_mtime == entry.mtime:
-                        # File unchanged - return dedup message
-                        return (fp, f"[File unchanged since last read: {fp}]", None, off or 1, lim or 0)
-
                 async with aiofiles.open(fp, encoding=encoding) as f:
                     lines = await f.readlines()
                 total_lines = len(lines)
@@ -413,9 +401,8 @@ Returns success message with file path and size."""
             # Check if file already exists
             if os.path.exists(file_path):
                 return ToolOutput(
-                    success=False,
-                    result=None,
-                    error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead. The write tool is only for creating new files."
+                    success=False, result=None,
+                    error=f"File already exists: {file_path}. To edit an existing file, use the edit tool instead."
                 )
 
             # Create parent directories if they don't exist
@@ -532,14 +519,12 @@ Supports permission checks for restricted paths."""
 
             if not os.path.exists(path):
                 return ToolOutput(success=False, result=None, error=f"Directory not found: {path}. Please verify the directory path is correct and exists. Use glob to search for directories if you're unsure of the exact path.")
-
             if not os.path.isdir(path):
                 return ToolOutput(success=False, result=None, error=f"Path is not a directory: {path}. The provided path exists but is a file, not a directory. Please provide a directory path or use read to read this file.")
 
             items = []
             for item in os.listdir(path):
                 item_path = os.path.join(path, item)
-                # If name ends with /, it's a folder, otherwise a file (Copilot Chat convention)
                 name_with_suffix = item + "/" if os.path.isdir(item_path) else item
                 items.append(name_with_suffix)
 
@@ -549,6 +534,10 @@ Supports permission checks for restricted paths."""
                 metadata={"path": path, "count": len(items)}
             )
 
+        except FileNotFoundError as e:
+            return ToolOutput(success=False, result=None, error=f"Directory not found: {e}. Please verify the directory path is correct and exists. Use glob to search for directories if you're unsure of the exact path.")
+        except NotADirectoryError as e:
+            return ToolOutput(success=False, result=None, error=f"Path is not a directory: {e}. The provided path exists but is a file, not a directory. Please provide a directory path or use read to read this file.")
         except Exception as e:
             return ToolOutput(
                 success=False,

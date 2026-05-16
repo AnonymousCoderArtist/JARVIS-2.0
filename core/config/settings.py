@@ -1,4 +1,17 @@
-"""Configuration settings using JSON config files"""
+"""Configuration settings using JSON config files with layered deep-merge.
+
+Configuration precedence (lowest → highest):
+1. Defaults (hard-coded in ``JarvisSettings`` model)
+2. ``~/.jarvis/settings.json`` (user global)
+3. ``.jarvis/settings.json`` (project-specific)
+4. Environment variables (``JARVIS_*``)
+5. Runtime ``initial_config`` parameter
+
+Unknown keys from all JSON sources are **preserved** so that extensions
+can store their own configuration without schema validation errors.
+
+Concurrent access is safe via ``filelock``.
+"""
 
 import json
 import os
@@ -45,6 +58,20 @@ def _load_env_config() -> dict[str, Any]:
     return env_config
 
 
+def _acquire_lock(lock_path: Path, timeout: float = 5.0) -> Any:
+    """Try to acquire a file lock, returns a lock handle or None."""
+    try:
+        import filelock
+        lock = filelock.FileLock(lock_path, timeout=timeout)
+        lock.acquire()
+        return lock
+    except ImportError:
+        # filelock not installed — skip locking
+        return None
+    except Exception:
+        return None
+
+
 class Settings:
     """Application settings loaded from JSON config files with environment variable overrides.
     
@@ -58,35 +85,64 @@ class Settings:
     def __init__(self, config_path: Path | None = None, initial_config: dict[str, Any] | None = None):
         # Determine config paths to load
         if config_path:
-            # Single explicit path
             config_paths = [Path(config_path)]
-            self._config_path = config_paths[0]
+            self._config_path = config_paths[-1]
         else:
-            # Default: search in order of precedence
             config_paths = _get_default_config_paths()
-            # Use the highest priority path (last one) as the config_path for save()
             self._config_path = config_paths[-1] if config_paths else Path(".jarvis") / "settings.json"
 
-        # Load JSON configs in order (lowest to highest priority)
-        json_config: dict[str, Any] = {}
+        self._config_paths = config_paths
+        self._lock: Any = None
+        self._raw_extras: dict[str, Any] = {}  # Unknown keys from JSON
+
+        # Load and merge
+        self._load_and_merge(config_paths, initial_config)
+
+    # ------------------------------------------------------------------
+    # Loading
+    # ------------------------------------------------------------------
+
+    def _load_and_merge(
+        self,
+        config_paths: list[Path],
+        initial_config: dict[str, Any] | None = None,
+    ) -> None:
+        """Load JSON from *config_paths* (lowest → highest), merge with env + runtime."""
+        # 1. Start with empty
+        merged: dict[str, Any] = {}
+        self._raw_extras = {}
+
+        # 2. Load JSON in order
         for path in config_paths:
             if path.exists():
                 try:
                     with open(path, encoding="utf-8") as f:
-                        loaded = json.load(f)
-                        json_config = self._deep_merge(json_config, loaded)
+                        loaded: dict = json.load(f)
+                        merged = self._deep_merge(merged, loaded)
+                        # Collect unknown keys for preservation
+                        self._raw_extras = self._deep_merge(self._raw_extras, loaded)
                 except Exception as e:
                     print(f"Warning: Failed to load config from {path}: {e}")
 
-        # Override with environment config
+        # 3. Override with environment
         env_config = _load_env_config()
+        merged = self._deep_merge(merged, env_config)
 
-        # Merge: start with json, then env, then initial_config
-        merged_config = self._deep_merge(json_config, env_config)
+        # 4. Override with runtime initial_config
         if initial_config:
-            merged_config = self._deep_merge(merged_config, initial_config)
+            merged = self._deep_merge(merged, initial_config)
 
-        self._config: JarvisSettings = JarvisSettings(**(merged_config or {}))
+        # 5. Apply to Pydantic model (unknown keys are silently ignored by Pydantic
+        #    but preserved in _raw_extras for get_raw / get_extension_config)
+        self._config: JarvisSettings = JarvisSettings(**(merged or {}))
+
+    def reload(self) -> None:
+        """Hot-reload settings from disk. Call this after file changes."""
+        self._load_and_merge(self._config_paths)
+
+    # ------------------------------------------------------------------
+    # Merging
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -98,6 +154,10 @@ class Settings:
             else:
                 result[key] = value
         return result
+
+    # ------------------------------------------------------------------
+    # Access
+    # ------------------------------------------------------------------
 
     def get(self, section: str, key: str | None = None, default: Any = None) -> Any:
         """Get a configuration value."""
@@ -118,6 +178,22 @@ class Settings:
             return data.model_dump()
         return data if isinstance(data, dict) else {}
 
+    def get_extension_config(self, extension_name: str) -> dict[str, Any]:
+        """Get extension-specific configuration from the ``extensions`` section.
+
+        Extensions can store their config in ``.jarvis/settings.json`` under::
+
+            {
+              "extensions": {
+                "my_extension": { "host": "...", "key": "..." }
+              }
+            }
+        """
+        extensions = getattr(self._config, "extensions", None)
+        if isinstance(extensions, dict):
+            return extensions.get(extension_name, {})
+        return {}
+
     def set(self, section: str, key: str | None, value: Any = None):
         """Set a configuration value."""
         if key is None:
@@ -132,15 +208,38 @@ class Settings:
 
     def model_dump(self) -> dict[str, Any]:
         """Convert config to dictionary for agent lifecycle."""
-        return self._config.model_dump()
+        data = self._config.model_dump()
+        # Re-inject preserved unknown keys
+        for key, value in self._raw_extras.items():
+            if key not in data:
+                data[key] = value
+        return data
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
 
     def save(self) -> None:
-        """Save configuration to JSON file"""
+        """Save configuration to the highest-priority JSON file.
+
+        Uses file-locking (via ``filelock`` if available) to prevent
+        concurrent write corruption between multiple JARVIS instances.
+        """
         try:
-            # Ensure parent directory exists
             self._config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._config_path, "w", encoding="utf-8") as f:
-                json.dump(self._config.model_dump(), f, indent=4)
+            lock_path = self._config_path.with_suffix(".lock")
+
+            lock = _acquire_lock(lock_path)
+            try:
+                data = self.model_dump()
+                with open(self._config_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=4)
+            finally:
+                if lock is not None:
+                    try:
+                        lock.release()
+                    except Exception:
+                        pass
         except Exception as e:
             print(f"Warning: Failed to save config: {e}")
 
@@ -316,4 +415,3 @@ class Settings:
     def sandbox_runtime(self) -> str:
         return self._config.sandbox.runtime
 
-    

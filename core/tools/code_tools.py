@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.config import Settings
 from core.tools.permissions import (
     PermissionContext,
     PermissionScope,
@@ -15,8 +16,7 @@ from core.tools.permissions import (
 )
 
 from .base import BaseTool, ToolInput, ToolOutput
-from .sandbox import get_backend, SandboxBackend, wrap_command
-from core.config import Settings
+from .sandbox import SandboxBackend, get_backend, wrap_command
 
 
 class BashTool(BaseTool):
@@ -204,7 +204,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                 backend = self._get_sandbox_backend()
                 if backend:
                     if self.is_windows:
-                        print(f"Warning: Sandbox backend is not supported on Windows; running unsandboxed")
+                        print("Warning: Sandbox backend is not supported on Windows; running unsandboxed")
                     else:
                         workspace = self.working_dir or os.getcwd()
                         command = wrap_command(self._backend_name, command, workspace, os.getcwd())
@@ -236,15 +236,6 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
                     result=f"Command started in background with PID {pid}",
                     metadata={"pid": pid, "command": command, "shell": self.shell}
                 )
-
-            # Apply sandboxing for foreground processes
-            backend = self._get_sandbox_backend()
-            if backend:
-                if self.is_windows:
-                    print(f"Warning: Sandbox backend is not supported on Windows; running unsandboxed")
-                else:
-                    workspace = self.working_dir or os.getcwd()
-                    command = wrap_command(self._backend_name, command, workspace, os.getcwd())
 
             # Standard foreground execution
             if self.is_windows:
@@ -467,7 +458,7 @@ Example: {"path": "tests/", "framework": "pytest", "args": "-v"}"""
             backend = self._get_sandbox_backend()
             if backend:
                 if is_windows:
-                    print(f"Warning: Sandbox backend is not supported on Windows; running unsandboxed")
+                    print("Warning: Sandbox backend is not supported on Windows; running unsandboxed")
                 else:
                     workspace = os.getcwd()
                     command = wrap_command(self._backend_name, command, workspace, os.getcwd())

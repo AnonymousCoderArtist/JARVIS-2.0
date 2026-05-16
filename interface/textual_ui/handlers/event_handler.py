@@ -196,17 +196,18 @@ class EventHandler:
         # Fallback to finding a call by name if ID is missing or mismatched
         if not call_widget:
             for call in self.tool_calls.values():
-                if hasattr(call, "event") and call.event.tool_name == event.tool_name and not getattr(call, "has_result", False):
+                evt = getattr(call, "event", None)
+                if evt is not None and getattr(evt, "tool_name", None) == event.tool_name and not getattr(call, "has_result", False):
                     call_widget = call
                     break
-            
+
             if not call_widget:
                 call_widget = self.last_tool_call
 
         tool_result = ToolResultMessage(event, call_widget, collapsed=tools_collapsed)
         await self.mount_callback(tool_result, after=call_widget)
         if call_widget:
-            setattr(call_widget, "has_result", True)
+            call_widget.has_result = True
 
     async def _handle_tool_stream(self, event: ToolStreamEvent) -> None:
         tool_call = self.tool_calls.get(event.tool_call_id)

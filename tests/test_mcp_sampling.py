@@ -1,13 +1,11 @@
 """Tests for MCP sampling handler and proxy tool status integration."""
 
-import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from core.tools.mcp_capabilities import (
-    MCPPromptArgument,
     MCPPromptSpec,
     MCPResourceSpec,
     MCPServerCapabilities,
@@ -162,8 +160,6 @@ class TestMCPProxyToolStatus:
 
     def test_status_shows_capabilities_and_auth(self):
         """Verify the status output includes capability badges and auth indicators."""
-        from core.tools.mcp_adapter import MCPRegistry, MCPServerConfig
-        from core.tools.mcp_metadata_cache import MCPMetadataCache, ToolMetadata, ResourceMetadata, PromptMetadata
 
         # This is a structural test — we verify the method runs and returns
         # expected format when called with servers that have resources/prompts/auth
@@ -194,8 +190,9 @@ class TestSamplingHandler:
     @pytest.mark.asyncio
     async def test_sampling_handler_calls_llm(self):
         """Verify the sampling handler routes through the LLM provider."""
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
         from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
+
+        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         mock_provider = AsyncMock()
@@ -219,8 +216,9 @@ class TestSamplingHandler:
     @pytest.mark.asyncio
     async def test_sampling_handler_no_llm_raises(self):
         """Verify the sampling handler raises when no LLM provider is available."""
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
         from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
+
+        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         client = MCPClient(config)  # No llm_provider
@@ -236,8 +234,9 @@ class TestSamplingHandler:
     @pytest.mark.asyncio
     async def test_sampling_handler_with_system_prompt(self):
         """Verify the sampling handler passes system_prompt through."""
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
         from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
+
+        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         mock_provider = AsyncMock()

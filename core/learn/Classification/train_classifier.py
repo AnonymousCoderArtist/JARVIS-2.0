@@ -18,7 +18,6 @@ import math
 import random
 import re
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -106,7 +105,7 @@ def _augment_text(text: str) -> list[str]:
     return variants
 
 
-def augment_dataset(texts: list[str], labels: list[str], target_per_class: int = 500) -> Tuple[list[str], list[str]]:
+def augment_dataset(texts: list[str], labels: list[str], target_per_class: int = 500) -> tuple[list[str], list[str]]:
     """Augment dataset to reach target_per_class samples per label."""
     from collections import defaultdict
 
@@ -304,17 +303,14 @@ class TextClassifier(nn.Module):
         return self.net.parameters(recurse) if recurse else iter([p for m in self.net.modules() for p in m.parameters() if p.requires_grad])
 
     def save(self, path: Path):
-        import torch
         torch.save(self.net.state_dict(), path)
 
     def load(self, path: Path, input_dim: int):
-        import torch
         self.__init__(input_dim=input_dim)
         self.net.load_state_dict(torch.load(path, weights_only=True, map_location='cpu'))
         self.eval_mode()
 
     def predict_proba(self, x_tensor) -> np.ndarray:
-        import torch
         self.net.eval()
         with torch.no_grad():
             logits = self.net(x_tensor)
@@ -377,13 +373,12 @@ def train_val_split(texts, labels, val_ratio=0.15, random_seed=42):
 
 
 def train_model(texts: list[str], labels: list[str],
-                epochs=EPOCHS, lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY) -> Tuple:
+                epochs=EPOCHS, lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY) -> tuple:
     """Train the full classification pipeline.
 
     Returns:
         (vectorizer, model, metadata_dict)
     """
-    import torch
     import torch.nn as nn
     import torch.optim as optim
     from torch.utils.data import DataLoader, TensorDataset
@@ -527,8 +522,8 @@ def train_model(texts: list[str], labels: list[str],
 # ---------------------------------------------------------------------------
 # Inference Functions
 # ---------------------------------------------------------------------------
-_model: Optional[TextClassifier] = None
-_vectorizer: Optional[SimpleTfidfVectorizer] = None
+_model: TextClassifier | None = None
+_vectorizer: SimpleTfidfVectorizer | None = None
 
 
 def _ensure_loaded():
@@ -559,7 +554,7 @@ def load_model() -> tuple[TextClassifier | None, SimpleTfidfVectorizer | None] |
 
 
 def predict(model: TextClassifier, vectorizer: SimpleTfidfVectorizer,
-            text: str) -> Tuple[str, float]:
+            text: str) -> tuple[str, float]:
     """Predict class label + confidence for input text.
 
     Returns:
@@ -567,7 +562,6 @@ def predict(model: TextClassifier, vectorizer: SimpleTfidfVectorizer,
     """
     model.eval_mode()
     X = vectorizer.transform([text])
-    import torch
     x_t = torch.FloatTensor(X)
     probs = model.predict_proba(x_t)
     idx = int(np.argmax(probs[0]))
@@ -579,7 +573,7 @@ def predict(model: TextClassifier, vectorizer: SimpleTfidfVectorizer,
 # ---------------------------------------------------------------------------
 def main():
     """Train the classifier from scratch."""
-    from .training_data import TRAINING_DATA, augment_training_data, get_training_data
+    from .training_data import augment_training_data, get_training_data
 
     print("=" * 60)
     print("JARVIS Query Type Classifier - Training from Scratch")

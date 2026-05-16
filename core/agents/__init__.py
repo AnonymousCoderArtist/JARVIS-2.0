@@ -3,6 +3,7 @@
 from .agent_definition import AgentDefinition
 from .base import BaseAgent
 from .builtin.jarvis_help_agent import JARVIS_HELP_AGENT, JarvisHelpAgent
+from .builtin.rubber_duck_agent import RUBBER_DUCK_AGENT, RubberDuckAgent
 from .builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
 from .builtin.verification_agent import VERIFICATION_AGENT, VerificationAgent
 from .builtin_profiles import (
@@ -19,7 +20,7 @@ from .jarvis_v2 import JarvisV2
 from .manager import AgentManager
 from .plan_agent import PlanAgent
 from .profiles import AgentProfile, AgentSafety, AgentType
-from .task_scheduler import TaskScheduler, Task, TaskStatus
+from .task_scheduler import Task, TaskScheduler, TaskStatus
 
 # Backwards compatibility alias
 CodingAgent = JarvisV2
@@ -35,9 +36,11 @@ __all__ = [
     "ExploreAgent",
     "PlanAgent",
     "JarvisHelpAgent",
+    "RubberDuckAgent",
     "VerificationAgent",
     # Agent definitions
     "JARVIS_HELP_AGENT",
+    "RUBBER_DUCK_AGENT",
     "VERIFICATION_AGENT",
     "STATUSLINE_SETUP_AGENT",
     # Agent definition class

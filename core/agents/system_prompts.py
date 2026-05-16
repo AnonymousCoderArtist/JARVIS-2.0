@@ -48,6 +48,10 @@ __all__ = [
     "get_verification_prompt",
     "VERIFICATION_SYSTEM_PROMPT",
     "get_verification_metadata",
+    # From rubber-duck
+    "get_rubber_duck_prompt",
+    "RUBBER_DUCK_SYSTEM_PROMPT",
+    "get_rubber_duck_metadata",
     # Other agents
     "get_jarvis_help_prompt",
     "get_statusline_prompt",

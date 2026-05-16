@@ -28,19 +28,22 @@ async def _anthropic_stream_chunks(
 
     async for event in stream:
         if event.type == "content_block_start":
-            block = event.content_block
-            if isinstance(block, ToolUseBlock):
+            block = getattr(event, "content_block", None)
+            if block is not None and isinstance(block, ToolUseBlock):
                 current_tool = {"id": block.id, "name": block.name, "arguments": ""}
 
         elif event.type == "content_block_delta":
-            delta = event.delta
-            if delta.type == "text_delta":
-                content_buffer += delta.text
-                yield {"type": "text", "content": delta.text}
-            elif delta.type == "thinking_delta":
-                yield {"type": "reasoning", "content": delta.thinking}
-            elif delta.type == "input_json_delta" and current_tool is not None:
-                current_tool["arguments"] += delta.partial_json
+            delta = getattr(event, "delta", None)
+            if delta is not None:
+                delta_type = getattr(delta, "type", "")
+                if delta_type == "text_delta":
+                    text = getattr(delta, "text", "")
+                    content_buffer += text
+                    yield {"type": "text", "content": text}
+                elif delta_type == "thinking_delta":
+                    yield {"type": "reasoning", "content": getattr(delta, "thinking", "")}
+                elif delta_type == "input_json_delta" and current_tool is not None:
+                    current_tool["arguments"] += getattr(delta, "partial_json", "")
 
         elif event.type == "content_block_stop":
             if current_tool is not None:
@@ -53,8 +56,9 @@ async def _anthropic_stream_chunks(
                 current_tool = None
 
         elif event.type == "message_delta":
-            if event.usage:
-                yield {"type": "usage", "usage": event.usage.model_dump()}
+            usage = getattr(event, "usage", None)
+            if usage is not None:
+                yield {"type": "usage", "usage": usage.model_dump()}
 
         elif event.type == "message_stop":
             break
@@ -79,7 +83,7 @@ class AnthropicSDK(BaseLLMSDK):
 
     def _build_messages_and_system(
         self, messages: list[Message]
-    ) -> tuple[list[dict[str, Any]], str]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Split messages into Anthropic messages array and system prompt.
 
         Applies prompt caching to system prompt, tools, and last user message.
@@ -179,7 +183,7 @@ class AnthropicSDK(BaseLLMSDK):
                     elif block.type == "thinking":
                         reasoning += block.thinking
 
-                usage: Usage = msg.usage  # type: ignore
+                usage: Usage = msg.usage
                 return GenerationResponse(
                     content=content,
                     model=msg.model,
@@ -234,7 +238,7 @@ class AnthropicSDK(BaseLLMSDK):
                             )
                         )
 
-                usage: Usage = msg.usage  # type: ignore
+                usage: Usage = msg.usage
                 return GenerationResponse(
                     content=content,
                     model=msg.model,

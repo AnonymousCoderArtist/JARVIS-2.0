@@ -1,7 +1,4 @@
 import asyncio
-import json
-import tempfile
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +11,6 @@ from core.tools.mcp_adapter import (
 )
 from core.tools.mcp_metadata_cache import (
     MCPMetadataCache,
-    ServerMetadata,
     ToolMetadata,
     compute_config_hash,
 )

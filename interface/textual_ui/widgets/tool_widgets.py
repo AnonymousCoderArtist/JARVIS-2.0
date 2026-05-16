@@ -158,10 +158,10 @@ class ToolResultWidget(Generic[TResult], Static, can_focus=True):
                             f"{field_name}: {value}", classes="tool-result-detail"
                         )
                         yielded = True
-            
+
             if not yielded:
                 yield NoMarkupStatic(str(self.result), classes="tool-result-detail")
-                
+
         yield from self._footer()
 
     def on_click(self, event) -> None:
@@ -219,7 +219,7 @@ class BashResultWidget(ToolResultWidget[BashResult]):
 class EditApprovalWidget(ToolApprovalWidget[Any]):
     def compose(self) -> ComposeResult:
         replacements = self.args.replacements if isinstance(self.args, BaseModel) else self.args.get("replacements", [])
-        
+
         if not replacements:
             yield NoMarkupStatic("No replacements specified", classes="approval-description")
             return
@@ -239,7 +239,7 @@ class EditApprovalWidget(ToolApprovalWidget[Any]):
             try:
                 if path.exists():
                     old_content = path.read_text(encoding="utf-8")
-                    
+
                     new_content = old_content
                     for edit in edits:
                         old_str = edit.get("oldString") or edit.get("old_string", "")
@@ -388,7 +388,7 @@ class EditResultWidget(ToolResultWidget[EditResult]):
         # Get file path - handle both 'file' and 'file_path' keys
         file_path = self.result.file_path or self.result.file or "unknown"
         occurrences = self.result.occurrences_replaced or 0
-        
+
         # Summary line
         summary_text = f"└─ {occurrences} replacement(s) in {file_path}"
         if self.collapsed:
@@ -403,12 +403,12 @@ class EditResultWidget(ToolResultWidget[EditResult]):
                 if diff_lines:
                     from interface.textual_ui.widgets.tools import DiffBlock
                     yield DiffBlock(diff_lines, context_lines=3, file_path=file_path)
-            
+
             # Show status
             status = self.result.status or "success"
             status_class = "tool-result-success" if status == "success" else "tool-result-error"
             yield NoMarkupStatic(f"   Status: {status}", classes=status_class)
-            
+
             yield from self._footer()
         else:
             yield from self._footer()
@@ -417,13 +417,13 @@ class EditResultWidget(ToolResultWidget[EditResult]):
 def parse_diff_text(diff_text: str) -> list:
     """Parse unified diff text into DiffLine objects with dual line numbers."""
     from interface.textual_ui.widgets.tools import DiffLine
-    
+
     lines = []
     old_line_num = None
     new_line_num = None
     current_old = None
     current_new = None
-    
+
     for line in diff_text.split('\n'):
         if line.startswith('@@'):
             # Parse hunk header to get line numbers
@@ -493,7 +493,7 @@ def parse_diff_text(diff_text: str) -> list:
         elif line:
             # Any other line
             lines.append(DiffLine(line_number=None, content=line, prefix=" "))
-    
+
     return lines
 
 

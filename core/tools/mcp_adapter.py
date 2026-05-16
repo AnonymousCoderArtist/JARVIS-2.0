@@ -22,6 +22,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CreateMessageRequestParams, CreateMessageResult, Implementation
+from pydantic import AnyUrl
 
 from .base import BaseTool, ToolInput, ToolOutput
 from .mcp_capabilities import (
@@ -410,29 +411,34 @@ class MCPClient:
             raise RuntimeError("MCP session not initialized")
 
         try:
-            response = await self._session.read_resource(uri)
+            response = await self._session.read_resource(AnyUrl(uri))
             contents = []
 
             # Handle the response which may have different formats
             if hasattr(response, 'contents'):
                 for item in response.contents:
                     content = MCPResourceContent(uri=str(item.uri))
-                    if hasattr(item, 'mimeType') and item.mimeType:
-                        content.mime_type = item.mimeType
-                    if hasattr(item, 'text') and item.text:
-                        content.text = item.text
+                    mime = getattr(item, 'mimeType', None)
+                    if mime:
+                        content.mime_type = str(mime)
+                    text = getattr(item, 'text', None)
+                    if text:
+                        content.text = str(text)
                     elif hasattr(item, 'blob') and item.blob:
                         import base64
-                        content.blob = base64.b64decode(item.blob)
+                        blob_val = item.blob
+                        content.blob = base64.b64decode(str(blob_val))
                     contents.append(content)
             elif hasattr(response, 'content'):
                 # Single content item
                 item = response.content
                 content = MCPResourceContent(uri=uri)
-                if hasattr(item, 'mimeType') and item.mimeType:
-                    content.mime_type = item.mimeType
-                if hasattr(item, 'text') and item.text:
-                    content.text = item.text
+                mime = getattr(item, 'mimeType', None)
+                if mime:
+                    content.mime_type = str(mime)
+                text = getattr(item, 'text', None)
+                if text:
+                    content.text = str(text)
                 contents.append(content)
 
             return contents
@@ -516,7 +522,7 @@ class MCPClient:
                         if isinstance(msg.content, str):
                             content = msg.content
                         elif hasattr(msg.content, 'text'):
-                            content = msg.content.text
+                            content = str(msg.content.text)
                         else:
                             content = str(msg.content)
                     messages.append(MCPPromptMessage(role=role, content=content))
@@ -964,8 +970,8 @@ class MCPRegistry:
         self._proxy_registered = False
 
         # Lazy MCP subsystems (imported lazily to avoid circular imports)
-        from .mcp_metadata_cache import MCPMetadataCache
         from .mcp_lifecycle import MCPLifecycleManager
+        from .mcp_metadata_cache import MCPMetadataCache
         self._cache = MCPMetadataCache()
         self._lifecycle = MCPLifecycleManager(self)
 
@@ -1117,7 +1123,7 @@ class MCPRegistry:
         prompts: list[MCPPromptSpec] | None = None,
     ) -> None:
         """Update the metadata cache with fresh tool, resource, and prompt data from a server."""
-        from .mcp_metadata_cache import ToolMetadata, ResourceMetadata, PromptMetadata
+        from .mcp_metadata_cache import PromptMetadata, ResourceMetadata, ToolMetadata
 
         config = self._configs.get(server_name)
         config_dict = {}

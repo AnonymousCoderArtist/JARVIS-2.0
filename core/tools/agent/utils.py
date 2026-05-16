@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any, Callable
-
-from core.agents.base import ToolCallCallback, ToolResultCallback
-from .filtered_registry import _FilteredToolRegistry
+from collections.abc import Callable
+from typing import Any
 
 from core.config.settings import Settings
+
+from .filtered_registry import _FilteredToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +95,9 @@ def update_background_status(
         error: Optional error message
         token_usage: Token usage count
     """
-    from .background_task import _background_agents
     import datetime
+
+    from .background_task import _background_agents
 
     if task_id not in _background_agents:
         return
@@ -139,6 +139,7 @@ def create_agent(
     """
     from core.agents import ExploreAgent, PlanAgent
     from core.agents.builtin.jarvis_help_agent import JarvisHelpAgent
+    from core.agents.builtin.rubber_duck_agent import RubberDuckAgent
     from core.agents.builtin.verification_agent import VerificationAgent
 
     _agent_classes = {
@@ -146,6 +147,7 @@ def create_agent(
         "plan": PlanAgent,
         "jarvis-help": JarvisHelpAgent,
         "verification": VerificationAgent,
+        "rubber-duck": RubberDuckAgent,
     }
 
     agent_class = _agent_classes.get(agent_name)

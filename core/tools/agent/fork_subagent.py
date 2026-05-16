@@ -25,7 +25,6 @@ from typing import Any
 
 from core.config.settings import Settings
 
-from .filtered_registry import _FilteredToolRegistry
 from .utils import create_agent
 
 logger = logging.getLogger(__name__)

@@ -109,7 +109,6 @@ from interface.textual_ui.notifications import (
 )
 from interface.textual_ui.quit_manager import QuitManager
 from interface.textual_ui.remote import RemoteSessionManager, is_progress_event
-from interface.textual_ui.session_exit import print_session_resume_message
 from interface.textual_ui.types import (
     AgentStats,
     BaseEvent,
@@ -2925,19 +2924,19 @@ class VibeApp(App):  # noqa: PLR0904
     def _start_new_session(self, **kwargs: Any) -> None:
         """Start a new session with fresh history."""
         old_session = self.agent_loop.history.session_id
-        
+
         # Create new conversation history (new session)
         from core.history import ConversationHistory
         self.agent_loop.history = ConversationHistory()
         new_session = self.agent_loop.history.session_id
         self.agent_loop.session_id = new_session
-        
+
         # Clear agent memory and update history reference
         if self.agent_loop.agent:
             self.agent_loop.agent.clear_memory()
             self.agent_loop.agent.history = self.agent_loop.history
             self.agent_loop.agent.rebuild_system_prompt()
-        
+
         self.notify(
             f"Started new session: {new_session[:8]}...\nPrevious session: {old_session[:8]}...",
             severity="information",

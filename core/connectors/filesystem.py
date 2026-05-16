@@ -1,9 +1,10 @@
 """Filesystem connector for JARVIS - Updated for new connector system"""
 
 import os
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator, List, Optional
+from typing import Any
 
 from .base import BaseConnector, ConnectorConfig, Document, SyncStatus
 from .registry import ConnectorRegistry
@@ -12,12 +13,12 @@ from .registry import ConnectorRegistry
 @ConnectorRegistry.register("filesystem")
 class FilesystemConnector(BaseConnector):
     """Connector for local filesystem access - Updated with new interface"""
-    
+
     connector_id = "filesystem"
     display_name = "Local Filesystem"
     auth_type = "none"  # No auth needed for local filesystem
-    
-    def __init__(self, config: Optional[ConnectorConfig] = None):
+
+    def __init__(self, config: ConnectorConfig | None = None):
         if config is None:
             config = ConnectorConfig(name="filesystem", connector_type="filesystem")
         super().__init__(config)
@@ -25,41 +26,41 @@ class FilesystemConnector(BaseConnector):
         self.include_hidden = self.config.config.get("include_hidden", False)
         self.max_depth = self.config.config.get("max_depth", 10)
         self._status = SyncStatus()
-    
+
     # --- New interface methods (for sync) ---
-    
+
     def is_connected(self) -> bool:
         """Always connected for local filesystem"""
         return True
-    
+
     def disconnect(self) -> None:
         """Nothing to disconnect for local filesystem"""
         pass
-    
+
     def sync(
-        self, *, since: Optional[datetime] = None, cursor: Optional[str] = None
+        self, *, since: datetime | None = None, cursor: str | None = None
     ) -> Iterator[Document]:
         """Yield recent files as Documents"""
-        
+
         search_terms = []  # Could be extended to accept a query
         max_files = 15
-        
+
         count = 0
         for file_path in self._iter_files():
             if count >= max_files:
                 break
-            
+
             try:
                 if not file_path.exists():
                     continue
-                
+
                 stat = file_path.stat()
                 mtime = datetime.fromtimestamp(stat.st_mtime)
-                
+
                 # Filter by since if provided
                 if since and mtime < since:
                     continue
-                
+
                 # Create Document
                 yield Document(
                     doc_id=str(file_path),
@@ -75,19 +76,19 @@ class FilesystemConnector(BaseConnector):
                     }
                 )
                 count += 1
-                
-            except Exception as e:
+
+            except Exception:
                 continue
-        
+
         self._status.state = "idle"
         self._status.last_sync = datetime.now()
         self._status.items_synced = count
-    
+
     def sync_status(self) -> SyncStatus:
         return self._status
-    
+
     # --- Legacy methods (for backward compatibility) ---
-    
+
     async def fetch(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Search for files matching query."""
         results = []
@@ -120,12 +121,12 @@ class FilesystemConnector(BaseConnector):
 
     def supports_query_type(self, query_type: str) -> bool:
         return query_type in ("files", "filesystem", "code", "documents")
-    
+
     def get_capabilities(self) -> list[str]:
         return ["file_read", "directory_list", "glob_search", "file_metadata"]
-    
+
     # --- Helper methods ---
-    
+
     def _iter_files(self):
         """Iterate through files in root directory."""
         if not self.root_dir.exists():

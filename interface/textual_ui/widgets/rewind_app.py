@@ -10,7 +10,6 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Static
 
-from interface.textual_ui.cli_adapters import ALT_KEY
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 
 
@@ -101,7 +100,7 @@ class RewindApp(Container):
                 self.option_widgets.append(widget)
                 yield widget
             yield NoMarkupStatic(
-                f"Ctrl+P/N: browse messages  ↑↓/jk: pick option  Enter: confirm  ESC: cancel",
+                "Ctrl+P/N: browse messages  ↑↓/jk: pick option  Enter: confirm  ESC: cancel",
                 classes="rewind-help",
             )
 
@@ -160,14 +159,16 @@ class RewindApp(Container):
     def action_rewind_prev(self) -> None:
         """Navigate to the previous user message in rewind mode."""
         app = self.app
-        if hasattr(app, "action_rewind_prev"):
-            app.action_rewind_prev()
+        prev_action = getattr(app, "action_rewind_prev", None)
+        if callable(prev_action):
+            prev_action()
 
     def action_rewind_next(self) -> None:
         """Navigate to the next user message in rewind mode."""
         app = self.app
-        if hasattr(app, "action_rewind_next") and hasattr(app, "_rewind_mode") and app._rewind_mode:
-            app.action_rewind_next()
+        next_action = getattr(app, "action_rewind_next", None)
+        if callable(next_action) and hasattr(app, "_rewind_mode") and app._rewind_mode:
+            next_action()
 
     def _handle_selection(self, option: int) -> None:
         _, action = self._options[option]

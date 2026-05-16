@@ -9,10 +9,23 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, TypeAlias, cast
 
 from core.config.settings import Settings
-from core.history import ConversationHistory, messages_to_role_dicts
+from core.events import (
+    AgentEnded,
+    AgentError,
+    AgentStarted,
+    EventBus,
+    HookContext,
+    HookRegistry,
+    HookResult,
+    HookStage,
+    ProgressUpdated,
+    StatusUpdated,
+)
+from core.history import ConversationHistory
 from core.llm.base import BaseLLMProvider, MessageDict
 from core.llm_sdk.base.sdk import ToolCall
 from core.llm_sdk.tool_parser import (
@@ -78,6 +91,8 @@ class BaseAgent(ABC):
         bypass_tool_permissions: bool = False,
         use_concurrent_tools: bool = True,
         auto_discover_context: bool = True,
+        event_bus: EventBus | None = None,
+        hook_registry: HookRegistry | None = None,
     ):
         self.llm: BaseLLMProvider = llm_provider
         self.tools: ToolRegistry = tool_registry
@@ -118,6 +133,13 @@ class BaseAgent(ABC):
         # Conversation history (persistent, role-based)
         self.history: ConversationHistory | None = None
 
+        # --- Event system ---
+        self.event_bus: EventBus = event_bus or EventBus()
+        self.hook_registry: HookRegistry = hook_registry or HookRegistry()
+        # Wire the event bus into the tool registry so tool execution
+        # events are automatically emitted.
+        self.tools.event_bus = self.event_bus
+
         # Auto-discovery of project context files (JARVIS v2 mode)
         self._auto_discover_context: bool = auto_discover_context
         if auto_discover_context:
@@ -138,20 +160,79 @@ class BaseAgent(ABC):
         # Dynamically build full system prompt with tool descriptions
         self._build_system_prompt()
 
+    # ------------------------------------------------------------------
+    # Event helpers
+    # ------------------------------------------------------------------
+
+    async def _emit(self, event: Any) -> None:
+        """Emit an event via the event bus (best-effort)."""
+        try:
+            await self.event_bus.emit(event)
+        except Exception:
+            logger.exception("Failed to emit event %s", type(event).__name__)
+
+    async def _run_hooks(
+        self, stage: HookStage, ctx: HookContext | None = None
+    ) -> HookResult:
+        """Run lifecycle hooks for *stage* (best-effort)."""
+        try:
+            return await self.hook_registry.run(stage, ctx)
+        except Exception:
+            logger.exception("Hook stage %s failed", stage.value)
+            return HookResult(proceed=True)
+
     def _build_system_prompt(self) -> None:
         """Build the full system prompt with dynamic context sections.
 
         Tool descriptions are NOT injected here — they are sent to the model
         via the native tool calling API (tools parameter), which already
         provides names, descriptions, and schemas to the model.
+
+        This method now also injects:
+        - Discovered ``AGENTS.md`` / ``CLAUDE.md`` context files
+        - System context (working directory, etc.)
+        - Progressive skill descriptions (name + when_to_use)
+        - Active skill full content
         """
         from core.agents.prompts.constants import get_system_context
+        from core.resources import discover_all, read_context_files
         system_context = get_system_context()
 
         full_prompt = self.base_system_prompt
+
+        # Run BEFORE_SYSTEM_PROMPT hooks (sync-compatible)
+        # Note: These are run best-effort; async hooks will run on next async call
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're in an async context, run hooks properly
+                asyncio.ensure_future(self._run_hooks(HookStage.BEFORE_SYSTEM_PROMPT, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    system_prompt=full_prompt,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )))
+        except Exception:
+            pass
+
+        # --- Discovered context files (AGENTS.md, CLAUDE.md, etc.) ---
+        try:
+            project_dir = getattr(self, "_config_getter", lambda: None)()
+            cwd = getattr(project_dir, "cwd", None) if project_dir else None
+            resources = discover_all(project_dir=cwd)
+            ctx_content = read_context_files(resources.context_files)
+            if ctx_content:
+                full_prompt += f"\n\n---\n\n## Project Context Files\n\n{ctx_content}"
+        except Exception:
+            logger.debug("Failed to discover context files", exc_info=True)
+
+        # --- System context ---
         if system_context:
             full_prompt = f"{full_prompt}\n\n---\n\n{system_context}"
 
+        # --- Active skills (full content, loaded via activate_skill tool) ---
         if hasattr(self.tools, 'active_skills') and self.tools.active_skills:
             skills_section = "\n\n---\n\n## Active Skills\n\n"
             active_skills = cast(dict[str, str], self.tools.active_skills)
@@ -159,6 +240,7 @@ class BaseAgent(ABC):
                 skills_section += f"### {skill_name}\n{skill_content}\n\n"
             full_prompt += skills_section
 
+        # --- Available skill descriptions (progressive disclosure, no full content) ---
         try:
             from core.skills import SkillManager
             skill_manager = SkillManager()
@@ -169,6 +251,21 @@ class BaseAgent(ABC):
             pass
 
         self.system_prompt = full_prompt
+
+        # Run AFTER_SYSTEM_PROMPT hooks (best-effort, async)
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(self._run_hooks(HookStage.AFTER_SYSTEM_PROMPT, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    system_prompt=full_prompt,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )))
+        except Exception:
+            pass
 
     def rebuild_system_prompt(self) -> None:
         """Rebuild the system prompt with current tool descriptions and active skills.
@@ -697,7 +794,34 @@ class BaseAgent(ABC):
         tool_definitions = self.tools.get_function_definitions()
         updated_messages = messages.copy()
 
+        # Run BEFORE_PROMPT_BUILD hooks
+        prompt_ctx = HookContext(
+            agent_name=getattr(self, "name", ""),
+            session_id=getattr(self, "session_id", ""),
+            model=self.model,
+            cwd=str(Path.cwd()),
+            messages=list(updated_messages),
+        )
+        prompt_result = await self._run_hooks(HookStage.BEFORE_PROMPT_BUILD, prompt_ctx)
+        if prompt_result.block:
+            return f"Prompt build blocked by hook: {prompt_result.reason}"
+        if prompt_result.inject:
+            # Inject content as a user message
+            updated_messages.append({"role": "user", "content": prompt_result.inject})
+
         while True:
+            # Run BEFORE_TURN hooks
+            turn_ctx = HookContext(
+                agent_name=getattr(self, "name", ""),
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+                messages=list(updated_messages),
+            )
+            turn_result = await self._run_hooks(HookStage.BEFORE_TURN, turn_ctx)
+            if turn_result.block:
+                return f"Turn blocked by hook: {turn_result.reason}"
+
             # Drain pending subagent notifications and inject as context
             updated_messages = self._drain_and_inject_notifications(updated_messages)
 
@@ -736,12 +860,16 @@ class BaseAgent(ABC):
                                 if self.reasoning_callback:
                                     self.reasoning_callback(chunk_thinking)
                             elif chunk["type"] == "tool_calls":
-                                for tc in cast(list[dict[str, Any]], chunk.get("tool_calls", [])):
-                                    tool_calls.append(ToolCall(
-                                        id=tc.get("id", ""),
-                                        name=tc.get("name", ""),
-                                        arguments=tc.get("arguments", "")
-                                    ))
+                                for tc in chunk.get("tool_calls", []):
+                                    if hasattr(tc, "name"):
+                                        # Already a ToolCall object
+                                        tool_calls.append(tc)
+                                    elif isinstance(tc, dict):
+                                        tool_calls.append(ToolCall(
+                                            id=tc.get("id", ""),
+                                            name=tc.get("name", ""),
+                                            arguments=tc.get("arguments", "")
+                                        ))
                             elif chunk["type"] == "tool_call":
                                 tool_calls.append(cast(ToolCall, chunk["tool_call"]))
                         else:
@@ -749,6 +877,17 @@ class BaseAgent(ABC):
                             chunk_text = str(chunk)
                             full_response += chunk_text
                             self.stream_callback(chunk_text)
+
+                    # Deduplicate tool calls by ID (streaming may emit both individual and batch)
+                    seen_ids: set[str] = set()
+                    deduped: list[ToolCall] = []
+                    for tc in tool_calls:
+                        if tc.id and tc.id not in seen_ids:
+                            seen_ids.add(tc.id)
+                            deduped.append(tc)
+                        elif not tc.id:
+                            deduped.append(tc)
+                    tool_calls = deduped
 
                     # If tool calls were encountered, execute them
                     if tool_calls:
@@ -761,10 +900,17 @@ class BaseAgent(ABC):
                             updated_messages,
                             use_concurrent=self.use_concurrent_tools
                         )
+                        await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                            agent_name=getattr(self, "name", ""),
+                            session_id=getattr(self, "session_id", ""),
+                            model=self.model,
+                            cwd=str(Path.cwd()),
+                            messages=list(updated_messages),
+                        ))
                         continue  # Loop again with updated messages
 
-                    # Check for text-embedded tool calls in the response
-                    if has_text_tool_calls(full_response):
+                    # Check for text-embedded tool calls ONLY when no structured tool calls were found
+                    elif has_text_tool_calls(full_response):
                         cleaned_text, text_tool_calls = extract_text_and_tool_calls(full_response)
                         if text_tool_calls:
                             normalized_calls = normalize_tool_calls(text_tool_calls)
@@ -777,11 +923,34 @@ class BaseAgent(ABC):
                                 updated_messages,
                                 use_concurrent=self.use_concurrent_tools
                             )
+                            await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                                agent_name=getattr(self, "name", ""),
+                                session_id=getattr(self, "session_id", ""),
+                                model=self.model,
+                                cwd=str(Path.cwd()),
+                                messages=list(updated_messages),
+                            ))
                             continue
 
                     # Signal that reasoning is done
                     if self.reasoning_done_callback:
                         self.reasoning_done_callback()
+                    await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                        agent_name=getattr(self, "name", ""),
+                        agent_output=full_response,
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                        messages=list(updated_messages),
+                    ))
+                    await self._run_hooks(HookStage.AFTER_PROMPT_BUILD, HookContext(
+                        agent_name=getattr(self, "name", ""),
+                        agent_output=full_response,
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                        messages=list(updated_messages),
+                    ))
                     return full_response
                 except Exception as e:
                     logger.warning(f"Streaming with tools failed, falling back to non-streaming: {e}")
@@ -798,7 +967,24 @@ class BaseAgent(ABC):
                     "Tool-capable generation failed; falling back to plain generation: %s",
                     e,
                 )
-                return await self._process_without_tools(updated_messages, stream=stream)
+                result = await self._process_without_tools(updated_messages, stream=stream)
+                await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    agent_output=result,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                    messages=list(updated_messages),
+                ))
+                await self._run_hooks(HookStage.AFTER_PROMPT_BUILD, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    agent_output=result,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                    messages=list(updated_messages),
+                ))
+                return result
 
             # Handle response
             response: MessageDict = cast(MessageDict, raw_response)
@@ -822,10 +1008,17 @@ class BaseAgent(ABC):
                     updated_messages,
                     use_concurrent=self.use_concurrent_tools
                 )
+                await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                    messages=list(updated_messages),
+                ))
                 continue  # Loop again with updated messages
 
-            # Check for text-embedded tool calls in non-streaming response
-            if has_text_tool_calls(content):
+            # Check for text-embedded tool calls ONLY when no structured tool calls were found
+            elif has_text_tool_calls(content):
                 cleaned_text, text_tool_calls = extract_text_and_tool_calls(content)
                 if text_tool_calls:
                     normalized_calls = normalize_tool_calls(text_tool_calls)
@@ -837,8 +1030,33 @@ class BaseAgent(ABC):
                         updated_messages,
                         use_concurrent=self.use_concurrent_tools
                     )
+                    await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                        agent_name=getattr(self, "name", ""),
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                        messages=list(updated_messages),
+                    ))
                     continue
 
+            await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                agent_name=getattr(self, "name", ""),
+                agent_output=content,
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+                messages=list(updated_messages),
+            ))
+
+            # Run AFTER_PROMPT_BUILD hooks (once, at the end of the prompt lifecycle)
+            await self._run_hooks(HookStage.AFTER_PROMPT_BUILD, HookContext(
+                agent_name=getattr(self, "name", ""),
+                agent_output=content,
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+                messages=list(updated_messages),
+            ))
             return content
 
     async def _execute_tools_and_update_messages(
@@ -867,7 +1085,22 @@ class BaseAgent(ABC):
         })
 
         # Execute tool calls
-        tool_calls = cast(list[dict[str, Any]], response.get("tool_calls", []))
+        raw_tool_calls = response.get("tool_calls", [])
+
+        # Normalize ToolCall objects to dict format
+        tool_calls: list[dict[str, Any]] = []
+        for tc in raw_tool_calls:
+            if hasattr(tc, "name") and hasattr(tc, "arguments"):
+                # ToolCall dataclass
+                tool_calls.append({
+                    "function": {"name": tc.name, "arguments": tc.arguments},
+                    "id": getattr(tc, "id", ""),
+                })
+            elif isinstance(tc, dict):
+                tool_calls.append(tc)
+            else:
+                logger.warning("Unknown tool call type: %s", type(tc))
+
         tool_results: list[dict[str, Any]] = []
 
         if use_concurrent and len(tool_calls) > 1 and hasattr(self.tools, 'execute_tools_concurrent'):
@@ -913,6 +1146,32 @@ class BaseAgent(ABC):
                 if self.tool_call_callback:
                     self.tool_call_callback(tool_name, tool_args)
 
+                # Run BEFORE_TOOL_CALL hooks
+                before_ctx = HookContext(
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    agent_name=getattr(self, "name", ""),
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )
+                before_result = await self._run_hooks(HookStage.BEFORE_TOOL_CALL, before_ctx)
+                if before_result.block:
+                    tool_result_content = f"Tool '{tool_name}' blocked by hook: {before_result.reason}"
+                    tool_results.append({
+                        "tool": tool_name,
+                        "success": False,
+                        "result": None,
+                        "error": before_result.reason,
+                        "content": tool_result_content,
+                        "tool_call_id": tool_call_id,
+                        "blocked": True,
+                    })
+                    continue
+                # Use modified args if hook returned them
+                if before_result.modify:
+                    tool_args = {**tool_args, **before_result.modify}
+
                 # Execute tool with retry for transient errors
                 max_retries = 2  # Up to 2 retries (3 total attempts)
                 result = None
@@ -934,6 +1193,25 @@ class BaseAgent(ABC):
                     import asyncio as _asyncio
                     await _asyncio.sleep(2 ** attempt)
 
+                # Run AFTER_TOOL_CALL hooks
+                success = getattr(result, "success", False)
+                res_val = getattr(result, "result", None)
+                err_val = getattr(result, "error", None)
+                if not success and not err_val and res_val:
+                    err_val = str(res_val)
+
+                after_ctx = HookContext(
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    tool_result=res_val,
+                    tool_error=err_val,
+                    agent_name=getattr(self, "name", ""),
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )
+                after_result = await self._run_hooks(HookStage.AFTER_TOOL_CALL, after_ctx)
+
                 if self.tool_result_callback:
                     self.tool_result_callback(tool_name, tool_args, result)
 
@@ -953,7 +1231,25 @@ class BaseAgent(ABC):
 
                 # Rebuild system prompt if a skill was activated
                 if tool_name == "activate_skill" and hasattr(result, "success") and result.success:
+                    skill_name = tool_args.get("skill_name", "") or tool_args.get("name", "")
+                    # Run BEFORE_SKILL_ACTIVATE hooks
+                    skill_ctx = HookContext(
+                        skill_name=skill_name,
+                        agent_name=getattr(self, "name", ""),
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                    )
+                    await self._run_hooks(HookStage.BEFORE_SKILL_ACTIVATE, skill_ctx)
                     self.rebuild_system_prompt()
+                    # Run AFTER_SKILL_ACTIVATE hooks
+                    await self._run_hooks(HookStage.AFTER_SKILL_ACTIVATE, HookContext(
+                        skill_name=skill_name,
+                        agent_name=getattr(self, "name", ""),
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                    ))
 
                 # Format tool result for LLM
                 success = getattr(result, "success", False)
@@ -969,12 +1265,17 @@ class BaseAgent(ABC):
                 else:
                     tool_result_content = f"Tool {tool_name} failed. Error: {err_val}. Please adjust your approach and try again with different parameters."
 
+                # Append injected content from AFTER_TOOL_CALL hooks (e.g. type errors)
+                if after_result.inject:
+                    tool_result_content += after_result.inject
+
                 tool_results.append({
                     "tool": tool_name,
                     "success": success,
                     "result": res_val,
                     "error": err_val,
-                    "content": tool_result_content
+                    "content": tool_result_content,
+                    "tool_call_id": tool_call_id,
                 })
 
         # Add tool results to working message history as user message
@@ -1004,8 +1305,6 @@ class BaseAgent(ABC):
         if self.history is not None:
             from core.history import (
                 HistoryMessage,
-                create_assistant_message,
-                create_tool_message,
             )
             self.history.append_message(
                 HistoryMessage(
@@ -1120,6 +1419,7 @@ class BaseAgent(ABC):
                     "success": output.success,
                     "result": output.result,
                     "error": err_msg,
+                    "tool_call_id": tool_call.get("id", ""),
                     "content": (
                         f"Tool {tool_name} executed successfully. Result: {output.result}"
                         if output.success
@@ -1268,17 +1568,25 @@ class BaseAgent(ABC):
         Returns:
             Agent response string
         """
+        import time
+
+        # Emit AgentStarted event
+        ts = time.time()
+        await self._emit(AgentStarted(timestamp=ts, agent_name=self.__class__.__name__, input=input))
+
         stages = ["Understanding", "Planning", "Execution", "Verification"]
         total_stages = len(stages)
 
         if self.status_callback:
             self.status_callback("Starting processing...")
+        await self._emit(StatusUpdated(timestamp=time.time(), status="Starting processing...", message="Starting processing..."))
 
         # Stage 1: Understanding
         if self.progress_callback:
             self.progress_callback(stages[0], 0.0)
         if self.status_callback:
             self.status_callback(f"Stage 1/{total_stages}: {stages[0]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[0], progress=0.0))
         await asyncio.sleep(0)  # Yield control
 
         # Stage 2: Planning
@@ -1286,6 +1594,7 @@ class BaseAgent(ABC):
             self.progress_callback(stages[1], 0.25)
         if self.status_callback:
             self.status_callback(f"Stage 2/{total_stages}: {stages[1]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[1], progress=0.25))
         await asyncio.sleep(0)  # Yield control
 
         # Stage 3: Execution (the actual processing)
@@ -1293,15 +1602,22 @@ class BaseAgent(ABC):
             self.progress_callback(stages[2], 0.5)
         if self.status_callback:
             self.status_callback(f"Stage 3/{total_stages}: {stages[2]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[2], progress=0.5))
 
         # Process normally
-        result = await self.process(input, context)
+        try:
+            result = await self.process(input, context)
+        except Exception as e:
+            logger.exception("Processing failed")
+            await self._emit(AgentError(timestamp=time.time(), agent_name=self.__class__.__name__, error=str(e)))
+            raise
 
         # Stage 4: Verification
         if self.progress_callback:
             self.progress_callback(stages[3], 0.75)
         if self.status_callback:
             self.status_callback(f"Stage 4/{total_stages}: {stages[3]}")
+        await self._emit(ProgressUpdated(timestamp=time.time(), task=stages[3], progress=0.75))
         await asyncio.sleep(0)  # Yield control
 
         # Complete
@@ -1309,6 +1625,8 @@ class BaseAgent(ABC):
             self.progress_callback("Complete", 1.0)
         if self.status_callback:
             self.status_callback("Processing complete")
+        await self._emit(StatusUpdated(timestamp=time.time(), status="Complete", message="Processing complete"))
+        await self._emit(AgentEnded(timestamp=time.time(), agent_name=self.__class__.__name__, output=result))
 
         return result
 

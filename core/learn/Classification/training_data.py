@@ -277,18 +277,18 @@ def augment_training_data(data: list[tuple[str, str]]) -> list[tuple[str, str]]:
     import re
 
     augmented = []
-    
+
     # Paraphrase patterns
     prefixes = [
         "", "please ", "could you ", "can you ", "i need to ", "help me ",
         "would you ", "can we ", "should i ", "want to ",
     ]
-    
+
     suffixes = [
         "", " please", " thanks", " if possible", " for me", " now",
         " immediately", " as soon as possible", " urgently",
     ]
-    
+
     # Phrase substitutions for augmentation
     substitutions = {
         r"\bimplement\b": ["create", "build", "add", "develop"],
@@ -300,17 +300,17 @@ def augment_training_data(data: list[tuple[str, str]]) -> list[tuple[str, str]]:
         r"\bcode\b": ["source", "module", "function"],
         r"\berror\b": ["issue", "problem", "bug", "fault"],
     }
-    
+
     for text, label in data:
         # Original
         augmented.append((text, label))
-        
+
         # Prefix/suffix variations
         for prefix in prefixes:
             for suffix in suffixes:
                 if prefix or suffix:
                     augmented.append((f"{prefix}{text}{suffix}", label))
-        
+
         # Phrase substitutions
         augmented_text = text
         for pattern, replacements in substitutions.items():
@@ -319,18 +319,18 @@ def augment_training_data(data: list[tuple[str, str]]) -> list[tuple[str, str]]:
                     new_text = re.sub(pattern, replacement, augmented_text, flags=re.IGNORECASE)
                     if new_text != text:
                         augmented.append((new_text, label))
-        
+
         # Synonym shuffling for verbs
         verb_shuffles = [
             (r"\bwrite\b", "write"),
             (r"\badd\b", "add"),
             (r"\bcreate\b", "create"),
         ]
-        
+
         # Capitalization variations
         if random.random() > 0.5:
             augmented.append((text.capitalize(), label))
-    
+
     return augmented
 
 

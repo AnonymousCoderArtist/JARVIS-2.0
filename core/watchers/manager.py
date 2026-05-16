@@ -5,7 +5,6 @@ import importlib.util
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Optional
 
 from core.watchers.base import BaseWatcher
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class WatcherManager:
     """Manages discovery and lifecycle of passive watchers"""
-    
+
     def __init__(self, config_getter=None, event_queue=None):
         self.watchers: dict[str, BaseWatcher] = {}
         self.config_getter = config_getter
@@ -67,7 +66,7 @@ class WatcherManager:
             Path.home() / ".jarvis" / "watchers",
             Path.cwd() / ".jarvis" / "watchers",
         ]
-        
+
         for path in search_paths:
             if path.exists() and path.is_dir():
                 # Look for subdirectories with __init__.py
@@ -86,10 +85,10 @@ class WatcherManager:
         """Start all registered watchers"""
         if self._running:
             return
-            
+
         self._running = True
         logger.info(f"Starting {len(self.watchers)} watchers")
-        
+
         for watcher in self.watchers.values():
             if watcher.enabled:
                 task = asyncio.create_task(self._run_watcher(watcher))
@@ -100,7 +99,7 @@ class WatcherManager:
         self._running = False
         for task in self._tasks:
             task.cancel()
-        
+
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks.clear()

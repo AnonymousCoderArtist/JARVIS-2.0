@@ -110,6 +110,11 @@ class JarvisSettings(BaseModel):
     heartbeat: HeartbeatSettings = Field(default_factory=HeartbeatSettings)
     learning: LearningSettings = Field(default_factory=LearningSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
+    theme: str = "dark"
+    keybindings: str = "default"
+
+    # Extension-specific configuration (free-form dict)
+    extensions: dict[str, Any] = Field(default_factory=dict)
 
     bypass_tool_permissions: bool = False
     disallowed_tools: list[str] = Field(default_factory=list)

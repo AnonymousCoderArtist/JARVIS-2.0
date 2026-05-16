@@ -525,7 +525,6 @@ class MCPApp(Container):
         status_info = []
         if not is_connector:
             # Get server status from the tool manager if available
-            from interface.textual_ui.cli_adapters import MCPServer
             servers = [s for s in self._mcp_servers if s.name == server_name]
             if servers:
                 srv = servers[0]

@@ -12,7 +12,6 @@ from typing import Any
 from pydantic import Field
 
 from core.tools.base import BaseTool, ToolInput, ToolOutput
-from core.tools.registry import ToolRegistry
 
 
 class ToolSearchInput(ToolInput):

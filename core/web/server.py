@@ -119,8 +119,8 @@ def _get_agent():
     from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
     from core.tools.grep_tool import GrepSearchTool
     from core.tools.registry import ToolRegistry
-    from core.tools.web_tools import WebFetchTool
     from core.tools.tool_search_tool import ToolSearchTool
+    from core.tools.web_tools import WebFetchTool
 
     # Get configuration from environment
     model = os.getenv("JARVIS_MODEL", "gpt-4o")
@@ -376,7 +376,7 @@ async def ws_endpoint(websocket: WebSocket):
                 tool_call_tasks: list = []
                 tool_result_tasks: list = []
                 response: str | None = None
-                
+
                 # Save original callbacks before modifying them
                 original_callbacks = {
                     "stream_callback": agent.stream_callback,
@@ -387,7 +387,7 @@ async def ws_endpoint(websocket: WebSocket):
                     "user_input_callback": agent.user_input_callback if hasattr(agent, 'user_input_callback') else None,
                     "approval_callback": agent.approval_callback if hasattr(agent, 'approval_callback') else None,
                 }
-                
+
                 try:
                     # Set up a stream callback to send delta events
                     # We use a list to capture the asyncio tasks so we can await them
@@ -475,7 +475,7 @@ async def ws_endpoint(websocket: WebSocket):
                     agent.tool_result_callback = tool_result_callback
                     agent.user_input_callback = user_input_callback
                     agent.approval_callback = approval_callback
-                    
+
                     # Debug: verify callbacks are set
                     print(f"[DEBUG] Agent has reasoning_callback: {agent.reasoning_callback is not None}", file=sys.stderr)
 
@@ -910,7 +910,6 @@ def _get_or_create_agent():
 async def api_list_models():
     """List available models from providers."""
     try:
-        from core.llm.model_info import get_model_info
         models = [
             {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "family": "openai", "capabilities": {"reasoning": True, "vision": True, "tool_call": True}},
             {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "family": "openai", "capabilities": {"reasoning": True, "vision": True, "tool_call": True}},
@@ -977,7 +976,7 @@ async def api_mcp_list_servers():
     try:
         from core.tools.mcp_adapter import MCPRegistry, load_mcp_config_from_file
         registry = MCPRegistry()
-        configs = load_mcp_config_from_file() or []
+        configs = load_mcp_config_from_file(config_path="") or []
         servers = [_mcp_server_summary(s) for s in configs]
         return {"servers": servers}
     except Exception as e:
@@ -1006,7 +1005,7 @@ async def api_mcp_add_server(request: Request):
     """Add a new MCP server."""
     try:
         body = await request.json()
-        from core.tools.mcp_adapter import MCPServerConfig, create_mcp_client_from_config
+        from core.tools.mcp_adapter import MCPServerConfig
         config = MCPServerConfig(
             name=body.get("name", "mcp-server"),
             command=body.get("command", ""),
@@ -1169,7 +1168,6 @@ _debug_log: list = []
 async def api_debug_logs():
     """Get recent debug logs."""
     import io
-    import sys
     buf = io.StringIO()
     return {
         "logs": _debug_log[-200:],
@@ -1277,7 +1275,7 @@ async def api_connector_auth(name: str, request: Request):
                 repos=body.get("repos", []),
             )
         elif name == "weather":
-            inst.set_api_key(body.get("api_key", ""), body.get("city", ""))
+            inst.set_api_key(body.get("api_key", ""))
         elif name == "http":
             if body.get("headers"):
                 inst.set_default_headers(body["headers"])
@@ -1322,7 +1320,7 @@ async def api_set_safety_profile(request: Request):
         if not profile:
             return {"success": False, "error": f"Profile {profile_id} not found"}
         os.environ["JARVIS_BYPASS_PERMISSIONS"] = "true" if profile["bypass"] else ""
-        os.environ["JARVIS_CODE_PERMISSION"] = profile["code"]
+        os.environ["JARVIS_CODE_PERMISSION"] = str(profile["code"])
         return {"success": True, "profile": profile}
     except Exception as e:
         return {"success": False, "error": str(e)[:200]}
@@ -1336,10 +1334,10 @@ async def api_list_remote_sessions():
     and resume sessions stored in the cloud.
     """
     remote_url = os.getenv("JARVIS_REMOTE_URL", "")
-    
+
     if not remote_url:
         return {"sessions": [], "error": "No remote URL configured. Set JARVIS_REMOTE_URL to enable remote sessions."}
-    
+
     try:
         import httpx
         async with httpx.AsyncClient(timeout=10.0) as client:

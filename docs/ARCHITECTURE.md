@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-JARVIS is a terminal-native AI engineering assistant with three UI modes (CLI, TUI, WebUI) built around a core agent loop that dispatches user requests to an LLM provider, executes tool calls the model requests, and iterates until a final response is produced. The system is organized as a Python monorepo with a layered design: a thin CLI launcher at `jarvis/cli.py` delegates to an interface layer, which talks to a core agent system (`core/agents/`), which in turn uses an LLM provider abstraction (`core/llm/`, `core/llm_sdk/`) and a tool system (`core/tools/`). Supporting subsystems handle configuration, MCP integration, connectors (GitHub, HTTP, RSS, etc.), file watchers, conversation checkpointing with the rewind system, sandboxed command execution, and a learning pipeline that distills interaction traces into reusable skills.
+JARVIS is a terminal-native AI engineering assistant with four UI modes (CLI, TUI, WebUI, RPC) built around a core agent loop that dispatches user requests to an LLM provider, executes tool calls the model requests, and iterates until a final response is produced. The system is organized as a Python monorepo with a layered, **event-driven, plugin-extensible** design: a thin CLI launcher at `jarvis/cli.py` delegates to an interface layer, which talks to a core agent system (`core/agents/`), which in turn uses an LLM provider abstraction (`core/llm/`, `core/llm_sdk/`), a tool system (`core/tools/`), and the new **event/extensions/operations** layers. Supporting subsystems handle configuration (with themes and keybindings), MCP integration, connectors (GitHub, HTTP, RSS, etc.), file watchers, conversation checkpointing with the rewind system, sandboxed command execution, a learning pipeline that distills interaction traces into reusable skills, a **prompt template system** (markdown → slash commands), and a **tiered resource discovery** layer.
 
 ---
 
@@ -10,16 +10,22 @@ JARVIS is a terminal-native AI engineering assistant with three UI modes (CLI, T
 
 | Directory | Purpose |
 |---|---|
-| `jarvis/` | CLI entry point (`cli.py`) — parses args, dispatches to TUI/CLI/WebUI |
+| `jarvis/` | CLI entry point (`cli.py`) — parses args, dispatches to TUI/CLI/WebUI/RPC |
 | `core/agents/` | Agent system: `BaseAgent`, `JarvisV2`, `AgentManager`, `AsyncAgentManager`, fork subagent, heartbeat scheduler, task scheduler, system prompts, builtin agent profiles |
-| `core/tools/` | Tool system: `BaseTool`, `ToolRegistry`/`AsyncToolRegistry`, `PermissionManager`/`PermissionContext`, 20+ tool implementations, MCP adapter, sandbox |
+| `core/tools/` | Tool system: `BaseTool`, `ToolRegistry`/`AsyncToolRegistry`, `PermissionManager`/`PermissionContext`, 20+ tool implementations, MCP adapter |
+| `core/tools/operations/` | **Pluggable operation backends** — `OperationsRegistry`, `FileOperations`/`BashOperations`/`EditOperations` Protocols, default local implementations via `aiofiles`/`asyncio`. Extensions can swap backends (SSH, sandbox, Docker) without modifying tools. |
+| `core/events/` | **Event-driven architecture** — `EventBus` (pub/sub), `HookRegistry` (16 lifecycle stages), 24 event types (`AgentStarted`, `TurnStarted`, `ToolCallStarted`, `MessageDelta`, etc.). Foundation for the extension system. |
+| `core/extensions/` | **Extension/plugin system** — `ExtensionAPI` (register tools/hooks/commands/shortcuts), `ExtensionLoader` (dynamic import from `.jarvis/extensions/` and pip entry points), `ExtensionRunner` (bind/unbind lifecycle), `ExtensionRegistry` (conflict detection, metadata). |
+| `core/prompts/` | **Prompt template system** — markdown files with YAML frontmatter auto-register as slash commands (`/review`, `/testgen`, `/explain`). Supports `$1`, `$2`, `$@`, `${@:N}` argument substitution. |
+| `core/resources/` | **Tiered resource discovery** — scans `~/.jarvis/`, `.jarvis/`, and walks up from cwd to find `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md`, skills, and prompt templates with precedence ranking (project > user > global). |
 | `core/llm/` | LLM abstraction: `BaseLLMProvider`, `SDKAdapter`, model info, model registry |
 | `core/llm_sdk/` | SDK implementations: OpenAI SDK, Anthropic SDK, tool parser, context length manager |
 | `core/provider/` | Provider configuration: `ProviderManager`, provider model definitions |
 | `core/connectors/` | Connector framework: `BaseConnector`, `ConnectorManager`, GitHub/HTTP/RSS/Weather/Filesystem connectors, unified `Document` schema |
-| `core/config/` | Configuration: layered JSON/env/Pydantic model loading via `Settings`, `JarvisSettings` |
+| `core/config/` | Configuration: layered JSON/env/Pydantic model loading via `Settings`, `JarvisSettings`. **Theme system** (51 color tokens, truecolor/256 detection, hot-reload). **Keybinding system** (namespaced action IDs, legacy migration, JSON config). |
 | `core/learn/` | Learning pipeline: M1→M2→M3 distillation, pattern detection, `SkillCrystallizer` |
 | `core/skills/` | Skills CRUD management, reusable skill markdown storage |
+| `core/rpc/` | **RPC mode** — JSONL protocol over stdin/stdout for embedding JARVIS in IDEs, web UIs, or other processes. Commands: `prompt`, `steer`, `bash`, `get_state`, `get_messages`, `get_tools`, `set_model`, `new_session`, `compact`. |
 | `core/web/` | FastAPI web server for the WebUI — REST + WebSocket endpoints |
 | `core/rewind/` | Conversation checkpointing with file snapshots for undo |
 | `core/watchers/` | Passive file/event watchers |
@@ -32,6 +38,8 @@ JARVIS is a terminal-native AI engineering assistant with three UI modes (CLI, T
 | `docs/` | Documentation: custom agents, custom tools, MCP, sandbox, watchers, WebUI theme, architecture |
 | `tests/` | Test suite |
 | `scripts/` | Utility scripts |
+| `examples/extensions/` | **Reference extension examples** (hello_world, audit_tool, safety_gate, event_logger, ssh_operations) |
+| `examples/prompts/` | **Prompt template examples** (review, testgen, explain) |
 
 ---
 
@@ -41,16 +49,22 @@ JARVIS is a terminal-native AI engineering assistant with three UI modes (CLI, T
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         jarvis/cli.py                               │
 │              Arg parsing, env loading, UI dispatch                   │
+│              --mode tui (default) / cli / webui / rpc               │
 └─────────┬──────────────────────────┬──────────────────────┬─────────┘
           │       defaults to         │                      │
           ▼                          ▼                      ▼
 ┌──────────────────┐   ┌────────────────────┐   ┌──────────────────────┐
 │  interface/cli/  │   │ interface/textual_ │   │  interface/webui/    │
 │  prompt_toolkit  │   │    ui/ (Textual)   │   │  React + Vite +     │
-│  (sync/async)    │   │  rich TUI widgets  │   │  FastAPI backend    │
+│  (sync/async)    │   │  rich TUI widgets  │   │  FastAPI backend     │
 └─────────┬────────┘   └─────────┬──────────┘   └──────────┬───────────┘
           │                      │                          │
           └──────────────────────┼──────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │    core/rpc/ (stdin/     │
+                    │   stdout JSONL protocol) │
+                    └────────────┬────────────┘
                                  │
                                  ▼
           ┌──────────────────────────────────────────────────┐
@@ -64,15 +78,25 @@ JARVIS is a terminal-native AI engineering assistant with three UI modes (CLI, T
    │     core/llm/           │    │       core/tools/             │
    │  BaseLLMProvider        │    │  BaseTool, ToolRegistry       │
    │  SDKAdapter + SDKs     │    │  20+ tools, PermissionManager  │
-   │  (OpenAI, Anthropic)   │    │  MCP adapter, Sandbox, Rewind  │
-   └─────────────────────────┘    └──────────────────────────────┘
+   │  (OpenAI, Anthropic)   │    │  MCP adapter, Rewind           │
+   └─────────────────────────┘    └──────────┬───────────────────┘
                                               │
                                     ┌─────────┴──────────┐
                                     ▼                    ▼
-                          ┌──────────────┐    ┌──────────────────┐
-                          │ MCP Servers  │    │ External APIs     │
-                          │ (stdio/sse)  │    │ (web, git, etc.)  │
-                          └──────────────┘    └──────────────────┘
+                          ┌──────────────────┐  ┌──────────────────────┐
+                          │ OperationsRegistry│  │    EventBus +         │
+                          │ core/tools/ops/  │  │    HookRegistry        │
+                          │ File/Bash/Edit  │  │    core/events/        │
+                          │ Protocols (swap  │  │    24 event types     │
+                          │  at runtime)     │  │    16 lifecycle hooks │
+                          └──────────────────┘  └──────────┬───────────┘
+                                                           │
+                                                    ┌──────┴──────┐
+                                                    │  Extensions  │
+                                                    │  core/ext/   │
+                                                    │  .jarvis/    │
+                                                    │  pip install │
+                                                    └─────────────┘
 ```
 
 ---
@@ -88,8 +112,10 @@ BaseAgent (ABC)          — core/agents/base.py
   └── PlanAgent          — core/agents/plan_agent.py
 ```
 
-`BaseAgent` (~1400 lines) provides:
+`BaseAgent` provides:
 - **Agent loop** (`_process_with_tools`): calls LLM with full message history + tool definitions, executes any tool calls the model returns, appends results, and repeats until the model returns a plain-text response. Tool calls/results are persisted as **proper role-based messages** (assistant with `tool_calls`, tool with `tool_call_id`) — no more injecting into user messages.
+- **EventBus integration**: emits `TurnStarted`/`TurnEnded`, `MessageDelta`, `ThinkingDelta`, `AgentStarted`/`AgentEnded`/`AgentError`, `ProgressUpdated`, `StatusUpdated` events throughout the agent lifecycle. Extensions subscribe via `api.on(TurnStarted, handler)`.
+- **HookRegistry integration**: runs `BEFORE_TURN` / `AFTER_TURN` lifecycle hooks. Extensions can block tool calls via `api.register_hook(HookStage.BEFORE_TOOL_CALL, handler)`.
 - **Full history pipeline**: `_build_messages()` loads ALL role-based messages from `self.memory` via `get_role_memory()`, not just the last 5 entries. Legacy format entries (pre-role dicts) are still supported as a summary context string.
 - **ConversationHistory integration**: tool calls and results are automatically saved to `self.history` (a `ConversationHistory` instance shared with the UI layer), ensuring complete conversation transcripts in JSONL format.
 - **Streaming**: when a `stream_callback` is set, the agent uses streaming LLM calls and emits text chunks in real time to the UI.
@@ -168,9 +194,38 @@ ToolRegistry                — core/tools/registry.py (dict-based, sync execute
   └── AsyncToolRegistry     — core/tools/async_registry.py (semaphore, concurrent, timeout, retry)
 ```
 
-- `ToolRegistry.register(tool)` — injects `tool_registry`, `llm_provider`, `model` refs into each tool.
+- `ToolRegistry.register(tool)` — injects `tool_registry`, `llm_provider`, `model`, `operations_registry` refs into each tool.
 - `ToolRegistry.discover_and_register_plugins()` — auto-loads `.py` files from `~/.jarvis/tools/` and `.jarvis/tools/`.
 - `AsyncToolRegistry.execute_tools_concurrent()` — runs multiple tools in parallel with a configurable semaphore.
+- `ToolRegistry` now has an embedded `OperationsRegistry` — tools can access `self.file_ops`, `self.bash_ops`, `self.edit_ops` without knowing which backend is active.
+
+### Operations Backend
+
+The `OperationsRegistry` (`core/tools/operations/`) decouples tool implementations from the filesystem/OS:
+
+```
+Tool (ReadTool, BashTool, EditTool)
+  │
+  ▼
+tool.file_ops / tool.bash_ops / tool.edit_ops (BaseTool properties)
+  │
+  ▼
+OperationsRegistry
+  ├── FileOperations  (Protocol)     → LocalFileOperations (aiofiles) [default]
+  ├── BashOperations  (Protocol)     → LocalBashOperations  (asyncio)  [default]
+  └── EditOperations  (Protocol)     → LocalEditOperations            [default]
+                                         │
+                                   ┌─────┴─────┐
+                                   │           │
+                             Local (aiofiles)   SSH (extension)
+```
+
+Extensions can swap backends at runtime:
+```python
+# .jarvis/extensions/ssh_backend.py
+async def jarvis_extension(api):
+    api.operations_registry.set_bash_ops(SSHBashOps(), origin="ssh")
+```
 
 ### Tool Categories (20+ tools)
 
@@ -198,7 +253,142 @@ Trusted folders (from `~/.jarvis/trusted_folders.json`) can mark directories as 
 
 ---
 
-## 6. LLM / Provider Layer
+## 6. Event System
+
+The event system (`core/events/`) is a foundation layer that all other subsystems use for decoupled communication. It was added in Phase 1 of the extensibility overhaul (inspired by `pi-agent-core`).
+
+### EventBus
+
+```python
+bus = EventBus()
+
+# Subscribe
+unsub = bus.subscribe(ToolCallStarted, my_handler, priority=10)
+
+# Emit
+await bus.emit(ToolCallStarted(timestamp=t, tool_name="read", ...))
+
+# Unsubscribe
+unsub()
+```
+
+- **24 event types** across 6 categories:
+  - `AgentEvent`: `AgentStarted`, `AgentEnded`, `AgentError`
+  - `TurnEvent`: `TurnStarted`, `TurnEnded`
+  - `MessageEvent`: `MessageDelta`, `MessageComplete`, `ThinkingDelta`
+  - `ToolEvent`: `ToolCallStarted`, `ToolCallEnded`, `ToolCallError`
+  - `SessionEvent`: `SessionStarted`, `SessionShutdown`, `SkillActivated`, `SkillDeactivated`
+  - `ExtensionEvent`: `ExtensionLoaded`, `ExtensionUnloaded`, `ExtensionError`
+  - `StatusEvent`, `ProgressEvent`, `SystemEvent`: status changes, progress updates, warnings
+- **Async-aware**: handlers can be sync or async — async handlers are gathered concurrently.
+- **Priority ordering**: higher-priority handlers run first.
+- **Introspection**: `bus.get_stats()` — total events, per-type counts, slowest handler.
+- **Polymorphic dispatch**: subscribing to a parent class catches child events.
+
+### HookRegistry
+
+Hooks are higher-level lifecycle interceptors that can **block**, **modify**, or **inject** content:
+
+```python
+registry = HookRegistry()
+
+@registry.register(HookStage.BEFORE_TOOL_CALL)
+async def safety_gate(ctx):
+    if ctx.tool_name == "bash" and "rm -rf" in ctx.args.get("command", ""):
+        return HookResult(block=True, reason="Destructive command blocked")
+    return HookResult(proceed=True)
+```
+
+**16 hook stages**: `BEFORE_AGENT_START`, `AFTER_AGENT_START`, `BEFORE_TURN`, `AFTER_TURN`, `BEFORE_TOOL_CALL`, `AFTER_TOOL_CALL`, `BEFORE_PROMPT_BUILD`, `AFTER_PROMPT_BUILD`, `BEFORE_SESSION_START`, `AFTER_SESSION_START`, `BEFORE_SESSION_SHUTDOWN`, `AFTER_SESSION_SHUTDOWN`, `BEFORE_SYSTEM_PROMPT`, `AFTER_SYSTEM_PROMPT`, `BEFORE_SKILL_ACTIVATE`, `AFTER_SKILL_ACTIVATE`.
+
+### Integration Points
+
+| Component | Events Emitted | Hooks Used |
+|---|---|---|
+| `BaseAgent.process_with_progress()` | `AgentStarted`, `AgentEnded`, `AgentError`, `ProgressUpdated`, `StatusUpdated` | — |
+| `BaseAgent._process_with_tools()` | `TurnStarted`, `TurnEnded`, `MessageDelta`, `ThinkingDelta` | `BEFORE_TURN`, `AFTER_TURN` |
+| `ToolRegistry.execute_tool()` | `ToolCallStarted`, `ToolCallEnded`, `ToolCallError` | — |
+| `ExtensionRunner` | `ExtensionLoaded`, `ExtensionUnloaded` | — |
+
+---
+
+## 7. Extension System
+
+The extension system (`core/extensions/`) is the primary mechanism for customizing and extending JARVIS. It was added in Phase 2 of the extensibility overhaul.
+
+### Architecture
+
+```
+Extension (.jarvis/extensions/*.py or pip entry point)
+  │
+  ├── async def jarvis_extension(api: ExtensionAPI) — factory function
+  │       │
+  │       ├── api.register_tool(tool_instance)      — add/override tools
+  │       ├── api.on(event_type, handler)            — subscribe to EventBus
+  │       ├── api.register_hook(stage, handler)       — lifecycle hooks
+  │       ├── api.register_command(name, handler)     — slash commands
+  │       └── api.register_shortcut(key, action_id)   — keyboard shortcuts
+  │
+  └── ExtensionRunner.bind()  — flushes registrations into live session
+        │
+        ├── tool_registry.register(tool)              — ToolRegistry
+        ├── event_bus.subscribe(type, handler)         — EventBus
+        ├── hook_registry.register(stage, handler)     — HookRegistry
+        └── api.operations_registry.set_*(...)         — OperationsRegistry
+```
+
+### ExtensionAPI Surface
+
+| Method | Description | Example |
+|---|---|---|
+| `register_tool(tool)` | Register or override a tool | `api.register_tool(HelloTool())` |
+| `on(event_type, handler)` | Subscribe to EventBus events | `api.on(ToolCallStarted, log_it)` |
+| `register_hook(stage, handler)` | Lifecycle hook (block/modify) | `api.register_hook(BEFORE_TOOL_CALL, safety)` |
+| `register_command(name, handler)` | Slash command | `api.register_command("/hello", cmd)` |
+| `register_shortcut(key, action_id)` | Keyboard shortcut | `api.register_shortcut("ctrl+h", "app.hello")` |
+| `operations_registry` | Access to swap backends | `api.operations_registry.set_bash_ops(...)` |
+| `event_bus` | Read-only EventBus access | `api.event_bus.subscribe(...)` |
+| `tool_registry` | Read-only ToolRegistry | `api.tool_registry.get("read")` |
+
+### Loading & Discovery
+
+Extensions are discovered in precedence order:
+
+1. **Project-local**: `.jarvis/extensions/*.py` (highest priority)
+2. **User-global**: `~/.jarvis/extensions/*.py`
+3. **pip entry points**: packages with `[project.entry-points."jarvis.extensions"]`
+
+The `ExtensionLoader` uses `importlib` (no JIT compiler needed). The `ExtensionRunner` orchestrates the lifecycle:
+
+```python
+runner = ExtensionRunner()
+results = await runner.discover_and_load(project_dir=".")
+await runner.bind(tool_registry, event_bus, hook_registry, session)
+# ... agent runs ...
+await runner.unbind()
+```
+
+### Tool Override Detection
+
+When an extension registers a tool with the same name as a built-in tool, the `ExtensionRunner` logs a warning and tracks the conflict. The extension's tool replaces the built-in one in `ToolRegistry`. This enables patterns like:
+
+- Wrapping `read` with access logging
+- Replacing `bash` with SSH-based execution
+- Adding permission checks around `write`/`edit`
+
+### Reference Extensions
+
+| Example | Pattern |
+|---|---|
+| `hello_world.py` | Minimal tool registration |
+| `audit_tool.py` | Hook-based tool call auditing |
+| `safety_gate.py` | Block destructive bash commands (`rm -rf`) |
+| `event_logger.py` | EventBus subscription pattern |
+| `ssh_operations.py` | Operations backend swap (SSH file/bash) |
+
+---
+
+## 8. LLM / Provider Layer
 
 ### Abstraction
 
@@ -227,7 +417,67 @@ BaseLLMProvider                     — core/llm/base.py
 
 ---
 
-## 7. MCP Integration
+## 9. Prompts, Skills & Resource Discovery
+
+The prompting ecosystem has three interrelated components: **skills** (on-demand capability packages), **prompt templates** (markdown → slash commands), and **resource discovery** (tiered configuration scanning).
+
+### Skills (`core/skills/`)
+
+Skills are self-contained instruction packages following the `agentskills.io` standard:
+
+```
+~/.jarvis/skills/my-skill/SKILL.md
+  ───
+  name: my-skill
+  description: Specialized knowledge for task X
+  when_to_use: When the user asks about X
+  when_not_to_use: For general programming tasks
+  ───
+  # My Skill
+  Step-by-step instructions...
+```
+
+- `SkillManager` discovers skills from `~/.jarvis/skills/`, `~/.agents/skills/`, `.jarvis/skills/`.
+- **Progressive disclosure**: Only name/description/when_to_use/when_not_to_use are shown in the system prompt. Full content loads on demand when the agent invokes the `activate_skill` tool.
+- `SkillTool` (`core/tools/skill_manage_tool.py`) provides CRUD operations (create, read, patch, edit, delete, list, activate).
+
+### Prompt Templates (`core/prompts/`)
+
+Markdown files with YAML frontmatter auto-register as slash commands:
+
+```
+.jarvis/prompts/pr.md:
+  ───
+  description: "Review a pull request"
+  argument-hint: "<PR-URL>"
+  ───
+  Review the PR at $1. Focus on logic errors, test coverage, performance.
+```
+
+- Files in `.jarvis/prompts/` or `~/.jarvis/prompts/` are discovered automatically.
+- Argument substitution: `$1`, `$2`, `$@`, `$ARGUMENTS`, `${@:N}`, `${@:N:L}`.
+- Quoted argument parsing (`/review "my branch"` → one argument).
+- `format_template_help()` renders a `/commands`-style help listing.
+
+### Tiered Resource Discovery (`core/resources/`)
+
+```
+Tier 0 (highest priority):  Project explicit (.jarvis/settings.json paths)
+Tier 1:                     Project auto-discovered (.jarvis/ directory)
+Tier 3 (lowest priority):   User auto-discovered (~/.jarvis/)
+```
+
+Resource types discovered:
+
+| Type | Discovered From | Injected Into |
+|---|---|---|
+| Context files | Walking up from cwd: `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md`, `APPEND_SYSTEM.md` | System prompt as `<context>` blocks |
+| Prompt templates | `.jarvis/prompts/`, `~/.jarvis/prompts/` | Slash commands |
+| Skills | `.jarvis/skills/`, `~/.jarvis/skills/`, `~/.agents/skills/` | System prompt (progressive) |
+
+---
+
+## 10. MCP Integration
 
 MCP (Model Context Protocol) tools are registered as standard `BaseTool` instances through:
 
@@ -244,7 +494,7 @@ MCP servers are configured in `.jarvis/mcp.json` with transport (`stdio` or `sse
 
 ---
 
-## 8. Connector Framework
+## 11. Connector Framework
 
 The connector framework (`core/connectors/`) provides a unified interface for fetching data from external services.
 
@@ -282,19 +532,20 @@ Each connector implements `fetch(query, limit)`, `sync(since, cursor)`, `is_conn
 
 ---
 
-## 9. Configuration System
+## 12. Configuration System
 
-Configuration uses a layered merge pattern (`core/config/settings.py`):
+Configuration uses a layered merge pattern (`core/config/settings.py`) with hot-reload:
 
 ```
 Priority (low → high):
-  1. ~/.jarvis/settings.json       (global defaults)
-  2. .jarvis/settings.json         (project overrides)
-  3. Environment variables          (JARVIS_MODEL, JARVIS_API_KEY, etc.)
-  4. initial_config dict            (runtime overrides)
+  1. Defaults (hard-coded in JarvisSettings model)
+  2. ~/.jarvis/settings.json       (user global)
+  3. .jarvis/settings.json         (project overrides)
+  4. Environment variables          (JARVIS_MODEL, JARVIS_API_KEY, etc.)
+  5. Runtime initial_config dict    (runtime overrides)
 ```
 
-`Settings` loads JSON configs, deep-merges them with env vars and any `initial_config`, then wraps everything in a `JarvisSettings` Pydantic model (`core/config/models.py`). Convenience properties expose typed access (`settings.heartbeat_enabled`, `settings.sandbox_enabled`, etc.). The `save()` method writes back to the highest-priority JSON file.
+`Settings` loads JSON configs, deep-merges them with env vars and any `initial_config`, then wraps everything in a `JarvisSettings` Pydantic model (`core/config/models.py`). Unknown keys from JSON sources are **preserved** — extensions can store their own configuration. The `reload()` method enables hot-reload without restart. The `save()` method uses optional file-locking via `filelock` for concurrent-instance safety.
 
 ### Settings Model Structure
 
@@ -307,14 +558,53 @@ JarvisSettings
   ├── heartbeat: HeartbeatSettings  (enabled, interval, active hours)
   ├── learning: LearningSettings    (enabled, thresholds, directories)
   ├── sandbox: SandboxSettings      (enabled, backend, timeout)
+  ├── theme: str                    ("dark" / "light" / custom name)
+  ├── keybindings: str              ("default" / custom)
+  ├── extensions: dict              (per-extension configuration, e.g. {"ssh_ops": {"host": "..."}})
   ├── bypass_tool_permissions: bool
   ├── disallowed_tools: list[str]
   └── agent_paths: list[str]
 ```
 
+Extension-specific config is accessed via `settings.get_extension_config("my_extension")` and can be stored in `settings.json` as:
+```json
+{
+  "extensions": {
+    "ssh_operations": { "host": "user@server", "key_path": "~/.ssh/id_rsa" }
+  }
+}
+```
+
+### Theme System (`core/config/theme.py`)
+
+Themes are JSON files with **51 color tokens** covering:
+- **Core UI**: accent, border, success, error, warning, muted, text, background, surface
+- **Messages**: user/assistant message backgrounds, tool output, compaction summaries
+- **Markdown**: headings, code blocks, links, lists, blockquotes, inline code
+- **Syntax highlighting**: keywords, strings, functions, operators, comments, types
+- **Thinking levels**: 6 border colors (off, minimal, low, medium, high, xhigh)
+- **UI elements**: footer, header, status bar, progress bar, scrollbar, dialog, input
+
+Includes two built-in themes (`dark`, `light`) with truecolor/256-color auto-detection. Custom themes go in `~/.jarvis/themes/*.json`. Access via `DEFAULT_THEME`, `get_theme("name")`, `discover_themes()`.
+
+### Keybinding System (`core/config/keybindings.py`)
+
+Namespaced action IDs with 32 default bindings across 6 namespaces:
+
+| Namespace | Examples |
+|---|---|
+| `jarvis.editor.*` | `cursorUp`, `deleteWordBackward`, `yank`, `undo` |
+| `jarvis.input.*` | `newLine`, `submit`, `tab` |
+| `jarvis.agent.*` | `interrupt`, `model.select`, `thinking.cycle` |
+| `jarvis.model.*` | `cycleForward`, `select` |
+| `jarvis.session.*` | `fork`, `tree` |
+| `jarvis.view.*` | `zoomIn`, `expandTools` |
+
+Keybindings are loaded from `~/.jarvis/keybindings.json` / `.jarvis/keybindings.json`. Legacy action IDs are auto-migrated to namespaced format. Provides `load_keybindings()`, `save_keybindings()`, `resolve_action()`, `format_keybinding_help()`.
+
 ---
 
-## 10. User Interfaces
+## 13. User Interfaces
 
 ### CLI (`interface/cli/`)
 
@@ -339,9 +629,16 @@ JarvisSettings
 - Approval requests are sent as WebSocket events and resolved asynchronously.
 - Best for: remote access, visual feedback, multi-session management.
 
+### RPC (`core/rpc/`)
+
+- JSONL protocol over stdin/stdout — no TUI, no prompt_toolkit dependency.
+- Launch with `--mode rpc`, pipe JSONL commands, read events+responses from stdout.
+- Commands: `prompt`, `steer`, `follow_up`, `bash`, `compact`, `new_session`, `get_state`, `get_messages`, `get_tools`, `set_model`.
+- Best for: embedding JARVIS in IDEs (VS Code extension, etc.), CI/CD pipelines, custom UIs.
+
 ---
 
-## 11. Data Flow
+## 14. Data Flow
 
 ```
 1. User types a message in CLI/TUI/WebUI
@@ -405,7 +702,7 @@ JarvisSettings
 
 ---
 
-## 12. Conversation History Management
+## 15. Conversation History Management
 
 ### Architecture
 
@@ -472,7 +769,7 @@ When the context window approaches its limit (default 80% threshold), `compact()
 
 ---
 
-## 13. Key Design Decisions
+## 16. Key Design Decisions
 
 **Why a single-agent architecture (JarvisV2) rather than multi-agent orchestration?**
 > Simplicity and reliability. A single agent with a rich tool set avoids the coordination overhead, context fragmentation, and failure modes of multi-agent systems. The tool system provides equivalent modularity — tools encapsulate all "agent-like" behavior (sub-agent delegation via the `agents` tool, MCP adapters, skill activation) without the complexity of agent-to-agent handoff.
@@ -491,6 +788,27 @@ When the context window approaches its limit (default 80% threshold), `compact()
 
 **Why bubblewrap-based sandbox for command execution?**
 > Security without containers. `bubblewrap` provides lightweight filesystem namespace isolation without requiring Docker or root privileges. It is fast enough for interactive use and prevents accidental filesystem modifications from shell commands.
+
+**Why the EventBus + HookRegistry pattern instead of direct callbacks?**
+> Decoupling. The EventBus allows any number of subscribers (extensions, UI, logging) without the agent loop knowing about them. The HookRegistry gives extensions _control_ (block/modify) not just observation, which enables safety gates, audit trails, and backend swapping without modifying core code.
+
+**Why Python extensions via importlib instead of a custom plugin DSL?**
+> Zero barrier to entry. Any Python developer can write an extension without learning a new API format. Dynamic importlib loading means extensions are just `.py` files in `.jarvis/extensions/` — no build step, no manifest registration.
+
+**Why progressive skill disclosure?**
+> Context window efficiency. Skills can be large (hundreds of lines of instructions). Showing only name + description + when_to_use in the system prompt keeps the context lean while still making the agent aware of available expertise. Full content loads on demand via `read` tool when the agent decides to use a skill.
+
+**Why the Operations Protocol pattern for tool backends?**
+> Testability and extensibility. By defining `FileOperations`, `BashOperations`, and `EditOperations` as `typing.Protocol`s, we enable runtime backend swapping (local ↔ SSH ↔ sandbox) without changing a single tool implementation. Tools call `self.file_ops.read_file(...)` and get whatever backend is active.
+
+**Why markdown-based prompt templates instead of code-based slash commands?**
+> Accessibility. Non-developers can create slash commands by writing a simple markdown file with YAML frontmatter. No Python code required. The argument substitution syntax (`$1`, `$2`, `$@`) is familiar from shell scripting.
+
+**Why per-session EventBus instead of global singleton?**
+> Isolation. Each agent session gets its own EventBus instance, so extensions bound to one session don't leak events into another. This enables future multi-session or subagent scenarios without cross-talk.
+
+**Why preserve unknown JSON keys in settings?**
+> Extension compatibility. Extensions can store their configuration in `settings.json` under the `extensions` key without requiring schema changes to `JarvisSettings`. The `get_extension_config()` method provides typed access, and `_raw_extras` ensures unknown keys survive a save/load cycle.
 
 **Why the learning system uses M1→M2→M3 distillation?**
 > Tiered quality. M1 captures raw traces (high recall, low precision), M2 filters and deduplicates, and M3 crystallizes into reusable skill markdown. This pipeline prevents low-quality or noisy data from polluting the skill library while still capturing valuable patterns.
@@ -513,19 +831,28 @@ When the context window approaches its limit (default 80% threshold), `compact()
 | **Heartbeat** | Periodic background awareness | `settings.json` → `heartbeat.enabled`, `.interval`, `.active_hours` |
 | **WebUI colors** | Full theme | `interface/webui/src/globals.css` → `:root` CSS variables |
 | **System prompt** | Agent instructions | `core/agents/prompts/` → `jarvis_v2.py`, `explore.py`, etc. |
-| **Custom agents** | New agent definitions | `~/.jarvis/agents/` as `.py` files |
-| **Custom tools** | New tool implementations | `core/tools/` or MCP server |
+| **Extensions** | Add custom tools/hooks/commands | `.jarvis/extensions/*.py` — see `examples/extensions/` |
+| **Operation backends** | Swap file/bash/edit backends | Extensions calling `api.operations_registry.set_*(...)` |
+| **Custom tools** | New tool implementations | `.jarvis/extensions/` or `core/tools/` |
+| **Prompt templates** | Slash commands | `.jarvis/prompts/*.md` — see `examples/prompts/` |
+| **Context files** | Project-level agent instructions | `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md` in project tree |
+| **Skills** | On-demand capability packages | `~/.jarvis/skills/` as `SKILL.md` directories |
 | **MCP servers** | Connect external tools | `.mcp.json` or `/api/mcp/servers` |
 | **Connectors** | External data sources | `settings.json` → `connectors` or `/api/connectors` |
 | **WebUI** | Look and feel | `interface/webui/` — all React components and CSS |
 | **Settings file** | All runtime config | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
 | **Sandbox** | Command execution security | `settings.json` → `sandbox` |
+| **Themes** | TUI color scheme | `~/.jarvis/themes/*.json` — 51 color tokens |
+| **Keybindings** | Keyboard shortcuts | `~/.jarvis/keybindings.json` — namespaced action IDs |
+| **Extension config** | Per-extension settings | `settings.json` → `extensions.my_ext` |
 
 ### ⚠️ Proceed with Caution (Understand Before Changing)
 
 | Area | Why | Where |
 |------|-----|-------|
 | **Agent loop** | Core decision loop; breaks streaming, tool execution, approval flow | `core/agents/base.py` |
+| **EventBus** | All extensions/hooks rely on it; changing event types breaks subscribers | `core/events/bus.py`, `core/events/types.py` |
+| **ExtensionRunner** | Extension lifecycle; changing bind/unbind breaks all extensions | `core/extensions/runner.py` |
 | **Tool registry** | Tool discovery and permission checks | `core/tools/registry.py`, `core/tools/__init__.py` |
 | **SDK adapter** | All LLM communication goes through this | `core/llm/sdk_adapter.py` |
 | **Provider SDKs** | Provider-specific API format | `core/llm_sdk/openai/sdk.py`, `core/llm_sdk/anthropic/sdk.py` |
@@ -533,6 +860,7 @@ When the context window approaches its limit (default 80% threshold), `compact()
 | **Permission system** | Tool allow/deny/ask logic | `core/tools/permissions.py`, `core/tools/permission_manager.py` |
 | **Config models** | Setting schema changes break existing configs | `core/config/models.py` |
 | **API endpoints** | Changes break WebUI and external integrations | `core/web/server.py` |
+| **Operations Protocols** | All tool backends implement these; adding methods breaks backends | `core/tools/operations/base.py` |
 
 ### 🚫 Don't Touch Unless You Understand the Full System
 

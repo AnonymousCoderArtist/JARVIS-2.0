@@ -854,7 +854,7 @@ Create a comprehensive summary that captures:
         # Generate a unique tool_call_id for tracking
         import uuid
         tool_call_id = str(uuid.uuid4())
-        
+
         # Use arguments in key to support parallel calls of the same tool
         import json
         try:
@@ -862,7 +862,7 @@ Create a comprehensive summary that captures:
             key = f"{tool_name}:{args_str}"
         except Exception:
             key = tool_name
-            
+
         self._tool_call_ids[key] = tool_call_id
         # Try to get tool class from tool registry
         tool_class = ""
@@ -997,7 +997,7 @@ Create a comprehensive summary that captures:
             key = f"{tool_name}:{args_str}"
         except Exception:
             key = tool_name
-            
+
         tool_call_id = self._tool_call_ids.get(key, "")
         # Try to get tool class from tool registry
         tool_class = ""

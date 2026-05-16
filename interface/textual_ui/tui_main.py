@@ -10,6 +10,7 @@ from typing import Any
 
 from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
 from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
+from core.events import EventBus, HookRegistry
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
@@ -270,10 +271,21 @@ def create_tool_registry() -> AsyncToolRegistry:
     from core.tools.tool_search_tool import ToolSearchTool
     tool_registry.register(ToolSearchTool())
 
-    # Discover and register custom tools from .jarvis/tools/
-    tool_registry.discover_and_register_plugins()
-
     return tool_registry
+
+
+async def load_extensions(tool_registry, event_bus=None, hook_registry=None):
+    """Discover and load extensions via the ExtensionRunner system."""
+    from core.extensions import ExtensionRunner
+
+    runner = ExtensionRunner()
+    await runner.discover_and_load(project_dir=".")
+    conflicts = await runner.bind(tool_registry, event_bus, hook_registry)
+    if conflicts:
+        for ext_name, tool_conflicts in conflicts.items():
+            for c in tool_conflicts:
+                logger.info("Extension '%s' overrode tool '%s'", ext_name, c["tool"])
+    return runner
 
 
 def create_sdk_instance(sdk: str, api_key: str | None, base_url: str | None) -> Any:
@@ -303,6 +315,14 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
 
     # Initialize tool registry with all JARVIS tools
     tool_registry = create_tool_registry()
+
+    # Shared event system and hook registry for the session
+    event_bus = EventBus()
+    hook_registry = HookRegistry()
+
+    # Load extensions (custom tools, hooks, etc.)
+    import asyncio
+    extension_runner = asyncio.run(load_extensions(tool_registry, event_bus, hook_registry))
 
     # Create SDK instance based on parameters
     sdk_instance = create_sdk_instance(sdk, apikey, base_url)
@@ -355,14 +375,20 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
     )
     async_agent_manager = AsyncAgentManager(async_config)
 
-    # Create JARVIS agent with full core integration, profile config getter, and concurrent tools enabled
+    # Create JARVIS agent with full core integration, profile config getter, concurrent tools enabled, and shared event system
     jarvis_agent = CodingAgent(
         provider,
         tool_registry,
         model=model,
         config_getter=lambda: agent_manager.config,
-        use_concurrent_tools=True
+        use_concurrent_tools=True,
+        event_bus=event_bus,
+        hook_registry=hook_registry,
     )
+
+    # Wire extension hooks into the agent's HookRegistry
+    if extension_runner:
+        extension_runner.rebind_hooks(jarvis_agent.hook_registry)
 
     # Rebuild system prompt with dynamic tool descriptions
     jarvis_agent.rebuild_system_prompt()

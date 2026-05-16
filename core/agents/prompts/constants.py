@@ -21,6 +21,7 @@ DEFAULT_EMOJI_MAP = {
     "jarvis-help": "❓",
     "statusline-setup": "💻",
     "verification": "✅",
+    "rubber-duck": "🦆",
     "general-purpose": "⚡",
     "fork": "🍴",
 }

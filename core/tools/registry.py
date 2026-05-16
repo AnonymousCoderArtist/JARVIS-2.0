@@ -2,9 +2,8 @@
 
 import importlib.util
 import sys
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Coroutine
+from typing import Any
 
 from .base import BaseTool, ToolOutput
 
@@ -19,6 +18,7 @@ class ToolRegistry:
         self.config_getter = config_getter
         self.active_skills: dict[str, str] = {}
         self.event_queue = None
+        self.event_bus = None
 
     def register(self, tool: BaseTool):
         """
@@ -161,10 +161,10 @@ class ToolRegistry:
             Path.home() / ".jarvis" / "tools",
             Path.cwd() / ".jarvis" / "tools",
         ]
-        
+
         registered_count = 0
         processed_files = set()
-        
+
         for path in search_paths:
             if path.exists() and path.is_dir():
                 for file in path.glob("*.py"):
@@ -176,5 +176,5 @@ class ToolRegistry:
                             registered_count += 1
                         except Exception as e:
                             print(f"Error loading plugin from {resolved_file}: {e}")
-                            
+
         return registered_count
