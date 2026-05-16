@@ -200,6 +200,23 @@ class BaseAgent(ABC):
 
         full_prompt = self.base_system_prompt
 
+        # Run BEFORE_SYSTEM_PROMPT hooks (sync-compatible)
+        # Note: These are run best-effort; async hooks will run on next async call
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're in an async context, run hooks properly
+                asyncio.ensure_future(self._run_hooks(HookStage.BEFORE_SYSTEM_PROMPT, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    system_prompt=full_prompt,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )))
+        except Exception:
+            pass
+
         # --- Discovered context files (AGENTS.md, CLAUDE.md, etc.) ---
         try:
             project_dir = getattr(self, "_config_getter", lambda: None)()
@@ -234,6 +251,21 @@ class BaseAgent(ABC):
             pass
 
         self.system_prompt = full_prompt
+
+        # Run AFTER_SYSTEM_PROMPT hooks (best-effort, async)
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(self._run_hooks(HookStage.AFTER_SYSTEM_PROMPT, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    system_prompt=full_prompt,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                )))
+        except Exception:
+            pass
 
     def rebuild_system_prompt(self) -> None:
         """Rebuild the system prompt with current tool descriptions and active skills.
@@ -846,6 +878,17 @@ class BaseAgent(ABC):
                             full_response += chunk_text
                             self.stream_callback(chunk_text)
 
+                    # Deduplicate tool calls by ID (streaming may emit both individual and batch)
+                    seen_ids: set[str] = set()
+                    deduped: list[ToolCall] = []
+                    for tc in tool_calls:
+                        if tc.id and tc.id not in seen_ids:
+                            seen_ids.add(tc.id)
+                            deduped.append(tc)
+                        elif not tc.id:
+                            deduped.append(tc)
+                    tool_calls = deduped
+
                     # If tool calls were encountered, execute them
                     if tool_calls:
                         response_dict: dict[str, Any] = {
@@ -866,8 +909,8 @@ class BaseAgent(ABC):
                         ))
                         continue  # Loop again with updated messages
 
-                    # Check for text-embedded tool calls in the response
-                    if has_text_tool_calls(full_response):
+                    # Check for text-embedded tool calls ONLY when no structured tool calls were found
+                    elif has_text_tool_calls(full_response):
                         cleaned_text, text_tool_calls = extract_text_and_tool_calls(full_response)
                         if text_tool_calls:
                             normalized_calls = normalize_tool_calls(text_tool_calls)
@@ -974,8 +1017,8 @@ class BaseAgent(ABC):
                 ))
                 continue  # Loop again with updated messages
 
-            # Check for text-embedded tool calls in non-streaming response
-            if has_text_tool_calls(content):
+            # Check for text-embedded tool calls ONLY when no structured tool calls were found
+            elif has_text_tool_calls(content):
                 cleaned_text, text_tool_calls = extract_text_and_tool_calls(content)
                 if text_tool_calls:
                     normalized_calls = normalize_tool_calls(text_tool_calls)
@@ -1188,7 +1231,25 @@ class BaseAgent(ABC):
 
                 # Rebuild system prompt if a skill was activated
                 if tool_name == "activate_skill" and hasattr(result, "success") and result.success:
+                    skill_name = tool_args.get("skill_name", "") or tool_args.get("name", "")
+                    # Run BEFORE_SKILL_ACTIVATE hooks
+                    skill_ctx = HookContext(
+                        skill_name=skill_name,
+                        agent_name=getattr(self, "name", ""),
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                    )
+                    await self._run_hooks(HookStage.BEFORE_SKILL_ACTIVATE, skill_ctx)
                     self.rebuild_system_prompt()
+                    # Run AFTER_SKILL_ACTIVATE hooks
+                    await self._run_hooks(HookStage.AFTER_SKILL_ACTIVATE, HookContext(
+                        skill_name=skill_name,
+                        agent_name=getattr(self, "name", ""),
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                    ))
 
                 # Format tool result for LLM
                 success = getattr(result, "success", False)

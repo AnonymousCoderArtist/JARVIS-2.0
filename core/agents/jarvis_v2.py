@@ -3,11 +3,11 @@
 import asyncio
 import time
 from collections import defaultdict
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from core.connectors import ConnectorManager
 from core.learn import LearningConfig, LearningManager
-from core.learn.skill_crystallizer import SkillCrystallizer
 from core.tools.skill_manage_tool import create_skill_markdown, get_skill_dir
 
 from .base import BaseAgent
@@ -81,9 +81,6 @@ class JarvisV2(BaseAgent):
         self._tool_call_count: int = 0
         self._skill_creation_threshold: int = 5
         self._self_evaluation_interval: int = 15
-        self._crystallizer = SkillCrystallizer()
-        self._auto_skill_min_steps: int = 3
-        self._auto_skill_trigger_tools: int = 5
 
     @property
     def learning_manager(self) -> LearningManager | None:
@@ -384,23 +381,6 @@ class JarvisV2(BaseAgent):
             if self.history is not None:
                 from core.history import create_assistant_message
                 self.history.append_message(create_assistant_message(response))
-
-            # Crystallize execution path into a reusable skill (GenericAgent-style)
-            try:
-                tool_steps = [s for s in self.execution_trace if s.get("tool")]
-                should_try = len(tool_steps) >= self._auto_skill_min_steps and len(tool_steps) >= self._auto_skill_trigger_tools
-                if should_try:
-                    success = all(bool(s.get("success")) for s in tool_steps)
-                    self._crystallizer.crystallize(
-                        user_input=input,
-                        final_response=response,
-                        execution_trace=tool_steps,
-                        success=success,
-                        min_steps=self._auto_skill_min_steps,
-                    )
-            except Exception:
-                # Never break user flow due to self-evolution.
-                pass
 
             # Run AFTER_AGENT_END hooks
             await self._run_hooks(HookStage.AFTER_AGENT_END, HookContext(
