@@ -4,6 +4,7 @@ Register this hook at BEFORE_TURN and AFTER_TURN to monitor iteration count.
 """
 
 import logging
+
 from core.events.hooks import HookContext, HookResult
 
 logger = logging.getLogger(__name__)

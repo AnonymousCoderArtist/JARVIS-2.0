@@ -21,8 +21,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from mcp.client.auth.oauth2 import OAuthClientProvider
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
-from mcp.client.auth.oauth2 import OAuthClientProvider, TokenStorage
 
 logger = logging.getLogger(__name__)
 
@@ -159,16 +159,16 @@ async def create_oauth_client(config: Any) -> Any:
         logger.info(f"Opening browser for OAuth authorization: {authorization_url}")
         print(f"\n🔐 OAuth Authorization Required for '{config.name}'")
         print(f"   Opening browser: {authorization_url}")
-        print(f"   Waiting for authorization...\n")
+        print("   Waiting for authorization...\n")
 
         webbrowser.open(authorization_url)
 
     # Create callback handler — starts local server to receive callback
     async def callback_handler() -> tuple[str, str | None]:
         """Start a local server to receive the OAuth callback."""
-        from http.server import HTTPServer, BaseHTTPRequestHandler
-        from urllib.parse import urlparse, parse_qs
         import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from urllib.parse import parse_qs, urlparse
 
         code: str | None = None
         state: str | None = None

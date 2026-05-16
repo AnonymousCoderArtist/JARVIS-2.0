@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+
 from core.watchers.base import BaseWatcher
 
 
@@ -36,7 +37,7 @@ class LogTailWatcher(BaseWatcher):
                 self._last_position = 0
 
             # Read only new lines
-            with open(self._log_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(self._log_path, encoding="utf-8", errors="replace") as f:
                 f.seek(self._last_position)
                 new_lines = f.readlines()
                 self._last_position = f.tell()
@@ -77,5 +78,5 @@ class LogTailWatcher(BaseWatcher):
                     level="warning",
                 )
 
-        except Exception as e:
+        except Exception:
             pass  # Silently skip on read errors

@@ -9,6 +9,7 @@ PLAN_AGENT_TYPE = "plan"
 JARVIS_HELP_AGENT_TYPE = "jarvis-help"
 VERIFICATION_AGENT_TYPE = "verification"
 STATUSLINE_SETUP_AGENT_TYPE = "statusline-setup"
+RUBBER_DUCK_AGENT_TYPE = "rubber-duck"
 GENERAL_PURPOSE_AGENT_TYPE = "general-purpose"
 FORK_AGENT_TYPE = "fork"
 
@@ -19,6 +20,7 @@ ONE_SHOT_BUILTIN_AGENT_TYPES = frozenset({
     JARVIS_HELP_AGENT_TYPE,
     VERIFICATION_AGENT_TYPE,
     STATUSLINE_SETUP_AGENT_TYPE,
+    RUBBER_DUCK_AGENT_TYPE,
 })
 
 # Tool allowlists for different agent types
@@ -27,6 +29,7 @@ PLAN_ALLOWED_TOOLS = ("read", "ls", "find", "grep", "web_search", "fetch_webpage
 JARVIS_HELP_ALLOWED_TOOLS = ("read", "ls", "find", "grep", "web_search", "fetch_webpage")
 VERIFICATION_ALLOWED_TOOLS = ("bash", "read", "ls", "find", "grep", "web_search", "fetch_webpage")
 STATUSLINE_SETUP_ALLOWED_TOOLS = ("read", "ls", "find", "grep", "web_search", "fetch_webpage")
+RUBBER_DUCK_ALLOWED_TOOLS = ("read", "ls", "find", "grep", "bash(read-only)", "web_search", "fetch_webpage")
 
 # Default max tokens for background agents
 DEFAULT_MAX_TOKENS = 128000

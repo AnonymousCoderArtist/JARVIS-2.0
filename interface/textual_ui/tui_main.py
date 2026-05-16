@@ -10,6 +10,7 @@ from typing import Any
 
 from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
 from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
+from core.events import EventBus, HookRegistry
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm_sdk.openai.sdk import OpenAISDK
@@ -315,9 +316,13 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
     # Initialize tool registry with all JARVIS tools
     tool_registry = create_tool_registry()
 
+    # Shared event system and hook registry for the session
+    event_bus = EventBus()
+    hook_registry = HookRegistry()
+
     # Load extensions (custom tools, hooks, etc.)
     import asyncio
-    extension_runner = asyncio.run(load_extensions(tool_registry))
+    extension_runner = asyncio.run(load_extensions(tool_registry, event_bus, hook_registry))
 
     # Create SDK instance based on parameters
     sdk_instance = create_sdk_instance(sdk, apikey, base_url)
@@ -370,13 +375,15 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
     )
     async_agent_manager = AsyncAgentManager(async_config)
 
-    # Create JARVIS agent with full core integration, profile config getter, and concurrent tools enabled
+    # Create JARVIS agent with full core integration, profile config getter, concurrent tools enabled, and shared event system
     jarvis_agent = CodingAgent(
         provider,
         tool_registry,
         model=model,
         config_getter=lambda: agent_manager.config,
-        use_concurrent_tools=True
+        use_concurrent_tools=True,
+        event_bus=event_bus,
+        hook_registry=hook_registry,
     )
 
     # Wire extension hooks into the agent's HookRegistry

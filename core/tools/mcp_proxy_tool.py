@@ -343,7 +343,7 @@ class MCPProxyTool(BaseTool):
             f"  **Server**: {tool_meta.server_name}",
             f"  **Original name**: {tool_meta.original_name}",
             f"  **Description**: {tool_meta.description}",
-            f"\n  **Parameters**:",
+            "\n  **Parameters**:",
         ]
 
         schema = tool_meta.input_schema

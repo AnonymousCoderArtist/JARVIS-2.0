@@ -175,8 +175,8 @@ def main() -> None:
 
     # Auto-resume latest session if -r was used without argument
     if resume_session == "latest":
+
         from core.history import ConversationHistory
-        from pathlib import Path
         history_dir = ConversationHistory().history_dir
         if history_dir.exists():
             sessions = list(history_dir.glob("*.jsonl"))
@@ -194,6 +194,7 @@ def main() -> None:
     # Handle mode flag
     if mode == "rpc":
         import asyncio
+
         from core.rpc import run_rpc_mode
         asyncio.run(run_rpc_mode(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
         return

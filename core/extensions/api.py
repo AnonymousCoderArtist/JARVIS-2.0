@@ -18,7 +18,6 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from core.events.hooks import HookContext, HookResult, HookStage
-from core.events.types import ExtensionLoaded, ExtensionUnloaded
 
 logger = logging.getLogger(__name__)
 

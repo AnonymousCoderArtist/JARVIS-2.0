@@ -3,9 +3,10 @@
 Subscribe to ToolCallStarted and ToolCallEnded to build execution statistics.
 """
 
-import time
 import logging
-from core.events.types import ToolCallStarted, ToolCallEnded, ToolCallError
+import time
+
+from core.events.types import ToolCallEnded, ToolCallError, ToolCallStarted
 
 logger = logging.getLogger(__name__)
 

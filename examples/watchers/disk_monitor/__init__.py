@@ -1,6 +1,7 @@
 """Disk usage monitor — alerts when disk space is low."""
 
 import shutil
+
 from core.watchers.base import BaseWatcher
 
 
@@ -58,6 +59,6 @@ class DiskMonitor(BaseWatcher):
                 )
                 self._last_alert_pct = pct
 
-        except Exception as e:
+        except Exception:
             # Non-Unix systems may not support shutil.disk_usage("/")
             pass

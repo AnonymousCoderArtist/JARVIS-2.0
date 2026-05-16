@@ -1,10 +1,10 @@
 """Base class for all watchers"""
 
-from abc import ABC, abstractmethod
-from pathlib import Path
-from datetime import datetime
 import json
 import logging
+from abc import ABC, abstractmethod
+from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class BaseWatcher(ABC):
     """
     name: str = "base_watcher"
     description: str = "A base watcher"
-    
+
     def __init__(self, interval: int = 60):
         """
         Initialize the watcher.
@@ -41,7 +41,7 @@ class BaseWatcher(ABC):
         self.interval = interval
         self._running = False
         self.event_queue = None
-        
+
     @property
     def enabled(self) -> bool:
         """Check if watcher is enabled in config. Override to customize."""
@@ -49,7 +49,7 @@ class BaseWatcher(ABC):
         if config is None:
             return True
         return config.get("enabled", True)
-    
+
     def load_config(self) -> dict:
         """
         Load watcher-specific config from settings.json.
@@ -77,11 +77,11 @@ class BaseWatcher(ABC):
             except Exception as e:
                 logger.debug(f"Watcher {self.name} failed to load config: {e}")
         return {}
-    
+
     def set_event_queue(self, queue):
         """Set the event queue for communicating with JARVIS UI."""
         self.event_queue = queue
-    
+
     async def notify(self, title: str, message: str, level: str = "info"):
         """
         [OPTIONAL] Send a notification to the JARVIS UI.
@@ -98,17 +98,17 @@ class BaseWatcher(ABC):
             try:
                 # Lazy import to avoid circular dependencies
                 from interface.textual_ui.types import AssistantEvent
-                
+
                 emoji = {"error": "🔴", "warning": "🟡", "info": "🔵"}.get(level.lower(), "📢")
                 content = f"{emoji} **[{self.name.upper()}] {title}**: {message}"
-                
+
                 self.event_queue.put_nowait(AssistantEvent(
                     content=content,
                     is_heartbeat=True
                 ))
             except Exception as e:
                 logger.debug(f"Watcher {self.name} UI notification failed: {e}")
-        
+
         # Also log it
         log_method = getattr(logger, level.lower(), logger.info)
         log_method(f"WATCHER [{self.name}]: {title} - {message}")
@@ -127,10 +127,10 @@ class BaseWatcher(ABC):
         """
         cop_dir = Path(".jarvis") / "status"
         cop_dir.mkdir(parents=True, exist_ok=True)
-        
+
         file_id = key if key else self.__class__.__name__
         cop_file = cop_dir / f"{file_id}.cop.jsonl"
-        
+
         try:
             with open(cop_file, "a", encoding="utf-8") as f:
                 entry = {
@@ -142,7 +142,7 @@ class BaseWatcher(ABC):
                 f.write(json.dumps(entry, default=str) + "\n")
         except Exception as e:
             logger.error(f"Watcher {self.name} failed to update COP: {e}")
-    
+
     def get_cop(self, key=None) -> list:
         """
         Read recent entries from COP.
@@ -156,13 +156,13 @@ class BaseWatcher(ABC):
         cop_dir = Path(".jarvis") / "status"
         file_id = key if key else self.__class__.__name__
         cop_file = cop_dir / f"{file_id}.cop.jsonl"
-        
+
         if not cop_file.exists():
             return []
-        
+
         try:
             entries = []
-            with open(cop_file, "r", encoding="utf-8") as f:
+            with open(cop_file, encoding="utf-8") as f:
                 for line in f.readlines()[-10:]:
                     if line.strip():
                         entries.append(json.loads(line))
@@ -170,7 +170,7 @@ class BaseWatcher(ABC):
         except Exception as e:
             logger.error(f"Watcher {self.name} failed to read COP: {e}")
             return []
-    
+
     @abstractmethod
     async def watch(self):
         """
@@ -192,11 +192,11 @@ class BaseWatcher(ABC):
                     await self.send_telegram(...)
         """
         pass
-    
+
     async def start(self):
         """Called when watcher starts. Override for initialization."""
         pass
-    
+
     async def stop(self):
         """Called when watcher stops. Override for cleanup."""
         pass

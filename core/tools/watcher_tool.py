@@ -2,16 +2,17 @@
 
 import json
 from pathlib import Path
-from typing import Any
+
 from .base import BaseTool, ToolInput, ToolOutput
+
 
 class WatcherStatusTool(BaseTool):
     """Tool for reading the status of passive watchers and COP data"""
-    
+
     name = "watcher_status"
     description = """Read the status of passive watchers and data from the Common Operational Picture (COP).
 Use this to get real-time intelligence data updated by background watchers (e.g., world intelligence, system health)."""
-    
+
     input_schema = {
         "type": "object",
         "properties": {
@@ -36,31 +37,31 @@ Use this to get real-time intelligence data updated by background watchers (e.g.
         key = getattr(input_data, "key", None)
         offset = getattr(input_data, "offset", 0)
         limit = getattr(input_data, "limit", 0)
-        
+
         cop_dir = Path(".jarvis") / "status"
-        
+
         if not cop_dir.exists():
             return ToolOutput(success=True, result="No watcher data available yet.")
-            
+
         if key:
             cop_file = cop_dir / f"{key}.cop.jsonl"
             if not cop_file.exists():
                 return ToolOutput(success=False, result=None, error=f"COP key '{key}' not found.")
-                
+
             try:
                 entries = []
-                with open(cop_file, "r", encoding="utf-8") as f:
+                with open(cop_file, encoding="utf-8") as f:
                     lines = f.readlines()
-                    
+
                     # Apply pagination logic
                     target_lines = lines[offset:]
                     if limit > 0:
                         target_lines = target_lines[:limit]
-                        
+
                     for line in target_lines:
                         if line.strip():
                             entries.append(json.loads(line))
-                            
+
                 return ToolOutput(success=True, result={"total_lines": len(lines), "entries": entries})
             except Exception as e:
                 return ToolOutput(success=False, result=None, error=f"Failed to read COP key '{key}': {str(e)}")

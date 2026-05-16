@@ -15,7 +15,6 @@ from interface.textual_ui.cli_adapters import VibeConfig
 from interface.textual_ui.widgets.no_markup_static import NoMarkupStatic
 from interface.textual_ui.widgets.tool_widgets import get_approval_widget
 
-
 # ── Vibe-style ApprovalApp (fully cloned from mistralai/mistral-vibe) ──
 
 class ApprovalApp(Container):

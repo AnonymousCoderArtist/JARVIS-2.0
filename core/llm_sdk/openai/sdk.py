@@ -1,13 +1,11 @@
 """OpenAI GPT SDK implementation using the official openai package."""
 
-import json
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionChunk, ChatCompletionToolParam
-from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 
 from ..base.sdk import (
     BaseLLMSDK,

@@ -22,20 +22,10 @@ from core.events import (
     HookRegistry,
     HookResult,
     HookStage,
-    MessageComplete,
-    MessageDelta,
     ProgressUpdated,
-    SessionStarted,
-    SessionShutdown,
     StatusUpdated,
-    ThinkingDelta,
-    ToolCallEnded,
-    ToolCallError,
-    ToolCallStarted,
-    TurnEnded,
-    TurnStarted,
 )
-from core.history import ConversationHistory, messages_to_role_dicts
+from core.history import ConversationHistory
 from core.llm.base import BaseLLMProvider, MessageDict
 from core.llm_sdk.base.sdk import ToolCall
 from core.llm_sdk.tool_parser import (
@@ -772,7 +762,34 @@ class BaseAgent(ABC):
         tool_definitions = self.tools.get_function_definitions()
         updated_messages = messages.copy()
 
+        # Run BEFORE_PROMPT_BUILD hooks
+        prompt_ctx = HookContext(
+            agent_name=getattr(self, "name", ""),
+            session_id=getattr(self, "session_id", ""),
+            model=self.model,
+            cwd=str(Path.cwd()),
+            messages=list(updated_messages),
+        )
+        prompt_result = await self._run_hooks(HookStage.BEFORE_PROMPT_BUILD, prompt_ctx)
+        if prompt_result.block:
+            return f"Prompt build blocked by hook: {prompt_result.reason}"
+        if prompt_result.inject:
+            # Inject content as a user message
+            updated_messages.append({"role": "user", "content": prompt_result.inject})
+
         while True:
+            # Run BEFORE_TURN hooks
+            turn_ctx = HookContext(
+                agent_name=getattr(self, "name", ""),
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+                messages=list(updated_messages),
+            )
+            turn_result = await self._run_hooks(HookStage.BEFORE_TURN, turn_ctx)
+            if turn_result.block:
+                return f"Turn blocked by hook: {turn_result.reason}"
+
             # Drain pending subagent notifications and inject as context
             updated_messages = self._drain_and_inject_notifications(updated_messages)
 
@@ -840,6 +857,13 @@ class BaseAgent(ABC):
                             updated_messages,
                             use_concurrent=self.use_concurrent_tools
                         )
+                        await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                            agent_name=getattr(self, "name", ""),
+                            session_id=getattr(self, "session_id", ""),
+                            model=self.model,
+                            cwd=str(Path.cwd()),
+                            messages=list(updated_messages),
+                        ))
                         continue  # Loop again with updated messages
 
                     # Check for text-embedded tool calls in the response
@@ -856,11 +880,34 @@ class BaseAgent(ABC):
                                 updated_messages,
                                 use_concurrent=self.use_concurrent_tools
                             )
+                            await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                                agent_name=getattr(self, "name", ""),
+                                session_id=getattr(self, "session_id", ""),
+                                model=self.model,
+                                cwd=str(Path.cwd()),
+                                messages=list(updated_messages),
+                            ))
                             continue
 
                     # Signal that reasoning is done
                     if self.reasoning_done_callback:
                         self.reasoning_done_callback()
+                    await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                        agent_name=getattr(self, "name", ""),
+                        agent_output=full_response,
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                        messages=list(updated_messages),
+                    ))
+                    await self._run_hooks(HookStage.AFTER_PROMPT_BUILD, HookContext(
+                        agent_name=getattr(self, "name", ""),
+                        agent_output=full_response,
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                        messages=list(updated_messages),
+                    ))
                     return full_response
                 except Exception as e:
                     logger.warning(f"Streaming with tools failed, falling back to non-streaming: {e}")
@@ -877,7 +924,24 @@ class BaseAgent(ABC):
                     "Tool-capable generation failed; falling back to plain generation: %s",
                     e,
                 )
-                return await self._process_without_tools(updated_messages, stream=stream)
+                result = await self._process_without_tools(updated_messages, stream=stream)
+                await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    agent_output=result,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                    messages=list(updated_messages),
+                ))
+                await self._run_hooks(HookStage.AFTER_PROMPT_BUILD, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    agent_output=result,
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                    messages=list(updated_messages),
+                ))
+                return result
 
             # Handle response
             response: MessageDict = cast(MessageDict, raw_response)
@@ -901,6 +965,13 @@ class BaseAgent(ABC):
                     updated_messages,
                     use_concurrent=self.use_concurrent_tools
                 )
+                await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                    agent_name=getattr(self, "name", ""),
+                    session_id=getattr(self, "session_id", ""),
+                    model=self.model,
+                    cwd=str(Path.cwd()),
+                    messages=list(updated_messages),
+                ))
                 continue  # Loop again with updated messages
 
             # Check for text-embedded tool calls in non-streaming response
@@ -916,8 +987,33 @@ class BaseAgent(ABC):
                         updated_messages,
                         use_concurrent=self.use_concurrent_tools
                     )
+                    await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                        agent_name=getattr(self, "name", ""),
+                        session_id=getattr(self, "session_id", ""),
+                        model=self.model,
+                        cwd=str(Path.cwd()),
+                        messages=list(updated_messages),
+                    ))
                     continue
 
+            await self._run_hooks(HookStage.AFTER_TURN, HookContext(
+                agent_name=getattr(self, "name", ""),
+                agent_output=content,
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+                messages=list(updated_messages),
+            ))
+
+            # Run AFTER_PROMPT_BUILD hooks (once, at the end of the prompt lifecycle)
+            await self._run_hooks(HookStage.AFTER_PROMPT_BUILD, HookContext(
+                agent_name=getattr(self, "name", ""),
+                agent_output=content,
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+                messages=list(updated_messages),
+            ))
             return content
 
     async def _execute_tools_and_update_messages(
@@ -1148,8 +1244,6 @@ class BaseAgent(ABC):
         if self.history is not None:
             from core.history import (
                 HistoryMessage,
-                create_assistant_message,
-                create_tool_message,
             )
             self.history.append_message(
                 HistoryMessage(

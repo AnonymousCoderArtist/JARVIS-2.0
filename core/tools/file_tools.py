@@ -39,18 +39,18 @@ def _generate_diff(original: str, new: str, filename: str) -> str:
 def _generate_new_file_diff(content: str, filename: str) -> str:
     """Generate diff for a new file (shows all content as added)."""
     lines = content.splitlines(keepends=True) if content else []
-    
+
     diff_lines = []
     diff_lines.append(f"--- a/{filename}\n")
     diff_lines.append(f"+++ b/{filename}\n")
     diff_lines.append(f"@@ -0,0 +{len(lines)} @@\n")
-    
+
     for line in lines:
         if line.endswith('\n'):
             diff_lines.append(f"+{line}")
         else:
             diff_lines.append(f"+{line}\n")
-    
+
     return "".join(diff_lines)
 
 

@@ -10,14 +10,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from mcp.types import (
-    CreateMessageRequest,
-    CreateMessageResult,
     Prompt,
     Resource,
     ResourceTemplate,
     ServerCapabilities,
 )
-
 
 # ============================================================================
 # SERVER CAPABILITIES TRACKING

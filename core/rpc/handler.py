@@ -12,22 +12,17 @@ Start with ``python -m jarvis --mode rpc``, then pipe JSONL commands:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import sys
-import time
-import traceback
-from pathlib import Path
 from typing import Any
 
 from core.agents.jarvis_v2 import JarvisV2
 from core.config.settings import Settings
-from core.llm_sdk.openai.sdk import OpenAISDK
-from core.llm_sdk.anthropic.sdk import AnthropicSDK
 from core.llm.sdk_adapter import SDKAdapter
+from core.llm_sdk.anthropic.sdk import AnthropicSDK
+from core.llm_sdk.openai.sdk import OpenAISDK
 from core.rpc.types import (
     RpcCommand,
-    RpcEvent,
     RpcResponse,
     make_event,
     serialize,
@@ -133,10 +128,10 @@ class RpcSession:
 
     def _register_tools(self) -> None:
         """Register standard tools."""
-        from core.tools.file_tools import FileReadTool, FileWriteTool, LSTool, FindTool
-        from core.tools.file_edit_tool import EditTool
-        from core.tools.grep_tool import GrepSearchTool
         from core.tools.code_tools import BashTool
+        from core.tools.file_edit_tool import EditTool
+        from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
+        from core.tools.grep_tool import GrepSearchTool
         from core.tools.skill_manage_tool import SkillTool
 
         for tool_cls in [FileReadTool, FileWriteTool, EditTool, LSTool, FindTool, GrepSearchTool, SkillTool]:
@@ -266,7 +261,6 @@ class RpcSession:
     async def _handle_bash(self, cmd: RpcCommand) -> None:
         """Execute a shell command directly."""
         try:
-            import subprocess
             proc = await asyncio.create_subprocess_shell(
                 cmd.command,
                 stdout=asyncio.subprocess.PIPE,

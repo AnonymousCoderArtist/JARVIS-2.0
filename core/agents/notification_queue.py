@@ -7,12 +7,10 @@ injecting them as context into the LLM conversation automatically.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

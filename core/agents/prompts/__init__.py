@@ -216,12 +216,13 @@ _RUNTIME_PLAN_PROMPT = None
 _RUNTIME_JARVIS_HELP_PROMPT = None
 _RUNTIME_STATUSLINE_PROMPT = None
 _RUNTIME_VERIFICATION_PROMPT = None
+_RUNTIME_RUBBER_DUCK_PROMPT = None
 
 
 def _init_prompts() -> None:
     """Initialize prompts by calling lazy load functions."""
     global _RUNTIME_EXPLORE_PROMPT, _RUNTIME_PLAN_PROMPT, _RUNTIME_JARVIS_HELP_PROMPT
-    global _RUNTIME_STATUSLINE_PROMPT, _RUNTIME_VERIFICATION_PROMPT
+    global _RUNTIME_STATUSLINE_PROMPT, _RUNTIME_VERIFICATION_PROMPT, _RUNTIME_RUBBER_DUCK_PROMPT
 
     if _RUNTIME_EXPLORE_PROMPT is None:
         _RUNTIME_EXPLORE_PROMPT = get_explore_prompt()
@@ -229,6 +230,9 @@ def _init_prompts() -> None:
         _RUNTIME_PLAN_PROMPT = get_plan_prompt()
     if _RUNTIME_VERIFICATION_PROMPT is None:
         _RUNTIME_VERIFICATION_PROMPT = get_verification_prompt()
+    if _RUNTIME_RUBBER_DUCK_PROMPT is None:
+        from core.agents.builtin.rubber_duck_agent import GetRubberDuckPrompt
+        _RUNTIME_RUBBER_DUCK_PROMPT = GetRubberDuckPrompt()
     # Load builtin prompts lazily
     _load_builtin_prompts()
     if _RUNTIME_JARVIS_HELP_PROMPT is None:
@@ -263,6 +267,10 @@ AGENT_PROMPTS: dict[str, tuple[str, AgentPromptMetadata]] = {
         VERIFICATION_SYSTEM_PROMPT,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for verification.", model="inherit", max_turns=10),
     ),
+    "rubber-duck": (
+        "Loading...",
+        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for constructive critique and review.", model="inherit", max_turns=10),
+    ),
     "general-purpose": (
         GENERAL_PURPOSE_SYSTEM_PROMPT,
         AgentPromptMetadata(agent_type="subagent", when_to_use="Use for complex multi-step tasks.", model="inherit", max_turns=100),
@@ -291,6 +299,7 @@ def get_agent_prompt(agent_name: str) -> str:
         'jarvis-help': _RUNTIME_JARVIS_HELP_PROMPT,
         'statusline-setup': _RUNTIME_STATUSLINE_PROMPT,
         'verification': _RUNTIME_VERIFICATION_PROMPT,
+        'rubber-duck': _RUNTIME_RUBBER_DUCK_PROMPT,
         'general-purpose': GENERAL_PURPOSE_SYSTEM_PROMPT,
         'fork': FORK_SYSTEM_PROMPT,
     }
@@ -322,7 +331,7 @@ def get_enhanced_prompt(agent_name: str, emoji: str | None = None) -> str:
     prompt = get_agent_prompt(agent_name)
     emoji_map = {
         "jarvis": "🤖", "explore": "🔍", "plan": "📋", "jarvis-help": "❓",
-        "statusline-setup": "💻", "verification": "✅", "general-purpose": "⚡", "fork": "🍴",
+        "statusline-setup": "💻", "verification": "✅", "rubber-duck": "🦆", "general-purpose": "⚡", "fork": "🍴",
     }
     return enhance_prompt_with_env_details(prompt, agent_name, emoji or emoji_map.get(agent_name, "🤖"))
 

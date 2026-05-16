@@ -123,7 +123,7 @@ class CommandRegistry:
         try:
             old_session = getattr(self, '_current_session_id', None)
             new_session: str
-            
+
             # Use callback if available (CLIInterface handles the actual reset)
             if self.session_reset_callback is not None:  # type: ignore
                 old_session = await self.session_reset_callback()  # type: ignore
@@ -138,17 +138,17 @@ class CommandRegistry:
                 # Fallback: create new history locally (won't update CLIInterface)
                 history = ConversationHistory()
                 new_session = history.session_id
-                
+
                 # Clear agent memory if available
                 if self.jarvis_agent is not None:  # type: ignore
                     self.jarvis_agent.clear_memory()  # type: ignore
                     self.jarvis_agent.rebuild_system_prompt()  # type: ignore
-                
+
             self._current_session_id = new_session
-            
+
             # Also clear the screen
             self.display_manager.clear_screen()
-            
+
             self.display_manager.show_success(
                 f"Started new session: {new_session[:8]}...\n"
                 f"Previous session: {old_session[:8] if old_session else 'none'}...",

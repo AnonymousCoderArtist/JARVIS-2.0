@@ -15,8 +15,6 @@ Concurrent access is safe via ``filelock``.
 
 import json
 import os
-import time
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -417,4 +415,3 @@ class Settings:
     def sandbox_runtime(self) -> str:
         return self._config.sandbox.runtime
 
-    

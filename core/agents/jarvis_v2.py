@@ -12,14 +12,13 @@ from core.tools.skill_manage_tool import create_skill_markdown, get_skill_dir
 
 from .base import BaseAgent
 from .heartbeat_scheduler import HeartbeatScheduler
-from .task_scheduler import TaskScheduler
 from .system_prompts import (
     FORK_SYSTEM_PROMPT,
     GENERAL_PURPOSE_SYSTEM_PROMPT,
     JARVIS_V2_SYSTEM_PROMPT,
     get_agent_prompt,
 )
-
+from .task_scheduler import TaskScheduler
 
 if TYPE_CHECKING:
     pass
@@ -37,6 +36,7 @@ SYSTEM_PROMPT_MAP = {
     "jarvis-help": lambda: get_agent_prompt("jarvis-help"),
     "statusline-setup": lambda: get_agent_prompt("statusline-setup"),
     "verification": lambda: get_agent_prompt("verification"),
+    "rubber-duck": lambda: get_agent_prompt("rubber-duck"),
     "general-purpose": GENERAL_PURPOSE_SYSTEM_PROMPT,
     "fork": FORK_SYSTEM_PROMPT,
 }
@@ -57,10 +57,16 @@ class JarvisV2(BaseAgent):
         use_concurrent_tools: bool = True,
         system_prompt: str | None = None,
         connector_manager: ConnectorManager | None = None,
+        event_bus=None,
+        hook_registry=None,
     ):
         # Use provided system_prompt or default to JARVIS_V2_SYSTEM_PROMPT
         effective_prompt = system_prompt if system_prompt else self.SYSTEM_PROMPT
-        super().__init__(llm_provider, tool_registry, effective_prompt, model, config_getter, bypass_tool_permissions, use_concurrent_tools)
+        super().__init__(
+            llm_provider, tool_registry, effective_prompt, model, config_getter,
+            bypass_tool_permissions, use_concurrent_tools,
+            event_bus=event_bus, hook_registry=hook_registry,
+        )
         # Rebuild system prompt with tool descriptions
         self.rebuild_system_prompt()
 
@@ -303,65 +309,121 @@ class JarvisV2(BaseAgent):
         Returns:
             Agent response with results or next steps
         """
+        from core.events import HookContext, HookStage
+
+        # Run BEFORE_AGENT_START hooks
+        start_ctx = HookContext(
+            agent_name=getattr(self, "name", ""),
+            agent_input=input,
+            session_id=getattr(self, "session_id", ""),
+            model=self.model,
+            cwd=str(Path.cwd()),
+        )
+        start_result = await self._run_hooks(HookStage.BEFORE_AGENT_START, start_ctx)
+        if start_result.block:
+            return f"Agent start blocked by hook: {start_result.reason}"
+
         # Reset per-task trace buffer (self-evolving skills)
         self.current_task_input = input
         self.execution_trace = []
 
-        # Build messages with proper roles using base class method
-        messages = self._build_messages(input, include_memory=True)
+        # Run AFTER_AGENT_START hooks
+        await self._run_hooks(HookStage.AFTER_AGENT_START, HookContext(
+            agent_name=getattr(self, "name", ""),
+            agent_input=input,
+            session_id=getattr(self, "session_id", ""),
+            model=self.model,
+            cwd=str(Path.cwd()),
+        ))
 
-        # Append context as a separate user message if provided
-        if context:
-            ctx_parts = []
-            if "current_file" in context:
-                ctx_parts.append(f"Current file: {context['current_file']}")
-            if "project_path" in context:
-                ctx_parts.append(f"Project path: {context['project_path']}")
-            if "file_content" in context:
-                ctx_parts.append(f"File content:\n{context['file_content']}")
-            if ctx_parts:
-                messages.append({"role": "user", "content": "\n".join(ctx_parts)})
-
-        # Always use streaming when stream_callback is set (TUI mode)
-        # This ensures real-time updates in the TUI
-        stream = self.stream_callback is not None
-        response = await self._process_with_tools(messages, stream=stream)
-
-        # Store response for learning
-        self._last_response_text = response
-        self._interactions_since_learning += 1
-
-        # Learn from this interaction (M1 Trace Collection)
-        if self.learning_manager and self._interactions_since_learning >= 5:
-            await self._learn_from_interaction(input, response)
-
-        # Add to memory as proper role-based messages
-        self.add_role_message(role="user", content=input)
-        self.add_role_message(role="assistant", content=response)
-
-        # Also persist to conversation history if available
-        if self.history is not None:
-            from core.history import create_assistant_message
-            self.history.append_message(create_assistant_message(response))
-
-        # Crystallize execution path into a reusable skill (GenericAgent-style)
         try:
-            tool_steps = [s for s in self.execution_trace if s.get("tool")]
-            should_try = len(tool_steps) >= self._auto_skill_min_steps and len(tool_steps) >= self._auto_skill_trigger_tools
-            if should_try:
-                success = all(bool(s.get("success")) for s in tool_steps)
-                self._crystallizer.crystallize(
-                    user_input=input,
-                    final_response=response,
-                    execution_trace=tool_steps,
-                    success=success,
-                    min_steps=self._auto_skill_min_steps,
-                )
-        except Exception:
-            # Never break user flow due to self-evolution.
-            pass
+            # Build messages with proper roles using base class method
+            messages = self._build_messages(input, include_memory=True)
 
-        return response
+            # Append context as a separate user message if provided
+            if context:
+                ctx_parts = []
+                if "current_file" in context:
+                    ctx_parts.append(f"Current file: {context['current_file']}")
+                if "project_path" in context:
+                    ctx_parts.append(f"Project path: {context['project_path']}")
+                if "file_content" in context:
+                    ctx_parts.append(f"File content:\n{context['file_content']}")
+                if ctx_parts:
+                    messages.append({"role": "user", "content": "\n".join(ctx_parts)})
+
+            # Always use streaming when stream_callback is set (TUI mode)
+            # This ensures real-time updates in the TUI
+            stream = self.stream_callback is not None
+            response = await self._process_with_tools(messages, stream=stream)
+
+            # Run BEFORE_AGENT_END hooks
+            end_ctx = HookContext(
+                agent_name=getattr(self, "name", ""),
+                agent_input=input,
+                agent_output=response,
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+            )
+            await self._run_hooks(HookStage.BEFORE_AGENT_END, end_ctx)
+
+            # Store response for learning
+            self._last_response_text = response
+            self._interactions_since_learning += 1
+
+            # Learn from this interaction (M1 Trace Collection)
+            if self.learning_manager and self._interactions_since_learning >= 5:
+                await self._learn_from_interaction(input, response)
+
+            # Add to memory as proper role-based messages
+            self.add_role_message(role="user", content=input)
+            self.add_role_message(role="assistant", content=response)
+
+            # Also persist to conversation history if available
+            if self.history is not None:
+                from core.history import create_assistant_message
+                self.history.append_message(create_assistant_message(response))
+
+            # Crystallize execution path into a reusable skill (GenericAgent-style)
+            try:
+                tool_steps = [s for s in self.execution_trace if s.get("tool")]
+                should_try = len(tool_steps) >= self._auto_skill_min_steps and len(tool_steps) >= self._auto_skill_trigger_tools
+                if should_try:
+                    success = all(bool(s.get("success")) for s in tool_steps)
+                    self._crystallizer.crystallize(
+                        user_input=input,
+                        final_response=response,
+                        execution_trace=tool_steps,
+                        success=success,
+                        min_steps=self._auto_skill_min_steps,
+                    )
+            except Exception:
+                # Never break user flow due to self-evolution.
+                pass
+
+            # Run AFTER_AGENT_END hooks
+            await self._run_hooks(HookStage.AFTER_AGENT_END, HookContext(
+                agent_name=getattr(self, "name", ""),
+                agent_input=input,
+                agent_output=response,
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+            ))
+
+            return response
+        except Exception as e:
+            # Run hooks even on error
+            await self._run_hooks(HookStage.AFTER_AGENT_END, HookContext(
+                agent_name=getattr(self, "name", ""),
+                agent_input=input,
+                agent_error=str(e),
+                session_id=getattr(self, "session_id", ""),
+                model=self.model,
+                cwd=str(Path.cwd()),
+            ))
+            raise
 
     async def _learn_from_interaction(self, user_input: str, agent_response: str) -> None:
         """Learn from a user-agent interaction (M1 Trace logging)"""

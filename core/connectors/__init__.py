@@ -1,15 +1,15 @@
 """Connectors framework for JARVIS - integrates with external data sources"""
 
 from .base import (
+    Attachment,
     BaseConnector,
     ConnectorConfig,
     Document,
-    Attachment,
     SyncStatus,
 )
-from .registry import ConnectorRegistry, load_connectors
 from .filesystem import FilesystemConnector
 from .manager import ConnectorManager
+from .registry import ConnectorRegistry, load_connectors
 
 __all__ = [
     # Base classes

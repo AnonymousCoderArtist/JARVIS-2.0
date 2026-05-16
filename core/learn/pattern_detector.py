@@ -2,7 +2,6 @@
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 
@@ -30,7 +29,8 @@ def _load_classifier():
 
     try:
         from .Classification.train_classifier import (
-            ID_TO_LABEL, MODEL_DIR, predict as _predict, load_model, LABELS,
+            MODEL_DIR,
+            load_model,
         )
         result = load_model()
         if result is not None:

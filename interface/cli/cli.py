@@ -21,8 +21,9 @@ from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
 from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
 from core.agents.manager import AgentManager
 from core.config.settings import Settings
-from core.history import ConversationHistory
 from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
+from core.events import EventBus, HookRegistry
+from core.history import ConversationHistory
 from core.learn import LearningConfig, LearningManager
 from core.llm.sdk_adapter import SDKAdapter
 from core.llm_sdk.anthropic.sdk import AnthropicSDK
@@ -37,9 +38,9 @@ from core.tools.file_tools import FileReadTool, FileWriteTool, FindTool, LSTool
 from core.tools.grep_tool import GrepSearchTool
 from core.tools.memory_tool import ReadMemoryTool, SaveMemoryTool
 from core.tools.repl_tool import REPLTool
+from core.tools.tool_search_tool import ToolSearchTool
 from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 from core.tools.worktree_tool import EnterWorktreeTool, ExitWorktreeTool
-from core.tools.tool_search_tool import ToolSearchTool
 from core.watchers.manager import WatcherManager
 
 from .commands import CommandHandler
@@ -129,6 +130,10 @@ class CLIInterface:
         self.extension_runner = None
         self.resume_session = resume_session
 
+        # Shared event system and hook registry for the session
+        self.event_bus = EventBus()
+        self.hook_registry = HookRegistry()
+
         # Initialize conversation history
         from core.history import ConversationHistory
         if resume_session:
@@ -197,7 +202,7 @@ class CLIInterface:
     async def _initialize_mcp_servers_async(self):
         """Initialize MCP servers using lazy lifecycle model."""
         try:
-            from core.tools.mcp_adapter import MCPRegistry, MCPServerConfig
+            from core.tools.mcp_adapter import MCPRegistry
 
             # Load MCP server configurations
             mcp_config_dicts = self._load_mcp_configs()
@@ -273,8 +278,8 @@ class CLIInterface:
         await runner.discover_and_load(project_dir=".")
         conflicts = await runner.bind(
             self.tool_registry,
-            getattr(self, '_event_bus', None),
-            getattr(self, '_hook_registry', None),
+            self.event_bus,
+            self.hook_registry,
         )
         if conflicts:
             for ext_name, tool_conflicts in conflicts.items():
@@ -322,14 +327,16 @@ class CLIInterface:
         )
         self.async_agent_manager = AsyncAgentManager(async_config)
 
-        # Create agent with profile config getter and concurrent tools enabled
+        # Create agent with profile config getter, concurrent tools enabled, and shared event system
         self.jarvis_agent = CodingAgent(
             provider,
             self.tool_registry,
             model=self.model,
             config_getter=lambda: self.agent_manager.config,
             bypass_tool_permissions=self.bypass,
-            use_concurrent_tools=True
+            use_concurrent_tools=True,
+            event_bus=self.event_bus,
+            hook_registry=self.hook_registry,
         )
 
         # Wire extension hooks into the agent's HookRegistry
@@ -509,7 +516,7 @@ class CLIInterface:
 
         try:
             await asyncio.wait_for(self.jarvis_agent.process(text), timeout=self.config_manager.config.behavior.timeout_seconds)
-            
+
             # Assistant response is already persisted by jarvis_v2 via
             # add_role_message + self.history.append_message
         except asyncio.TimeoutError:
@@ -524,16 +531,16 @@ class CLIInterface:
     async def reset_session(self) -> str:
         """Reset the session by creating a new history and clearing agent memory."""
         old_session_id = self.history.session_id
-        
+
         # Create new conversation history (new session)
         self.history = ConversationHistory()
-        
+
         # Clear agent memory and update history reference
         if self.jarvis_agent:
             self.jarvis_agent.clear_memory()
             self.jarvis_agent.history = self.history
             self.jarvis_agent.rebuild_system_prompt()
-        
+
         return old_session_id
 
     async def run(self):

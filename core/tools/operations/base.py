@@ -10,8 +10,7 @@ by implementing these protocols and registering them with the
 from __future__ import annotations
 
 from pathlib import Path
-from typing import AsyncIterator, Protocol, runtime_checkable
-
+from typing import Protocol, runtime_checkable
 
 # ---------------------------------------------------------------------------
 # File Operations
@@ -73,7 +72,7 @@ class BashOperations(Protocol):
         command: list[str],
         cwd: str | None = None,
         env: dict[str, str] | None = None,
-    ) -> "dict":
+    ) -> dict:
         """Spawn a long-running process (returns process info)."""
         ...
 

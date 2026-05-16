@@ -6,7 +6,6 @@ and feeds any type errors back to the LLM so it can fix them immediately.
 """
 
 from core.extensions.api import ExtensionAPI
-from core.events.hooks import HookStage
 
 
 async def jarvis_extension(api: ExtensionAPI):

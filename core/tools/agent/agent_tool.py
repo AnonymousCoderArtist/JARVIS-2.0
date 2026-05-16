@@ -25,6 +25,7 @@ from .constants import (
     EXPLORE_ALLOWED_TOOLS,
     JARVIS_HELP_ALLOWED_TOOLS,
     PLAN_ALLOWED_TOOLS,
+    RUBBER_DUCK_ALLOWED_TOOLS,
     VERIFICATION_ALLOWED_TOOLS,
 )
 from .filtered_registry import _FilteredToolRegistry
@@ -37,7 +38,7 @@ class AgentTool(BaseTool):
     """Primary agent management tool - unified interface for all subagent operations.
 
     Use this tool whenever you need to:
-    1. Delegate tasks to specialized subagents (explore/plan/jarvis-help/verification/statusline-setup)
+    1. Delegate tasks to specialized subagents (explore/plan/jarvis-help/verification/rubber-duck/statusline-setup)
     2. Get immediate results from subagents (foreground mode - recommended)
 
     Subagent completion is handled automatically via push notifications:
@@ -49,10 +50,11 @@ class AgentTool(BaseTool):
     - plan: Task decomposition, implementation planning, architecture design (read-only)
     - jarvis-help: Guidance on JARVIS features, tools, and configuration (read-only)
     - verification: Post-implementation testing and adversarial verification (read/write)
+    - rubber-duck: Constructive critique and review of proposals, designs, implementations (read-only)
     - statusline-setup: Shell prompt customization guidance (read-only)
     """
     name = "agents"
-    description = "Launch specialized subagents (explore, plan, jarvis-help, verification, statusline-setup) for delegating codebase analysis, implementation planning, documentation/help lookups, post-implementation testing, and shell prompt customization. Foreground mode (default, runInBackground=false): subagent runs synchronously, results appear inline in your conversation and you get them immediately — no extra steps needed. Background mode (runInBackground=true): subagent starts and returns control to you right away; when it finishes, a <task-notification> XML message is automatically injected into your conversation by the system so you never need to manually poll or check status. If you launch multiple background agents, each one's notification will arrive independently as they complete. Use list_agents to discover available subagent types and their capabilities."
+    description = "Launch specialized subagents (explore, plan, jarvis-help, verification, rubber-duck, statusline-setup) for delegating codebase analysis, implementation planning, documentation/help lookups, post-implementation testing, constructive critique/review, and shell prompt customization. Foreground mode (default, runInBackground=false): subagent runs synchronously, results appear inline in your conversation and you get them immediately — no extra steps needed. Background mode (runInBackground=true): subagent starts and returns control to you right away; when it finishes, a <task-notification> XML message is automatically injected into your conversation by the system so you never need to manually poll or check status. If you launch multiple background agents, each one's notification will arrive independently as they complete. Use list_agents to discover available subagent types and their capabilities."
 
     input_schema = {
         "type": "object",
@@ -65,7 +67,7 @@ class AgentTool(BaseTool):
             },
             "agentName": {
                 "type": "string",
-                "description": "Which subagent to use. Available: explore (read-only codebase analysis, file searching, pattern finding), plan (task decomposition and implementation planning), jarvis-help (JARVIS features, tools, and configuration guidance), verification (post-implementation testing and quality assurance), statusline-setup (shell prompt customization). Use list_agents to see full descriptions.",
+                "description": "Which subagent to use. Available: explore (read-only codebase analysis, file searching, pattern finding), plan (task decomposition and implementation planning), jarvis-help (JARVIS features, tools, and configuration guidance), verification (post-implementation testing and quality assurance), rubber-duck (constructive critique and review of proposals, designs, implementations, or tests), statusline-setup (shell prompt customization). Use list_agents to see full descriptions.",
                 "minLength": 1
             },
             "prompt": {
@@ -117,18 +119,19 @@ class AgentTool(BaseTool):
     async def _handle_list_agents(self) -> ToolOutput:
         """List all available agent types with their descriptions."""
         from core.agents.custom_loader import discover_custom_agents
-        
+
         # Define built-in agent metadata
         builtin_definitions = {
             "explore": "Codebase exploration, file analysis, and pattern finding. Best for read-only investigative tasks.",
             "plan": "Task decomposition, architecture design, and implementation planning. Best for breaking down complex requirements.",
             "jarvis-help": "General assistance and guidance on JARVIS features, custom tools, and configuration.",
             "verification": "Post-implementation testing, adversarial verification, and quality assurance.",
+            "rubber-duck": "Constructive critique and review of proposals, designs, implementations, or tests. Best called after planning but before implementing.",
             "statusline-setup": "Guidance and scripts for customizing your shell prompt (bash, zsh, powershell)."
         }
-        
+
         custom_agents = discover_custom_agents()
-        
+
         lines = ["Available subagents:"]
         agent_data = []
 
@@ -136,13 +139,13 @@ class AgentTool(BaseTool):
         for name, desc in builtin_definitions.items():
             lines.append(f"- {name}: {desc}")
             agent_data.append({"name": name, "description": desc, "source": "built-in"})
-            
+
         # Add customs
         for agent in custom_agents:
             desc = getattr(agent, "when_to_use", "Custom agent (no description provided)")
             lines.append(f"- {agent.name}: {desc}")
             agent_data.append({"name": agent.name, "description": desc, "source": "custom"})
-        
+
         return ToolOutput(
             success=True,
             result="\n".join(lines),
@@ -254,15 +257,16 @@ class AgentTool(BaseTool):
         else:
             # Run synchronously (blocking) - foreground mode
             import time
+
             from core.agents import EXPLORE, PLAN
             from core.agents.notification_queue import enqueue_agent_notification
-            from core.config.settings import Settings
 
             _agent_allowed = {
                 "explore": EXPLORE_ALLOWED_TOOLS,
                 "plan": PLAN_ALLOWED_TOOLS,
                 "jarvis-help": JARVIS_HELP_ALLOWED_TOOLS,
                 "verification": VERIFICATION_ALLOWED_TOOLS,
+                "rubber-duck": RUBBER_DUCK_ALLOWED_TOOLS,
             }
 
             if agent_name in _agent_allowed:
@@ -328,7 +332,7 @@ class AgentTool(BaseTool):
                     )
 
                 # Build list of available agents
-                builtin_agents = ['explore', 'plan', 'jarvis-help', 'verification', 'statusline-setup']
+                builtin_agents = ['explore', 'plan', 'jarvis-help', 'verification', 'rubber-duck', 'statusline-setup']
                 custom_names = [a.name for a in custom_agents]
                 all_agents = builtin_agents + custom_names
 
@@ -350,9 +354,9 @@ class AgentTool(BaseTool):
     ) -> ToolOutput:
         """Handle a custom agent loaded from .jarvis/agents/"""
         import time
+
         from core.agents.notification_queue import enqueue_agent_notification
         from core.config.settings import Settings
-        from typing import Any
 
         def custom_config_getter() -> Any:
             if callable(config_getter):

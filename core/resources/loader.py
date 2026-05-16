@@ -15,12 +15,10 @@ priority one wins.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
-from core.prompts import PromptTemplate, load_template_from_file, load_templates_from_dir
+from core.prompts import PromptTemplate, load_templates_from_dir
 
 logger = logging.getLogger(__name__)
 

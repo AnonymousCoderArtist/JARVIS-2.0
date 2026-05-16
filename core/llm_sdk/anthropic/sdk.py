@@ -183,7 +183,7 @@ class AnthropicSDK(BaseLLMSDK):
                     elif block.type == "thinking":
                         reasoning += block.thinking
 
-                usage: Usage = msg.usage  # type: ignore
+                usage: Usage = msg.usage
                 return GenerationResponse(
                     content=content,
                     model=msg.model,
@@ -238,7 +238,7 @@ class AnthropicSDK(BaseLLMSDK):
                             )
                         )
 
-                usage: Usage = msg.usage  # type: ignore
+                usage: Usage = msg.usage
                 return GenerationResponse(
                     content=content,
                     model=msg.model,

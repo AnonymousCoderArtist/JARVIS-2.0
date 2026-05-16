@@ -10,6 +10,7 @@ from core.agents.profiles import AgentType
 
 # Import agent definitions from their modules
 from .builtin.jarvis_help_agent import JARVIS_HELP_AGENT
+from .builtin.rubber_duck_agent import RUBBER_DUCK_AGENT
 from .builtin.statusline_setup_agent import STATUSLINE_SETUP_AGENT
 from .builtin.verification_agent import VERIFICATION_AGENT
 
@@ -83,6 +84,7 @@ def get_builtin_agents() -> list[AgentDefinition]:
         JARVIS_HELP_AGENT,
         STATUSLINE_SETUP_AGENT,
         VERIFICATION_AGENT,
+        RUBBER_DUCK_AGENT,
     ]
 
 

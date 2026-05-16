@@ -24,7 +24,7 @@ class LocalFileOperations:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f"File not found: {path}")
 
-        async with aiofiles.open(path, "r", encoding="utf-8", errors="replace") as f:
+        async with aiofiles.open(path, encoding="utf-8", errors="replace") as f:
             content = await f.read()
 
         if offset > 1 or limit is not None:

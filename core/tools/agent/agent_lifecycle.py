@@ -20,7 +20,6 @@ from .constants import (
     EXPLORE_ALLOWED_TOOLS,
     JARVIS_HELP_ALLOWED_TOOLS,
     PLAN_ALLOWED_TOOLS,
-    STATUSLINE_SETUP_ALLOWED_TOOLS,
     VERIFICATION_ALLOWED_TOOLS,
 )
 from .fork_subagent import (
@@ -93,7 +92,6 @@ async def _run_agent_in_background(
         tool_use_id: The tool call ID that launched this subagent
     """
     from core.agents import EXPLORE, PLAN
-    from core.config.settings import Settings
 
     from .utils import create_agent, extract_token_usage, make_config_getter
 
@@ -321,6 +319,7 @@ async def _run_forked_agent(
         PLAN_ALLOWED_TOOLS,
         VERIFICATION_ALLOWED_TOOLS,
     )
+
     from .utils import extract_token_usage
 
     start_time = time.time()

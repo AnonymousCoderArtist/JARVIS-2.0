@@ -25,9 +25,7 @@ __description__ = "Transparent SSH backend for all file and bash operations"
 async def jarvis_extension(api):
     """Swap the operations backends to SSH-forwarded versions."""
     import asyncio
-    import json
     import os
-    from pathlib import Path
 
     # Read config from extension settings
     config = getattr(api, "_config", {})
