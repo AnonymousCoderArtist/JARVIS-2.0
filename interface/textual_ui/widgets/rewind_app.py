@@ -161,13 +161,13 @@ class RewindApp(Container):
         """Navigate to the previous user message in rewind mode."""
         app = self.app
         if hasattr(app, "action_rewind_prev"):
-            app.action_rewind_prev()
+            app.action_rewind_prev()  # type: ignore[call-non-callable]
 
     def action_rewind_next(self) -> None:
         """Navigate to the next user message in rewind mode."""
         app = self.app
         if hasattr(app, "action_rewind_next") and hasattr(app, "_rewind_mode") and app._rewind_mode:
-            app.action_rewind_next()
+            app.action_rewind_next()  # type: ignore[call-non-callable]
 
     def _handle_selection(self, option: int) -> None:
         _, action = self._options[option]

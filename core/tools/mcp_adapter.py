@@ -410,29 +410,34 @@ class MCPClient:
             raise RuntimeError("MCP session not initialized")
 
         try:
-            response = await self._session.read_resource(uri)
+            response = await self._session.read_resource(uri)  # type: ignore[arg-type]
             contents = []
 
             # Handle the response which may have different formats
             if hasattr(response, 'contents'):
                 for item in response.contents:
                     content = MCPResourceContent(uri=str(item.uri))
-                    if hasattr(item, 'mimeType') and item.mimeType:
-                        content.mime_type = item.mimeType
-                    if hasattr(item, 'text') and item.text:
-                        content.text = item.text
+                    mime = getattr(item, 'mimeType', None)
+                    if mime:
+                        content.mime_type = str(mime)
+                    text = getattr(item, 'text', None)
+                    if text:
+                        content.text = str(text)
                     elif hasattr(item, 'blob') and item.blob:
                         import base64
-                        content.blob = base64.b64decode(item.blob)
+                        blob_val = item.blob
+                        content.blob = base64.b64decode(str(blob_val))
                     contents.append(content)
             elif hasattr(response, 'content'):
                 # Single content item
                 item = response.content
                 content = MCPResourceContent(uri=uri)
-                if hasattr(item, 'mimeType') and item.mimeType:
-                    content.mime_type = item.mimeType
-                if hasattr(item, 'text') and item.text:
-                    content.text = item.text
+                mime = getattr(item, 'mimeType', None)
+                if mime:
+                    content.mime_type = str(mime)
+                text = getattr(item, 'text', None)
+                if text:
+                    content.text = str(text)
                 contents.append(content)
 
             return contents
@@ -516,7 +521,7 @@ class MCPClient:
                         if isinstance(msg.content, str):
                             content = msg.content
                         elif hasattr(msg.content, 'text'):
-                            content = msg.content.text
+                            content = str(msg.content.text)
                         else:
                             content = str(msg.content)
                     messages.append(MCPPromptMessage(role=role, content=content))

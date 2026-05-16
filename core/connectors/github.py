@@ -1,6 +1,7 @@
 """GitHub connector - fetches notifications, issues, and PRs from GitHub"""
 
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
@@ -11,8 +12,10 @@ try:
 except ImportError:
     HAS_HTTPX = False
 
-from ..base import BaseConnector, ConnectorConfig, Document, SyncStatus
-from ..registry import ConnectorRegistry
+logger = logging.getLogger(__name__)
+
+from .base import BaseConnector, ConnectorConfig, Document, SyncStatus
+from .registry import ConnectorRegistry
 
 
 DEFAULT_API_BASE = "https://api.github.com"
@@ -24,7 +27,7 @@ def _github_api_get(
     endpoint: str, 
     params: Optional[Dict[str, str]] = None,
     headers: Optional[Dict[str, str]] = None
-) -> Dict[str, Any]:
+) -> Any:
     """Call GitHub API"""
     if not HAS_HTTPX:
         raise ImportError("httpx is required for github connector: pip install httpx")
@@ -219,7 +222,7 @@ class GitHubConnector(BaseConnector):
     
     # --- Configuration ---
     
-    def set_credentials(self, token: str, username: str, repos: list = None) -> None:
+    def set_credentials(self, token: str, username: str, repos: list[str] | None = None) -> None:  #type : ignore
         """Set GitHub token, username, and repos to monitor"""
         self._token = token
         self._username = username

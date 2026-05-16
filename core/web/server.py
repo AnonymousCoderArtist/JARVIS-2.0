@@ -961,7 +961,7 @@ async def api_mcp_list_servers():
     try:
         from core.tools.mcp_adapter import MCPRegistry, load_mcp_config_from_file
         registry = MCPRegistry()
-        configs = load_mcp_config_from_file() or []
+        configs = load_mcp_config_from_file(config_path="") or []
         servers = [_mcp_server_summary(s) for s in configs]
         return {"servers": servers}
     except Exception as e:
@@ -1262,7 +1262,7 @@ async def api_connector_auth(name: str, request: Request):
                 repos=body.get("repos", []),
             )
         elif name == "weather":
-            inst.set_api_key(body.get("api_key", ""), body.get("city", ""))
+            inst.set_api_key(body.get("api_key", ""))
         elif name == "http":
             if body.get("headers"):
                 inst.set_default_headers(body["headers"])
@@ -1307,7 +1307,7 @@ async def api_set_safety_profile(request: Request):
         if not profile:
             return {"success": False, "error": f"Profile {profile_id} not found"}
         os.environ["JARVIS_BYPASS_PERMISSIONS"] = "true" if profile["bypass"] else ""
-        os.environ["JARVIS_CODE_PERMISSION"] = profile["code"]
+        os.environ["JARVIS_CODE_PERMISSION"] = str(profile["code"])
         return {"success": True, "profile": profile}
     except Exception as e:
         return {"success": False, "error": str(e)[:200]}

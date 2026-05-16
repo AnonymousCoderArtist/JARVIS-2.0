@@ -138,9 +138,10 @@ async def create_oauth_client(config: Any) -> Any:
         raise ValueError(f"No URL configured for OAuth MCP server '{config.name}'")
 
     # Build client metadata
+    from pydantic import HttpUrl
     client_metadata = OAuthClientMetadata(
         client_name=f"JARVIS-{config.name}",
-        redirect_uris=[auth_config.redirect_uri or "http://localhost:8765/callback"],
+        redirect_uris=[HttpUrl(auth_config.redirect_uri or "http://localhost:8765/callback")],
         grant_types=["authorization_code"],
         response_types=["code"],
         token_endpoint_auth_method="client_secret_post",

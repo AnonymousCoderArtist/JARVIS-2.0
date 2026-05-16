@@ -1,6 +1,7 @@
 """Weather connector - fetches weather data from OpenWeatherMap API"""
 
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
@@ -11,15 +12,17 @@ try:
 except ImportError:
     HAS_HTTPX = False
 
-from ..base import BaseConnector, ConnectorConfig, Document, SyncStatus
-from ..registry import ConnectorRegistry
+logger = logging.getLogger(__name__)
+
+from .base import BaseConnector, ConnectorConfig, Document, SyncStatus
+from .registry import ConnectorRegistry
 
 
 DEFAULT_API_BASE = "https://api.openweathermap.org/data/2.5"
 DEFAULT_CONFIG_DIR = Path.home() / ".jarvis" / "credentials"
 
 
-def _weather_api_get(api_key: str, endpoint: str, params: Dict[str, str]) -> Dict[str, Any]:
+def _weather_api_get(api_key: str, endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:
     """Call OpenWeatherMap API"""
     if not HAS_HTTPX:
         raise ImportError("httpx is required for weather connector: pip install httpx")
@@ -58,7 +61,8 @@ class WeatherConnector(BaseConnector):
             self._api_key = self.config.get_credential("api_key", "")
         
         # Get default city from config
-        self._default_city = self.config.get_credential("city", "London")
+        city = self.config.get_credential("city", "London")
+        self._default_city = str(city) if city else "London"
     
     def is_connected(self) -> bool:
         """Check if we have a valid API key"""

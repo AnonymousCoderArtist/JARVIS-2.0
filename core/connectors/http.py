@@ -1,6 +1,7 @@
 """HTTP connector - fetch data from arbitrary HTTP endpoints"""
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
@@ -12,8 +13,10 @@ try:
 except ImportError:
     HAS_HTTPX = False
 
-from ..base import BaseConnector, ConnectorConfig, Document, SyncStatus
-from ..registry import ConnectorRegistry
+logger = logging.getLogger(__name__)
+
+from .base import BaseConnector, ConnectorConfig, Document, SyncStatus
+from .registry import ConnectorRegistry
 
 
 DEFAULT_CONFIG_DIR = Path.home() / ".jarvis" / "credentials"
@@ -65,9 +68,14 @@ class HTTPConnector(BaseConnector):
             if url:
                 endpoints = [{"url": url, "method": "GET"}]
         
+        if not isinstance(endpoints, list):
+            endpoints = []
+        
         for endpoint in endpoints[:10]:  # Limit to 10 endpoints
+            if not isinstance(endpoint, dict):
+                continue
             url = endpoint.get("url", "")
-            method = endpoint.get("method", "GET").upper()
+            method = str(endpoint.get("method", "GET")).upper()
             
             if not url:
                 continue
@@ -78,7 +86,9 @@ class HTTPConnector(BaseConnector):
                     continue
                 
                 headers = {**self._default_headers}
-                headers.update(endpoint.get("headers", {}))
+                extra_headers = endpoint.get("headers", {})
+                if isinstance(extra_headers, dict):
+                    headers.update(extra_headers)
                 
                 response = httpx.request(
                     method=method,
@@ -137,12 +147,12 @@ class HTTPConnector(BaseConnector):
         if headers:
             request_headers.update(headers)
         
-        kwargs = {"url": url, "headers": request_headers, "timeout": self._timeout}
+        kwargs: Dict[str, Any] = {"url": url, "headers": request_headers, "timeout": self._timeout}
         
         if method == "POST" and data:
             kwargs["json"] = data
         
-        response = httpx.request(method=method, **kwargs)
+        response = httpx.request(method, **kwargs)
         response.raise_for_status()
         
         return {

@@ -25,7 +25,7 @@ from collections import defaultdict
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, TypeAlias, cast
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +141,7 @@ class HookResult:
     inject: str | None = None
 
 
-HookHandler: type = Callable[[HookContext], Coroutine[Any, Any, HookResult] | HookResult]
+HookHandler: TypeAlias = Callable[[HookContext], Coroutine[Any, Any, HookResult] | HookResult]
 
 # ---------------------------------------------------------------------------
 # Hook Registry
@@ -231,23 +231,29 @@ class HookRegistry:
                 logger.exception("Hook handler %s failed at stage %s", handler, stage.value)
                 continue
 
-            if result.block:
+            if result is None:
+                continue
+
+            # After the None check, result is definitely a HookResult
+            hook_result = cast(HookResult, result)
+
+            if hook_result.block:
                 logger.info(
                     "Hook %s blocked at stage %s: %s",
                     getattr(handler, "__name__", str(handler)),
                     stage.value,
-                    result.reason,
+                    hook_result.reason,
                 )
-                return result  # Short-circuit on block
+                return hook_result  # Short-circuit on block
 
-            if not result.proceed:
-                final_result = result
+            if not hook_result.proceed:
+                final_result = hook_result
 
-            if result.modify is not None:
-                final_result.modify = result.modify
+            if hook_result.modify is not None:
+                final_result.modify = hook_result.modify
 
-            if result.inject is not None:
-                final_result.inject = result.inject
+            if hook_result.inject is not None:
+                final_result.inject = hook_result.inject
 
         return final_result
 

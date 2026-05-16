@@ -18,6 +18,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
+from typing import Any
 
 from core.agents.jarvis_v2 import JarvisV2
 from core.config.settings import Settings
@@ -138,15 +139,24 @@ class RpcSession:
         from core.tools.code_tools import BashTool
         from core.tools.skill_manage_tool import SkillTool
 
-        for tool_cls in [FileReadTool, FileWriteTool, EditTool, BashTool, LSTool, FindTool, GrepSearchTool, SkillTool]:
+        for tool_cls in [FileReadTool, FileWriteTool, EditTool, LSTool, FindTool, GrepSearchTool, SkillTool]:
             try:
                 instance = tool_cls(
-                    tool_registry=self._tool_registry,
-                    llm_provider=self.llm_provider if hasattr(self, 'llm_provider') else None,
+                    tool_registry=self._tool_registry,  # type: ignore[arg-type]
+                    llm_provider=None,
                 )
-                self._tool_registry.register(instance)
+                if self._tool_registry is not None:
+                    self._tool_registry.register(instance)
             except Exception as e:
                 logger.warning("Failed to register tool %s: %s", tool_cls.__name__, e)
+
+        # BashTool has its own __init__ with no parameters
+        try:
+            bash_instance = BashTool()
+            if self._tool_registry is not None:
+                self._tool_registry.register(bash_instance)
+        except Exception as e:
+            logger.warning("Failed to register tool BashTool: %s", e)
 
     async def shutdown(self) -> None:
         """Clean up the session."""
@@ -170,7 +180,7 @@ class RpcSession:
         """Called when a tool call starts."""
         asyncio.ensure_future(send_event("tool_call_start", tool_name=tool_name, tool_args=tool_args))
 
-    def _on_tool_result(self, tool_name: str, tool_args: dict, result: any) -> None:
+    def _on_tool_result(self, tool_name: str, tool_args: dict, result: Any) -> None:
         """Called when a tool finishes."""
         success = getattr(result, "success", False) if result is not None else False
         error = getattr(result, "error", None) if result is not None else None
@@ -216,6 +226,9 @@ class RpcSession:
         await send_event("turn_start", turn_number=self._turn_count + 1)
         self._turn_count += 1
 
+        if self._agent is None:
+            await send_response(cmd.id, success=False, error="Agent not initialized")
+            return
         result = await self._agent.process(cmd.message)
 
         await send_event("turn_end", turn_number=self._turn_count)
@@ -229,6 +242,9 @@ class RpcSession:
         await send_event("turn_start", turn_number=self._turn_count + 1)
         self._turn_count += 1
 
+        if self._agent is None:
+            await send_response(cmd.id, success=False, error="Agent not initialized")
+            return
         result = await self._agent.process(cmd.message)
 
         await send_event("turn_end", turn_number=self._turn_count)
@@ -239,6 +255,9 @@ class RpcSession:
         await send_event("turn_start", turn_number=self._turn_count + 1)
         self._turn_count += 1
 
+        if self._agent is None:
+            await send_response(cmd.id, success=False, error="Agent not initialized")
+            return
         result = await self._agent.process(cmd.message)
 
         await send_event("turn_end", turn_number=self._turn_count)

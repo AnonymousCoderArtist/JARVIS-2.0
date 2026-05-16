@@ -19,6 +19,7 @@ class ToolRegistry:
         self.config_getter = config_getter
         self.active_skills: dict[str, str] = {}
         self.event_queue = None
+        self.event_bus = None
 
     def register(self, tool: BaseTool):
         """

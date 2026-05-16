@@ -94,7 +94,7 @@ class ConnectorConfig:
         if self.config is None:
             self.config = {}
     
-    def get_credential(self, key: str, default: str = "") -> str:
+    def get_credential(self, key: str, default: Any = "") -> Any:
         """Get a credential from config"""
         return self.config.get(key, default)
 
@@ -207,7 +207,7 @@ class BaseConnector(ABC):
         
         return {}
     
-    def _save_credentials(self, credentials: Dict[str, str]) -> None:
+    def _save_credentials(self, credentials: Dict[str, Any]) -> None:
         """Save credentials to the credentials file"""
         import os
         from pathlib import Path
@@ -230,6 +230,18 @@ class BaseConnector(ABC):
     def handle_callback(self, code: str) -> None:
         """Handle the OAuth callback. Only relevant for auth_type='oauth'"""
         raise NotImplementedError(f"{self.connector_id} does not use OAuth")
+    
+    def set_credentials(self, **kwargs: Any) -> None:
+        """Set credentials for the connector. Override in subclasses."""
+        pass
+    
+    def set_api_key(self, api_key: str) -> None:
+        """Set API key for the connector. Override in subclasses."""
+        pass
+    
+    def set_default_headers(self, headers: Dict[str, str]) -> None:
+        """Set default headers for the connector. Override in subclasses."""
+        pass
 
 
 # -------------------------------------------------------------------

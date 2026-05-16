@@ -196,7 +196,8 @@ class EventHandler:
         # Fallback to finding a call by name if ID is missing or mismatched
         if not call_widget:
             for call in self.tool_calls.values():
-                if hasattr(call, "event") and call.event.tool_name == event.tool_name and not getattr(call, "has_result", False):
+                evt = getattr(call, "event", None)
+                if evt is not None and getattr(evt, "tool_name", None) == event.tool_name and not getattr(call, "has_result", False):
                     call_widget = call
                     break
             

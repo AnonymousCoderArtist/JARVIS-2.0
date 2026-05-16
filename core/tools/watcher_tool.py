@@ -45,7 +45,7 @@ Use this to get real-time intelligence data updated by background watchers (e.g.
         if key:
             cop_file = cop_dir / f"{key}.cop.jsonl"
             if not cop_file.exists():
-                return ToolOutput(success=False, error=f"COP key '{key}' not found.")
+                return ToolOutput(success=False, result=None, error=f"COP key '{key}' not found.")
                 
             try:
                 entries = []
@@ -63,7 +63,7 @@ Use this to get real-time intelligence data updated by background watchers (e.g.
                             
                 return ToolOutput(success=True, result={"total_lines": len(lines), "entries": entries})
             except Exception as e:
-                return ToolOutput(success=False, error=f"Failed to read COP key '{key}': {str(e)}")
+                return ToolOutput(success=False, result=None, error=f"Failed to read COP key '{key}': {str(e)}")
         else:
             keys = [f.name.replace(".cop.jsonl", "") for f in cop_dir.glob("*.cop.jsonl")]
             if not keys:

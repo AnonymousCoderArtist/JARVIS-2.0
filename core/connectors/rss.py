@@ -1,6 +1,7 @@
 """RSS/News connector - fetches news from RSS feeds"""
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
@@ -19,8 +20,10 @@ try:
 except ImportError:
     HAS_FEEDPARSER = False
 
-from ..base import BaseConnector, ConnectorConfig, Document, SyncStatus
-from ..registry import ConnectorRegistry
+logger = logging.getLogger(__name__)
+
+from .base import BaseConnector, ConnectorConfig, Document, SyncStatus
+from .registry import ConnectorRegistry
 
 
 DEFAULT_CONFIG_DIR = Path.home() / ".jarvis" / "credentials"
@@ -84,7 +87,7 @@ class RSSConnector(BaseConnector):
                 
                 # Handle feedparser response
                 if HAS_FEEDPARSER and hasattr(parsed, 'entries'):
-                    entries = parsed.entries
+                    entries = list(parsed.entries)  # type: ignore[arg-type]
                 elif isinstance(parsed, dict):
                     entries = parsed.get("entries", [])
                 else:
@@ -92,18 +95,17 @@ class RSSConnector(BaseConnector):
                 
                 for entry in entries[:10]:  # Limit to 10 per feed
                     # Parse date
-                    if hasattr(entry, 'published'):
+                    timestamp = datetime.now()
+                    if hasattr(entry, 'published_parsed') and entry.published_parsed:
                         try:
-                            timestamp = datetime(*entry.published_parsed[:6])
-                        except:
-                            timestamp = datetime.now()
-                    elif hasattr(entry, 'updated'):
+                            timestamp = datetime(*entry.published_parsed[:6])  # type: ignore[index]
+                        except Exception:
+                            pass
+                    elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
                         try:
-                            timestamp = datetime(*entry.updated_parsed[:6])
-                        except:
-                            timestamp = datetime.now()
-                    else:
-                        timestamp = datetime.now()
+                            timestamp = datetime(*entry.updated_parsed[:6])  # type: ignore[index]
+                        except Exception:
+                            pass
                     
                     # Skip old entries
                     if since and timestamp < since:
@@ -113,7 +115,8 @@ class RSSConnector(BaseConnector):
                     if hasattr(entry, 'summary'):
                         content = entry.summary
                     elif hasattr(entry, 'content'):
-                        content = entry.content[0].value if entry.content else ""
+                        content_list = entry.content
+                        content = content_list[0].value if content_list else ""  # type: ignore[index]
                     else:
                         content = ""
                     
@@ -124,13 +127,22 @@ class RSSConnector(BaseConnector):
                     elif isinstance(entry, dict):
                         link = entry.get("link", "")
                     
+                    title = "No title"
+                    author = ""
+                    if isinstance(entry, dict):
+                        title = entry.get("title", "No title")
+                        author = entry.get("author", "")
+                    else:
+                        title = getattr(entry, 'title', 'No title')
+                        author = getattr(entry, 'author', "")
+                    
                     yield Document(
                         doc_id=f"rss-{hash(link)}",
                         source="rss",
                         doc_type="news",
                         content=content[:500],  # Limit content length
-                        title=entry.get("title", "No title") if isinstance(entry, dict) else (getattr(entry, 'title', 'No title')),
-                        author=entry.get("author", "") if isinstance(entry, dict) else (getattr(entry, 'author', "")),
+                        title=title,
+                        author=author,
                         timestamp=timestamp,
                         url=link,
                         metadata={

@@ -33,6 +33,7 @@ class AgentDefinition:
     name: str
     when_to_use: str
     tools: list[str] | None = None
+    disallowed_tools: list[str] | None = None
     model: str | None = None
     max_turns: int = 100
     agent_type: AgentType = AgentType.AGENT
