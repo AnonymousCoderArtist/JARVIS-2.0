@@ -6,6 +6,214 @@ This document summarizes all the fixes, improvements, and UI updates made to the
 
 ---
 
+## v2.1.0 — Extension System, Event/Hook Architecture, Persistent Memory & RPC Mode
+
+### Extension System (New)
+
+A full plugin architecture for extending JARVIS with custom tools, hooks, commands, and shortcuts.
+
+- **ExtensionAPI** — Public surface exposed to every extension (`register_tool`, `register_command`, `on`, `register_hook`, `register_shortcut`)
+- **ExtensionLoader** — Dynamic discovery from `.jarvis/extensions/*.py`, `~/.jarvis/extensions/*.py`, and pip entry points
+- **ExtensionRunner** — Full lifecycle: discover → load → bind → run → unbind
+- **ExtensionRegistry** — Metadata tracking, conflict detection, tool origin lookup
+- **Tool override** — Extensions can replace built-in tools with conflict logging
+- **Example extensions** in `examples/extensions/`: hello_world, audit_tool, safety_gate, event_logger, ssh_operations
+
+**Files Added:**
+- `core/extensions/__init__.py`, `api.py`, `loader.py`, `runner.py`, `registry.py`, `types.py`
+- `examples/extensions/hello_world.py`, `audit_tool.py`, `safety_gate.py`, `event_logger.py`, `ssh_operations.py`, `ssh_tools.py`
+
+### Event & Hook System (New)
+
+Dual-layer event-driven architecture for observability and lifecycle interception.
+
+- **EventBus** (`core/events/bus.py`) — Per-session pub/sub with priority ordering, polymorphic dispatch (MRO walking), introspection stats
+- **HookRegistry** (`core/events/hooks.py`) — 16 lifecycle stages (`BEFORE_TOOL_CALL`, `AFTER_TURN`, etc.), handlers can block/modify/inject
+- **24 event types** across 8 categories: Agent, Turn, Message, Tool, Session, Extension, Status, System
+- `HookContext` — Rich context object passed to handlers (agent state, tool args, messages, etc.)
+- `HookResult` — Control execution: `proceed`, `block`, `modify`, `inject`
+
+**Files Added:**
+- `core/events/__init__.py`, `bus.py`, `hooks.py`, `types.py`
+
+### Pluggable Operations Backend (New)
+
+Decouples tool implementations from OS calls via `OperationsRegistry`.
+
+- **FileOperations protocol** — `read_file`, `write_file`, `list_dir`, `glob`
+- **BashOperations protocol** — `run_command`
+- **EditOperations protocol** — `edit_file`
+- **Default local implementations** via `aiofiles`/`asyncio`
+- Extensions can swap backends: `api.operations_registry.set_bash_ops(ssh_backend)`
+
+**Files Added:**
+- `core/tools/operations/__init__.py`, `base.py`, `local.py`, `registry.py`
+
+### Persistent Memory System (New)
+
+Structured, typed, scoped memory inspired by OpenClaude and Hermes.
+
+- **6 memory types**: user, feedback, project, project_context, reference, global
+- **3 scopes**: private (`.jarvis/memory/private/`), team, global (`~/.jarvis/global_memory/`)
+- **Rich metadata**: YAML frontmatter (name, description, type, scope, priority, tags, project)
+- **Auto-indexing**: `MEMORY.md` index files per scope
+- **Advanced search**: Filter by type, scope, tags, priority, project, content query
+- **Memory tools**: `save_memory` (structured), `read_memory` (searchable), `memory` (Hermes-style MEMORY.md/USER.md)
+- **Security scanning**: Sensitive pattern detection before saving
+- **Character limits**: MEMORY.md (2200 chars), USER.md (1375 chars)
+
+**Files Added:**
+- `core/tools/memory_tool.py`
+
+### RPC Mode (New)
+
+JSONL protocol over stdin/stdout for embedding JARVIS in IDEs, web UIs, or other processes.
+
+- **10 commands**: prompt, steer, follow_up, bash, compact, new_session, get_state, get_messages, get_tools, set_model
+- **Streaming events**: text_delta, thinking_delta, tool_call_start/end, turn_start/end, status, session_started
+- Full agent session lifecycle in a single process
+- Launched via `jarvis --mode rpc`
+
+**Files Added:**
+- `core/rpc/__init__.py`, `handler.py`, `types.py`
+
+### Prompt Template System (New)
+
+Markdown files with YAML frontmatter auto-register as slash commands.
+
+- Frontmatter: `name`, `description`, `arguments` (comma-separated)
+- Shell-style argument substitution: `$1`, `$2`, `$@`, `${@:2}`, `${@:N}`
+- Discovered from `.jarvis/prompts/` and `~/.jarvis/prompts/` (tiered discovery)
+- Example templates in `examples/prompts/`: review, testgen, explain
+
+**Files Added:**
+- `core/prompts/__init__.py`, `templates.py`
+- `examples/prompts/review.md`, `testgen.md`, `explain.md`
+
+### Resource Discovery (New)
+
+Tiered resource discovery for config, prompts, skills, and system files.
+
+- Scans `~/.jarvis/`, `.jarvis/`, and walks up from cwd (precedence: project > user > global)
+- Discovers `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md`, skills, prompt templates
+- `core/resources/__init__.py`, `loader.py`
+
+### Theme & Keybinding Systems (New)
+
+- **Theme system**: 51 color tokens (backgrounds, text, accents, borders, status), truecolor/256 detection, hot-reload
+- **Keybinding system**: Namespaced action IDs (`app.send`, `edit.cancel`, `panel.toggle`), legacy migration, JSON config
+- `core/config/theme.py`, `core/config/keybindings.py`
+
+### Rewind System (Improved)
+
+- File snapshots before each user message
+- Checkpoint-based message truncation
+- Session forking for parallel exploration
+
+### Agent Activity Tracking (New)
+
+- `SubagentActivity` — view-only activity events for subagents (info, tool_use, tool_result, output)
+- `AgentMemorySnapshot` — memory snapshots for fork isolation and persistence
+- Thread-safe async operations
+
+### New Agent: Rubber Duck Agent
+
+- Constructive critique and code review specialist
+- `core/agents/builtin/rubber_duck_agent.py`
+
+### New Tools
+
+- **ToolSearchTool** — Keyword search over tool names, descriptions, and search hints
+- **MemoryManagementTool** — Hermes-style `memory` tool for MEMORY.md/USER.md management
+- **EnterWorktreeTool / ExitWorktreeTool** — Git worktree management
+- **MCPProxyTool** — Unified MCP proxy tool with metadata cache and lifecycle management
+
+### MCP Improvements
+
+- Lazy connection architecture — servers connect only when tools are called
+- `MCPMetadataCache` — offline metadata cache at `~/.jarvis/mcp-cache.json`
+- `MCPLifecycleManager` — lazy/eager/keep-alive connection modes
+- `MCPProxyTool` — single proxy tool (status/list/search/describe/call/connect)
+- Authentication support: OAuth2, Bearer tokens, API keys
+- Resource and prompt template support
+
+### Learning System Improvements
+
+- ML-based interaction classification (`core/learn/Classification/`)
+- `TraceAnalyzer` for deeper interaction analysis
+- Configurable training data management
+
+### WebUI Enhancements
+
+- Context usage fix (attribute name `agent.provider` → `agent.llm`)
+- Context progress bar with color-coded thresholds
+- Inline tool calls in chat panel
+- Design token system (CSS variables + 25 reusable component classes)
+- Enter sends, Shift+Enter newline
+- Active tool call widget
+- Dot grid color & modulo fix
+- Model picker, MCP panel, heartbeat monitor, rewind dialog
+- Config panel, voice input, feedback widget, debug console
+- Question dialog, approval dialog
+- Slash commands panel navigation
+
+### Platform Compatibility
+
+- Conditional Windows imports (`sys.platform == "win32"`)
+- Python 3.11 compatibility (TypeVar + Generic, no f-string backslashes)
+- Cross-platform path handling
+
+### System Prompt Optimization
+
+- Rewritten in Markdown + XML hybrid format
+- ~15% token reduction (4,872 → 4,125 tokens)
+- 16 sharp directives replacing verbose bullet points
+- XML `<constraints>`, `<editing-rules>`, `<security-rules>` per agent
+
+### Files Modified
+
+| File | What Changed |
+|------|-------------|
+| `core/agents/jarvis_v2.py` | Hook integration, memory injection, event emission |
+| `core/agents/base.py` | EventBus wiring, hook execution in agent loop |
+| `core/tools/registry.py` | OperationsRegistry integration, lazy imports |
+| `core/web/server.py` | 14 new API endpoints, context usage fix, accumulated tracking |
+| `core/config/settings.py` | Extension settings, theme, keybinding support |
+| `core/config/models.py` | New config models for extensions, operations |
+| `core/agents/prompts/` | Token-optimized system prompts |
+| `core/agents/system_prompts.py` | 16 rule directives, memory-first instruction |
+| `interface/textual_ui/` | TUI visual overhaul, color palette theming |
+| `interface/webui/src/` | Design tokens, layout fixes, 10+ new panels |
+| `interface/cli/cli.py` | Conditional Windows imports |
+| `pyproject.toml` | Updated dependencies, version 2.1.0 |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| `core/events/` | EventBus + HookRegistry + 24 event types |
+| `core/extensions/` | Extension API, loader, runner, registry |
+| `core/tools/operations/` | Pluggable file/bash/edit backends |
+| `core/tools/memory_tool.py` | Structured persistent memory system |
+| `core/rpc/` | JSONL RPC protocol for IDE/process embedding |
+| `core/prompts/` | Prompt template system (markdown → slash commands) |
+| `core/resources/` | Tiered resource discovery |
+| `core/config/theme.py` | 51-token theme system |
+| `core/config/keybindings.py` | Namespaced keybinding system |
+| `core/agents/builtin/rubber_duck_agent.py` | Code review specialist agent |
+| `core/tools/tool_search_tool.py` | Tool discovery and search |
+| `core/tools/worktree_tool.py` | Git worktree management |
+| `core/tools/mcp_proxy_tool.py` | Unified MCP proxy tool |
+| `core/tools/mcp_lifecycle.py` | MCP connection lifecycle management |
+| `core/tools/mcp_metadata_cache.py` | Offline MCP metadata caching |
+| `core/tools/mcp_capabilities.py` | MCP server capabilities tracking |
+| `core/tools/mcp_auth.py` | MCP authentication support |
+| `core/tools/agent/agent_memory.py` | Agent activity tracking + snapshots |
+| `examples/extensions/` | Reference extension examples |
+| `examples/prompts/` | Prompt template examples |
+
+---
+
 ## Context Usage Fix & WebUI Layout Improvements
 
 ### Problem
@@ -466,7 +674,7 @@ All integrated into the existing techy-style UI (glass-morphism dark theme, drag
 | `interface/textual_ui/tcss/tools.tcss` | Color palette added, all tool-specific styles updated |
 | `interface/textual_ui/widgets/tool_widgets.py` | Generic syntax fix (Python 3.11), removed `edit` from registries, fixed `file_path` access |
 | `interface/textual_ui/cli_adapters.py` | F-string backslash fix, separated `edit` display logic |
-| `core/tools/__init__.py` | Conditional Windows imports |
+| `core/tools/__init__.py` | Conditional Windows imports, lazy import system |
 | `interface/textual_ui/tui_main.py` | Conditional Windows tool registration |
 | `interface/cli/cli.py` | Conditional Windows tool registration |
 

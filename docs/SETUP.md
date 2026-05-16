@@ -383,6 +383,22 @@ python -m interface.webui.webui_main
 3. Open your browser to the frontend
 4. Handle graceful shutdown on Ctrl+C
 
+### RPC Mode
+
+For embedding JARVIS in IDEs, web UIs, or external processes via JSONL over stdin/stdout:
+
+```bash
+# Single prompt
+echo '{"id":"1","type":"prompt","message":"Hello"}' | jarvis --mode rpc
+
+# With specific model
+jarvis --mode rpc --model gpt-4o --apikey sk-... < commands.jsonl
+```
+
+**RPC Commands**: `prompt`, `steer`, `follow_up`, `bash`, `compact`, `new_session`, `get_state`, `get_messages`, `get_tools`, `set_model`
+
+**RPC Events**: `text_delta`, `thinking_delta`, `tool_call_start`, `tool_call_end`, `turn_start`, `turn_end`, `status`, `session_started`
+
 ### Web UI Dev Mode
 
 For development on the Web UI frontend:
@@ -545,6 +561,7 @@ Configure the LLM model via CLI flags:
 | `--sdk`       | SDK provider (`openai` or `anthropic`)           | `openai` or `anthropic`                   |
 | `--base_url`  | Custom API base URL (for local/proxy LLMs)       | `http://localhost:8000/v1`                |
 | `--apikey`    | API key for the provider                         | `sk-...` or `sk-ant-...`                  |
+| `--mode`      | Interface mode: `tui`, `cli`, `webui`, `rpc`     | `tui` (default)                           |
 
 Example — using a local LLM:
 

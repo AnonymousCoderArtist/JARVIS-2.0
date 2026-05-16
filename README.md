@@ -1,9 +1,9 @@
 <div align="center">
 
-# JARVIS v2.0
+# JARVIS v2.1
 <img align="center" height="150" src="https://i.pinimg.com/originals/20/e0/83/20e0839cefb31bc03e058be16bacc26e.gif"  />
 
-<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge"></a>
+<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/badge/version-2.1.0-blue?style=for-the-badge"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge"></a>
 <a href="https://github.com/OEvortex/JARVIS/stargazers"><img src="https://img.shields.io/github/stars/OEvortex/JARVIS?style=for-the-badge&color=yellow"></a>
 <a href="https://github.com/OEvortex/JARVIS/issues"><img src="https://img.shields.io/github/issues/OEvortex/JARVIS?style=for-the-badge&color=red"></a>
@@ -22,7 +22,7 @@
 
 ## 🚀 Overview
 
-JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and mistral-vibe. It provides unified agentic assistance for coding, research, documentation, and knowledge work through intelligent tool usage.
+JARVIS v2.1 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and mistral-vibe. It provides unified agentic assistance for coding, research, documentation, and knowledge work through intelligent tool usage. Built with a **plugin-extensible, event-driven architecture** featuring an extension system, lifecycle hooks, pub/sub event bus, pluggable operation backends, persistent memory, RPC mode, and comprehensive tooling.
 
 ### Key Features
 
@@ -32,14 +32,20 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | **🔍 Explore Subagent** | Specialized agent for codebase exploration and architecture analysis |
 | **📝 Plan Subagent** | Specialized agent for planning and task decomposition |
 | **🍴 Fork Subagent** | Fork conversation context for parallel exploration |
-| **🔌 MCP Integration** | Connect to external MCP servers (stdio/HTTP transports) |
+| **🧠 Persistent Memory** | Structured memory with types (user/feedback/project/reference/global), scopes (private/team/global), tagging, and priority |
+| **🔌 Extension System** | Plugin architecture — custom tools, hooks, commands, shortcuts loaded from `.jarvis/extensions/*.py` |
+| **🔧 Pluggable Operations** | Swap file/bash/edit backends at runtime (SSH, Docker, sandbox) via OperationsRegistry |
+| **🔔 Event & Hook System** | Pub/sub EventBus (24 event types) + lifecycle HookRegistry (16 stages) for observability and interception |
+| **📜 Prompt Templates** | Markdown files with YAML frontmatter auto-register as slash commands (`/review`, `/testgen`, `/explain`) |
+| **🔄 Rewind System** | Conversation checkpointing with file snapshots for undo |
+| **📡 RPC Mode** | JSONL protocol over stdin/stdout for IDE/process embedding |
+| **🔌 MCP Integration** | Lazy MCP proxy tool with on-demand connections, metadata cache, auth support |
 | **🌐 WebUI** | Full-featured browser-based interface with FastAPI backend |
 | **🎨 Techy WebUI** | Modern dark UI with infinite canvas, dot grid, slash commands, active tool call widget |
 | **💡 Learning System** | Pattern detection, skill creation, and self-evaluation |
-| **💾 Semantic Memory** | Memory management for knowledge retrieval |
 | **💻 Dual Interfaces** | Rich CLI, modern TUI (Textual), and WebUI |
 | **🔒 Safety First** | Granular permission system with 5 agent profiles |
-| **🔧 20+ Tools** | Comprehensive tools for file ops, code execution, web, and more |
+| **🔧 25+ Tools** | Comprehensive tools for file ops, code execution, web, memory, worktree, MCP, and more |
 | **🔌 Multi-LLM** | OpenAI, Anthropic, and custom SDK adapters |
 | **☁️ Remote Sessions** | Connect to remote JARVIS instances via JARVIS_REMOTE_URL |
 
@@ -50,19 +56,30 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | Component | Status |
 |-----------|--------|
 | ✅ LLM Provider Abstraction | Complete |
-| ✅ Tool System | Complete (20+ tools) |
+| ✅ Tool System | Complete (25+ tools) |
 | ✅ JARVIS Agent (PI) | Complete |
 | ✅ Explore Subagent | Ready |
 | ✅ Plan Subagent | Ready |
 | ✅ Fork Subagent | Ready |
+| ✅ Rubber Duck Agent | Ready |
 | ✅ CLI Interface | Stable |
 | ✅ TUI Interface | Complete (Default) |
 | ✅ WebUI | Complete (with slash commands, active tool call widget, remote sessions) |
 | ✅ Permission System | Complete |
-| ✅ MCP Integration | Complete |
+| ✅ MCP Integration | Complete (lazy proxy, lifecyle mgmt, auth, cache) |
+| ✅ Extension System | Complete (API, loader, runner, registry) |
+| ✅ Event/Hook System | Complete (EventBus + 16 HookStages) |
+| ✅ Operations Registry | Complete (pluggable file/bash/edit backends) |
+| ✅ Persistent Memory | Complete (typed, scoped, tagged, priority) |
+| ✅ Prompt Templates | Complete (markdown frontmatter → slash commands) |
+| ✅ Resource Discovery | Complete (tiered: project > user > global) |
 | ✅ Learning System | Complete |
 | ✅ Heartbeat System | Complete |
 | ✅ Connectors System | Complete |
+| ✅ Rewind System | Complete (checkpoints + file snapshots) |
+| ✅ RPC Mode | Complete (JSONL stdin/stdout protocol) |
+| ✅ Worktree Tools | Complete (enter/exit git worktrees) |
+| ✅ Theme & Keybindings | Complete (51 tokens, hot-reload, namespaced actions) |
 | ✅ Session Management | Complete (local + remote) |
 
 ---
@@ -89,16 +106,25 @@ graph TB
         ExploreAg["ExploreAgent<br/>explore_agent.py"]
         PlanAg["PlanAgent<br/>plan_agent.py"]
         ForkAg["ForkSubagent<br/>fork_subagent.py"]
+        DuckAg["RubberDuckAgent<br/>rubber_duck_agent.py"]
         BuiltinAg["BuiltinAgents<br/>builtin_agents.py"]
     end
 
-    subgraph "Toolbox (20+ Tools)"
+    subgraph "Toolbox (25+ Tools)"
         FileTools["File Tools<br/>file_tools.py / file_edit_tool.py"]
         GrepTool["Grep Tool<br/>grep_tool.py"]
         ReplTool["REPL Tool<br/>repl_tool.py"]
         MCPTool["MCP Adapter<br/>mcp_adapter.py"]
         WebTools["Web Tools<br/>web_tools.py"]
+        MemTool["Memory Tools<br/>memory_tool.py"]
+        WtTool["Worktree Tools<br/>worktree_tool.py"]
         SkillTool["Skill Tools<br/>skill_tool.py"]
+    end
+
+    subgraph "Plugin & Event Layer"
+        ExtAPI["Extension System<br/>core/extensions/"]
+        EventBus["EventBus + Hooks<br/>core/events/"]
+        OpsReg["OperationsRegistry<br/>core/tools/operations/"]
     end
 
     subgraph "Supporting Systems"
@@ -106,13 +132,15 @@ graph TB
         Safety["PermissionManager<br/>core/tools/permissions.py"]
         Learn["LearningManager<br/>core/learn/learning_manager.py"]
         Connectors["ConnectorManager<br/>core/connectors/manager.py"]
+        Prompts["Prompt Templates<br/>core/prompts/"]
+        Resources["Resource Discovery<br/>core/resources/"]
+        Rewind["Rewind Manager<br/>core/rewind/manager.py"]
     end
 
     subgraph "LLM Provider Layer"
         SDK["LLM SDK Adapter<br/>core/llm/sdk_adapter.py"]
         OpenAI["OpenAI SDK<br/>core/llm_sdk/openai"]
         Anthropic["Anthropic SDK<br/>core/llm_sdk/anthropic"]
-        Gemini["Gemini SDK<br/>core/llm_sdk/geminicli"]
     end
 
     %% Relationships & Flow
@@ -120,10 +148,13 @@ graph TB
     Jarvis --> ToolReg
     Jarvis --> Config
     Jarvis --> History
+    Jarvis --> ExtAPI
+    Jarvis --> EventBus
 
     AgentMgr --> ExploreAg
     AgentMgr --> PlanAg
     AgentMgr --> ForkAg
+    AgentMgr --> DuckAg
     AgentMgr --> BuiltinAg
 
     ToolReg --> FileTools
@@ -131,41 +162,48 @@ graph TB
     ToolReg --> ReplTool
     ToolReg --> MCPTool
     ToolReg --> WebTools
+    ToolReg --> MemTool
+    ToolReg --> WtTool
     ToolReg --> SkillTool
+    ToolReg --> OpsReg
 
     Jarvis --> Learn
     Jarvis --> Connectors
-    
-    %% Interactions (Working)
+    Jarvis --> Rewind
+    Jarvis --> Prompts
+    Jarvis --> Resources
+
     FileTools --> Safety
     GrepTool --> Safety
     ReplTool --> Safety
-    
+
     SkillTool --> Skills
     Learn --> Skills
-    
+
     Jarvis --> SDK
     ExploreAg --> SDK
     PlanAg --> SDK
-    
+    ForkAg --> SDK
+
     SDK --> OpenAI
     SDK --> Anthropic
-    SDK --> Gemini
 
     %% Styling
     classDef main fill:#ffcccc,stroke:#333,stroke-width:2px;
     classDef core fill:#ccffcc,stroke:#333,stroke-width:1px;
     classDef agent fill:#ccccff,stroke:#333,stroke-width:1px;
     classDef tool fill:#ffffcc,stroke:#333,stroke-width:1px;
+    classDef plugin fill:#ccddff,stroke:#333,stroke-width:1px;
     classDef support fill:#ffccff,stroke:#333,stroke-width:1px;
     classDef sdk fill:#ccffff,stroke:#333,stroke-width:1px;
 
     class Jarvis main;
     class AgentMgr,ToolReg,Config,History core;
-    class ExploreAg,PlanAg,ForkAg,BuiltinAg agent;
-    class FileTools,GrepTool,ReplTool,MCPTool,WebTools,SkillTool tool;
-    class Skills,Safety,Learn,Connectors support;
-    class SDK,OpenAI,Anthropic,Gemini sdk;
+    class ExploreAg,PlanAg,ForkAg,DuckAg,BuiltinAg agent;
+    class FileTools,GrepTool,ReplTool,MCPTool,WebTools,MemTool,WtTool,SkillTool tool;
+    class ExtAPI,EventBus,OpsReg plugin;
+    class Skills,Safety,Learn,Connectors,Prompts,Resources,Rewind support;
+    class SDK,OpenAI,Anthropic sdk;
 ```
 
 
@@ -174,17 +212,24 @@ graph TB
 ```
 JARVIS/
 ├── core/                   # Python backend
-│   ├── agents/                # Agent system (base.py, jarvis_v2.py, manager.py, profiles, prompts/)
-│   ├── tools/                 # Tool system (registry, base, permissions, 20+ tools, MCP, sandbox)
-│   ├── llm/                   # LLM provider abstraction (SDKAdapter, model info)
-│   ├── llm_sdk/               # Provider SDKs (openai/, anthropic/)
+│   ├── agents/                # Agent system (base, jarvis_v2, manager, profiles, prompts, subagents)
+│   ├── tools/                 # Tool system (registry, base, permissions, 25+ tools, MCP, sandbox, operations)
+│   ├── tools/operations/      # Pluggable operation backends (file, bash, edit) — SSH, Docker, sandbox
+│   ├── tools/agent/           # Agent activity tracking, memory snapshots, fork isolation
+│   ├── events/                # EventBus (pub/sub), HookRegistry (16 stages), 24 event types
+│   ├── extensions/            # Extension plugin system — API, loader, runner, registry
+│   ├── llm/                   # LLM provider abstraction (SDKAdapter, model info, registry)
+│   ├── llm_sdk/               # Provider SDKs (openai/, anthropic/, base)
 │   ├── provider/              # Provider manager & models
-│   ├── config/                # Settings (JSON + env overrides)
+│   ├── config/                # Settings, models, theme (51 tokens), keybindings (namespaced)
 │   ├── connectors/            # External data connectors (github, http, rss, weather, filesystem)
-│   ├── learn/                 # Learning system (pattern detection, skill crystallization)
+│   ├── learn/                 # Learning system (pattern detection, skill crystallization, classification)
 │   ├── skills/                # Skill management (CRUD, sources, trace collection)
+│   ├── prompts/               # Prompt template system (markdown → slash commands)
+│   ├── resources/             # Tiered resource discovery (project > user > global)
 │   ├── rewind/                # Conversation checkpointing with file snapshots
-│   ├── watchers/              # Passive file/event watchers
+│   ├── rpc/                   # RPC mode (JSONL stdin/stdout protocol)
+│   ├── watchers/              # Passive file/event watchers (manager + base)
 │   ├── web/                   # FastAPI web server (REST + WebSocket endpoints)
 │   └── agents/                # Agent lifecycle, prompts, builtins
 ├── interface/             # User interfaces
@@ -203,8 +248,13 @@ JARVIS/
 │   ├── custom-tools.md       # Writing new tools
 │   ├── MCP.md                # MCP server integration
 │   ├── SANDBOX.md            # Sandboxed execution
+│   ├── EXTENSIONS.md         # Extension plugin system
+│   ├── HOOKS.md              # Event & hook system
 │   ├── watchers.md           # File/event watchers
 │   └── webui-theme.md        # CSS variable theming
+├── examples/              # Reference examples
+│   ├── extensions/           # Extension examples (hello_world, audit, safety, ssh, etc.)
+│   └── prompts/              # Prompt template examples (review, testgen, explain)
 ├── main.py               # Application entry point
 ├── providers.json         # LLM provider definitions
 ├── pyproject.toml          # Python project config
@@ -213,146 +263,149 @@ JARVIS/
 
 ---
 
-## 📦 Installation
+## 🧠 Persistent Memory System
 
-### Prerequisites
+JARVIS features a structured persistent memory system (inspired by OpenClaude and Hermes):
 
-- **Python 3.10+** (recommended 3.11+)
-- **API Key** from OpenAI or Anthropic
+### Memory Types
 
-### Quick Setup
+| Type | Description |
+|------|-------------|
+| `user` | Details about user's role, goals, preferences |
+| `feedback` | Guidance on how to approach work, corrections |
+| `project` | Ongoing work, goals, initiatives, bugs |
+| `project_context` | Architecture, technical decisions, implementation details |
+| `reference` | Pointers to external systems and resources |
+| `global` | Cross-project patterns and best practices |
 
-```bash
-# Clone the repository
-git clone https://github.com/OEvortex/JARVIS.git
-cd JARVIS
+### Scopes & Organization
 
-# Create virtual environment
-uv venv
+| Scope | Location | Visibility |
+|-------|----------|------------|
+| `private` | `.jarvis/memory/private/` | Current project only |
+| `team` | `.jarvis/memory/team/` | Shared within project |
+| `global` | `~/.jarvis/global_memory/` | All projects |
 
-# Activate virtual environment
-# On Linux/macOS:
-source .venv/bin/activate
-# On Windows:
-.venv\Scripts\activate
+Memories are stored as Markdown files with YAML frontmatter (name, description, type, priority, tags, project), automatically indexed via `MEMORY.md`, and searchable by type, scope, tags, priority, and content.
 
-# Install dependencies
-uv pip install -e .
-```
+### Memory Tools
 
-### Configuration
-
-Create a `.env` file with your API keys:
-
-```bash
-cp .env.example .env
-```
-
-```env
-JARVIS_MODEL=gpt-4o
-JARVIS_BASE_URL=https://api.openai.com/v1
-JARVIS_API_KEY=your_api_key_here
-JARVIS_SDK=openai
-```
-
-For more advanced configuration, create a `.jarvis/settings.json` file (see Configuration Reference below).
+| Tool | Description |
+|------|-------------|
+| `save_memory` | Save structured memories with type, scope, priority, tags |
+| `read_memory` | Search/retrieve memories with filtering |
+| `memory` | Hermes-style MEMORY.md/USER.md management (add/replace/read/remove) |
 
 ---
 
-## 🚀 Usage
+## 🔌 Extension System
 
-### TUI Mode (Default)
+JARVIS has a full plugin architecture. Extensions are plain Python files loaded from `.jarvis/extensions/`:
+
+```
+.jarvis/extensions/
+├── my_tool.py          # Register custom tools
+├── safety_gate.py      # Block dangerous operations via hooks
+└── ssh_backend.py      # Swap operations backend to SSH
+```
+
+```python
+# .jarvis/extensions/example.py
+async def jarvis_extension(api: ExtensionAPI):
+    api.register_tool(MyTool())
+    api.on(ToolCallStarted, my_handler)
+    api.register_hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
+    api.register_command("/hello", hello_cmd, "Say hello")
+    api.register_shortcut("ctrl+h", "app.hello", "Hello")
+```
+
+See [docs/EXTENSIONS.md](docs/EXTENSIONS.md) for the full reference.
+
+Access via `ExtensionAPI`:
+- `register_tool(tool)` — Override or add tools
+- `register_command(name, handler, desc)` — Slash commands
+- `on(event_type, handler)` — Subscribe to events
+- `register_hook(stage, handler)` — Lifecycle hooks
+- `register_shortcut(key, action_id, desc)` — Keyboard shortcuts
+- `api.operations_registry.set_bash_ops(...)` — Swap backends
+
+---
+
+## 🔔 Event & Hook System
+
+Dual-layer architecture for observability and interception:
+
+### EventBus (Pub/Sub)
+- 24 event types across 8 categories (Agent, Turn, Message, Tool, Session, Extension, Status, System)
+- Priority-ordered handlers, polymorphic dispatch (MRO walking)
+- Per-session instances, introspection stats
+
+### HookRegistry (Lifecycle Interception)
+- 16 hook stages covering agent/turn/tool/session/skill lifecycles
+- Handlers can **block**, **modify arguments**, or **inject content**
+- Short-circuit on block, error-tolerant execution
+
+See [docs/HOOKS.md](docs/HOOKS.md) for the full reference.
+
+---
+
+## 📡 RPC Mode
+
+Embed JARVIS in IDEs, web UIs, or other processes via JSONL over stdin/stdout:
 
 ```bash
-# Launch TUI interface (default - uses .env file from current working directory)
-jarvis
-
-# With explicit configuration
-jarvis --model gpt-4o --apikey YOUR_KEY
-
-# With custom base URL (for local LLMs)
-jarvis --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --sdk openai
+echo '{"id":"1","type":"prompt","message":"Hello"}' | jarvis --mode rpc
 ```
 
-### CLI Mode
+**Commands:** `prompt`, `steer`, `follow_up`, `bash`, `compact`, `new_session`, `get_state`, `get_messages`, `get_tools`, `set_model`
 
-```bash
-# Using CLI flags
-jarvis --cli --model gpt-4o --apikey YOUR_KEY --sdk openai
+**Events:** `text_delta`, `thinking_delta`, `tool_call_start`, `tool_call_end`, `turn_start`, `turn_end`, `status`, `session_started`
 
-# Using .env configuration
-jarvis --cli
+---
 
-# Using short flags
-jarvis --cli -m gpt-4o --apikey YOUR_KEY
+## 🔧 Pluggable Operations Backend
+
+The `OperationsRegistry` decouples tool implementations from OS calls. Extensions can swap backends at runtime:
+
+| Backend | Protocol | Use Case |
+|---------|----------|----------|
+| `LocalFileOperations` | `aiofiles` | Default local operations |
+| `LocalBashOperations` | `asyncio` | Default subprocess execution |
+| `LocalEditOperations` | `aiofiles` | Default file editing |
+| *Custom* | Any | SSH, Docker, sandbox, remote |
+
+```python
+api.operations_registry.set_bash_ops(MySSHBackend())
+api.operations_registry.set_file_ops(MyDockerBackend())
 ```
 
-### WebUI Mode
+---
 
-```bash
-# Launch WebUI interface (default: http://127.0.0.1:5173)
-jarvis --webui
+## 📜 Prompt Templates
 
-# With custom port
-jarvis --webui --port 8080 --backend-port 8765
+Markdown files with YAML frontmatter auto-register as slash commands:
 
-# Expose to network
-jarvis --webui --host 0.0.0.0 --port 5173
+```markdown
+---
+name: review
+description: Review code for issues
+arguments: path
+---
+# Code Review
+
+Review the code at `$1` for:
+- Security vulnerabilities
+- Performance issues
+- Best practices
 ```
 
-#### WebUI Features
-
-- **Model Picker**: Browse & switch LLM models grouped by provider with capability badges
-- **MCP Servers**: Add/remove/connect MCP servers with status monitoring
-- **Heartbeat Monitor**: Start/stop heartbeat scheduler, view task files and results
-- **Rewind**: Browse session checkpoints and rewind conversation state
-- **Config/Settings**: Thinking level selector, working preference toggles
-- **Voice Input**: Browser-based voice recording via MediaRecorder API
-- **Context Progress**: Real-time token usage display with progress bars, always-visible inline context bar with color-coded thresholds
-- **Connector Auth**: Authenticate external services (GitHub, Weather, etc.)
-- **Safety Profiles**: 5 safety levels (Lockdown→Unrestricted), cycle with Shift+Tab
-- **Debug Console**: Terminal-style debug command interface
-- **Feedback Widget**: 3-emoji rating system persisted to disk
-- **Question Dialog**: Structured question forms from WebSocket `user_input` events
-- **Approval Dialog**: Amber-themed tool approval overlay with always-allow
-- **Slash Commands**: Type `/` for autocomplete (help, status, model, mcp, heartbeat, rewind, config, debug, feedback, etc.)
-- **Active Tool Call Widget**: Compact pill showing running tool names with animated status dots
-- **Enter to Send**: Press Enter to send, Shift+Enter for newline
-- **Infinite Canvas**: Draggable dot grid background that extends infinitely
-- **Right Sidebar**: Fixed tool strip with icons for all feature panels
-- **Remote Sessions**: Connect to remote JARVIS instances via `JARVIS_REMOTE_URL` env variable
-- **Markdown Rendering**: Beautiful tables, lists, headings with blue theme styling
-- **Session Management**: Resume/load previous sessions from local storage
-- **Auto-Greeting**: Sends "hi" on connect so users see immediate activity
-
-#### Environment Variables for WebUI
-
-```env
-# Remote sessions (optional)
-JARVIS_REMOTE_URL=https://your-remote-jarvis.com
-```
-
-### Available CLI Flags
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--model` | `-m` | Model name (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`) |
-| `--base_url` | | Base URL for LLM API |
-| `--apikey` | `--api-key` | API key for the provider |
-| `--sdk` | | SDK mode: `openai` or `anthropic` |
-| `--cli` | | Launch CLI interface |
-| `--tui` | `--TUI` | Launch TUI interface (default) |
-| `--webui` | | Launch WebUI interface |
-| `--bypass` | `--yolo` | Bypass all tool permissions |
-| `--host` | `-H` | WebUI host (default: 127.0.0.1) |
-| `--port` | `-p` | WebUI frontend port (default: 5173) |
-| `--backend-port` | `-b` | WebUI backend port (default: 8765) |
+Arguments use shell-style substitution (`$1`, `$2`, `$@`, `${@:2}`). Templates are discovered from `.jarvis/prompts/` and `~/.jarvis/prompts/`.
 
 ---
 
 ## 🛠️ Available Tools
 
-JARVIS comes with 20+ built-in tools for comprehensive task handling:
+JARVIS comes with 25+ built-in tools for comprehensive task handling:
 
 ### File Operations
 
@@ -377,13 +430,14 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 | Tool | Description |
 |------|-------------|
 | `grep` | Search for patterns in files |
+| `tool_search` | Search and discover available tools |
 
 ### Web & Network
 
 | Tool | Description |
 |------|-------------|
 | `web_fetch` | Fetch web content |
-| `web_search` | Search the web via Brave API |
+| `web_search` | Search the web via Brave/Exa API |
 
 ### Background & Async
 
@@ -397,15 +451,15 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 
 | Tool | Description |
 |------|-------------|
-| `save_memory` | Save information to semantic memory |
-| `read_memory` | Read from memory |
-| `learn_from_interaction` | Learn from interactions |
+| `save_memory` | Save structured memories (typed, scoped, tagged) |
+| `read_memory` | Search/retrieve memories with filtering |
+| `memory` | Hermes-style MEMORY.md/USER.md management |
 
 ### Agents & Skills
 
 | Tool | Description |
 |------|-------------|
-| `agents` | Invoke subagents (explore, plan, fork) |
+| `agents` | Invoke subagents (explore, plan, fork, duck) |
 | `activate_skill` | Activate specialized skills |
 | `manage_skills` | Create and manage custom skills |
 | `ask_user_question` | Ask user structured questions |
@@ -414,8 +468,15 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 
 | Tool | Description |
 |------|-------------|
-| `mcp_tools` | Execute tools from connected MCP servers |
+| `mcp` | Unified proxy tool for all MCP servers (status, list, search, describe, call, connect) |
 | `mcp_list_servers` | List connected MCP servers |
+
+### Worktree Tools
+
+| Tool | Description |
+|------|-------------|
+| `enter_worktree` | Create and enter an isolated git worktree |
+| `exit_worktree` | Exit current worktree and return to main |
 
 ### System Tools
 
@@ -437,6 +498,7 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 | **Explore** | Codebase exploration and architecture analysis |
 | **Plan** | Task decomposition and planning |
 | **Fork** | Fork conversation for parallel exploration |
+| **Rubber Duck** | Constructive critique and code review |
 
 ### Safety Profiles (WebUI)
 
@@ -470,7 +532,7 @@ JARVIS comes with 20+ built-in tools for comprehensive task handling:
 
 ## 🔌 MCP Integration
 
-JARVIS supports connecting to external MCP servers for extended capabilities:
+JARVIS uses a **lazy MCP** architecture with a single `mcp` proxy tool and on-demand connections:
 
 ```json
 // .mcp.json (or ~/.jarvis/mcp.json)
@@ -499,9 +561,10 @@ JARVIS supports connecting to external MCP servers for extended capabilities:
 ```
 
 ### MCP Transport Types
-
 - **stdio**: Local subprocess-based MCP servers
 - **http/sse**: Remote MCP servers via HTTP
+
+Features: token-efficient proxy tool, lazy connections, metadata cache (`~/.jarvis/mcp-cache.json`), OAuth/Bearer/API key auth, resources/prompts/sampling support.
 
 ---
 
@@ -513,6 +576,7 @@ JARVIS includes an intelligent learning system that:
 2. **Skill Creation**: Automatically creates skills after threshold interactions
 3. **Self-Evaluation**: Periodically evaluates its own performance
 4. **Memory Management**: Semantic memory with importance scoring
+5. **Classification**: ML-based interaction categorization
 
 ### Configuration
 
@@ -593,6 +657,9 @@ JARVIS_HEARTBEAT_EVERY=30m
 JARVIS_HEARTBEAT_TARGET=last
 JARVIS_HEARTBEAT_SKIP_WHEN_BUSY=true
 JARVIS_HEARTBEAT_SHOW_OK=false
+
+# Remote sessions (optional)
+JARVIS_REMOTE_URL=https://your-remote-jarvis.com
 ```
 
 ### Full Configuration (settings.json)
@@ -601,7 +668,7 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 {
   "app": {
     "name": "JARVIS",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "debug": false
   },
   "provider": {
@@ -635,14 +702,106 @@ JARVIS_HEARTBEAT_SHOW_OK=false
     "light_context": false,
     "skip_when_busy": true,
     "show_ok": false
-  },
-  "learning": {
-    "enabled": true,
-    "skill_creation_threshold": 5,
-    "self_evaluation_interval": 15
   }
 }
 ```
+
+---
+
+## 📦 Installation
+
+### Prerequisites
+
+- **Python 3.10+** (recommended 3.11+)
+- **API Key** from OpenAI or Anthropic
+
+### Quick Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/OEvortex/JARVIS.git
+cd JARVIS
+
+# Create virtual environment
+uv venv
+
+# Activate virtual environment
+# On Linux/macOS:
+source .venv/bin/activate
+# On Windows:
+.venv\Scripts\activate
+
+# Install dependencies
+uv pip install -e .
+```
+
+### Configuration
+
+Create a `.env` file with your API keys:
+
+```bash
+cp .env.example .env
+```
+
+```env
+JARVIS_MODEL=gpt-4o
+JARVIS_BASE_URL=https://api.openai.com/v1
+JARVIS_API_KEY=your_api_key_here
+JARVIS_SDK=openai
+```
+
+For more advanced configuration, create a `.jarvis/settings.json` file (see Configuration Reference below).
+
+---
+
+## 🚀 Usage
+
+### TUI Mode (Default)
+
+```bash
+jarvis
+jarvis --model gpt-4o --apikey YOUR_KEY
+jarvis --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --sdk openai
+```
+
+### CLI Mode
+
+```bash
+jarvis --cli --model gpt-4o --apikey YOUR_KEY --sdk openai
+jarvis --cli
+```
+
+### WebUI Mode
+
+```bash
+jarvis --webui
+jarvis --webui --port 8080 --backend-port 8765
+jarvis --webui --host 0.0.0.0 --port 5173
+```
+
+### RPC Mode
+
+```bash
+echo '{"id":"1","type":"prompt","message":"Hello"}' | jarvis --mode rpc
+```
+
+### Available CLI Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--model` | `-m` | Model name (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`) |
+| `--base_url` | | Base URL for LLM API |
+| `--apikey` | `--api-key` | API key for the provider |
+| `--sdk` | | SDK mode: `openai` or `anthropic` |
+| `--mode` | | Interface mode: `tui` (default), `cli`, `webui`, `rpc` |
+| `--cli` | | Launch CLI interface |
+| `--tui` | `--TUI` | Launch TUI interface (default) |
+| `--webui` | | Launch WebUI interface |
+| `--rpc` | | Launch RPC mode |
+| `--bypass` | `--yolo` | Bypass all tool permissions |
+| `--host` | `-H` | WebUI host (default: 127.0.0.1) |
+| `--port` | `-p` | WebUI frontend port (default: 5173) |
+| `--backend-port` | `-b` | WebUI backend port (default: 8765) |
 
 ---
 
@@ -659,6 +818,8 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 | [🔧 custom-tools.md](docs/custom-tools.md) | Writing new tools |
 | [🔌 MCP.md](docs/MCP.md) | Connecting MCP servers |
 | [📦 SANDBOX.md](docs/SANDBOX.md) | Sandboxed command execution |
+| [🔌 EXTENSIONS.md](docs/EXTENSIONS.md) | Extension plugin system |
+| [🔔 HOOKS.md](docs/HOOKS.md) | Event & hook system |
 | [👁️ watchers.md](docs/watchers.md) | File/event watchers |
 | [🎨 webui-theme.md](docs/webui-theme.md) | Customizing WebUI colors |
 
@@ -678,6 +839,9 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 | **Tool permissions** | `settings.json` → `permissions` |
 | **MCP servers** | Configure in `.mcp.json` |
 | **Custom tools** | Write a `BaseTool` subclass — see [custom-tools.md](docs/custom-tools.md) |
+| **Extensions** | Create `.jarvis/extensions/*.py` — see [EXTENSIONS.md](docs/EXTENSIONS.md) |
+| **Hooks** | Register hooks via extensions — see [HOOKS.md](docs/HOOKS.md) |
+| **Prompt templates** | Create `.jarvis/prompts/*.md` |
 | **All settings** | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
 
 ### Don't Touch (Internal Invariants)
