@@ -51,6 +51,128 @@ JARVIS v2.1 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 
 ---
 
+## 📦 Installation
+
+### Prerequisites
+
+- **Python 3.10+** (recommended 3.11+)
+- **Node.js 18+** (only needed for WebUI mode)
+- **API Key** from OpenAI or Anthropic
+
+### Quick Setup (CLI/TUI)
+
+```bash
+# Clone the repository
+git clone https://github.com/OEvortex/JARVIS.git
+cd JARVIS
+
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate     # Linux/macOS
+# .venv\Scripts\activate       # Windows
+
+# Install Python dependencies
+pip install -e .
+
+# Configure your API key
+cp .env.example .env
+# Then edit .env with your API key
+```
+
+### Quick Setup (WebUI)
+
+If you want the browser-based WebUI, do the extra step after installing Python deps:
+
+```bash
+# Install WebUI frontend dependencies
+cd jarvis/interface/webui
+npm install
+# or: bun install
+cd ../../..
+```
+
+### Quick Start
+
+```bash
+# TUI mode (default)
+jarvis
+
+# WebUI mode
+jarvis --webui
+```
+
+### Configuration
+
+Create a `.env` file with your API keys:
+
+```bash
+cp .env.example .env
+```
+
+```env
+JARVIS_MODEL=gpt-4o
+JARVIS_BASE_URL=https://api.openai.com/v1
+JARVIS_API_KEY=your_api_key_here
+JARVIS_SDK=openai
+```
+
+For more advanced configuration, create a `.jarvis/settings.json` file (see Configuration Reference below).
+
+---
+
+## 🚀 Usage
+
+### TUI Mode (Default)
+
+```bash
+jarvis
+jarvis --model gpt-4o --apikey YOUR_KEY
+jarvis --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --sdk openai
+```
+
+### CLI Mode
+
+```bash
+jarvis --cli --model gpt-4o --apikey YOUR_KEY --sdk openai
+jarvis --cli
+```
+
+### WebUI Mode
+
+> **Prerequisite**: Run `cd jarvis/interface/webui && npm install && cd ../../..` first to install frontend dependencies.
+
+```bash
+jarvis --webui
+jarvis --webui --port 8080 --backend-port 8765
+jarvis --webui --host 0.0.0.0 --port 5173
+```
+
+### RPC Mode
+
+```bash
+echo '{"id":"1","type":"prompt","message":"Hello"}' | jarvis --mode rpc
+```
+
+### Available CLI Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--model` | `-m` | Model name (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`) |
+| `--base_url` | | Base URL for LLM API |
+| `--apikey` | `--api-key` | API key for the provider |
+| `--sdk` | | SDK mode: `openai` or `anthropic` |
+| `--mode` | | Interface mode: `tui` (default), `cli`, `webui`, `rpc` |
+| `--cli` | | Launch CLI interface |
+| `--tui` | `--TUI` | Launch TUI interface (default) |
+| `--webui` | | Launch WebUI interface |
+| `--rpc` | | Launch RPC mode |
+| `--bypass` | `--yolo` | Bypass all tool permissions |
+| `--host` | `-H` | WebUI host (default: 127.0.0.1) |
+| `--port` | `-p` | WebUI frontend port (default: 5173) |
+| `--backend-port` | `-b` | WebUI backend port (default: 8765) |
+
+---
+
 ## 🎯 Current Status
 
 | Component | Status |
@@ -706,102 +828,6 @@ JARVIS_REMOTE_URL=https://your-remote-jarvis.com
 }
 ```
 
----
-
-## 📦 Installation
-
-### Prerequisites
-
-- **Python 3.10+** (recommended 3.11+)
-- **API Key** from OpenAI or Anthropic
-
-### Quick Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/OEvortex/JARVIS.git
-cd JARVIS
-
-# Create virtual environment
-uv venv
-
-# Activate virtual environment
-# On Linux/macOS:
-source .venv/bin/activate
-# On Windows:
-.venv\Scripts\activate
-
-# Install dependencies
-uv pip install -e .
-```
-
-### Configuration
-
-Create a `.env` file with your API keys:
-
-```bash
-cp .env.example .env
-```
-
-```env
-JARVIS_MODEL=gpt-4o
-JARVIS_BASE_URL=https://api.openai.com/v1
-JARVIS_API_KEY=your_api_key_here
-JARVIS_SDK=openai
-```
-
-For more advanced configuration, create a `.jarvis/settings.json` file (see Configuration Reference below).
-
----
-
-## 🚀 Usage
-
-### TUI Mode (Default)
-
-```bash
-jarvis
-jarvis --model gpt-4o --apikey YOUR_KEY
-jarvis --model llama-3-70b --base_url http://localhost:8000/v1 --apikey dummy --sdk openai
-```
-
-### CLI Mode
-
-```bash
-jarvis --cli --model gpt-4o --apikey YOUR_KEY --sdk openai
-jarvis --cli
-```
-
-### WebUI Mode
-
-```bash
-jarvis --webui
-jarvis --webui --port 8080 --backend-port 8765
-jarvis --webui --host 0.0.0.0 --port 5173
-```
-
-### RPC Mode
-
-```bash
-echo '{"id":"1","type":"prompt","message":"Hello"}' | jarvis --mode rpc
-```
-
-### Available CLI Flags
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--model` | `-m` | Model name (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`) |
-| `--base_url` | | Base URL for LLM API |
-| `--apikey` | `--api-key` | API key for the provider |
-| `--sdk` | | SDK mode: `openai` or `anthropic` |
-| `--mode` | | Interface mode: `tui` (default), `cli`, `webui`, `rpc` |
-| `--cli` | | Launch CLI interface |
-| `--tui` | `--TUI` | Launch TUI interface (default) |
-| `--webui` | | Launch WebUI interface |
-| `--rpc` | | Launch RPC mode |
-| `--bypass` | `--yolo` | Bypass all tool permissions |
-| `--host` | `-H` | WebUI host (default: 127.0.0.1) |
-| `--port` | `-p` | WebUI frontend port (default: 5173) |
-| `--backend-port` | `-b` | WebUI backend port (default: 8765) |
 
 ---
 
