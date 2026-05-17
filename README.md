@@ -1,9 +1,9 @@
 <div align="center">
 
-# JARVIS v2.0
+# JARVIS v2.1
 <img align="center" height="150" src="https://i.pinimg.com/originals/20/e0/83/20e0839cefb31bc03e058be16bacc26e.gif"  />
 
-<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge"></a>
+<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/badge/version-2.1.0-blue?style=for-the-badge"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge"></a>
 <a href="https://github.com/OEvortex/JARVIS/stargazers"><img src="https://img.shields.io/github/stars/OEvortex/JARVIS?style=for-the-badge&color=yellow"></a>
 <a href="https://github.com/OEvortex/JARVIS/issues"><img src="https://img.shields.io/github/issues/OEvortex/JARVIS?style=for-the-badge&color=red"></a>
@@ -22,7 +22,7 @@
 
 ## 🚀 Overview
 
-JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and mistral-vibe. It provides unified agentic assistance for coding, research, documentation, and knowledge work through intelligent tool usage.
+JARVIS v2.1 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and mistral-vibe. It provides unified agentic assistance for coding, research, documentation, and knowledge work through intelligent tool usage.
 
 ### Key Features
 
@@ -32,7 +32,10 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | **🔍 Explore Subagent** | Specialized agent for codebase exploration and architecture analysis |
 | **📝 Plan Subagent** | Specialized agent for planning and task decomposition |
 | **🍴 Fork Subagent** | Fork conversation context for parallel exploration |
-| **🔌 MCP Integration** | Connect to external MCP servers (stdio/HTTP transports) |
+| **🔌 MCP Integration** | Connect to external MCP servers (stdio/HTTP/SSE transports) with lazy/eager/keep-alive lifecycle |
+| **🧩 Extension System** | Plugin architecture for custom tools, hooks, commands, and shortcuts via `.jarvis/extensions/` |
+| **📡 Event System** | 24 event types across 8 categories with async pub/sub EventBus |
+| **🪝 Hook System** | 16 lifecycle stages for blocking, modifying, or injecting content at execution points |
 | **🌐 WebUI** | Full-featured browser-based interface with FastAPI backend |
 | **🎨 Techy WebUI** | Modern dark UI with infinite canvas, dot grid, slash commands, active tool call widget |
 | **💡 Learning System** | Pattern detection, skill creation, and self-evaluation |
@@ -59,7 +62,10 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 | ✅ TUI Interface | Complete (Default) |
 | ✅ WebUI | Complete (with slash commands, active tool call widget, remote sessions) |
 | ✅ Permission System | Complete |
-| ✅ MCP Integration | Complete |
+| ✅ MCP Integration | Complete (lazy/eager/keep-alive lifecycle) |
+| ✅ Extension System | Complete (plugins, hooks, commands, shortcuts) |
+| ✅ Event System | Complete (24 event types, async pub/sub) |
+| ✅ Hook System | Complete (16 lifecycle stages) |
 | ✅ Learning System | Complete |
 | ✅ Heartbeat System | Complete |
 | ✅ Connectors System | Complete |
@@ -101,6 +107,11 @@ graph TB
         SkillTool["Skill Tools<br/>skill_tool.py"]
     end
 
+    subgraph "Event & Extension Systems"
+        Events["EventBus + HookRegistry<br/>core/events/"]
+        Extensions["ExtensionAPI + Runner<br/>core/extensions/"]
+    end
+
     subgraph "Supporting Systems"
         Skills["SkillManager<br/>core/skills/manager.py"]
         Safety["PermissionManager<br/>core/tools/permissions.py"]
@@ -135,6 +146,8 @@ graph TB
 
     Jarvis --> Learn
     Jarvis --> Connectors
+    Jarvis --> Events
+    Jarvis --> Extensions
     
     %% Interactions (Working)
     FileTools --> Safety
@@ -176,10 +189,12 @@ JARVIS/
 ├── core/                   # Python backend
 │   ├── agents/                # Agent system (base.py, jarvis_v2.py, manager.py, profiles, prompts/)
 │   ├── tools/                 # Tool system (registry, base, permissions, 20+ tools, MCP, sandbox)
+│   ├── events/                # Event system (EventBus, HookRegistry, 24 event types, 16 hook stages)
+│   ├── extensions/            # Extension system (API, loader, runner, registry)
 │   ├── llm/                   # LLM provider abstraction (SDKAdapter, model info)
 │   ├── llm_sdk/               # Provider SDKs (openai/, anthropic/)
 │   ├── provider/              # Provider manager & models
-│   ├── config/                # Settings (JSON + env overrides)
+│   ├── config/                # Settings (JSON + env overrides, themes, keybindings)
 │   ├── connectors/            # External data connectors (github, http, rss, weather, filesystem)
 │   ├── learn/                 # Learning system (pattern detection, skill crystallization)
 │   ├── skills/                # Skill management (CRUD, sources, trace collection)
@@ -601,7 +616,7 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 {
   "app": {
     "name": "JARVIS",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "debug": false
   },
   "provider": {
@@ -658,6 +673,8 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 | [🤖 custom-agents.md](docs/custom-agents.md) | Creating custom agent profiles |
 | [🔧 custom-tools.md](docs/custom-tools.md) | Writing new tools |
 | [🔌 MCP.md](docs/MCP.md) | Connecting MCP servers |
+| [📡 HOOKS.md](docs/HOOKS.md) | Event system and lifecycle hooks |
+| [🧩 EXTENSIONS.md](docs/EXTENSIONS.md) | Extension/plugin system |
 | [📦 SANDBOX.md](docs/SANDBOX.md) | Sandboxed command execution |
 | [👁️ watchers.md](docs/watchers.md) | File/event watchers |
 | [🎨 webui-theme.md](docs/webui-theme.md) | Customizing WebUI colors |
@@ -678,6 +695,8 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 | **Tool permissions** | `settings.json` → `permissions` |
 | **MCP servers** | Configure in `.mcp.json` |
 | **Custom tools** | Write a `BaseTool` subclass — see [custom-tools.md](docs/custom-tools.md) |
+| **Extensions** | Add custom tools/hooks/commands via `.jarvis/extensions/*.py` — see [EXTENSIONS.md](docs/EXTENSIONS.md) |
+| **Event hooks** | Register lifecycle hooks at 16 stages — see [HOOKS.md](docs/HOOKS.md) |
 | **All settings** | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
 
 ### Don't Touch (Internal Invariants)
@@ -733,7 +752,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - **Repository**: https://github.com/OEvortex/JARVIS
 - **Issues**: https://github.com/OEvortex/JARVIS/issues
-- **Authors**: [OEvortex](https://github.com/OEvortex) and [AnonymousCoderLokesh](https://github.com/AnonymousCoderArtist)
+- **Authors**: [OEvortex](https://github.com/OEvortex) and [AnonymousCoderArtist](https://github.com/AnonymousCoderArtist)
 
 ---
 

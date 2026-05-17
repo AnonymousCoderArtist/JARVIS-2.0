@@ -13,6 +13,8 @@
 | [custom-agents.md](custom-agents.md) | Creating custom agent profiles |
 | [custom-tools.md](custom-tools.md) | Writing new tools for JARVIS |
 | [MCP.md](MCP.md) | Connecting MCP (Model Context Protocol) servers |
+| [HOOKS.md](HOOKS.md) | Event system (24 event types) and lifecycle hooks (16 stages) |
+| [EXTENSIONS.md](EXTENSIONS.md) | Extension/plugin system — custom tools, hooks, commands, shortcuts |
 | [SANDBOX.md](SANDBOX.md) | Sandboxed command execution with bubblewrap |
 | [watchers.md](watchers.md) | Passive file/event watchers |
 | [webui-theme.md](webui-theme.md) | Customizing the WebUI look and feel |
