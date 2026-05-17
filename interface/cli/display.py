@@ -1267,3 +1267,67 @@ def print_interrupted():
 def print_compacted(old_tokens: int, new_tokens: int):
     """Display context compaction message."""
     console.print(f"{_I}[dim]context compacted: {old_tokens:,} → {new_tokens:,} tokens[/dim]")
+
+
+def print_init_done(tool_count: int = 0):
+    """Display initialization complete message with tool count."""
+    console.print(f"{_I}[dim]Ready with {tool_count} tools available.[/dim]")
+
+
+def print_tool_call(tool_name: str, args_str: str):
+    """Display a tool call being made."""
+    gold = "\033[38;2;255;200;80m"
+    reset = "\033[0m"
+    dim = "\033[2m"
+    console.file.write(f"{_I}{gold}▸ {tool_name}{reset}  {dim}{args_str}{reset}\n")
+    console.file.flush()
+
+
+def print_tool_output(output: str, success: bool = False, truncate: bool = True):
+    """Display tool execution output."""
+    if truncate and len(output) > 500:
+        output = output[:500] + "\n... (truncated)"
+    style = "tool.ok" if success else "tool.fail"
+    icon = "✓" if success else "✗"
+    indented = "\n".join(f"{_I}  {line}" for line in output.split("\n"))
+    console.print(f"[{style}]{_I}{icon}[/] {indented}")
+
+
+def print_tool_log(tool: str, log: str, agent_id: str = "", label: str = ""):
+    """Display informational tool log message."""
+    prefix = ""
+    if label:
+        prefix = f"[{label}] "
+    elif agent_id:
+        prefix = f"[{agent_id}] "
+    console.print(f"{_I}[dim]{prefix}{tool}: {log}[/dim]")
+
+
+def print_plan():
+    """Display plan indicator (no-op for clean output)."""
+    pass
+
+
+def print_help():
+    """Display available slash commands."""
+    console.print()
+    console.print(f"{_I}[bold]Available commands:[/bold]")
+    console.print(f"{_I}  [info]/help[/]          Show this help message")
+    console.print(f"{_I}  [info]/model[/]         Switch or list models")
+    console.print(f"{_I}  [info]/yolo[/]          Toggle auto-approve mode")
+    console.print(f"{_I}  [info]/status[/]        Show session status")
+    console.print(f"{_I}  [info]/undo[/]          Undo last operation")
+    console.print(f"{_I}  [info]/compact[/]       Compact context")
+    console.print(f"{_I}  [info]/new[/]           Start new chat")
+    console.print(f"{_I}  [info]/clear[/]         Start new chat and clear screen")
+    console.print(f"{_I}  [info]/resume[/]        Resume a previous session")
+    console.print(f"{_I}  [info]/effort[/]        Set reasoning effort level")
+    console.print(f"{_I}  [info]/share-traces[/]  Manage trace visibility")
+    console.print(f"{_I}  [info]/themes[/]        List and change UI themes")
+    console.print(f"{_I}  [info]/tools[/]         List available tools")
+    console.print(f"{_I}  [info]/skills[/]        List and manage skills")
+    console.print(f"{_I}  [info]/learn[/]         View learning system status")
+    console.print(f"{_I}  [info]/profile[/]       Switch or list agent profiles")
+    console.print(f"{_I}  [info]/exit[/]          Exit JARVIS")
+    console.print(f"{_I}  [info]! <cmd>[/]        Run shell command")
+    console.print()

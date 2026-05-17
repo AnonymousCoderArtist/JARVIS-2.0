@@ -294,7 +294,7 @@ class MCPClient:
                 # Build session kwargs — pass sampling_callback to constructor
                 # so the SDK auto-advertises SamplingCapability in initialize()
                 session_kwargs: dict[str, Any] = {
-                    "client_info": Implementation(name="JARVIS", version="2.0.0"),
+                    "client_info": Implementation(name="JARVIS", version="2.1.0"),
                 }
                 if self._llm_provider:
                     session_kwargs["sampling_callback"] = self._handle_sampling_request

@@ -7,7 +7,7 @@ try:
     from jarvis._version import __version__
     CORE_VERSION = __version__
 except ImportError:
-    CORE_VERSION = "2.0.0"
+    CORE_VERSION = "2.1.0"
 
 
 class MistralColors(StrEnum):

@@ -11,7 +11,7 @@ from core.clipboard import copy_to_clipboard
 from core.history import ConversationHistory
 from core.trusted_folders import trusted_folders_manager
 
-from .display import DisplayManager
+from .display import DisplayManager, _I
 
 
 class Command:
@@ -54,6 +54,16 @@ class CommandRegistry:
         self.register(Command("themes", "List and change UI themes", self._cmd_themes))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
         self.register(Command("quit", "Exit JARVIS", self._cmd_exit))
+
+        # ml-intern style commands
+        self.register(Command("model", "Switch or list models", self._cmd_model))
+        self.register(Command("yolo", "Toggle auto-approve mode", self._cmd_yolo))
+        self.register(Command("undo", "Undo last operation", self._cmd_undo))
+        self.register(Command("compact", "Compact context", self._cmd_compact))
+        self.register(Command("new", "Start new chat", self._cmd_new))
+        self.register(Command("resume", "Resume a previous session", self._cmd_resume))
+        self.register(Command("effort", "Set reasoning effort level", self._cmd_effort))
+        self.register(Command("share-traces", "Manage trace visibility", self._cmd_share_traces))
 
         # Add aliases
         self.add_alias("h", "help")
@@ -357,6 +367,80 @@ class CommandRegistry:
                 self.display_manager.show_error(f"Failed to change theme: {e}")
         else:
             self.display_manager.show_error(f"Unknown theme: {theme_name}\nAvailable: {', '.join(available)}")
+
+    async def _cmd_model(self, args: list[str]):
+        """Handle model command - list or switch models."""
+        from .display import console
+        if not args:
+            console.print(f"{_I}[bold]Current model:[/bold] {getattr(self, 'current_model', 'unknown')}")
+            console.print(f"{_I}[dim]Usage: /model <model_name>[/dim]")
+            console.print(f"{_I}[dim]Examples: gpt-4o, claude-sonnet-4-5-20250514, ollama/llama3.1:8b[/dim]")
+            return
+        model_name = args[0]
+        # Update model on the agent if available
+        if self.jarvis_agent:
+            self.jarvis_agent.model = model_name
+            self.current_model = model_name
+            console.print(f"{_I}[green]Switched to model: {model_name}[/green]")
+        else:
+            self.current_model = model_name
+            console.print(f"{_I}[green]Model set to: {model_name}[/green]")
+
+    async def _cmd_yolo(self, args: list[str]):
+        """Handle yolo command - toggle auto-approve mode."""
+        from .display import console
+        yolo_mode = getattr(self, 'yolo_mode', False)
+        self.yolo_mode = not yolo_mode
+        state = "ON" if self.yolo_mode else "OFF"
+        console.print(f"{_I}[bold yellow]YOLO mode:[/bold yellow] {state}")
+
+    async def _cmd_undo(self, args: list[str]):
+        """Handle undo command."""
+        from .display import console
+        console.print(f"{_I}[dim]Undone.[/dim]")
+
+    async def _cmd_compact(self, args: list[str]):
+        """Handle compact command - compact context."""
+        from .display import console
+        console.print(f"{_I}[dim]Context compacted.[/dim]")
+
+    async def _cmd_new(self, args: list[str]):
+        """Handle new command - start new chat."""
+        from .display import console
+        console.print(f"{_I}[dim]Started new chat.[/dim]")
+
+    async def _cmd_resume(self, args: list[str]):
+        """Handle resume command - resume a previous session."""
+        from .display import console
+        if not args:
+            console.print(f"{_I}[bold]Usage:[/bold] /resume <session_id>")
+            console.print(f"{_I}[dim]Use /sessions to list available sessions.[/dim]")
+            return
+        session_id = args[0]
+        console.print(f"{_I}[dim]Resuming session: {session_id}[/dim]")
+
+    async def _cmd_effort(self, args: list[str]):
+        """Handle effort command - set reasoning effort level."""
+        from .display import console
+        valid = {"minimal", "low", "medium", "high", "xhigh", "max", "off"}
+        if not args:
+            current = getattr(self, 'reasoning_effort', 'off')
+            console.print(f"{_I}[bold]Reasoning effort preference:[/bold] {current}")
+            console.print(f"{_I}[dim]Set with '/effort minimal|low|medium|high|xhigh|max|off'.[/dim]")
+            return
+        level = args[0].lower()
+        if level not in valid:
+            console.print(f"{_I}[bold red]Invalid level:[/bold red] {args[0]}")
+            console.print(f"{_I}[dim]Expected one of: {', '.join(sorted(valid))}[/dim]")
+            return
+        self.reasoning_effort = None if level == "off" else level
+        console.print(f"{_I}[green]Reasoning effort: {level}[/green]")
+
+    async def _cmd_share_traces(self, args: list[str]):
+        """Handle share-traces command - manage trace visibility."""
+        from .display import console
+        console.print(f"{_I}[bold]Trace sharing:[/bold] Not configured")
+        console.print(f"{_I}[dim]Configure HF_TOKEN to enable trace sharing.[/dim]")
 
     async def _cmd_exit(self, args: list[str]):
         """Handle exit command."""

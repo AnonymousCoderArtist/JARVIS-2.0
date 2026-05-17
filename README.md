@@ -1,9 +1,9 @@
 <div align="center">
 
-# JARVIS v2.0
+# JARVIS v2.1
 <img align="center" height="150" src="https://i.pinimg.com/originals/20/e0/83/20e0839cefb31bc03e058be16bacc26e.gif"  />
 
-<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge"></a>
+<a href="https://github.com/OEvortex/JARVIS"><img src="https://img.shields.io/badge/version-2.1.0-blue?style=for-the-badge"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge"></a>
 <a href="https://github.com/OEvortex/JARVIS/stargazers"><img src="https://img.shields.io/github/stars/OEvortex/JARVIS?style=for-the-badge&color=yellow"></a>
 <a href="https://github.com/OEvortex/JARVIS/issues"><img src="https://img.shields.io/github/issues/OEvortex/JARVIS?style=for-the-badge&color=red"></a>
@@ -601,7 +601,7 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 {
   "app": {
     "name": "JARVIS",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "debug": false
   },
   "provider": {
