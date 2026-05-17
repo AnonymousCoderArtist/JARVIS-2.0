@@ -71,12 +71,12 @@ class AgentPromptMetadata:
 
     Attributes:
         agent_type: Type of agent (main, subagent).
-        when_to_use: Description of when to use this agent.
+        description: Description of when to use this agent.
         model: Model to use (default, inherit, or specific model name).
         max_turns: Maximum number of turns for the agent.
     """
     agent_type: str
-    when_to_use: str
+    description: str
     model: str = "default"
     max_turns: int = 100
 
@@ -245,39 +245,84 @@ def _init_prompts() -> None:
 AGENT_PROMPTS: dict[str, tuple[str, AgentPromptMetadata]] = {
     "jarvis": (
         JARVIS_V2_SYSTEM_PROMPT,
-        AgentPromptMetadata(agent_type="main", when_to_use="Use for general coding tasks.", model="inherit", max_turns=100),
+        AgentPromptMetadata(
+            agent_type="main",
+            description="Primary coding agent with full tool access. Handles implementation, debugging, refactoring, file operations, shell commands, research, and multi-step engineering tasks. Use as the default agent for most work.",
+            model="inherit",
+            max_turns=100,
+        ),
     ),
     "explore": (
         EXPLORE_SYSTEM_PROMPT,
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for codebase exploration.", model="default", max_turns=50),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="Read-only codebase exploration and analysis agent. Excels at understanding project structure, finding files and patterns, analyzing dependencies, investigating implementation details, and researching how features work. Cannot modify files or run commands.",
+            model="default",
+            max_turns=50,
+        ),
     ),
     "plan": (
         PLAN_SYSTEM_PROMPT,
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for task planning.", model="default", max_turns=50),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="Task decomposition and planning agent. Breaks complex tasks into manageable steps, creates structured plans with phases and milestones, estimates effort, identifies dependencies, and organizes work into logical sequences. Read-only — does not implement, only plans.",
+            model="default",
+            max_turns=50,
+        ),
     ),
     "jarvis-help": (
         "Loading...",
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for JARVIS help.", model="inherit", max_turns=50),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="JARVIS assistant and documentation guide. Helps users understand JARVIS features, tools, configuration, workflows, and capabilities. Answers questions about the JARVIS codebase, explains available tools, and provides best practices for usage.",
+            model="inherit",
+            max_turns=50,
+        ),
     ),
     "statusline-setup": (
         "Loading...",
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for prompt setup.", model="inherit", max_turns=50),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="Shell statusline customization specialist. Provides guidance on configuring terminal prompts and statuslines across frameworks like Oh My Zsh, Starship, Bash-it, Oh My Posh, and PowerShell. Read-only — suggests configurations without modifying files.",
+            model="inherit",
+            max_turns=50,
+        ),
     ),
     "verification": (
         VERIFICATION_SYSTEM_PROMPT,
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for verification.", model="inherit", max_turns=10),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="Post-implementation verification and adversarial testing agent. Runs builds and test suites, attempts to break implementations through edge-case testing, checks for regressions, and provides detailed verification reports with actionable findings. Use after completing a feature or fix.",
+            model="inherit",
+            max_turns=10,
+        ),
     ),
     "rubber-duck": (
         "Loading...",
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for constructive critique and review.", model="inherit", max_turns=10),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="Constructive critique and devil's advocate agent. Reviews proposals, designs, implementations, and tests with a critical eye. Identifies weak points, raises concerns about things that could impede success, and provides actionable feedback. Best used after planning but before implementing, or early during development.",
+            model="inherit",
+            max_turns=10,
+        ),
     ),
     "general-purpose": (
         GENERAL_PURPOSE_SYSTEM_PROMPT,
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for complex multi-step tasks.", model="inherit", max_turns=100),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="Full-capability agent for complex multi-step tasks requiring a broad toolset. Handles tasks that span multiple domains — coding, research, file management, and system interaction. Use when a task doesn't fit neatly into a single specialized agent's scope.",
+            model="inherit",
+            max_turns=100,
+        ),
     ),
     "fork": (
         FORK_SYSTEM_PROMPT,
-        AgentPromptMetadata(agent_type="subagent", when_to_use="Use for parallel task execution.", model="inherit", max_turns=50),
+        AgentPromptMetadata(
+            agent_type="subagent",
+            description="Parallel task execution agent. Runs independent sub-tasks concurrently without blocking the main agent. Good for background research, exploration, analysis, or any work that can proceed independently. Returns results for the main agent to review and integrate.",
+            model="inherit",
+            max_turns=50,
+        ),
     ),
 }
 

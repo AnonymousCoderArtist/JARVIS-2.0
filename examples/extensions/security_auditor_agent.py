@@ -1,4 +1,7 @@
-"""Security auditor agent — scans for vulnerabilities and security issues."""
+"""Security auditor agent — scans for vulnerabilities and security issues.
+
+Converted from examples/agents/security_auditor.py to the extension API pattern.
+"""
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
@@ -27,12 +30,14 @@ Rules:
 """
 
 
-SECURITY_AUDITOR = AgentDefinition(
-    name="security-auditor",
-    agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    description="Audit code for security vulnerabilities, OWASP Top 10 issues, hardcoded secrets, and insecure patterns. Use when the user asks to audit security, scan for vulnerabilities, or check for secrets.",
-    tools=["read", "grep", "find", "ls", "glob"],  # Read-only
-    model="inherit",
-    max_turns=50,
-    system_prompt=get_system_prompt,
-)
+async def jarvis(api):
+    """Register the security auditor agent."""
+    api.agents(AgentDefinition(
+        name="security-auditor",
+        agent_type=AgentType.SUBAGENT,
+        description="Audit code for security vulnerabilities, OWASP Top 10 issues, hardcoded secrets, and insecure patterns. Use when the user asks to audit security, scan for vulnerabilities, or check for secrets.",
+        tools=["read", "grep", "find", "ls", "glob"],
+        model="inherit",
+        max_turns=50,
+        system_prompt=get_system_prompt,
+    ))

@@ -18,7 +18,7 @@ from .builtin.verification_agent import VERIFICATION_AGENT
 EXPLORE_AGENT = AgentDefinition(
     name='explore',
     agent_type=AgentType.SUBAGENT,
-    when_to_use='''Use this agent for codebase exploration and analysis. It excels at:
+    description='''Use this agent for codebase exploration and analysis. It excels at:
 - Understanding project structure and architecture
 - Finding specific files, functions, or patterns
 - Analyzing code dependencies and relationships
@@ -32,7 +32,7 @@ EXPLORE_AGENT = AgentDefinition(
 PLAN_AGENT = AgentDefinition(
     name='plan',
     agent_type=AgentType.SUBAGENT,
-    when_to_use='''Use this agent for task decomposition and planning. It excels at:
+    description='''Use this agent for task decomposition and planning. It excels at:
 - Breaking down complex tasks into manageable steps
 - Creating structured plans with phases and milestones
 - Estimating effort and identifying dependencies
@@ -46,7 +46,7 @@ PLAN_AGENT = AgentDefinition(
 GENERAL_PURPOSE_AGENT = AgentDefinition(
     name='general-purpose',
     agent_type=AgentType.SUBAGENT,
-    when_to_use='''Use this agent for complex, multi-step tasks requiring full capabilities. It:
+    description='''Use this agent for complex, multi-step tasks requiring full capabilities. It:
 - Has access to all tools
 - Can perform file operations, bash commands, and web searches
 - Handles complex coding tasks, debugging, and refactoring
@@ -60,7 +60,7 @@ GENERAL_PURPOSE_AGENT = AgentDefinition(
 FORK_AGENT = AgentDefinition(
     name='fork',
     agent_type=AgentType.SUBAGENT,
-    when_to_use='''Use this agent to delegate parallel or independent sub-tasks. It:
+    description='''Use this agent to delegate parallel or independent sub-tasks. It:
 - Executes tasks in parallel without blocking the main agent
 - Handles independent work that doesn't require main context
 - Returns results when complete for main agent to review

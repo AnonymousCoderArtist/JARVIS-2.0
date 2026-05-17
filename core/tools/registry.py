@@ -2,6 +2,7 @@
 
 import importlib.util
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -79,6 +80,18 @@ class ToolRegistry:
             Dictionary mapping tool names to tool instances
         """
         return self._tools.copy()
+
+    def get_filtered(self, allowed_tools: Iterable[str]) -> Any:
+        """Return a filtered view of this registry with only the specified tools.
+
+        Args:
+            allowed_tools: Tool names to allow
+
+        Returns:
+            A read-only filtered registry view
+        """
+        from core.tools.agent.filtered_registry import _FilteredToolRegistry
+        return _FilteredToolRegistry(self, allowed_tools=allowed_tools)
 
     async def execute_tool(self, name: str, input_data: dict) -> ToolOutput:
         """

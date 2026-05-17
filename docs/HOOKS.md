@@ -336,14 +336,14 @@ Extensions use the `ExtensionAPI` to register with both systems:
 
 ```python
 # In an extension file:
-async def jarvis_extension(api: ExtensionAPI):
+async def jarvis(api: ExtensionAPI):
     # EventBus subscription
     from core.events.types import ToolCallStarted
     api.on(ToolCallStarted, log_tool_call)
 
     # Hook registration
     from core.events.hooks import HookStage, HookContext, HookResult
-    api.register_hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
+    api.hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
 ```
 
 The `ExtensionRunner.bind()` method flushes these registrations into the live session's `EventBus` and `HookRegistry`.

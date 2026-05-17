@@ -50,7 +50,7 @@ The system is built around four core components:
 │     ┌──────────────────────────────────────────────────────────┐    │
 │     │  importlib.util.spec_from_file_location()                │    │
 │     │  spec.loader.exec_module()                               │    │
-│     │  Find factory: jarvis_extension / __jarvis_extension__   │    │
+│     │  Find factory: jarvis / __jarvis__   │    │
 │     │                  / default                               │    │
 │     │  Build ExtensionManifest from module attrs               │    │
 │     └──────────────────────────────────────────────────────────┘    │
@@ -113,11 +113,11 @@ class MyTool(BaseTool):
         return ToolOutput(success=True, output=f"Processed: {query}")
 
 
-async def jarvis_extension(api: ExtensionAPI):
+async def jarvis(api: ExtensionAPI):
     """Default factory function — receives the ExtensionAPI instance."""
 
     # Register a custom tool
-    api.register_tool(MyTool())
+    api.tools(MyTool())
 
     # Subscribe to an event
     from core.events.types import ToolCallStarted
@@ -125,13 +125,13 @@ async def jarvis_extension(api: ExtensionAPI):
 
     # Register a lifecycle hook
     from core.events.hooks import HookStage, HookContext, HookResult
-    api.register_hook(HookStage.BEFORE_TOOL_CALL, safety_gate_hook)
+    api.hook(HookStage.BEFORE_TOOL_CALL, safety_gate_hook)
 
     # Register a slash command
-    api.register_command("/hello", hello_command, "Say hello")
+    api.command("/hello", hello_command, "Say hello")
 
     # Register a keyboard shortcut
-    api.register_shortcut("ctrl+alt+h", "app.hello", "Hello shortcut")
+    api.shortcut("ctrl+alt+h", "app.hello", "Hello shortcut")
 
 
 async def my_event_handler(event):
@@ -151,8 +151,8 @@ async def hello_command() -> str:
 ### Factory Function Names
 
 The loader looks for the factory function in this order:
-1. `jarvis_extension(api)` — preferred
-2. `__jarvis_extension__(api)` — alternative
+1. `jarvis(api)` — preferred
+2. `__jarvis__(api)` — alternative
 3. `default(api)` — fallback
 
 ### Module-Level Metadata (Optional)
@@ -174,10 +174,10 @@ Every extension receives an `ExtensionAPI` instance with these methods:
 | Method | Description |
 |--------|-------------|
 | `register_tool(tool)` | Register a `BaseTool` instance. If a tool with the same name exists, it is **overridden** (built-in tools can be replaced). |
-| `register_command(name, handler, description)` | Register a slash command (e.g., `"/my-command"`). Handler returns `str` or `None`. |
+| `command(name, handler, description)` | Register a slash command (e.g., `"/my-command"`). Handler returns `str` or `None`. |
 | `on(event_type, handler)` | Subscribe to an `EventBus` event. Handler receives the event instance. |
-| `register_hook(stage, handler)` | Register a lifecycle hook at a `HookStage`. Handler receives `HookContext`, returns `HookResult`. |
-| `register_shortcut(key, action_id, description)` | Register a keyboard shortcut mapping. |
+| `hook(stage, handler)` | Register a lifecycle hook at a `HookStage`. Handler receives `HookContext`, returns `HookResult`. |
+| `shortcut(key, action_id, description)` | Register a keyboard shortcut mapping. |
 
 ### Runtime Accessors (valid after `bind()`)
 
@@ -305,7 +305,7 @@ Extensions subscribe to events via `api.on(EventType, handler)`. Available event
 
 ### With HookRegistry
 
-Extensions register hooks at lifecycle stages via `api.register_hook(stage, handler)`. Available stages include:
+Extensions register hooks at lifecycle stages via `api.hook(stage, handler)`. Available stages include:
 
 - `BEFORE_AGENT_RUN`, `AFTER_AGENT_RUN`
 - `BEFORE_LLM_CALL`, `AFTER_LLM_CALL`

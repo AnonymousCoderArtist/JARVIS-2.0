@@ -497,6 +497,12 @@ class CommandHandler:
                 profile_name = args[0]
                 try:
                     self.agent_manager.switch_profile(profile_name)
+                    # Filter tools based on profile's allowed tools
+                    profile = self.agent_manager.active_profile
+                    if profile.tools is not None and self.jarvis_agent and self.tool_registry:
+                        self.jarvis_agent.tools = self.tool_registry.get_filtered(profile.tools)
+                    elif self.jarvis_agent and self.tool_registry:
+                        self.jarvis_agent.tools = self.tool_registry
                     self.display_manager.show_success(f"Switched to profile: {profile_name}")
                 except Exception as e:
                     self.display_manager.show_error(f"Failed to switch profile: {e}")

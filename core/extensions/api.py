@@ -2,13 +2,13 @@
 
 An extension is a Python file that exports a default async function::
 
-    async def jarvis_extension(api: ExtensionAPI):
+    async def jarvis(api: ExtensionAPI):
         \"""Register tools, hooks, commands, and event handlers.\"""
-        api.register_tool(my_tool_instance)
+        api.tools(my_tool_instance)
         api.on(ToolCallStarted, my_handler)
-        api.register_hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
-        api.register_command("/hello", hello_cmd, "Say hello")
-        api.register_shortcut("ctrl+alt+h", "app.hello", "Hello shortcut")
+        api.hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
+        api.command("/hello", hello_cmd, "Say hello")
+        api.shortcut("ctrl+alt+h", "app.hello", "Hello shortcut")
 """
 
 from __future__ import annotations
@@ -54,12 +54,13 @@ class ExtensionAPI:
         self._event_subscriptions: list[tuple[type, EventHandler]] = []
         self._hook_registrations: list[tuple[HookStage, HookHandler]] = []
         self._shortcut_registrations: list[dict] = []
+        self._agent_registrations: list[Any] = []
 
     # ------------------------------------------------------------------
     # Registration methods (called by the extension at load time)
     # ------------------------------------------------------------------
 
-    def register_tool(self, tool: Any) -> None:
+    def tools(self, tool: Any) -> None:
         """Register a new tool, or override a built-in tool with the same name.
 
         *tool* can be any object that has ``name``, ``description``,
@@ -68,7 +69,7 @@ class ExtensionAPI:
         """
         self._tool_registrations.append({"tool": tool})
 
-    def register_command(self, name: str, handler: CommandHandler, description: str = "") -> None:
+    def command(self, name: str, handler: CommandHandler, description: str = "") -> None:
         """Register a slash command (e.g. ``/my-command``)."""
         self._command_registrations.append({
             "name": name,
@@ -83,7 +84,7 @@ class ExtensionAPI:
         """
         self._event_subscriptions.append((event_type, handler))
 
-    def register_hook(self, stage: HookStage, handler: HookHandler) -> None:
+    def hook(self, stage: HookStage, handler: HookHandler) -> None:
         """Register a lifecycle hook at *stage*.
 
         The handler receives a ``HookContext`` and returns a ``HookResult``
@@ -91,13 +92,23 @@ class ExtensionAPI:
         """
         self._hook_registrations.append((stage, handler))
 
-    def register_shortcut(self, key: str, action_id: str, description: str = "") -> None:
+    def shortcut(self, key: str, action_id: str, description: str = "") -> None:
         """Register a keyboard shortcut mapping."""
         self._shortcut_registrations.append({
             "key": key,
             "action_id": action_id,
             "description": description,
         })
+
+    def agents(self, definition: Any) -> None:
+        """Register a custom agent definition.
+
+        *definition* should be an ``AgentDefinition`` instance (or any object
+        with the required agent attributes).  The agent becomes available via
+        the ``agents`` tool and, if ``agent_type=AGENT``, in the profile
+        selector (Shift+Tab).
+        """
+        self._agent_registrations.append(definition)
 
     # ------------------------------------------------------------------
     # Runtime accessors (valid only after bind())
@@ -144,7 +155,7 @@ class ExtensionAPI:
     # Internal — called by ExtensionRunner
     # ------------------------------------------------------------------
 
-    async def _bind(self, tool_registry, event_bus, hook_registry, session, operations_registry=None) -> list[dict]:
+    async def _bind(self, tool_registry, event_bus, hook_registry, session, operations_registry=None, agent_callback=None) -> list[dict]:
         """Wire this API instance to the live session.
 
         Called once by ``ExtensionRunner.bind()``. Flushes all queued
@@ -185,6 +196,11 @@ class ExtensionAPI:
         if hook_registry is not None:
             for stage, handler in self._hook_registrations:
                 hook_registry.register(stage, handler)
+
+        # --- Flush agent registrations ---
+        if agent_callback is not None:
+            for definition in self._agent_registrations:
+                agent_callback(definition)
 
         return conflicts
 

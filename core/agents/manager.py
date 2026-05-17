@@ -125,6 +125,32 @@ class AgentManager:
         self._available[profile.name] = profile
         self._cached_config = None
 
+    def register_from_extensions(self, extension_runner) -> None:
+        """Register agents discovered by the extension system.
+
+        Args:
+            extension_runner: The ExtensionRunner instance with registered agents
+        """
+        agents = extension_runner.registry.get_agents()
+        for name, definition in agents.items():
+            if name in self._available:
+                logger.debug("Extension agent '%s' already registered, skipping", name)
+                continue
+
+            description = getattr(definition, "description", None) or "Custom agent"
+            display_name = name.replace("-", " ").title()
+
+            profile = AgentProfile(
+                name=name,
+                display_name=display_name,
+                description=description,
+                safety=AgentSafety.NEUTRAL,
+                agent_type=getattr(definition, "agent_type", AgentType.SUBAGENT),
+                tools=getattr(definition, "tools", None),
+            )
+            self._available[name] = profile
+            logger.info("Registered extension agent: %s", name)
+
     def invalidate_config(self) -> None:
         """Invalidate cached configuration"""
         self._cached_config = None
@@ -191,7 +217,7 @@ class AgentManager:
         from core.agents.custom_loader import discover_custom_agents
         for definition in discover_custom_agents():
             if definition.name not in agents:
-                description = getattr(definition, "when_to_use", None) or "Custom agent"
+                description = getattr(definition, "description", None) or "Custom agent"
                 display_name = definition.name.replace("-", " ").title()
 
                 profile = AgentProfile(
@@ -200,6 +226,7 @@ class AgentManager:
                     description=description,
                     safety=AgentSafety.NEUTRAL,
                     agent_type=definition.agent_type,
+                    tools=getattr(definition, "tools", None),
                 )
                 agents[profile.name] = profile
                 logger.info("Loaded custom Python agent: %s", profile.name)

@@ -111,9 +111,9 @@ class JarvisHelpAgent(BaseAgent):
 JARVIS_HELP_AGENT = AgentDefinition(
     name="jarvis-help",
     agent_type=AgentType.SUBAGENT,
-    when_to_use="Use this agent when users need help understanding JARVIS features, tools, or configuration.",
+    description="Use this agent when users need help understanding JARVIS features, tools, or configuration.",
     tools=["read", "ls", "find", "grep", "web_search", "fetch_webpage"],
     model="inherit",
     max_turns=50,
-    get_system_prompt=GetJarvisHelpPrompt,
+    system_prompt=GetJarvisHelpPrompt,
 )

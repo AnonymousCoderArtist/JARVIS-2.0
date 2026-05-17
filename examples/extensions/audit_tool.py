@@ -9,11 +9,11 @@ __version__ = "1.0.0"
 __description__ = "Audit tool that logs every file read"
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Log all 'read' tool calls before they execute."""
 
     # Use a lifecycle hook to intercept BEFORE_TOOL_CALL
-    @api.register_hook(HookStage.BEFORE_TOOL_CALL)
+    @api.hook(HookStage.BEFORE_TOOL_CALL)
     async def audit_hook(ctx):
         if ctx.tool_name == "read":
             file_path = (ctx.tool_args or {}).get("filePath", "?")

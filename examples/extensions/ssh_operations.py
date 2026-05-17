@@ -22,7 +22,7 @@ __version__ = "1.0.0"
 __description__ = "Transparent SSH backend for all file and bash operations"
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Swap the operations backends to SSH-forwarded versions."""
     import asyncio
     import os

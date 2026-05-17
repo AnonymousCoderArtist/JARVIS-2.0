@@ -764,6 +764,13 @@ Create a comprehensive summary that captures:
         # Update the config getter to use the new profile configuration
         self.agent.set_config_getter(lambda: self.agent_manager.config)
 
+        # Filter tools based on profile's allowed tools
+        profile = self.agent_manager.active_profile
+        if profile.tools is not None:
+            self.agent.tools = self.tool_registry.get_filtered(profile.tools)
+        else:
+            self.agent.tools = self.tool_registry
+
         # Update system prompt based on profile's system_prompt_id
         system_prompt_id = self.agent_profile.overrides.get("system_prompt_id")
         if system_prompt_id:

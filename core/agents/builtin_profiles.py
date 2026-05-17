@@ -46,6 +46,7 @@ PLAN = AgentProfile(
     description="Sub-agent for exploration and planning (read-only tools always allowed)",
     safety=AgentSafety.SAFE,
     agent_type=AgentType.SUBAGENT,
+    tools=["read", "ls", "find", "grep", "web_search", "fetch_webpage", "save_memory", "read_memory"],
     overrides={
         "disallowed_tools": ['write_file', 'edit', 'bash', 'run_tests', 'repl', 'agents', 'activate_skill', 'save_memory'],
         "tools": {
@@ -73,6 +74,7 @@ ACCEPT_EDITS = AgentProfile(
     display_name="Accept Edits",
     description="edit, write, read, glob, grep always; others ask from user",
     safety=AgentSafety.DESTRUCTIVE,
+    tools=["read", "write_file", "edit", "ls", "find", "grep"],
     overrides={
         "disallowed_tools": ['bash', 'run_tests', 'repl', 'activate_skill', 'agents', 'save_memory', 'web_search', 'fetch_webpage'],
         "tools": {
@@ -104,6 +106,7 @@ EXPLORE = AgentProfile(
     description="Sub-agent for codebase exploration (read-only tools always allowed)",
     safety=AgentSafety.SAFE,
     agent_type=AgentType.SUBAGENT,
+    tools=["read", "ls", "find", "grep"],
     overrides={
         "disallowed_tools": ['write_file', 'edit', 'bash', 'run_tests', 'repl', 'agents', 'activate_skill', 'save_memory'],
         "tools": {

@@ -40,7 +40,7 @@ Save as `.jarvis/extensions/calc_tool.py`:
 from core.tools.base import BaseTool, ToolInput, ToolOutput
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Register a calculator tool via the extension API."""
 
     class CalcTool(BaseTool):
@@ -65,7 +65,7 @@ async def jarvis_extension(api):
             except Exception as e:
                 return ToolOutput(success=False, result=None, error=str(e))
 
-    api.register_tool(CalcTool())
+    api.tools(CalcTool())
 ```
 
 ---
@@ -77,7 +77,7 @@ The tool system is organized into four layers:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Extension Layer                               │
-│  .jarvis/extensions/*.py  →  api.register_tool(MyTool())        │
+│  .jarvis/extensions/*.py  →  api.tools(MyTool())        │
 │  ~.jarvis/extensions/*.py  →  auto-discovered on startup        │
 └──────────────┬──────────────────────────────────────────────────┘
                │
@@ -294,7 +294,7 @@ Extensions can swap backends at runtime:
 
 ```python
 # .jarvis/extensions/ssh_backend.py
-async def jarvis_extension(api):
+async def jarvis(api):
     api.operations_registry.set_bash_ops(SSHBashOps(), origin="ssh")
     api.operations_registry.set_file_ops(SSHFileOps(), origin="ssh")
 ```
@@ -399,7 +399,7 @@ execute_tool(name, args)
 Extensions can subscribe to these events:
 
 ```python
-async def jarvis_extension(api):
+async def jarvis(api):
     async def log_tool_call(event):
         print(f"[TOOL] {event.tool_name} called with {event.args}")
 
@@ -417,8 +417,8 @@ Hooks are higher-level lifecycle interceptors that can **block**, **modify**, or
 ```python
 from core.events.hooks import HookContext, HookResult, HookStage
 
-async def jarvis_extension(api):
-    @api.register_hook(HookStage.BEFORE_TOOL_CALL)
+async def jarvis(api):
+    @api.hook(HookStage.BEFORE_TOOL_CALL)
     async def safety_gate(ctx: HookContext) -> HookResult:
         if ctx.tool_name == "bash" and "rm -rf" in ctx.tool_args.get("command", ""):
             return HookResult(block=True, reason="Destructive command blocked")
@@ -447,7 +447,7 @@ from core.events.hooks import HookResult, HookStage
 from core.tools.base import BaseTool, ToolInput, ToolOutput
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Register a custom tool using the extension API."""
 
     class MyTool(BaseTool):
@@ -474,7 +474,7 @@ async def jarvis_extension(api):
             except Exception as e:
                 return ToolOutput(success=False, result=None, error=str(e))
 
-    api.register_tool(MyTool())
+    api.tools(MyTool())
 ```
 
 ---
@@ -517,7 +517,7 @@ Extensions can override built-in tools by registering a tool with the same name.
 - Adding extra permission checks around `write`/`edit`
 
 ```python
-async def jarvis_extension(api):
+async def jarvis(api):
     """Override the 'read' tool with an audited version."""
     from core.tools.base import BaseTool, ToolInput, ToolOutput
 
@@ -534,7 +534,7 @@ async def jarvis_extension(api):
             content = await self.file_ops.read_file(file_path)
             return ToolOutput(success=True, result=content)
 
-    api.register_tool(AuditedReadTool())
+    api.tools(AuditedReadTool())
 ```
 
 When an extension registers a tool with the same name as a built-in tool, the `ExtensionRunner` logs a warning and tracks the conflict. The extension's tool replaces the built-in one in `ToolRegistry`.

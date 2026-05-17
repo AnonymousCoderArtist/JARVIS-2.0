@@ -9,7 +9,7 @@ __version__ = "1.0.0"
 __description__ = "Replaces bash tool with SSH-based execution"
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Register an SSH-based bash tool override."""
     import asyncio
 
@@ -84,4 +84,4 @@ async def jarvis_extension(api):
                 }
 
     # When registered, this overrides the built-in 'bash' tool
-    api.register_tool(SSHBashTool())
+    api.tools(SSHBashTool())

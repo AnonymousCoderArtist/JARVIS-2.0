@@ -33,6 +33,7 @@ class AgentProfile:
     description: str
     safety: AgentSafety
     agent_type: AgentType = AgentType.AGENT
+    tools: list[str] | None = None
     overrides: dict[str, Any] = field(default_factory=dict)
 
     def apply_to_config(self, base_config: dict) -> dict:
@@ -70,11 +71,14 @@ class AgentProfile:
         with Path(path).open("rb") as f:
             data = tomllib.load(f)
 
+        tools = data.pop("tools", None)
+
         return cls(
             name=Path(path).stem,
             display_name=data.pop("display_name", Path(path).stem.replace("-", " ").title()),
             description=data.pop("description", ""),
             safety=AgentSafety(data.pop("safety", AgentSafety.NEUTRAL)),
             agent_type=AgentType(data.pop("agent_type", AgentType.AGENT)),
+            tools=tools,
             overrides=data,
         )

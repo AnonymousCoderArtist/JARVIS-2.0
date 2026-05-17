@@ -265,6 +265,11 @@ class CLIInterface:
             config_getter=lambda: settings,
             initial_agent="default"
         )
+
+        # Register agents from extensions
+        if self.extension_runner:
+            self.agent_manager.register_from_extensions(self.extension_runner)
+
         self.skill_manager = SkillManager()
 
         # Initialize async agent manager for concurrent operations (optional)

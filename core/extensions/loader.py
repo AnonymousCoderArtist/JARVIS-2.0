@@ -111,7 +111,7 @@ def load_from_file(file_path: str | Path) -> ExtensionLoadResult:
 
         # Look for the factory function — try preferred names
         factory = None
-        for attr_name in ("jarvis_extension", "__jarvis_extension__", "default"):
+        for attr_name in ("jarvis", "jarvis_extension", "__jarvis_extension__", "default"):
             fn = getattr(module, attr_name, None)
             if fn is not None and callable(fn):
                 factory = fn

@@ -144,7 +144,7 @@ class RubberDuckAgent(BaseAgent):
 RUBBER_DUCK_AGENT = AgentDefinition(
     name='rubber-duck',
     agent_type=AgentType.SUBAGENT,
-    when_to_use="""Use this agent for constructive critique and review of proposals, designs, implementations, or tests. It excels at:
+    description="""Use this agent for constructive critique and review of proposals, designs, implementations, or tests. It excels at:
 - Acting as a "devil's advocate" to find potential issues
 - Identifying design flaws, bugs, and scalability concerns
 - Providing actionable feedback categorized by severity (Blocking, Non-Blocking, Suggestions)

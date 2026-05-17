@@ -142,7 +142,7 @@ class AgentTool(BaseTool):
 
         # Add customs
         for agent in custom_agents:
-            desc = getattr(agent, "when_to_use", "Custom agent (no description provided)")
+            desc = getattr(agent, "description", "Custom agent (no description provided)")
             lines.append(f"- {agent.name}: {desc}")
             agent_data.append({"name": agent.name, "description": desc, "source": "custom"})
 
@@ -365,11 +365,24 @@ class AgentTool(BaseTool):
 
         # Create filtered registry based on agent definition
         allowed_tools = getattr(definition, "tools", None)
+        disallowed_tools = getattr(definition, "disallowed_tools", None)
 
-        if allowed_tools:
+        if allowed_tools and "*" not in allowed_tools:
+            # Explicit tool whitelist (not wildcard)
             custom_registry = _FilteredToolRegistry(
                 tool_registry,
                 allowed_tools=allowed_tools,
+                llm_provider=llm_provider,
+                model=model,
+                config_getter=custom_config_getter,
+            )
+        elif disallowed_tools:
+            # Filter out disallowed tools from the full set
+            all_tools = set(tool_registry.get_tools().keys())
+            allowed = [t for t in all_tools if t not in disallowed_tools]
+            custom_registry = _FilteredToolRegistry(
+                tool_registry,
+                allowed_tools=allowed,
                 llm_provider=llm_provider,
                 model=model,
                 config_getter=custom_config_getter,
@@ -379,7 +392,7 @@ class AgentTool(BaseTool):
 
         # Get system prompt from definition if available
         system_prompt = ""
-        get_prompt_fn = getattr(definition, "get_system_prompt", None)
+        get_prompt_fn = getattr(definition, "system_prompt", None)
         if callable(get_prompt_fn):
             result = get_prompt_fn()
             system_prompt = result if isinstance(result, str) else ""

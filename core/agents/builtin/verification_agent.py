@@ -129,7 +129,7 @@ class VerificationAgent(BaseAgent):
 VERIFICATION_AGENT = AgentDefinition(
     name='verification',
     agent_type=AgentType.SUBAGENT,
-    when_to_use="""Use this agent for post-implementation verification and testing. It excels at:
+    description="""Use this agent for post-implementation verification and testing. It excels at:
 - Running builds and test suites to verify implementations
 - Attempting to break implementations through adversarial testing
 - Checking for edge cases and potential regressions

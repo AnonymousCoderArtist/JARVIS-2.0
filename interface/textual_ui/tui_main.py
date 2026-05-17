@@ -352,6 +352,9 @@ def main(model: str = "gpt-4o", base_url: str | None = None, apikey: str | None 
         initial_agent="default"
     )
 
+    # Register agents from extensions
+    agent_manager.register_from_extensions(extension_runner)
+
     # Make the active profile configuration available to tools that need it
     # NOTE: always pass llm_provider and model so they are never cleared.
     tool_registry.update_tool_providers(

@@ -79,6 +79,13 @@ def discover_custom_agents() -> list[AgentDefinition]:
     """
     definitions = []
 
+    # Deprecation warning
+    logger.warning(
+        "Loading agents from .jarvis/agents/ is deprecated. "
+        "Move to .jarvis/extensions/ and use api.agents() in jarvis(api). "
+        "See docs/custom-agents.md for migration guide."
+    )
+
     for base in [Path.home() / ".jarvis" / "agents", Path.cwd() / ".jarvis" / "agents"]:
         if not base.is_dir():
             continue

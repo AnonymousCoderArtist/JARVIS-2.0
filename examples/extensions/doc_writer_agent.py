@@ -1,4 +1,7 @@
-"""Documentation writer agent — generates and updates project documentation."""
+"""Documentation writer agent — generates and updates project documentation.
+
+Converted from examples/agents/doc_writer.py to the extension API pattern.
+"""
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
@@ -30,12 +33,14 @@ Rules:
 """
 
 
-DOC_WRITER = AgentDefinition(
-    name="doc-writer",
-    agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    description="Write or update documentation: README, API docs, architecture docs, contributing guides, or changelog. Use when the user asks to write docs, create documentation, or update README.",
-    tools=["read", "write", "edit", "grep", "find", "ls", "glob"],  # Read + write docs only
-    model="inherit",
-    max_turns=50,
-    system_prompt=get_system_prompt,
-)
+async def jarvis(api):
+    """Register the doc writer agent."""
+    api.agents(AgentDefinition(
+        name="doc-writer",
+        agent_type=AgentType.SUBAGENT,
+        description="Write or update documentation: README, API docs, architecture docs, contributing guides, or changelog. Use when the user asks to write docs, create documentation, or update README.",
+        tools=["read", "write", "edit", "grep", "find", "ls", "glob"],
+        model="inherit",
+        max_turns=50,
+        system_prompt=get_system_prompt,
+    ))

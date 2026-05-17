@@ -115,7 +115,7 @@ BaseAgent (ABC)          — core/agents/base.py
 `BaseAgent` provides:
 - **Agent loop** (`_process_with_tools`): calls LLM with full message history + tool definitions, executes any tool calls the model returns, appends results, and repeats until the model returns a plain-text response. Tool calls/results are persisted as **proper role-based messages** (assistant with `tool_calls`, tool with `tool_call_id`) — no more injecting into user messages.
 - **EventBus integration**: emits `TurnStarted`/`TurnEnded`, `MessageDelta`, `ThinkingDelta`, `AgentStarted`/`AgentEnded`/`AgentError`, `ProgressUpdated`, `StatusUpdated` events throughout the agent lifecycle. Extensions subscribe via `api.on(TurnStarted, handler)`.
-- **HookRegistry integration**: runs `BEFORE_TURN` / `AFTER_TURN` lifecycle hooks. Extensions can block tool calls via `api.register_hook(HookStage.BEFORE_TOOL_CALL, handler)`.
+- **HookRegistry integration**: runs `BEFORE_TURN` / `AFTER_TURN` lifecycle hooks. Extensions can block tool calls via `api.hook(HookStage.BEFORE_TOOL_CALL, handler)`.
 - **Full history pipeline**: `_build_messages()` loads ALL role-based messages from `self.memory` via `get_role_memory()`, not just the last 5 entries. Legacy format entries (pre-role dicts) are still supported as a summary context string.
 - **ConversationHistory integration**: tool calls and results are automatically saved to `self.history` (a `ConversationHistory` instance shared with the UI layer), ensuring complete conversation transcripts in JSONL format.
 - **Streaming**: when a `stream_callback` is set, the agent uses streaming LLM calls and emits text chunks in real time to the UI.
@@ -223,7 +223,7 @@ OperationsRegistry
 Extensions can swap backends at runtime:
 ```python
 # .jarvis/extensions/ssh_backend.py
-async def jarvis_extension(api):
+async def jarvis(api):
     api.operations_registry.set_bash_ops(SSHBashOps(), origin="ssh")
 ```
 
@@ -321,13 +321,13 @@ The extension system (`core/extensions/`) is the primary mechanism for customizi
 ```
 Extension (.jarvis/extensions/*.py or pip entry point)
   │
-  ├── async def jarvis_extension(api: ExtensionAPI) — factory function
+  ├── async def jarvis(api: ExtensionAPI) — factory function
   │       │
-  │       ├── api.register_tool(tool_instance)      — add/override tools
+  │       ├── api.tools(tool_instance)      — add/override tools
   │       ├── api.on(event_type, handler)            — subscribe to EventBus
-  │       ├── api.register_hook(stage, handler)       — lifecycle hooks
-  │       ├── api.register_command(name, handler)     — slash commands
-  │       └── api.register_shortcut(key, action_id)   — keyboard shortcuts
+  │       ├── api.hook(stage, handler)       — lifecycle hooks
+  │       ├── api.command(name, handler)     — slash commands
+  │       └── api.shortcut(key, action_id)   — keyboard shortcuts
   │
   └── ExtensionRunner.bind()  — flushes registrations into live session
         │
@@ -341,11 +341,11 @@ Extension (.jarvis/extensions/*.py or pip entry point)
 
 | Method | Description | Example |
 |---|---|---|
-| `register_tool(tool)` | Register or override a tool | `api.register_tool(HelloTool())` |
+| `register_tool(tool)` | Register or override a tool | `api.tools(HelloTool())` |
 | `on(event_type, handler)` | Subscribe to EventBus events | `api.on(ToolCallStarted, log_it)` |
-| `register_hook(stage, handler)` | Lifecycle hook (block/modify) | `api.register_hook(BEFORE_TOOL_CALL, safety)` |
-| `register_command(name, handler)` | Slash command | `api.register_command("/hello", cmd)` |
-| `register_shortcut(key, action_id)` | Keyboard shortcut | `api.register_shortcut("ctrl+h", "app.hello")` |
+| `hook(stage, handler)` | Lifecycle hook (block/modify) | `api.hook(BEFORE_TOOL_CALL, safety)` |
+| `command(name, handler)` | Slash command | `api.command("/hello", cmd)` |
+| `shortcut(key, action_id)` | Keyboard shortcut | `api.shortcut("ctrl+h", "app.hello")` |
 | `operations_registry` | Access to swap backends | `api.operations_registry.set_bash_ops(...)` |
 | `event_bus` | Read-only EventBus access | `api.event_bus.subscribe(...)` |
 | `tool_registry` | Read-only ToolRegistry | `api.tool_registry.get("read")` |

@@ -1,4 +1,7 @@
-"""Test writer agent — specialized in writing and running tests."""
+"""Test writer agent — specialized in writing and running tests.
+
+Converted from examples/agents/test_writer.py to the extension API pattern.
+"""
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
@@ -23,12 +26,14 @@ Rules:
 """
 
 
-TEST_WRITER = AgentDefinition(
-    name="test-writer",
-    agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    description="Write tests for existing code, add test cases, improve test coverage, or debug failing tests. Use when the user asks to write tests, add coverage, or fix test failures.",
-    tools=["read", "write", "edit", "grep", "find", "ls", "bash", "run_tests"],
-    model="inherit",
-    max_turns=50,
-    system_prompt=get_system_prompt,
-)
+async def jarvis(api):
+    """Register the test writer agent."""
+    api.agents(AgentDefinition(
+        name="test-writer",
+        agent_type=AgentType.SUBAGENT,
+        description="Write tests for existing code, add test cases, improve test coverage, or debug failing tests. Use when the user asks to write tests, add coverage, or fix test failures.",
+        tools=["read", "write", "edit", "grep", "find", "ls", "bash", "run_tests"],
+        model="inherit",
+        max_turns=50,
+        system_prompt=get_system_prompt,
+    ))

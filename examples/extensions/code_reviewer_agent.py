@@ -1,4 +1,7 @@
-"""Code reviewer agent — read-only review focused on security, bugs, and style."""
+"""Code reviewer agent — read-only review focused on security, bugs, and style.
+
+Converted from examples/agents/code_reviewer.py to the extension API pattern.
+"""
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
@@ -22,12 +25,14 @@ Rules:
 """
 
 
-CODE_REVIEWER = AgentDefinition(
-    name="code-review",
-    agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    description="Review code for security vulnerabilities, logic bugs, performance issues, and style problems. Use when the user asks to review, audit, or critique code.",
-    tools=["read", "grep", "find", "ls", "glob"],  # Read-only — no file modifications
-    model="inherit",
-    max_turns=50,
-    system_prompt=get_system_prompt,
-)
+async def jarvis(api):
+    """Register the code reviewer agent."""
+    api.agents(AgentDefinition(
+        name="code-review",
+        agent_type=AgentType.SUBAGENT,
+        description="Review code for security vulnerabilities, logic bugs, performance issues, and style problems. Use when the user asks to review, audit, or critique code.",
+        tools=["read", "grep", "find", "ls", "glob"],
+        model="inherit",
+        max_turns=50,
+        system_prompt=get_system_prompt,
+    ))

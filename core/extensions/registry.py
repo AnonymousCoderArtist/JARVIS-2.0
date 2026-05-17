@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from core.extensions.types import ExtensionManifest
 
@@ -18,6 +19,7 @@ class ExtensionRegistry:
 
     def __init__(self) -> None:
         self._extensions: dict[str, ExtensionManifest] = {}
+        self._agents: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Registration
@@ -34,6 +36,19 @@ class ExtensionRegistry:
     def clear(self) -> None:
         """Remove ALL extensions.  Called during session teardown."""
         self._extensions.clear()
+        self._agents.clear()
+
+    # ------------------------------------------------------------------
+    # Agent registration
+    # ------------------------------------------------------------------
+
+    def register_agent(self, definition: Any) -> None:
+        """Register an agent definition from an extension."""
+        self._agents[definition.name] = definition
+
+    def get_agents(self) -> dict[str, Any]:
+        """Return all registered agent definitions."""
+        return self._agents.copy()
 
     # ------------------------------------------------------------------
     # Query

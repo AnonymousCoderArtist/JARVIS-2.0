@@ -20,9 +20,9 @@ Guidelines:
 RESEARCHER = AgentDefinition(
     name="researcher",
     agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    when_to_use="Deep research on technical topics, APIs, libraries, frameworks, or any topic requiring web search and documentation lookup. Use when the user asks to research, investigate, or find information.",
+    description="Deep research on technical topics, APIs, libraries, frameworks, or any topic requiring web search and documentation lookup. Use when the user asks to research, investigate, or find information.",
     tools=["web_search", "fetch_webpage", "read", "grep", "find", "ls"],  # Read-only + web
     model="inherit",
     max_turns=30,
-    get_system_prompt=get_system_prompt,
+    system_prompt=get_system_prompt,
 )

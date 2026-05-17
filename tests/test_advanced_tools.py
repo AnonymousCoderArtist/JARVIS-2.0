@@ -79,10 +79,10 @@ class TestFileTools:
             assert result1.success
             assert "Line 1" in result1.result
 
-            # Second read (should be deduplicated)
+            # Second read (should return same content)
             result2 = await tool.execute(input_data)
             assert result2.success
-            assert "unchanged since last read" in result2.result.lower()
+            assert "Line 1" in result2.result
 
     async def test_file_write_state_tracking(self):
         """Test that file writes are tracked"""

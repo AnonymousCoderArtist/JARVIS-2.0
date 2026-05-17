@@ -8,7 +8,7 @@ __version__ = "1.0.0"
 __description__ = "Demo extension that registers a hello tool"
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Extension entry point — receives an ExtensionAPI instance."""
 
     # Register a tool with a simple class
@@ -33,4 +33,4 @@ async def jarvis_extension(api):
                 "result": f"Hello, {name}!",
             }
 
-    api.register_tool(HelloTool())
+    api.tools(HelloTool())

@@ -88,13 +88,14 @@ class ExtensionRunner:
         event_bus: Any,
         hook_registry: Any,
         session: Any = None,
+        agent_callback: Any = None,
     ) -> dict[str, list[dict]]:
         """Bind all pending (loaded) extensions to the live session.
 
         For each extension:
         1. Create an ``ExtensionAPI`` instance
         2. Call the extension's factory function with the API
-        3. Flush queued registrations (tools, hooks, events) via
+        3. Flush queued registrations (tools, hooks, events, agents) via
            ``api._bind()``
 
         Returns a dict mapping extension names to their tool-override
@@ -106,6 +107,12 @@ class ExtensionRunner:
         self._session = session
 
         all_conflicts: dict[str, list[dict]] = {}
+
+        # Agent callback that also registers with the extension registry
+        def _agent_registration_callback(definition):
+            self._registry.register_agent(definition)
+            if agent_callback is not None:
+                agent_callback(definition)
 
         for manifest, factory_fn in self._pending:
             api = ExtensionAPI(
@@ -126,6 +133,7 @@ class ExtensionRunner:
                     hook_registry,
                     session,
                     operations_registry=getattr(tool_registry, "operations_registry", None),
+                    agent_callback=_agent_registration_callback,
                 )
 
                 if conflicts:

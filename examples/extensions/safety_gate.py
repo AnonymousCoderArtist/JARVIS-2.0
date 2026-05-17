@@ -19,10 +19,10 @@ DESTRUCTIVE_PATTERNS = [
 ]
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Register a before-tool-call hook that blocks dangerous commands."""
 
-    @api.register_hook(HookStage.BEFORE_TOOL_CALL)
+    @api.hook(HookStage.BEFORE_TOOL_CALL)
     async def safety_gate(ctx):
         if ctx.tool_name != "bash":
             return HookResult(proceed=True)
