@@ -467,12 +467,6 @@ class CLIInterface:
         """Process user input with streaming output."""
         # Handle commands and shell input first
         if await self.command_handler.handle_input(text):
-            # Check if a compress command was triggered
-            pending = getattr(self.command_handler.command_registry, '_pending_compress', None)
-            if pending:
-                self.command_handler.command_registry._pending_compress = None
-                # Send the compress instruction to the agent as a regular message
-                await self._handle_submit(pending)
             return
 
         if not self.jarvis_agent:

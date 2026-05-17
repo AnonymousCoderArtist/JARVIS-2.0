@@ -112,9 +112,6 @@ export function ChatInput({
       case "heartbeat":
         onOpenHeartbeat?.();
         break;
-      case "compress":
-        onSend("Compress/compact the conversation history to save context tokens.");
-        break;
       default:
         onSend(value.trim());
     }
