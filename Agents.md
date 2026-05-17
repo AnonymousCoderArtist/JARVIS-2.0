@@ -66,7 +66,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## Project Overview
 
-JARVIS v2.1 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and mistral-vibe. It provides unified agentic assistance for coding, research, documentation, and knowledge work.
+JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harness inspired by Claude Code and mistral-vibe. It provides unified agentic assistance for coding, research, documentation, and knowledge work.
 
 ## Development Commands
 
@@ -118,7 +118,7 @@ ty check .
 
 ```bash
 # Version is managed via jarvis/_version.py
-# Current version: 2.1.0
+# Current version: 2.0.0
 ```
 
 ## Architecture Overview
@@ -289,12 +289,6 @@ The heartbeat scheduler integrates with the agent:
 
 ### Adding a New Tool
 
-**Recommended: Extension-based** (see [custom-tools.md](docs/custom-tools.md)):
-1. Create `.jarvis/extensions/my_tool.py` with a `jarvis_extension(api)` function
-2. Call `api.register_tool(MyTool())` to register
-3. No restart needed — use `/reload` in TUI
-
-**Legacy: Core tool** (for built-in tools):
 1. Create tool in `core/tools/` directory
 2. Register in `ToolRegistry`
 3. Update `.jarvis/settings.json` if needed for permissions
@@ -324,37 +318,6 @@ python main.py --cli --model gpt-4o
 # Check type errors
 ty check .
 ```
-
-## Extension System
-
-JARVIS supports extensions (plugins) via Python files:
-
-| Location | Scope |
-|----------|-------|
-| `.jarvis/extensions/*.py` | Project-local (highest precedence) |
-| `~/.jarvis/extensions/*.py` | Global user extensions |
-
-Extensions can register:
-- **Custom tools** — `api.register_tool(tool)`
-- **Lifecycle hooks** — `api.register_hook(stage, handler)`
-- **Slash commands** — `api.register_command("name", handler)`
-- **Keyboard shortcuts** — `api.register_shortcut("ctrl+shift+x", handler)`
-- **Event subscriptions** — `api.on(EventType, handler)`
-
-See [EXTENSIONS.md](docs/EXTENSIONS.md) for the full API reference.
-
-## Event & Hook System
-
-JARVIS uses a dual-layer event architecture:
-
-| Layer | Component | Purpose |
-|-------|-----------|---------|
-| **EventBus** | `core/events/bus.py` | 24 event types, async pub/sub, priority ordering |
-| **HookRegistry** | `core/events/hooks.py` | 16 lifecycle stages, can block/modify/inject |
-
-Key difference: events are notifications (one-way), hooks are interception points (can block/modify).
-
-See [HOOKS.md](docs/HOOKS.md) for the full reference.
 
 ## Rules for Agents
 - use rg (rip grep) instead of grep for file searching

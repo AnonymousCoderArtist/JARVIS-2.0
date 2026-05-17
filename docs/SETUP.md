@@ -1,4 +1,4 @@
-# JARVIS v2.1 Setup Guide
+# JARVIS v2.0 Setup Guide
 
 A comprehensive guide to installing, configuring, and running JARVIS — your personal AI assistant.
 
@@ -169,7 +169,7 @@ JARVIS loads configuration from multiple sources with the following precedence (
 {
   "app": {
     "name": "JARVIS",
-    "version": "2.1.0",
+    "version": "2.0.0",
     "debug": false,
     "installed_agents": []
   },
@@ -425,7 +425,7 @@ Below is the complete structure of `~/.jarvis/settings.json` with all available 
   // ── Application ──────────────────────────────────────────────
   "app": {
     "name": "JARVIS",
-    "version": "2.1.0",
+    "version": "2.0.0",
     "debug": false,
     "installed_agents": []   // List of installed custom agent paths
   },
@@ -523,12 +523,6 @@ Below is the complete structure of `~/.jarvis/settings.json` with all available 
     "base_url": "http://localhost:8080",
     "timeout": 30,
     "runtime": "opensandbox/code-interpreter:v1.0.2"
-  },
-
-  // ── Extensions ─────────────────────────────────────────────
-  "extensions": {
-    // Per-extension configuration
-    // "my_extension": { "host": "example.com", "api_key": "..." }
   },
 
   // ── Global Flags ─────────────────────────────────────────────
@@ -654,53 +648,6 @@ Or in `settings.json`:
   }
 }
 ```
-
-### Extensions
-
-JARVIS supports extensions (plugins) via Python files in `.jarvis/extensions/` (project-local) or `~/.jarvis/extensions/` (global). Extensions can register custom tools, lifecycle hooks, slash commands, and keyboard shortcuts.
-
-Create `.jarvis/extensions/my_extension.py`:
-
-```python
-from core.tools.base import BaseTool, ToolInput, ToolOutput
-
-class MyTool(BaseTool):
-    name = "my_tool"
-    description = "Does something useful"
-    input_schema = {
-        "type": "object",
-        "properties": {"query": {"type": "string"}},
-        "required": ["query"]
-    }
-
-    async def execute(self, input_data: ToolInput) -> ToolOutput:
-        return ToolOutput(success=True, result="Done")
-
-async def jarvis_extension(api):
-    api.register_tool(MyTool())
-```
-
-See [EXTENSIONS.md](EXTENSIONS.md) for the full extension API reference.
-
-### Event & Hook System
-
-JARVIS includes a dual-layer event architecture:
-
-- **EventBus**: 24 event types across 8 categories for fire-and-forget notifications
-- **HookRegistry**: 16 lifecycle stages where hooks can block, modify, or inject content
-
-Extensions register via the `ExtensionAPI`:
-
-```python
-from core.events.types import ToolCallStarted
-from core.events.hooks import HookStage, HookResult
-
-async def jarvis_extension(api):
-    api.on(ToolCallStarted, my_handler)
-    api.register_hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
-```
-
-See [HOOKS.md](HOOKS.md) for the full event and hook reference.
 
 ### MCP Servers
 
@@ -877,8 +824,6 @@ These are the parts of JARVIS designed for user customization:
 | **MCP servers** | Connect external tools | `.mcp.json` or `jarvis --mcp-add` |
 | **Custom tools** | Write your own tool | See [custom-tools.md](custom-tools.md) |
 | **Custom agents** | Define new agent types | See [custom-agents.md](custom-agents.md) |
-| **Extensions** | Add plugins with tools/hooks/commands | `.jarvis/extensions/*.py` — see [EXTENSIONS.md](EXTENSIONS.md) |
-| **Event hooks** | Lifecycle interception at 16 stages | See [HOOKS.md](HOOKS.md) |
 | **Config values** | All runtime settings | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
 | **Sandbox settings** | Toggle sandbox on/off | `settings.json` → `sandbox.enabled` |
 
