@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.events.hooks import HookContext, HookRegistry, HookResult, HookStage
+from jarvis.core.events.hooks import HookContext, HookRegistry, HookResult, HookStage
 
 
 # ---------------------------------------------------------------------------

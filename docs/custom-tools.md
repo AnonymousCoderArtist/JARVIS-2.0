@@ -35,10 +35,10 @@ Save as `.jarvis/extensions/calc_tool.py`:
 
 ```python
 """Calculator tool extension."""
-from core.tools.base import BaseTool, ToolInput, ToolOutput
+from jarvis.api import BaseTool, ExtensionAPI, ToolInput, ToolOutput
 
 
-async def jarvis(api):
+async def jarvis(api: ExtensionAPI):
     """Register a calculator tool via the extension API."""
 
     class CalcTool(BaseTool):
@@ -102,12 +102,12 @@ The tool system is organized into four layers:
 
 | File | Purpose |
 |---|---|
-| `core/tools/base.py` | `BaseTool` ABC, `ToolInput`, `ToolOutput`, `resolve_tool_ref` |
-| `core/tools/registry.py` | `ToolRegistry` — dict-based registration, sync execution, event emission |
-| `core/tools/async_registry.py` | `AsyncToolRegistry` — semaphore-controlled concurrent execution with timeout/retry |
-| `core/tools/permissions.py` | Permission enums, `PermissionContext`, path resolution, wildcard matching |
-| `core/tools/permission_manager.py` | `PermissionManager` — session rules, config-based checks, path-aware resolution |
-| `core/tools/__init__.py` | Lazy import surface — avoids circular imports and eager loading |
+| `jarvis/core/tools/base.py` | `BaseTool` ABC, `ToolInput`, `ToolOutput`, `resolve_tool_ref` |
+| `jarvis/core/tools/registry.py` | `ToolRegistry` — dict-based registration, sync execution, event emission |
+| `jarvis/core/tools/async_registry.py` | `AsyncToolRegistry` — semaphore-controlled concurrent execution with timeout/retry |
+| `jarvis/core/tools/permissions.py` | Permission enums, `PermissionContext`, path resolution, wildcard matching |
+| `jarvis/core/tools/permission_manager.py` | `PermissionManager` — session rules, config-based checks, path-aware resolution |
+| `jarvis/core/tools/__init__.py` | Lazy import surface — avoids circular imports and eager loading |
 
 ### Tool Categories (20+ built-in tools)
 
@@ -179,7 +179,7 @@ async def safe_execute(self, input_data: dict) -> ToolOutput:
 
 ### ToolRegistry (Sync)
 
-`ToolRegistry` (`core/tools/registry.py`) is the primary tool management class:
+`ToolRegistry` (`jarvis/core/tools/registry.py`) is the primary tool management class:
 
 ```python
 registry = ToolRegistry(llm_provider=provider, model="gpt-4o")
@@ -199,7 +199,7 @@ await registry.execute_tool("read", {"filePath": "main.py"})  # ToolOutput
 
 ### AsyncToolRegistry (Concurrent)
 
-`AsyncToolRegistry` (`core/tools/async_registry.py`) extends `ToolRegistry` with:
+`AsyncToolRegistry` (`jarvis/core/tools/async_registry.py`) extends `ToolRegistry` with:
 
 ```python
 async_registry = AsyncToolRegistry(max_concurrent_tools=10)
@@ -243,7 +243,7 @@ Each tool can have `always`/`never`/`ask` in settings JSON:
 
 ### 3. Granular Path/Command Permissions
 
-`PermissionManager` (`core/tools/permission_manager.py`) checks:
+`PermissionManager` (`jarvis/core/tools/permission_manager.py`) checks:
 
 | Check | Description |
 |---|---|
@@ -316,7 +316,7 @@ async def jarvis(api):
     api.on(ToolCallStarted, log_tool_call)
 ```
 
-See [Event System](ARCHITECTURE.md#6-event-system) for the full event type catalog.
+See [Event System](HOOKS.md) for the full event type catalog.
 
 ---
 
@@ -325,7 +325,7 @@ See [Event System](ARCHITECTURE.md#6-event-system) for the full event type catal
 Hooks are higher-level lifecycle interceptors that can **block**, **modify**, or **inject** content at specific stages. Custom tools can register hooks via the extension API:
 
 ```python
-from core.events.hooks import HookContext, HookResult, HookStage
+from jarvis.api import HookContext, HookResult, HookStage
 
 async def jarvis(api):
     @api.hook(HookStage.BEFORE_TOOL_CALL)
@@ -353,11 +353,10 @@ See [HookRegistry](ARCHITECTURE.md#hookregistry) for all 16 lifecycle stages.
 ```python
 """Description of what this tool does."""
 
-from core.events.hooks import HookResult, HookStage
-from core.tools.base import BaseTool, ToolInput, ToolOutput
+from jarvis.api import BaseTool, ExtensionAPI, HookResult, HookStage, ToolInput, ToolOutput
 
 
-async def jarvis(api):
+async def jarvis(api: ExtensionAPI):
     """Register a custom tool using the extension API."""
 
     class MyTool(BaseTool):
@@ -427,9 +426,10 @@ Extensions can override built-in tools by registering a tool with the same name.
 - Adding extra permission checks around `write`/`edit`
 
 ```python
-async def jarvis(api):
+from jarvis.api import BaseTool, ExtensionAPI, ToolInput, ToolOutput
+
+async def jarvis(api: ExtensionAPI):
     """Override the 'read' tool with an audited version."""
-    from core.tools.base import BaseTool, ToolInput, ToolOutput
 
     class AuditedReadTool(BaseTool):
         name = "read"
@@ -545,12 +545,11 @@ class MyNotifyingTool(BaseTool):
 ## See Also
 
 - [Custom Agents](custom-agents.md) — Creating specialized agent profiles with tool restrictions
-- [Architecture: Tool System](ARCHITECTURE.md#5-tool-system) — Full tool architecture documentation
-- [Architecture: Extension System](ARCHITECTURE.md#7-extension-system) — Extension API and lifecycle
-- [Architecture: Event System](ARCHITECTURE.md#6-event-system) — EventBus and HookRegistry
-- [Extension Examples](../examples/extensions/) — Hello world, safety gate, SSH tools, event logger
-- [BaseTool](../core/tools/base.py) — The base class for all tools
-- [ToolOutput](../core/tools/base.py) — The return type for tools
-- [ToolRegistry](../core/tools/registry.py) — Tool registration and execution
-- [Permissions](../core/tools/permissions.py) — Permission enums and resolution logic
-- [PermissionManager](../core/tools/permission_manager.py) — Session rules and config-based checks
+- [Extension System](EXTENSIONS.md) — Extension API and lifecycle
+- [Event & Hook System](HOOKS.md) — EventBus and HookRegistry
+- [Extension Example](../.jarvis/extensions/example_extension.py) — Template extension
+- [BaseTool](../jarvis/core/tools/base.py) — The base class for all tools
+- [ToolOutput](../jarvis/core/tools/base.py) — The return type for tools
+- [ToolRegistry](../jarvis/core/tools/registry.py) — Tool registration and execution
+- [Permissions](../jarvis/core/tools/permissions.py) — Permission enums and resolution logic
+- [PermissionManager](../jarvis/core/tools/permission_manager.py) — Session rules and config-based checks

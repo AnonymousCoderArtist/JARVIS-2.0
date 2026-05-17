@@ -4,7 +4,7 @@ This is a 'safety gate' — it prevents the agent from running commands
 that contain ``rm -rf`` or similar destructive patterns.
 """
 
-from core.events.hooks import HookResult, HookStage
+from jarvis.core.events.hooks import HookResult, HookStage
 
 __version__ = "1.0.0"
 __description__ = "Safety gate that blocks destructive bash commands"

@@ -7,8 +7,8 @@ from typing import Any, cast
 
 import pytest
 
-from core.llm.sdk_adapter import SDKAdapter
-from core.llm_sdk.base.sdk import (
+from jarvis.core.llm.sdk_adapter import SDKAdapter
+from jarvis.core.llm_sdk.base.sdk import (
     BaseLLMSDK,
     GenerationConfig,
     GenerationResponse,

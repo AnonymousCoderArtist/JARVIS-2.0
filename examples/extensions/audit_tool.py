@@ -3,7 +3,7 @@
 Place this file in ``.jarvis/extensions/audit_read.py``.
 """
 
-from core.events.hooks import HookResult, HookStage
+from jarvis.core.events.hooks import HookResult, HookStage
 
 __version__ = "1.0.0"
 __description__ = "Audit tool that logs every file read"

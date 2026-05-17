@@ -18,10 +18,24 @@ There are two kinds of agents, controlled by the `agent_type` field:
 Create `.jarvis/extensions/my-reviewer.py`:
 
 ```python
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
-from core.tools.file_tools import FileReadTool, FindTool, LSTool
-from core.tools.grep_tool import GrepSearchTool
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
+
+
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="file contents")
+
+
+class GrepSearchTool(BaseTool):
+    name = "grep"
+    description = "Search file contents"
+    input_schema = {"type": "object", "properties": {"pattern": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
+
 
 def system_prompt() -> str:
     return """You are a code reviewer. Focus on:
@@ -31,12 +45,12 @@ def system_prompt() -> str:
 - Code style and conventions
 """
 
-async def jarvis(api):
+async def jarvis(api: ExtensionAPI):
     api.agents(AgentDefinition(
         name="code-review",
-        agent_type=AgentType.AGENT,     # appears in profiles + agents tool
+        agent_type=AgentType.AGENT,
         description="Review code for bugs, security issues, and style problems",
-        tools=[FileReadTool, GrepSearchTool, FindTool, LSTool],  # import tool classes
+        tools=[FileReadTool, GrepSearchTool],
         model="inherit",
         max_turns=50,
         system_prompt=system_prompt,
@@ -62,21 +76,31 @@ Restart JARVIS. The agent appears in:
 
 ## Specifying Tools
 
-The `tools` field accepts tool classes, tool instances, or string names (for backward compatibility):
+The `tools` field accepts tool classes, tool instances, or string names:
 
 ```python
-from core.tools.file_tools import FileReadTool, FindTool, LSTool
-from core.tools.grep_tool import GrepSearchTool
-from core.tools.code_tools import BashTool
+from jarvis.api import BaseTool, ToolInput, ToolOutput
+
+# Define custom tool classes
+class MyReadTool(BaseTool):
+    name = "my_read"
+    description = "Custom read tool"
+    input_schema = {"type": "object", "properties": {}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+class MyGrepTool(BaseTool):
+    name = "my_grep"
+    description = "Custom grep tool"
+    input_schema = {"type": "object", "properties": {}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
 
 # Using tool classes (recommended)
-tools=[FileReadTool, GrepSearchTool, FindTool, LSTool]
+tools=[MyReadTool, MyGrepTool]
 
 # Using tool instances
-tools=[FileReadTool(), GrepSearchTool(), FindTool(), LSTool()]
-
-# Mixing with custom tools registered via api.tools()
-tools=[FileReadTool, MyCustomTool]
+tools=[MyReadTool(), MyGrepTool()]
 
 # All tools (no filtering)
 tools=["*"]
@@ -90,10 +114,7 @@ You can create your own tools and use them in agents. Here's a complete example:
 
 ```python
 # .jarvis/extensions/weather_agent.py
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
-from core.tools.base import BaseTool, ToolInput, ToolOutput
-from core.tools.file_tools import FileReadTool
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
 
 
 class WeatherTool(BaseTool):
@@ -112,7 +133,7 @@ class WeatherTool(BaseTool):
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        city = input_data.get("city", "Unknown")
+        city = input_data.model_dump().get("city", "Unknown")
         # In a real tool, you'd call a weather API here
         return ToolOutput(
             success=True,
@@ -120,7 +141,15 @@ class WeatherTool(BaseTool):
         )
 
 
-async def jarvis(api):
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+
+async def jarvis(api: ExtensionAPI):
     # Register the custom tool so it's available in the system
     api.tools(WeatherTool())
 
@@ -129,7 +158,7 @@ async def jarvis(api):
         name="weather-assistant",
         agent_type=AgentType.SUBAGENT,
         description="Answer questions about weather and read weather-related files",
-        tools=[WeatherTool, FileReadTool],  # custom + built-in
+        tools=[WeatherTool, FileReadTool],
         model="inherit",
         max_turns=10,
         system_prompt=lambda: "You are a weather assistant. Use the get_weather tool to check conditions.",
@@ -145,14 +174,13 @@ The `api` object passed to `jarvis(api)` provides these methods:
 Register a custom agent definition. The definition should be an `AgentDefinition` instance.
 
 ```python
-from core.tools.file_tools import FileReadTool
-from core.tools.grep_tool import GrepSearchTool
+from jarvis.api import AgentDefinition, ExtensionAPI
 
-async def jarvis(api):
+async def jarvis(api: ExtensionAPI):
     api.agents(AgentDefinition(
         name="my-agent",
         description="...",
-        tools=[FileReadTool, GrepSearchTool],  # import tool classes
+        tools=["read", "grep"],
         system_prompt=lambda: "You are...",
     ))
 ```
@@ -162,17 +190,25 @@ async def jarvis(api):
 An extension can register agents alongside tools, hooks, and events:
 
 ```python
-from core.tools.file_tools import FileReadTool
+from jarvis.api import AgentDefinition, ExtensionAPI, HookStage, BaseTool, ToolInput, ToolOutput
 
-async def jarvis(api):
+# Define a custom tool class
+class MyCustomTool(BaseTool):
+    name = "my_tool"
+    description = "A custom tool"
+    input_schema = {"type": "object", "properties": {}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="done")
+
+async def jarvis(api: ExtensionAPI):
     # Register a custom tool
     api.tools(MyCustomTool())
 
-    # Register an agent that uses the custom tool (by class or instance)
+    # Register an agent that uses the custom tool (by class)
     api.agents(AgentDefinition(
         name="my-agent",
         description="...",
-        tools=[FileReadTool, MyCustomTool],  # mix built-in and custom
+        tools=[MyCustomTool],
         system_prompt=lambda: "...",
     ))
 
@@ -185,12 +221,37 @@ async def jarvis(api):
 ### Read-Only Reviewer (SUBAGENT)
 
 ```python
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
-from core.tools.file_tools import FileReadTool, FindTool, LSTool
-from core.tools.grep_tool import GrepSearchTool
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
 
-async def jarvis(api):
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+class GrepSearchTool(BaseTool):
+    name = "grep"
+    description = "Search file contents"
+    input_schema = {"type": "object", "properties": {"pattern": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
+
+class FindTool(BaseTool):
+    name = "find"
+    description = "Find files"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="files")
+
+class LSTool(BaseTool):
+    name = "ls"
+    description = "List directory"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="listing")
+
+async def jarvis(api: ExtensionAPI):
     api.agents(AgentDefinition(
         name="reviewer",
         agent_type=AgentType.SUBAGENT,
@@ -205,10 +266,9 @@ async def jarvis(api):
 ### Full-Access Implementer (AGENT)
 
 ```python
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.api import AgentDefinition, AgentType, ExtensionAPI
 
-async def jarvis(api):
+async def jarvis(api: ExtensionAPI):
     api.agents(AgentDefinition(
         name="implementer",
         agent_type=AgentType.AGENT,
@@ -223,19 +283,36 @@ async def jarvis(api):
 ### Custom Model
 
 ```python
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
-from core.tools.file_tools import FileReadTool
-from core.tools.grep_tool import GrepSearchTool
-from core.tools.web_tools import ExaWebSearchTool
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
 
-async def jarvis(api):
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+class GrepSearchTool(BaseTool):
+    name = "grep"
+    description = "Search file contents"
+    input_schema = {"type": "object", "properties": {"pattern": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
+
+class ExaWebSearchTool(BaseTool):
+    name = "web_search"
+    description = "Search the web"
+    input_schema = {"type": "object", "properties": {"query": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="results")
+
+async def jarvis(api: ExtensionAPI):
     api.agents(AgentDefinition(
         name="fast-helper",
         agent_type=AgentType.SUBAGENT,
         description="Quick questions and simple tasks",
         tools=[FileReadTool, GrepSearchTool, ExaWebSearchTool],
-        model="gpt-4o-mini",  # Use a cheaper model for simple tasks
+        model="gpt-4o-mini",
         max_turns=20,
         system_prompt=lambda: "You are a helpful assistant. Be concise.",
     ))

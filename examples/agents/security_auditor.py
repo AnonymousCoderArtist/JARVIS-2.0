@@ -1,7 +1,7 @@
 """Security auditor agent — scans for vulnerabilities and security issues."""
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
 
 
 def get_system_prompt() -> str:

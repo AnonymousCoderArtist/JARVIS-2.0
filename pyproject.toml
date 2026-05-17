@@ -98,7 +98,7 @@ Issues = "https://github.com/OEvortex/JARVIS/issues"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["core*", "jarvis*", "interface*"]
+include = ["jarvis*"]
 
 [tool.black]
 line-length = 100

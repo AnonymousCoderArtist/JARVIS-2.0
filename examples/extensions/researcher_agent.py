@@ -5,11 +5,11 @@ Converted from examples/agents/researcher.py to the extension API pattern.
 Demonstrates using imported tool classes in the tools list.
 """
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
-from core.tools.file_tools import FileReadTool, FindTool, LSTool
-from core.tools.grep_tool import GrepSearchTool
-from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
+from jarvis.core.tools.file_tools import FileReadTool, FindTool, LSTool
+from jarvis.core.tools.grep_tool import GrepSearchTool
+from jarvis.core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 
 
 def get_system_prompt() -> str:

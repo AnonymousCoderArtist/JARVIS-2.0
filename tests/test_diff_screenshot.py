@@ -3,7 +3,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from interface.textual_ui.widgets.tools import DiffBlock, DiffLine
+from jarvis.interface.textual_ui.widgets.tools import DiffBlock, DiffLine
 
 
 class TestApp(App):

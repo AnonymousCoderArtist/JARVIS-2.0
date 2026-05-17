@@ -3,7 +3,7 @@
 Register this hook at BEFORE_TOOL_CALL to prevent destructive operations.
 """
 
-from core.events.hooks import HookContext, HookResult
+from jarvis.core.events.hooks import HookContext, HookResult
 
 # Patterns that indicate dangerous commands
 DANGEROUS_PATTERNS = [

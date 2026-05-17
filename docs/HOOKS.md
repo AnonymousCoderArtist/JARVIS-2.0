@@ -17,10 +17,10 @@ The key difference: **events are notifications** (one-way, no return value), whi
 
 | File | Purpose |
 |------|---------|
-| `core/events/__init__.py` | Re-exports all public types and classes |
-| `core/events/bus.py` | `EventBus` — per-session pub/sub with priority ordering, stats, and polymorphic dispatch |
-| `core/events/hooks.py` | `HookRegistry`, `HookStage` (16 stages), `HookContext`, `HookResult` |
-| `core/events/types.py` | 24 event type definitions across 8 categories |
+| `jarvis/core/events/__init__.py` | Re-exports all public types and classes |
+| `jarvis/core/events/bus.py` | `EventBus` — per-session pub/sub with priority ordering, stats, and polymorphic dispatch |
+| `jarvis/core/events/hooks.py` | `HookRegistry`, `HookStage` (16 stages), `HookContext`, `HookResult` |
+| `jarvis/core/events/types.py` | 24 event type definitions across 8 categories |
 
 ---
 
@@ -31,8 +31,8 @@ A per-session pub/sub event bus. Each agent session owns its own `EventBus` inst
 ### Usage
 
 ```python
-from core.events.bus import EventBus
-from core.events.types import ToolCallStarted, ToolCallEnded
+from jarvis.api import EventBus
+from jarvis.api import ToolCallStarted, ToolCallEnded
 
 bus = EventBus()
 
@@ -84,7 +84,7 @@ Hooks are higher-level than raw EventBus subscriptions. They allow extensions to
 ### Usage
 
 ```python
-from core.events.hooks import HookRegistry, HookStage, HookContext, HookResult
+from jarvis.api import HookRegistry, HookStage, HookContext, HookResult
 
 registry = HookRegistry()
 
@@ -336,13 +336,14 @@ Extensions use the `ExtensionAPI` to register with both systems:
 
 ```python
 # In an extension file:
+from jarvis.api import ExtensionAPI, HookStage, HookContext, HookResult
+from jarvis.api import ToolCallStarted
+
 async def jarvis(api: ExtensionAPI):
     # EventBus subscription
-    from core.events.types import ToolCallStarted
     api.on(ToolCallStarted, log_tool_call)
 
     # Hook registration
-    from core.events.hooks import HookStage, HookContext, HookResult
     api.hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
 ```
 

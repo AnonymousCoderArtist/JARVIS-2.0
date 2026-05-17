@@ -3,27 +3,27 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
-from core.tools.base import ToolOutput
-from core.tools.registry import ToolRegistry
-from interface.textual_ui.agent_loop import AgentLoop
-from interface.textual_ui.app import VibeApp
-from interface.textual_ui.cli_adapters import (
+from jarvis.core.agents.jarvis_v2 import JarvisV2 as CodingAgent
+from jarvis.core.tools.base import ToolOutput
+from jarvis.core.tools.registry import ToolRegistry
+from jarvis.interface.textual_ui.agent_loop import AgentLoop
+from jarvis.interface.textual_ui.app import VibeApp
+from jarvis.interface.textual_ui.cli_adapters import (
     CommandCompleter,
     CommandRegistry,
     SlashCommandController,
     ToolUIDataAdapter,
 )
-from interface.textual_ui.tui_main import Config, create_tool_registry
-from interface.textual_ui.types import (
+from jarvis.interface.textual_ui.tui_main import Config, create_tool_registry
+from jarvis.interface.textual_ui.types import (
     AssistantEvent,
     ReasoningEvent,
     ToolCallEvent,
     ToolResultEvent,
     UserMessageEvent,
 )
-from interface.textual_ui.widgets.chat_input.container import ChatInputContainer
-from interface.textual_ui.widgets.messages import AssistantMessage, ErrorMessage, UserMessage
+from jarvis.interface.textual_ui.widgets.chat_input.container import ChatInputContainer
+from jarvis.interface.textual_ui.widgets.messages import AssistantMessage, ErrorMessage, UserMessage
 from jarvis.cli import _parse_args
 
 

@@ -4,14 +4,16 @@
 
 The JARVIS extension system is a **plugin architecture** that allows users and third-party developers to extend JARVIS with custom tools, lifecycle hooks, slash commands, keyboard shortcuts, and event handlers. Extensions are plain Python files — no build step, no package manager required — loaded dynamically at session startup.
 
+All extension development imports from `jarvis.api` — a stable public API that works whether JARVIS is installed from source or via PyPI.
+
 The system is built around four core components:
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| **ExtensionAPI** | `api.py` | Public surface exposed to every extension — register tools, hooks, commands, shortcuts, events, and agents |
-| **ExtensionLoader** | `loader.py` | Dynamic discovery and loading of extension modules from filesystem paths and pip entry points |
-| **ExtensionRunner** | `runner.py` | Orchestrates the full lifecycle — discover → load → bind → run → unbind |
-| **ExtensionRegistry** | `registry.py` | Tracks all loaded extensions, provides introspection and conflict detection |
+| Component | Module | Purpose |
+|-----------|--------|---------|
+| **ExtensionAPI** | `jarvis.api` | Public surface exposed to every extension — register tools, hooks, commands, shortcuts, events, and agents |
+| **ExtensionLoader** | `jarvis/core/extensions/loader.py` | Dynamic discovery and loading of extension modules from filesystem paths and pip entry points |
+| **ExtensionRunner** | `jarvis/core/extensions/runner.py` | Orchestrates the full lifecycle — discover → load → bind → run → unbind |
+| **ExtensionRegistry** | `jarvis/core/extensions/registry.py` | Tracks all loaded extensions, provides introspection and conflict detection |
 
 ---
 
@@ -19,15 +21,11 @@ The system is built around four core components:
 
 | Path | Purpose |
 |------|---------|
-| `core/extensions/` | Extension system core — API, loader, runner, registry, types |
-| `core/extensions/api.py` | `ExtensionAPI` class — the object every extension receives |
-| `core/extensions/loader.py` | Discovery and loading logic — filesystem + pip entry points |
-| `core/extensions/runner.py` | `ExtensionRunner` — lifecycle orchestration per session |
-| `core/extensions/registry.py` | `ExtensionRegistry` — metadata tracking and conflict detection |
-| `core/extensions/types.py` | Type definitions — `ExtensionManifest`, `ExtensionContext`, `ToolRegistration`, `ExtensionLoadResult`, handler type aliases |
+| `jarvis/core/extensions/` | Extension system core — API, loader, runner, registry, types |
+| `jarvis/api.py` | **Public API** — all extension imports come from here |
 | `.jarvis/extensions/*.py` | Project-local extensions (highest precedence) |
 | `~/.jarvis/extensions/*.py` | Global user extensions |
-| `examples/extensions/` | Reference extension examples (hello_world, audit_tool, safety_gate, event_logger, ssh_operations) |
+| `.jarvis/extensions/example_extension.py` | Reference extension example |
 
 ---
 
@@ -50,8 +48,7 @@ The system is built around four core components:
 │     ┌──────────────────────────────────────────────────────────┐    │
 │     │  importlib.util.spec_from_file_location()                │    │
 │     │  spec.loader.exec_module()                               │    │
-│     │  Find factory: jarvis / __jarvis__   │    │
-│     │                  / default                               │    │
+│     │  Find factory: jarvis / jarvis_extension / default       │    │
 │     │  Build ExtensionManifest from module attrs               │    │
 │     └──────────────────────────────────────────────────────────┘    │
 │                              │                                       │
@@ -93,8 +90,9 @@ __version__ = "1.0.0"
 __description__ = "My custom extension"
 __author__ = "Your Name"
 
-from core.extensions.api import ExtensionAPI
-from core.tools.base import BaseTool, ToolInput, ToolOutput
+from jarvis.api import ExtensionAPI, BaseTool, ToolInput, ToolOutput
+from jarvis.api import HookStage, HookContext, HookResult
+from jarvis.api import ToolCallStarted
 
 
 class MyTool(BaseTool):
@@ -109,8 +107,8 @@ class MyTool(BaseTool):
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        query = input_data.get("query", "")
-        return ToolOutput(success=True, output=f"Processed: {query}")
+        query = input_data.model_dump().get("query", "")
+        return ToolOutput(success=True, result=f"Processed: {query}")
 
 
 async def jarvis(api: ExtensionAPI):
@@ -120,11 +118,9 @@ async def jarvis(api: ExtensionAPI):
     api.tools(MyTool())
 
     # Subscribe to an event
-    from core.events.types import ToolCallStarted
     api.on(ToolCallStarted, my_event_handler)
 
     # Register a lifecycle hook
-    from core.events.hooks import HookStage, HookContext, HookResult
     api.hook(HookStage.BEFORE_TOOL_CALL, safety_gate_hook)
 
     # Register a slash command
@@ -141,7 +137,7 @@ async def my_event_handler(event):
 
 async def safety_gate_hook(ctx: HookContext) -> HookResult:
     """Called before every tool call — can modify or block."""
-    return HookResult.continue_()
+    return HookResult(proceed=True)
 
 
 async def hello_command() -> str:
@@ -152,8 +148,9 @@ async def hello_command() -> str:
 
 The loader looks for the factory function in this order:
 1. `jarvis(api)` — preferred
-2. `__jarvis__(api)` — alternative
-3. `default(api)` — fallback
+2. `jarvis_extension(api)` — alternative
+3. `__jarvis_extension__(api)` — fallback
+4. `default(api)` — last resort
 
 ### Module-Level Metadata (Optional)
 
@@ -294,39 +291,57 @@ Extensions can also define a `settings_schema` in their manifest for validation.
 
 ### With EventBus
 
-Extensions subscribe to events via `api.on(EventType, handler)`. Available event types include:
+Extensions subscribe to events via `api.on(EventType, handler)`. All event types are available from `jarvis.api`:
 
-- `AgentStarted`, `AgentEnded`, `AgentError`
-- `TurnStarted`, `TurnEnded`
-- `ToolCallStarted`, `ToolCallEnded`
-- `MessageDelta`, `MessageComplete`
-- `ExtensionLoaded`, `ExtensionUnloaded`
-- And 18 more (see `core/events/types.py`)
+```python
+from jarvis.api import (
+    ToolCallStarted, ToolCallEnded, ToolCallError,
+    AgentStarted, AgentEnded, AgentError,
+    TurnStarted, TurnEnded,
+    SessionStarted, SessionShutdown,
+)
+```
 
 ### With HookRegistry
 
-Extensions register hooks at lifecycle stages via `api.hook(stage, handler)`. Available stages include:
+Extensions register hooks at lifecycle stages via `api.hook(stage, handler)`. Available stages:
 
-- `BEFORE_AGENT_RUN`, `AFTER_AGENT_RUN`
-- `BEFORE_LLM_CALL`, `AFTER_LLM_CALL`
-- `BEFORE_TOOL_CALL`, `AFTER_TOOL_CALL`
-- `BEFORE_MESSAGE_SEND`, `AFTER_MESSAGE_SEND`
-- And 12 more (see `core/events/hooks.py`)
+```python
+from jarvis.api import HookStage
+
+# Agent lifecycle
+HookStage.BEFORE_AGENT_START, HookStage.AFTER_AGENT_START
+HookStage.BEFORE_AGENT_END, HookStage.AFTER_AGENT_END
+
+# Turn lifecycle
+HookStage.BEFORE_TURN, HookStage.AFTER_TURN
+
+# Tool execution
+HookStage.BEFORE_TOOL_CALL, HookStage.AFTER_TOOL_CALL
+
+# Session lifecycle
+HookStage.BEFORE_SESSION_START, HookStage.AFTER_SESSION_START
+HookStage.BEFORE_SESSION_SHUTDOWN, HookStage.AFTER_SESSION_SHUTDOWN
+
+# System prompt
+HookStage.BEFORE_SYSTEM_PROMPT, HookStage.AFTER_SYSTEM_PROMPT
+
+# Skills
+HookStage.BEFORE_SKILL_ACTIVATE, HookStage.AFTER_SKILL_ACTIVATE
+```
 
 ---
 
 ## 11. Example Extensions
 
-Located in `examples/extensions/`:
+Located in `.jarvis/extensions/`:
 
 | File | Description |
 |------|-------------|
-| `hello_world.py` | Minimal extension — registers a simple tool and command |
-| `audit_tool.py` | Security audit tool that scans for common vulnerabilities |
-| `safety_gate.py` | Lifecycle hook that blocks dangerous tool calls |
-| `event_logger.py` | Subscribes to all events and logs them |
-| `ssh_tools.py` | SSH connection and command execution tools |
-| `researcher_agent.py` | Custom research agent using tool classes |
+| `example_extension.py` | Template showing all extension capabilities |
+| `calc_tool.py` | Calculator tool for evaluating math expressions |
+| `auto_type_check.py` | Hook that tracks tool call counts |
+| `superagent.py` | Autonomous planning agent registered as extension |
 
 ---
 
@@ -335,7 +350,7 @@ Located in `examples/extensions/`:
 The extension system can also be used programmatically:
 
 ```python
-from core.extensions import ExtensionAPI, ExtensionRunner, ExtensionManifest
+from jarvis.api import ExtensionAPI, ExtensionRunner, ExtensionManifest
 
 # Create a runner
 runner = ExtensionRunner()
@@ -377,3 +392,28 @@ await runner.unbind()
 | `has_extension(name)` | Check if extension is loaded |
 | `get_tool_origin(tool_name)` | Which extension provides a tool |
 | `check_conflicts(tool_name)` | All extensions registering a tool |
+
+---
+
+## 13. PyPI Usage
+
+When JARVIS is installed via `pip install jarvis`, all extension APIs are available:
+
+```bash
+pip install jarvis
+```
+
+```python
+# In your extension file:
+from jarvis.api import ExtensionAPI, BaseTool, ToolInput, ToolOutput
+from jarvis.api import AgentDefinition, AgentType
+from jarvis.api import HookStage, HookContext, HookResult
+from jarvis.api import ToolCallStarted, ToolCallEnded
+from jarvis.api import EventBus, ToolRegistry
+
+async def jarvis(api: ExtensionAPI):
+    api.tools(MyTool())
+    api.hook(HookStage.AFTER_TOOL_CALL, my_hook)
+```
+
+No need to import from `core.*` — everything is available through `jarvis.api`.

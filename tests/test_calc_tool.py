@@ -1,8 +1,8 @@
 
 import pytest
 
-from core.tools.base import BaseTool, ToolInput, ToolOutput
-from core.tools.registry import ToolRegistry
+from jarvis.core.tools.base import BaseTool, ToolInput, ToolOutput
+from jarvis.core.tools.registry import ToolRegistry
 
 
 class CalcTool(BaseTool):

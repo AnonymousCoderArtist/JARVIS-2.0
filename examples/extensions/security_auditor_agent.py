@@ -3,8 +3,8 @@
 Converted from examples/agents/security_auditor.py to the extension API pattern.
 """
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
 
 
 def get_system_prompt() -> str:

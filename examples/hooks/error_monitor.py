@@ -6,7 +6,7 @@ Subscribe to AgentError and ToolCallError to track failures.
 import logging
 from dataclasses import dataclass
 
-from core.events.types import AgentError, ToolCallError
+from jarvis.core.events.types import AgentError, ToolCallError
 
 logger = logging.getLogger(__name__)
 

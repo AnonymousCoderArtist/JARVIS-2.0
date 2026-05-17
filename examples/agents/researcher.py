@@ -1,7 +1,7 @@
 """Research agent — deep research with web search and documentation tools."""
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
 
 
 def get_system_prompt() -> str:

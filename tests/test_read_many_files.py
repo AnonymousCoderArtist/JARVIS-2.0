@@ -3,8 +3,8 @@
 
 import pytest
 
-from core.tools.base import ToolInput
-from core.tools.file_tools import FileReadTool
+from jarvis.core.tools.base import ToolInput
+from jarvis.core.tools.file_tools import FileReadTool
 
 
 class TestFileReadToolSingleMode:

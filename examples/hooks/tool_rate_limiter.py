@@ -5,7 +5,7 @@ Register this hook at BEFORE_TOOL_CALL to rate-limit specific tools.
 
 import time
 
-from core.events.hooks import HookContext, HookResult
+from jarvis.core.events.hooks import HookContext, HookResult
 
 
 class ToolRateLimiter:

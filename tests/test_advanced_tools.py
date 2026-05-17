@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from core.tools.base import ToolInput
-from core.tools.code_tools import BashTool
-from core.tools.file_state import current_file_states
-from core.tools.file_tools import FileReadTool, FileWriteTool
-from core.tools.web_tools import ExaWebSearchTool
+from jarvis.core.tools.base import ToolInput
+from jarvis.core.tools.code_tools import BashTool
+from jarvis.core.tools.file_state import current_file_states
+from jarvis.core.tools.file_tools import FileReadTool, FileWriteTool
+from jarvis.core.tools.web_tools import ExaWebSearchTool
 
 
 class TestFileState:
