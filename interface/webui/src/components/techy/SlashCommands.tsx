@@ -92,6 +92,12 @@ export const COMMANDS: Command[] = [
     description: "Send feedback",
     usage: "",
   },
+  {
+    name: "compress",
+    aliases: ["/compress", "/compact"],
+    description: "Compress conversation history to save context tokens",
+    usage: "",
+  },
 ];
 
 interface SlashCommandsProps {

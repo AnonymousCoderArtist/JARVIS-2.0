@@ -52,6 +52,7 @@ class CommandRegistry:
         self.register(Command("sessions", "List available sessions", self._cmd_sessions))
         self.register(Command("copy", "Copy the last assistant answer to clipboard", self._cmd_copy))
         self.register(Command("themes", "List and change UI themes", self._cmd_themes))
+        self.register(Command("compress", "Compress conversation history to save context tokens", self._cmd_compress))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
         self.register(Command("quit", "Exit JARVIS", self._cmd_exit))
 
@@ -61,6 +62,7 @@ class CommandRegistry:
         self.add_alias("st", "status")
         self.add_alias("rw", "rewind")
         self.add_alias("th", "themes")
+        self.add_alias("compact", "compress")
 
     def register(self, command: Command):
         """Register a new command."""
@@ -357,6 +359,14 @@ class CommandRegistry:
                 self.display_manager.show_error(f"Failed to change theme: {e}")
         else:
             self.display_manager.show_error(f"Unknown theme: {theme_name}\nAvailable: {', '.join(available)}")
+
+    async def _cmd_compress(self, args: list[str]):
+        """Handle compress command - trigger conversation compaction."""
+        extra = " ".join(args) if args else ""
+        instruction = f"Compress/compact the conversation history to save context tokens. {extra}".strip()
+        self.display_manager.show_info("Triggering conversation compression...")
+        # Store the instruction so the CLI can pick it up and send it to the agent
+        self._pending_compress = instruction
 
     async def _cmd_exit(self, args: list[str]):
         """Handle exit command."""

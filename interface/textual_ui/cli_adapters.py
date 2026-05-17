@@ -204,6 +204,14 @@ class CommandRegistry:
             handler="_copy_last_answer",
         )
 
+        # Compact/compress command
+        self.commands["compact"] = Command(
+            aliases=("/compact", "/compress"),
+            description="Compress conversation history to save context tokens",
+            usage="[extra instructions]",
+            handler="action_compact",
+        )
+
         # Clear command - start new session
         self.commands["clear"] = Command(
             aliases=("/clear",),
