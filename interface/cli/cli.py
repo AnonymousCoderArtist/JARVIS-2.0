@@ -10,12 +10,8 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.output import DummyOutput
 from prompt_toolkit.styles import Style
-from pygments.lexers.markup import MarkdownLexer
-from pygments.lexers.python import PythonLexer
-from pygments.lexers.shell import BashLexer
 
 from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
 from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
@@ -85,37 +81,6 @@ class CommandCompleter(Completer):
 
 
 
-class DynamicLexer:
-    """Dynamic lexer that switches based on input type."""
-
-    def __init__(self, command_handler: CommandHandler):
-        self.command_handler = command_handler
-
-    def _get_lexer_for_text(self, text: str):
-        """Determine which lexer to use based on text content."""
-        text_lower = text.lower().strip()
-
-        if text_lower.startswith('python') or 'def ' in text or 'class ' in text:
-            return PygmentsLexer(PythonLexer)
-        elif text_lower.startswith('!') or 'cd ' in text or 'ls ' in text or 'bash ' in text:
-            return PygmentsLexer(BashLexer)
-        elif '#' in text or '**' in text or '##' in text:
-            return PygmentsLexer(MarkdownLexer)
-        return None
-
-    def lex_document(self, document):
-        """Return a function that lexes a document."""
-        lexer = self._get_lexer_for_text(document.text)
-        if lexer:
-            return lexer.lex_document(document)
-        # Return a no-op lexer function
-        return lambda i: []
-
-    def __call__(self, document, _):
-        """Make this callable for compatibility."""
-        return self._get_lexer_for_text(document.text)
-
-
 class CLIInterface:
     """Modern CLI interface for JARVIS with rich display and modular architecture."""
 
@@ -178,9 +143,6 @@ class CLIInterface:
 
         # Completer for tab completion
         self.completer = CommandCompleter(self.command_handler, self.tool_registry)
-
-        # Dynamic lexer for syntax highlighting
-        self.dynamic_lexer = DynamicLexer(self.command_handler)
 
         self._initialize_systems()
 

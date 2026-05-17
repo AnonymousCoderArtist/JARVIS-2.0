@@ -6,11 +6,8 @@ escape codes via console.file.write() for precise control. Static rendering
 """
 
 import asyncio
-import io
 import json
 import os
-import random
-import re
 import sys
 import time
 from typing import Any
@@ -20,7 +17,6 @@ from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.padding import Padding
 from rich.rule import Rule
 from rich.syntax import Syntax
 from rich.table import Table
@@ -34,175 +30,6 @@ console = Console(legacy_windows=False, color_system="auto", file=sys.stdout)
 # ── ANSI helpers ─────────────────────────────────────────────────────────────
 
 _I = "  "  # Indent prefix for all agent output (aligns under the `>` prompt)
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
-
-
-def _clip_to_width(s: str, width: int) -> str:
-    """Truncate a string to *width* visible columns while preserving ANSI styles."""
-    visible_len = 0
-    out = []
-    i = 0
-    while i < len(s):
-        if s[i] == "\x1b":
-            # consume the whole escape sequence
-            j = s.find("m", i)
-            if j == -1:
-                break
-            out.append(s[i : j + 1])
-            i = j + 1
-            continue
-        if visible_len >= width:
-            break
-        out.append(s[i])
-        visible_len += 1
-        i += 1
-    out.append("\x1b[0m")
-    return "".join(out)
-
-# ── CRT Boot & Typewriter Helpers ──────────────────────────────────────────
-
-GLITCH_CHARS = "█▓▒░"
-
-
-def _glitch_text(text: str, intensity: float = 0.1) -> str:
-    """Replace random characters with glitch characters based on intensity."""
-    if intensity <= 0:
-        return text
-    result = []
-    for ch in text:
-        if ch == "\n":
-            result.append(ch)
-        elif random.random() < intensity:
-            result.append(random.choice(GLITCH_CHARS))
-        else:
-            result.append(ch)
-    return "".join(result)
-
-
-def _type_text(console: Console, text: str, style: str = "", delay: float = 0.015):
-    """Type text character-by-character to the Rich console with configurable delay."""
-    for ch in text:
-        console.print(ch, style=style, end="")
-        console.file.flush()
-        time.sleep(delay)
-    console.print()
-
-
-def _crt_line(console: Console, label: str, value: str, glitch_intensity: float = 0.3, delay: float = 0.015):
-    """Print a single boot line with glitch effect that settles over time."""
-    raw = f"  {label}: {value}"
-    # Phase 1: heavily glitched version
-    glitched = _glitch_text(raw, glitch_intensity)
-    console.print(f"[dim]{glitched}[/]")
-    time.sleep(delay * 8)
-    # Phase 2: partially settled
-    settled = _glitch_text(raw, glitch_intensity * 0.3)
-    # Move cursor up one line, overwrite
-    console.print(f"\033[1A\r[secondary]{settled}[/]")
-    time.sleep(delay * 4)
-    # Phase 3: fully resolved
-    console.print(f"\033[1A\r[secondary]{raw}[/]")
-    time.sleep(delay * 2)
-
-
-def _boot_logo(console: Console):
-    """Display a simple ASCII/Braille logo animation for the boot sequence."""
-    frames = [
-        "  ░░░░░░░░░░",
-        "  ▒▒▒▒▒▒▒▒▒▒",
-        "  ▓▓▓▓▓▓▓▓▓▓",
-        "  ██████████",
-        "  J A R V I S",
-    ]
-    for frame in frames:
-        console.print(f"[primary]{frame}[/]")
-        time.sleep(0.08)
-    console.print()
-
-
-def run_boot_sequence(console: Console, model: str, tools: list[str], config=None):
-    """Run the CRT boot sequence. Only activates when config.display.enable_boot_animation is True."""
-    # Check config — bail out if boot animation is disabled
-    boot_enabled = False
-    typewriter_speed = 0.015
-    if config is not None:
-        display_cfg = getattr(config, "display", None)
-        if display_cfg is not None:
-            boot_enabled = getattr(display_cfg, "enable_boot_animation", False)
-            typewriter_speed = getattr(display_cfg, "typewriter_speed", 0.015)
-    if not boot_enabled:
-        return
-
-    console.clear()
-
-    # Phase 1: Logo animation
-    _boot_logo(console)
-
-    # Phase 2: CRT boot info lines
-    username = os.getenv("USER", os.getenv("USERNAME", "user"))
-    tool_count = len(tools)
-
-    _crt_line(console, "User", username, glitch_intensity=0.4, delay=typewriter_speed)
-    _crt_line(console, "Model", model, glitch_intensity=0.3, delay=typewriter_speed)
-    _crt_line(console, "Tools", f"{tool_count} available", glitch_intensity=0.2, delay=typewriter_speed)
-
-    console.print()
-    console.print("[dim]─" * 40 + "[/dim]")
-    console.print()
-
-
-async def print_markdown(console: Console, text: str, cancel_event=None, instant: bool = False):
-    """Render markdown to a StringIO buffer with force_terminal=True, then type character by character."""
-    from rich.markdown import Markdown as RichMarkdown
-
-    console.print()  # blank line before content
-
-    # Render markdown to a string buffer so we can type it out
-    buf = io.StringIO()
-    buf_console = Console(
-        file=buf,
-        width=console.width,
-        highlight=False,
-        force_terminal=True,  # Important: preserve ANSI styles
-        color_system="truecolor",
-    )
-    buf_console.print(Padding(RichMarkdown(text), (0, 0, 0, 2)))
-    rendered = buf.getvalue()
-
-    # Strip trailing whitespace from each line
-    lines = rendered.split("\n")
-    rendered = "\n".join(line.rstrip() for line in lines)
-
-    f = console.file
-
-    if instant:
-        f.write(rendered)
-        f.write("\n")
-        f.flush()
-        return
-
-    # CRT typewriter effect — async so the event loop can service signal handlers
-    rng = random.Random(42)
-    cancelled = False
-    for ch in rendered:
-        if cancel_event is not None and cancel_event.is_set():
-            cancelled = True
-            break
-        f.write(ch)
-        f.flush()
-        if ch == "\n":
-            await asyncio.sleep(0.002)
-        elif ch == " ":
-            await asyncio.sleep(0.002)
-        elif rng.random() < 0.03:
-            await asyncio.sleep(0.015)
-        else:
-            await asyncio.sleep(0.004)
-    f.write("\033[0m\n" if cancelled else "\n")
-    f.flush()
-
-
-# ── End CRT Boot & Typewriter Helpers ──────────────────────────────────────
 
 # Text icons for different message types (modern UI indicators)
 ICONS = {
@@ -337,128 +164,6 @@ THEME_PRESETS = {
 }
 
 
-class Theme:
-    """Color theme definitions for the CLI."""
-
-    DARK_THEME = RichTheme({
-        "primary": "bold #ff8700",
-        "secondary": "#666666",
-        "success": "bold #00ff00",
-        "error": "bold #ff0000",
-        "warning": "bold #ffff00",
-        "info": "bold #00ffff",
-        "prompt": "bold #ff8700",
-        "user": "bold #5fafff",
-        "jarvis": "bold #ff8700",
-        "reasoning": "italic dim #888888",
-        "tool_call": "bold #00afff",
-        "tool_args": "#87d7ff",
-        "tool_result": "#bcbcbc",
-    })
-
-    LIGHT_THEME = RichTheme({
-        "primary": "bold #ff6600",
-        "secondary": "#888888",
-        "success": "bold #00aa00",
-        "error": "bold #cc0000",
-        "warning": "bold #cc9900",
-        "info": "bold #0099cc",
-        "prompt": "bold #ff6600",
-        "user": "bold #005fdf",
-        "jarvis": "bold #ff6600",
-        "reasoning": "italic dim #666666",
-        "tool_call": "bold #0087af",
-        "tool_args": "#005f87",
-        "tool_result": "#444444",
-    })
-
-    # New modern themes
-    NORD_THEME = RichTheme({
-        "primary": "bold #81a1c1",
-        "secondary": "#4c566a",
-        "success": "bold #a3be8c",
-        "error": "bold #bf616a",
-        "warning": "bold #ebcb8b",
-        "info": "bold #88c0d0",
-        "prompt": "bold #81a1c1",
-        "user": "bold #5e81ac",
-        "jarvis": "bold #81a1c1",
-        "reasoning": "italic #d8dee9",
-        "tool_call": "bold #8fbcbb",
-        "tool_args": "#8fbcbb",
-        "tool_result": "#eceff4",
-    })
-
-    DRACULA_THEME = RichTheme({
-        "primary": "bold #bd93f9",
-        "secondary": "#6272a4",
-        "success": "bold #50fa7b",
-        "error": "bold #ff5555",
-        "warning": "bold #f1fa8c",
-        "info": "bold #8be9fd",
-        "prompt": "bold #bd93f9",
-        "user": "bold #50fa7b",
-        "jarvis": "bold #bd93f9",
-        "reasoning": "italic #f8f8f2",
-        "tool_call": "bold #ff79c6",
-        "tool_args": "#8be9fd",
-        "tool_result": "#f8f8f2",
-    })
-
-    GRUVBIX_THEME = RichTheme({
-        "primary": "bold #fabd2f",
-        "secondary": "#928374",
-        "success": "bold #b8bb26",
-        "error": "bold #fb4934",
-        "warning": "bold #fabd2f",
-        "info": "bold #83a598",
-        "prompt": "bold #fabd2f",
-        "user": "bold #83a598",
-        "jarvis": "bold #fabd2f",
-        "reasoning": "italic #ebdbb2",
-        "tool_call": "bold #fe8019",
-        "tool_args": "#8ec07c",
-        "tool_result": "#ebdbb2",
-    })
-
-    CATPPUCCIN_THEME = RichTheme({
-        "primary": "bold #f5e0dc",
-        "secondary": "#585b70",
-        "success": "bold #a6e3a1",
-        "error": "bold #f38ba8",
-        "warning": "bold #f9e2af",
-        "info": "bold #89dceb",
-        "prompt": "bold #f5e0dc",
-        "user": "bold #b4befe",
-        "jarvis": "bold #f5e0dc",
-        "reasoning": "italic #cdd6f4",
-        "tool_call": "bold #f5c2e7",
-        "tool_args": "#b4befe",
-        "tool_result": "#cdd6f4",
-    })
-
-    ML_INTERN_THEME = RichTheme({
-        "tool.ok": "bold #4ade80",
-        "tool.fail": "bold #f87171",
-        "tool.name": "bold #ffc850",
-        "thinking": "#5a5a6e",
-        "prompt": "bold #78dcff",
-        "primary": "bold #ffc850",
-        "secondary": "#b48c28",
-        "success": "bold #4ade80",
-        "error": "bold #f87171",
-        "warning": "bold #ffc850",
-        "info": "bold #78dcff",
-        "user": "bold #78dcff",
-        "jarvis": "bold #ffc850",
-        "reasoning": "italic #5a5a6e",
-        "tool_call": "bold #ffc850",
-        "tool_args": "#b48c28",
-        "tool_result": "#b48c28",
-        "arrow": "#b48c28",
-    })
-
-
 class _ThinkingShimmer:
     """Animated shiny/shimmer thinking indicator — a bright gradient sweeps across the text."""
 
@@ -541,8 +246,6 @@ class DisplayManager:
         self._streaming_reasoning = ""
         self._is_reasoning = False
         self._config = config
-        self._typewriter_buffer = ""
-        self._last_typewriter_flush = 0
         self._thinking_shimmer: _ThinkingShimmer | None = None
 
     @property
@@ -677,40 +380,20 @@ class DisplayManager:
         self._streaming_content = ""
         self._streaming_reasoning = ""
         self._is_reasoning = False
-        self._typewriter_buffer = ""
-        self._last_typewriter_flush = 0
 
-        # Check if typewriter mode is enabled
-        typewriter_enabled = False
-        if self._config is not None:
-            display_cfg = getattr(self._config, "display", None)
-            if display_cfg is not None:
-                typewriter_enabled = getattr(display_cfg, "enable_typewriter", False)
-
-        if not typewriter_enabled:
-            # Use standard Live display for instant rendering
-            self._live = Live(
-                Text(""),
-                console=self.console,
-                refresh_per_second=10,
-                auto_refresh=True,
-                vertical_overflow="visible"
-            )
-            self._live.start()
+        self._live = Live(
+            Text(""),
+            console=self.console,
+            refresh_per_second=10,
+            auto_refresh=True,
+            vertical_overflow="visible"
+        )
+        self._live.start()
 
     def update_streaming(self, chunk: str, is_reasoning: bool = False):
         """Update the live display with a new chunk with smooth animation."""
         if not self._live:
             self.start_streaming()
-
-        # Check if typewriter mode is enabled
-        typewriter_enabled = False
-        typewriter_speed = 0.015
-        if self._config is not None:
-            display_cfg = getattr(self._config, "display", None)
-            if display_cfg is not None:
-                typewriter_enabled = getattr(display_cfg, "enable_typewriter", False)
-                typewriter_speed = getattr(display_cfg, "typewriter_speed", 0.015)
 
         if is_reasoning:
             self._streaming_reasoning += chunk
@@ -719,21 +402,7 @@ class DisplayManager:
             self._streaming_content += chunk
             self._is_reasoning = False
 
-        if typewriter_enabled and not is_reasoning:
-            # Typewriter mode: type out new content character by character
-            new_content = chunk
-            for ch in new_content:
-                if ch == "\n":
-                    self.console.print()
-                elif random.random() < 0.002:  # Occasional glitch
-                    self.console.print(random.choice(GLITCH_CHARS), end="")
-                    self.console.file.flush()
-                else:
-                    self.console.print(ch, end="")
-                    self.console.file.flush()
-                time.sleep(typewriter_speed)
-        elif self._live:
-            # Build the display object with improved styling
+        if self._live:
             parts = []
             if self._streaming_reasoning:
                 reasoning_text = Text(self._streaming_reasoning, style="reasoning")
@@ -1127,207 +796,4 @@ def _format_tool_detail(tool_name: str, tool_args: dict) -> str:
     return ""
 
 
-# ── Live-Updating Sub-Agent Dashboard ───────────────────────────────────────
 
-class SubAgentDisplay:
-    """Manages multiple concurrent sub-agent displays using raw ANSI escape codes."""
-
-    _MAX_VISIBLE = 4  # tool-call lines shown per agent
-
-    def __init__(self, console: Console | None = None):
-        self._console = console or Console()
-        self._agents: dict[str, dict] = {}
-        self._lines_on_screen = 0
-
-    def start(self, agent_id: str, label: str = "research"):
-        import time
-        self._agents[agent_id] = {
-            "label": label,
-            "calls": [],
-            "tool_count": 0,
-            "token_count": 0,
-            "start_time": time.monotonic(),
-        }
-        self._redraw()
-
-    def set_tokens(self, agent_id: str, tokens: int):
-        if agent_id in self._agents:
-            self._agents[agent_id]["token_count"] = tokens
-
-    def set_tool_count(self, agent_id: str, count: int):
-        if agent_id in self._agents:
-            self._agents[agent_id]["tool_count"] = count
-
-    def add_call(self, agent_id: str, tool_desc: str):
-        if agent_id in self._agents:
-            self._agents[agent_id]["calls"].append(tool_desc)
-            self._redraw()
-
-    def clear(self, agent_id: str):
-        agent = self._agents.pop(agent_id, None)
-        self._erase()
-        if agent is not None:
-            width = max(10, self._console.width or 80)
-            line = _clip_to_width(self._render_completion_line(agent), width)
-            self._console.file.write(line + "\n")
-            self._console.file.flush()
-        self._lines_on_screen = 0
-        if self._agents:
-            self._redraw()
-
-    def _erase(self):
-        if self._lines_on_screen > 0:
-            f = self._console.file
-            for _ in range(self._lines_on_screen):
-                f.write("\033[A\033[K")
-            f.flush()
-
-    def _redraw(self):
-        f = self._console.file
-        self._erase()
-        compact = len(self._agents) > 1
-        width = max(10, self._console.width or 80)
-        lines = []
-        for agent in self._agents.values():
-            for ln in self._render_agent_lines(agent, compact=compact):
-                lines.append(_clip_to_width(ln, width))
-        for line in lines:
-            f.write(line + "\n")
-        f.flush()
-        self._lines_on_screen = len(lines)
-
-    def _render_agent_lines(self, agent: dict, compact: bool = False) -> list[str]:
-        """Render display lines for a single agent."""
-        label = agent["label"]
-        elapsed = time.monotonic() - agent["start_time"]
-        tokens = agent["token_count"]
-        tool_count = agent["tool_count"]
-        calls = agent["calls"][-self._MAX_VISIBLE:]
-
-        gold = "\033[38;2;255;200;80m"
-        dim = "\033[2m"
-        reset = "\033[0m"
-
-        header = f"{_I}{gold}▸ {label}{reset}{dim}  {elapsed:.0f}s  {tokens:,} tokens  {tool_count} tools{reset}"
-        lines = [header]
-        for call in calls:
-            lines.append(f"{_I}    {dim}{call}{reset}")
-        return lines
-
-    def _render_completion_line(self, agent: dict) -> str:
-        """Render a single completion line for a finished agent."""
-        label = agent["label"]
-        elapsed = time.monotonic() - agent["start_time"]
-        tokens = agent["token_count"]
-        green = "\033[38;2;74;222;128m"
-        dim = "\033[2m"
-        reset = "\033[0m"
-        return f"{_I}{green}✓ {label}{reset}{dim}  {elapsed:.0f}s  {tokens:,} tokens{reset}"
-
-
-# ── Approval helpers ────────────────────────────────────────────────────────
-
-def print_approval_header(count: int):
-    """Display approval required header."""
-    label = f"Approval required — {count} item{'s' if count != 1 else ''}"
-    console.print()
-    console.print(
-        f"{_I}",
-        Panel(f"[bold yellow]{label}[/bold yellow]", border_style="yellow", expand=False),
-    )
-
-
-def print_approval_item(index: int, total: int, tool_name: str, operation: str):
-    """Display a single approval item."""
-    console.print(f"\n{_I}[bold]\\[{index}/{total}][/bold]  [tool.name]{tool_name}[/tool.name]  {operation}")
-
-
-def print_yolo_approve(count: int):
-    """Display yolo auto-approve message."""
-    console.print(f"{_I}[bold yellow]yolo →[/bold yellow] auto-approved {count} item(s)")
-
-
-# ── Message helpers ─────────────────────────────────────────────────────────
-
-def print_error(message: str):
-    """Display an error message."""
-    console.print(f"\n{_I}[bold red]Error:[/bold red] {message}")
-
-
-def print_turn_complete():
-    """No separator — clean output between turns."""
-    pass
-
-
-def print_interrupted():
-    """Display interrupted message."""
-    console.print(f"\n{_I}[dim italic]interrupted[/dim italic]")
-
-
-def print_compacted(old_tokens: int, new_tokens: int):
-    """Display context compaction message."""
-    console.print(f"{_I}[dim]context compacted: {old_tokens:,} → {new_tokens:,} tokens[/dim]")
-
-
-def print_init_done(tool_count: int = 0):
-    """Display initialization complete message with tool count."""
-    console.print(f"{_I}[dim]Ready with {tool_count} tools available.[/dim]")
-
-
-def print_tool_call(tool_name: str, args_str: str):
-    """Display a tool call being made."""
-    gold = "\033[38;2;255;200;80m"
-    reset = "\033[0m"
-    dim = "\033[2m"
-    console.file.write(f"{_I}{gold}▸ {tool_name}{reset}  {dim}{args_str}{reset}\n")
-    console.file.flush()
-
-
-def print_tool_output(output: str, success: bool = False, truncate: bool = True):
-    """Display tool execution output."""
-    if truncate and len(output) > 500:
-        output = output[:500] + "\n... (truncated)"
-    style = "tool.ok" if success else "tool.fail"
-    icon = "✓" if success else "✗"
-    indented = "\n".join(f"{_I}  {line}" for line in output.split("\n"))
-    console.print(f"[{style}]{_I}{icon}[/] {indented}")
-
-
-def print_tool_log(tool: str, log: str, agent_id: str = "", label: str = ""):
-    """Display informational tool log message."""
-    prefix = ""
-    if label:
-        prefix = f"[{label}] "
-    elif agent_id:
-        prefix = f"[{agent_id}] "
-    console.print(f"{_I}[dim]{prefix}{tool}: {log}[/dim]")
-
-
-def print_plan():
-    """Display plan indicator (no-op for clean output)."""
-    pass
-
-
-def print_help():
-    """Display available slash commands."""
-    console.print()
-    console.print(f"{_I}[bold]Available commands:[/bold]")
-    console.print(f"{_I}  [info]/help[/]          Show this help message")
-    console.print(f"{_I}  [info]/model[/]         Switch or list models")
-    console.print(f"{_I}  [info]/yolo[/]          Toggle auto-approve mode")
-    console.print(f"{_I}  [info]/status[/]        Show session status")
-    console.print(f"{_I}  [info]/undo[/]          Undo last operation")
-    console.print(f"{_I}  [info]/compact[/]       Compact context")
-    console.print(f"{_I}  [info]/new[/]           Start new chat")
-    console.print(f"{_I}  [info]/clear[/]         Start new chat and clear screen")
-    console.print(f"{_I}  [info]/resume[/]        Resume a previous session")
-    console.print(f"{_I}  [info]/effort[/]        Set reasoning effort level")
-    console.print(f"{_I}  [info]/share-traces[/]  Manage trace visibility")
-    console.print(f"{_I}  [info]/themes[/]        List and change UI themes")
-    console.print(f"{_I}  [info]/tools[/]         List available tools")
-    console.print(f"{_I}  [info]/skills[/]        List and manage skills")
-    console.print(f"{_I}  [info]/learn[/]         View learning system status")
-    console.print(f"{_I}  [info]/profile[/]       Switch or list agent profiles")
-    console.print(f"{_I}  [info]/exit[/]          Exit JARVIS")
-    console.print(f"{_I}  [info]! <cmd>[/]        Run shell command")
-    console.print()
