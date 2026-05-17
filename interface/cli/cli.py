@@ -576,8 +576,8 @@ class CLIInterface:
                 await self._handle_submit(user_input)
 
             except (KeyboardInterrupt, EOFError):
-                self.display_manager.console.print()
-                self.display_manager.console.print("[success]Goodbye![/]")
+                self.display_manager.print()
+                self.display_manager.cprint("Goodbye!", style="success")
                 break
             except Exception as e:
                 self.display_manager.show_error(f"Fatal Error: {e}")

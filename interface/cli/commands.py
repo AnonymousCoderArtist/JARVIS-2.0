@@ -366,10 +366,10 @@ class ShellCommand:
             if stdout:
                 output = stdout.decode()
                 if output.strip():
-                    self.display_manager.console.print(output)
+                    self.display_manager.print(output)
 
             if stderr:
-                self.display_manager.console.print(stderr.decode(), style="error")
+                self.display_manager.show_error(stderr.decode().strip())
 
             return True
 
