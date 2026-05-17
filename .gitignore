@@ -149,5 +149,3 @@ tmp/
 .kilo/
 .opencode/
 
-# graphify output
-graphify-out/
