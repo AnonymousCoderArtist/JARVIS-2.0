@@ -29,12 +29,15 @@ class ThemeConfig:
 class DisplayConfig:
     """Display configuration."""
     width: int = 80
-    theme: str = "dark"
+    theme: str = "ml_intern"
     refresh_rate: int = 4
     show_timestamps: bool = False
     show_line_numbers: bool = True
     syntax_highlighting: bool = True
     auto_scroll: bool = True
+    enable_boot_animation: bool = False  # CRT boot animation, disabled by default for fast startup
+    enable_typewriter: bool = False      # Typewriter effect, disabled by default for performance
+    typewriter_speed: float = 0.015      # Seconds between characters (15ms default)
 
 
 @dataclass
@@ -113,6 +116,18 @@ class CLIConfig:
             "info": "#89dceb",
             "prompt": "#f5e0dc",
             "arrow": "#585b70",
+        }),
+        "ml_intern": ThemeConfig("ml_intern", {
+            "primary": "#ffc850",        # warm gold
+            "secondary": "#b48c28",      # dim gold
+            "success": "#4ade80",        # dim green for tool success
+            "error": "#f87171",          # dim red for tool failure
+            "warning": "#ffc850",        # warm gold for warnings
+            "info": "#78dcff",           # blue for links
+            "prompt": "#78dcff",         # cyan for prompt
+            "arrow": "#b48c28",          # dim gold for arrows
+            "thinking_base": "#5a5a6e",  # thinking shimmer base
+            "thinking_highlight": "#ffc850",  # thinking shimmer highlight
         }),
     })
 

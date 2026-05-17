@@ -347,6 +347,9 @@ class CLIInterface:
         if self.bypass:
             self.jarvis_agent.bypass_tool_permissions = True
 
+        # Wire approval callback for interactive tool approvals
+        self.jarvis_agent.set_approval_callback(self._handle_tool_approval)
+
         # Share conversation history with agent
         self.jarvis_agent.history = self.history
 
@@ -463,6 +466,33 @@ class CLIInterface:
         """Display available commands."""
         self.display_manager.show_help()
 
+    async def _handle_tool_approval(self, tool_name: str, tool_args: dict[str, Any], tool_call_id: str, required_permissions: list[Any]):
+        """Handle tool approval request from the agent.
+
+        Displays the rich approval prompt and returns the user's decision.
+        """
+        from interface.cli.display import show_approval_prompt
+
+        items = [{
+            "tool_name": tool_name,
+            "args": tool_args,
+            "tool_call_id": tool_call_id,
+            "permissions": required_permissions,
+        }]
+
+        # Stop any active streaming before showing approval prompt
+        self.display_manager.stop_streaming()
+
+        decisions = show_approval_prompt(
+            self.display_manager.console,
+            items,
+            yolo_mode=self.bypass,
+        )
+
+        if decisions == "all" or (isinstance(decisions, list) and decisions and decisions[0]):
+            return ("yes", "")
+        return ("no", "User rejected the tool call")
+
     async def _handle_submit(self, text: str):
         """Process user input with streaming output."""
         # Handle commands and shell input first
@@ -566,7 +596,7 @@ class CLIInterface:
             try:
                 # Modern prompt styling
                 prompt_text = HTML(
-                    "<bold><style color='#5fafff'>YOU > </style></bold>"
+                    "<bold><style color='#78dcff'>></style></bold> "
                 )
 
                 user_input = await self.session.prompt_async(
