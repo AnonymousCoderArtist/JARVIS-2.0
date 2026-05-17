@@ -1,7 +1,7 @@
 """Documentation writer agent — generates and updates project documentation."""
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
 
 
 def get_system_prompt() -> str:
@@ -33,9 +33,9 @@ Rules:
 DOC_WRITER = AgentDefinition(
     name="doc-writer",
     agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    when_to_use="Write or update documentation: README, API docs, architecture docs, contributing guides, or changelog. Use when the user asks to write docs, create documentation, or update README.",
+    description="Write or update documentation: README, API docs, architecture docs, contributing guides, or changelog. Use when the user asks to write docs, create documentation, or update README.",
     tools=["read", "write", "edit", "grep", "find", "ls", "glob"],  # Read + write docs only
     model="inherit",
     max_turns=50,
-    get_system_prompt=get_system_prompt,
+    system_prompt=get_system_prompt,
 )

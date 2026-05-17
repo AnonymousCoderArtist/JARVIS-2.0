@@ -1,6 +1,6 @@
 """Git status watcher — monitors repository state."""
 
-from core.watchers.base import BaseWatcher
+from jarvis.core.watchers.base import BaseWatcher
 
 
 class GitStatusWatcher(BaseWatcher):

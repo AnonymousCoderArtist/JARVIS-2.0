@@ -6,7 +6,7 @@ Subscribe to ToolCallStarted and ToolCallEnded to build execution statistics.
 import logging
 import time
 
-from core.events.types import ToolCallEnded, ToolCallError, ToolCallStarted
+from jarvis.core.events.types import ToolCallEnded, ToolCallError, ToolCallStarted
 
 logger = logging.getLogger(__name__)
 

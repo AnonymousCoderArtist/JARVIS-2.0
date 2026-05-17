@@ -148,7 +148,7 @@ def main() -> None:
 
     # Handle --resume list to show available sessions
     if resume_session == "list":
-        from core.history import ConversationHistory
+        from jarvis.core.history import ConversationHistory
         history_dir = ConversationHistory().history_dir
         if history_dir.exists():
             sessions = list(history_dir.glob("*.jsonl"))
@@ -176,7 +176,7 @@ def main() -> None:
     # Auto-resume latest session if -r was used without argument
     if resume_session == "latest":
 
-        from core.history import ConversationHistory
+        from jarvis.core.history import ConversationHistory
         history_dir = ConversationHistory().history_dir
         if history_dir.exists():
             sessions = list(history_dir.glob("*.jsonl"))
@@ -195,7 +195,7 @@ def main() -> None:
     if mode == "rpc":
         import asyncio
 
-        from core.rpc import run_rpc_mode
+        from jarvis.core.rpc import run_rpc_mode
         asyncio.run(run_rpc_mode(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
         return
 
@@ -214,17 +214,17 @@ def main() -> None:
 
     # Launch appropriate interface
     if launch_tui:
-        from interface.textual_ui.tui_main import main as tui_main
+        from jarvis.interface.textual_ui.tui_main import main as tui_main
         # TUI needs to be run synchronously (Textual handles its own event loop)
         tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session)
     elif launch_webui:
-        from interface.webui.webui_main import main as webui_main
+        from jarvis.interface.webui.webui_main import main as webui_main
         webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port, resume_session=resume_session)
     else:
         # CLI is now async
         import asyncio
 
-        from interface.cli.cli import main as cli_main
+        from jarvis.interface.cli.cli import main as cli_main
         asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session))
 
 

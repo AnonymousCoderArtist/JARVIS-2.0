@@ -1,0 +1,1545 @@
+"""AgentLoop wrapper for JARVIS integration."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from collections import deque
+from collections.abc import AsyncGenerator, Callable
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Any, TypeAlias, cast
+
+from jarvis.core.agents.jarvis_v2 import JarvisV2 as CodingAgent
+from jarvis.core.agents.manager import AgentManager
+from jarvis.core.agents.profiles import AgentProfile as CoreAgentProfile
+from jarvis.core.config.settings import Settings
+from jarvis.core.history import ConversationHistory, create_assistant_message, create_user_message
+from jarvis.core.rewind import RewindManager
+from jarvis.core.skills.manager import SkillManager as CoreSkillManager
+from jarvis.core.tools.registry import ToolRegistry
+from jarvis.core.watchers.manager import WatcherManager
+from jarvis.interface.textual_ui.tool_results import (
+    BashResult,
+    EditResult,
+    GrepMatch,
+    GrepResult,
+    ReadFileResult,
+    WriteFileResult,
+)
+from jarvis.interface.textual_ui.types import (
+    AgentStats,
+    AssistantEvent,
+    BaseEvent,
+    LLMMessage,
+    ReasoningEvent,
+    Role,
+    ToolCallEvent,
+    ToolResultEvent,
+    UserMessageEvent,
+)
+
+# Use the core AgentProfile directly
+AgentProfile: TypeAlias = CoreAgentProfile
+
+# Type alias for event types
+Event: TypeAlias = BaseEvent | AssistantEvent | ReasoningEvent | ToolCallEvent | ToolResultEvent | UserMessageEvent
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TelemetryClient:
+    """Stub telemetry client."""
+    def send_telemetry_event(self, event: str, data: dict[str, Any] | None = None, **kwargs: Any) -> None:
+        """Send telemetry event."""
+        pass
+
+    def send_user_rating_feedback(self, rating: int = 0, comment: str | None = None, **kwargs: Any) -> None:
+        """Send user rating feedback."""
+        pass
+
+    def send_slash_command_used(self, command: str = "", command_type: str = "", **kwargs: Any) -> None:
+        """Send slash command used."""
+        pass
+
+    def is_active(self) -> bool:
+        """Check if telemetry is active."""
+        return False
+
+    def send_user_cancelled_action(self, action: str = "", **kwargs: Any) -> None:
+        """Track a user cancellation action."""
+        pass
+
+    def send_user_copied_text(self, text: str = "", **kwargs: Any) -> None:
+        """Track copied text."""
+        pass
+
+
+# ============================================================================
+# Compaction System
+# ============================================================================
+
+class CompactionStrategy(Enum):
+    """Compaction strategies for different modes."""
+    AGGRESSIVE = "aggressive"   # Summarize more aggressively, keep fewer messages
+    BALANCED = "balanced"       # Default: good balance of detail and tokens
+    CONSERVATIVE = "conservative"  # Only compact when needed, keep more history
+
+
+class MessageType(Enum):
+    """Types of messages for prioritization during compaction."""
+    SYSTEM = ("system", 8)
+    USER_IMPORTANT = ("user_important", 8)      # Initial user message, task definition
+    TOOL_RESULT_IMPORTANT = ("tool_result_important", 8)  # File write, test results, git ops
+    ASSISTANT_PLAN = ("assistant_plan", 7)       # Agent's plan/approach
+    USER_FOLLOWUP = ("user_followup", 6)         # User follow-ups
+    TOOL_RESULT_NORMAL = ("tool_result_normal", 5)  # Regular tool results
+    REASONING = ("reasoning", 4)                 # Thinking/reasoning blocks
+    FILE_READ = ("file_read", 4)                 # Read file results (redundant content)
+    GREP_RESULT = ("grep_result", 3)             # Search results (often long)
+    ASSISTANT_RESPONSE = ("assistant_response", 3)  # Regular chat response
+    BASH_SIMPLE = ("bash_simple", 2)             # Echo, ls, pwd
+    TOOL_RESULT_TRIVIAL = ("tool_result_trivial", 1)  # Test skip, trivial output
+
+    def __init__(self, label: str, priority: int):
+        self._value_ = label
+        self.priority = priority
+
+
+@dataclass
+class CompactionStats:
+    """Statistics for compaction operations."""
+    total_compactions: int = 0
+    auto_compactions: int = 0
+    manual_compactions: int = 0
+    total_tokens_saved: int = 0
+    last_compaction_time: datetime | None = None
+    last_compaction_tokens_before: int = 0
+    last_compaction_tokens_after: int = 0
+    compaction_history: deque[tuple[datetime, str, int, int]] = field(default_factory=lambda: deque(maxlen=20))
+    compaction_warnings_issued: int = 0
+    compaction_errors: int = 0
+
+    def record_compaction(self, auto: bool, tokens_before: int, tokens_after: int) -> None:
+        self.total_compactions += 1
+        if auto:
+            self.auto_compactions += 1
+        else:
+            self.manual_compactions += 1
+        saved = tokens_before - tokens_after
+        self.total_tokens_saved += saved
+        self.last_compaction_time = datetime.now()
+        self.last_compaction_tokens_before = tokens_before
+        self.last_compaction_tokens_after = tokens_after
+        reason = "auto" if auto else "manual"
+        self.compaction_history.append((datetime.now(), reason, tokens_before, tokens_after))
+
+    def record_warning(self) -> None:
+        self.compaction_warnings_issued += 1
+
+    def record_error(self) -> None:
+        self.compaction_errors += 1
+
+
+@dataclass
+class ContextWindowState:
+    """Current state of the context window."""
+    current_tokens: int = 0
+    max_tokens: int = 0
+    threshold_pct: float = 0.8   # Auto-compact at 80% by default
+    warning_pct: float = 0.7     # Warn at 70%
+    critical_pct: float = 0.9    # Critical at 90%
+    messages_count: int = 0
+    last_check: float = 0.0
+
+    @property
+    def usage_ratio(self) -> float:
+        if self.max_tokens == 0:
+            return 0.0
+        return self.current_tokens / self.max_tokens
+
+    @property
+    def should_warn(self) -> bool:
+        return self.usage_ratio >= self.warning_pct
+
+    @property
+    def should_auto_compact(self) -> bool:
+        return self.usage_ratio >= self.threshold_pct
+
+    @property
+    def is_critical(self) -> bool:
+        return self.usage_ratio >= self.critical_pct
+
+    @property
+    def status(self) -> str:
+        if self.is_critical:
+            return "critical"
+        elif self.should_warn:
+            return "warning"
+        elif self.should_auto_compact:
+            return "compaction_ready"
+        return "ok"
+
+
+@dataclass
+class Stats(AgentStats):
+    """Statistics tracker using JARVIS agent data."""
+    steps: int = 0
+    session_prompt_tokens: int = 0
+    session_completion_tokens: int = 0
+    session_total_llm_tokens: int = 0
+    last_turn_total_tokens: int = 0
+    session_cost: float = 0.0
+    context_tokens: int = 0  # Current context window size
+    _listeners: dict[str, list[Callable[[Stats], None]]] = field(default_factory=dict)
+
+    def add_listener(self, metric: str, callback: Callable[[Stats], None]) -> None:
+        """Add listener for metric changes."""
+        if metric not in self._listeners:
+            self._listeners[metric] = []
+        self._listeners[metric].append(callback)
+
+    def trigger_listeners(self) -> None:
+        """Trigger all listeners."""
+        for callbacks in self._listeners.values():
+            for callback in callbacks:
+                try:
+                    callback(self)
+                except Exception:
+                    pass
+
+    def update_from_agent(self, agent: CodingAgent) -> None:
+        """Update stats from agent using actual token counts from LLM provider."""
+        p_tokens = 0
+        c_tokens = 0
+
+        # Get token usage from LLM provider
+        if hasattr(agent, 'llm'):
+            usage: dict[str, Any] | None = None
+            # Try to get usage using get_and_clear_usage (handles both streaming and non-streaming)
+            if hasattr(agent.llm, 'get_and_clear_usage'):
+                get_and_clear = getattr(agent.llm, 'get_and_clear_usage', None)
+                if callable(get_and_clear):
+                    usage = get_and_clear()
+            # Fallback: check last_token_usage directly (non-streaming)
+            elif hasattr(agent.llm, 'last_token_usage'):
+                usage = getattr(agent.llm, 'last_token_usage', None)
+
+            if usage and isinstance(usage, dict):
+                # Use .get() with proper type handling
+                prompt_val = usage.get('prompt_tokens')
+                if prompt_val is None:
+                    prompt_val = usage.get('input_tokens', 0)
+                p_tokens = int(prompt_val) if prompt_val is not None else 0
+
+                completion_val = usage.get('completion_tokens')
+                if completion_val is None:
+                    completion_val = usage.get('output_tokens', 0)
+                c_tokens = int(completion_val) if completion_val is not None else 0
+
+        # Update stats if we have actual token counts
+        if p_tokens > 0 or c_tokens > 0:
+            self.prompt_tokens = p_tokens
+            self.completion_tokens = c_tokens
+            self.total_tokens = p_tokens + c_tokens
+
+            # Update session totals
+            self.session_prompt_tokens += p_tokens
+            self.session_completion_tokens += c_tokens
+            self.session_total_llm_tokens += (p_tokens + c_tokens)
+            self.last_turn_total_tokens = p_tokens + c_tokens
+            self.steps += 1
+
+        # Always update context tokens for compaction tracking (handles cached token case)
+        self.context_tokens = self.session_prompt_tokens
+
+
+@dataclass
+class HookConfigIssue:
+    """Issue with hook configuration."""
+    file: str
+    message: str
+
+
+class AgentLoop:
+    """AgentLoop that wraps JARVIS's CodingAgent with enhanced core integration."""
+
+    def __init__(
+        self,
+        agent: CodingAgent,
+        config: Settings,
+        tool_registry: ToolRegistry,
+        agent_manager: AgentManager | None = None,
+        disabled_tools: list[str] | None = None,
+        resume_session: str | None = None,
+    ):
+        self.agent: CodingAgent = agent
+        self.config: Settings = config
+        self.base_config: Settings = config
+        self.tool_registry: ToolRegistry = tool_registry
+        self.resume_session = resume_session
+        # Initialize event queue first
+        self._event_queue: asyncio.Queue[Event] = asyncio.Queue()
+        # Set event queue on tool registry for tools that need to emit events
+        self.tool_registry.event_queue = self._event_queue
+        # Also update all tools with the event queue
+        self.tool_registry.update_tool_providers(event_queue=self._event_queue)
+        self._disabled_tools: list[str] = disabled_tools or []
+
+        # Use provided agent manager or create a new one
+        if agent_manager is not None:
+            self.agent_manager: AgentManager = agent_manager
+        else:
+            # Initialize agent manager with safety profiles
+            self.agent_manager = AgentManager(
+                config_getter=lambda: self.config,
+                initial_agent="default"
+            )
+        self.agent_profile: CoreAgentProfile = self.agent_manager.active_profile
+
+        # Set the config getter on the agent to use profile-applied configuration
+        self.agent.set_config_getter(lambda: self.agent_manager.config)
+
+        self.stats = Stats()
+        self.telemetry_client = TelemetryClient()
+        self.is_initialized = True
+        self.skill_manager = SkillManagerAdapter()
+        self.mcp_registry = MCPRegistryAdapter()
+        self.connector_registry = ConnectorRegistryAdapter()
+        self.hook_config_issues: list[HookConfigIssue] = []
+        self.tool_manager = ToolManagerAdapter(tool_registry)
+        self.session_logger = SessionLoggerAdapter()
+        self.watcher_manager = WatcherManager(config_getter=lambda: self.agent_manager.config)
+        self.watcher_manager.discover_watchers()
+        self.session_id: str | None = None
+        self.parent_session_id: str | None = None
+        # Initialize rewind manager with proper callbacks
+        self.rewind_manager = RewindManager(
+            messages=self.agent.memory,
+            save_messages=self._save_messages,
+            reset_session=self._reset_session_callback,
+        )
+
+        # ====================================================================
+        # Compaction System
+        # ====================================================================
+        self.compaction_stats = CompactionStats()
+        max_tokens_val: int = 200000
+        if hasattr(config, 'max_tokens'):
+            mt = config.max_tokens
+            if isinstance(mt, int):
+                max_tokens_val = mt
+            elif isinstance(mt, (str, float)):
+                try:
+                    max_tokens_val = int(mt)
+                except (ValueError, TypeError):
+                    pass
+        self.context_window = ContextWindowState(
+            max_tokens=max_tokens_val
+        )
+        self._compaction_strategy = CompactionStrategy.BALANCED
+        self._last_compaction_check: float = 0.0
+        self._auto_compaction_enabled: bool = True
+        self._compaction_in_progress: bool = False
+        self._compaction_callback: Callable[[dict[str, Any]], None] | None = None
+
+        # Integration with JARVIS's actual memory system
+        self._approval_callback: Callable[[str, dict[str, Any], str, list[Any]], bool] | None = None
+        self._user_input_callback: Callable[[str], str] | None = None
+        # NOTE: _event_queue is already created at the top of __init__ (line ~284)
+        # and shared with the tool registry.  Do NOT recreate it here.
+        self._stream_chunks: list[str] = []
+        self._reasoning_chunks: list[str] = []
+        self._is_running = False
+        self._tool_call_ids: dict[str, str] = {}  # Track tool call IDs
+        self._disabled_tools: list[str] = []  # Track disabled tools
+        self._heartbeat_running = False  # Track heartbeat subagent status
+
+        # Set up tool call/result callbacks for event tracking
+        self.agent.tool_call_callback = self._on_tool_call
+        self.agent.tool_result_callback = self._on_tool_result
+        self.agent.tool_stream_callback = self._on_tool_stream
+        # Set up reasoning callback to capture reasoning content
+        self.agent.reasoning_callback = self._on_reasoning
+
+        # Initialize heartbeat system
+        self._setup_heartbeat()
+
+        # Note: Heartbeat will be started when the TUI app is mounted
+        # (via start_heartbeat_if_enabled method) to ensure event loop is running
+
+        # ====================================================================
+        # Conversation History System
+        # ====================================================================
+        if resume_session:
+            # Resume existing session
+            self.history = ConversationHistory(session_id=resume_session)
+        else:
+            # Create new session
+            self.history = ConversationHistory()
+        self.session_id = self.history.session_id
+
+        # Share history with agent so it can persist tool calls/results
+        self.agent.history = self.history
+
+        # Load full history into agent memory if resuming a session
+        if resume_session:
+            # Use get_full_history with coalescing for proper role alternation
+            messages = self.history.get_full_history(coalesce=True)
+            for msg in messages:
+                entry: dict[str, Any] = {"role": msg.role}
+                if msg.content is not None:
+                    entry["content"] = msg.content
+                if msg.tool_calls:
+                    entry["tool_calls"] = msg.tool_calls
+                if msg.tool_call_id:
+                    entry["tool_call_id"] = msg.tool_call_id
+                if msg.tool_use:
+                    entry["tool_use"] = msg.tool_use
+                if msg.tool_result:
+                    entry["tool_result"] = msg.tool_result
+                self.agent.add_to_memory(entry)
+
+    @property
+    def messages(self) -> list[LLMMessage]:
+        """Get messages from conversation history (full)."""
+        try:
+            history_messages = self.history.get_full_history(coalesce=True)
+            if history_messages:
+                return self._history_to_llm_messages(history_messages)
+        except Exception:
+            pass
+        return []
+
+    def _history_to_llm_messages(self, history_messages: list) -> list[LLMMessage]:
+        """Convert HistoryMessage list to TUI LLMMessage list."""
+        def extract_text(content: str | list | None) -> str:
+            if content is None:
+                return ""
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        parts.append(block.get("text", ""))
+                    elif isinstance(block, dict) and block.get("type") == "tool_result":
+                        parts.append(str(block.get("content", "")))
+                return "\n".join(parts)
+            return str(content)
+
+        result: list[LLMMessage] = []
+        for msg in history_messages:
+            if msg.role == "system":
+                continue
+            content = extract_text(msg.content)
+            if msg.role == "user":
+                result.append(LLMMessage(role=Role.user, content=content))
+            elif msg.role == "assistant":
+                result.append(LLMMessage(role=Role.assistant, content=content))
+            elif msg.role == "tool":
+                result.append(LLMMessage(role=Role.tool, content=content))
+        return result
+
+    async def teleport_to_vibe_code(self, prompt: str | None) -> AsyncGenerator[Event, None]:
+        """Stub for teleport functionality."""
+        if prompt:
+            yield UserMessageEvent(content=prompt)
+        yield AssistantEvent(content="Teleport to vibe code not fully implemented in adapter.")
+
+    def reset_messages(self, messages: list[LLMMessage]) -> None:
+        """Reset agent memory with new messages (role-based format)."""
+        self.agent.clear_memory()
+        self.rewind_manager.on_messages_reset()
+        for msg in messages:
+            if msg.role == Role.user:
+                self.agent.add_role_message(role="user", content=msg.content)
+            elif msg.role == Role.assistant:
+                self.agent.add_role_message(role="assistant", content=msg.content)
+            elif msg.role == Role.tool:
+                self.agent.add_role_message(role="tool", content=msg.content)
+
+    async def reload_with_initial_messages(self, base_config: Settings | None = None) -> None:
+        """Reload agent with initial messages."""
+        self.agent.clear_memory()
+        self.rewind_manager.on_messages_reset()
+        self.agent.rebuild_system_prompt()
+
+    async def clear_history(self) -> None:
+        """Clear agent history."""
+        self.agent.clear_memory()
+        self.rewind_manager.on_messages_reset()
+
+    async def compact(
+        self,
+        extra_instructions: str | None = None,
+        auto_triggered: bool = False,
+        strategy: CompactionStrategy | None = None
+    ) -> dict[str, Any]:
+        """
+        Compact conversation history using LLM summarization.
+
+        Saves a compaction boundary marker and summary to the conversation
+        history file, matching OpenClaude's approach of preserving compacted
+        context in the persistent transcript.
+
+        Args:
+            extra_instructions: Additional instructions for summarization
+            auto_triggered: Whether this was triggered automatically
+            strategy: Compaction strategy to use
+
+        Returns:
+            Dict with compaction results: {tokens_before, tokens_after, saved, summary}
+        """
+        if self._compaction_in_progress:
+            return {"error": "Compaction already in progress"}
+
+        self._compaction_in_progress = True
+        tokens_before = self.stats.context_tokens
+        messages_before = len(self.agent.memory)
+
+        try:
+            strategy = strategy or self._compaction_strategy
+            summary = await self._run_llm_summarization(extra_instructions, strategy)
+
+            # Save compaction boundary and summary to persistent history
+            from jarvis.core.history import create_system_message, create_user_message
+            compaction_marker = create_system_message(
+                f"[Compaction Boundary - {datetime.now(timezone.utc).isoformat()}] "
+                f"Previous {messages_before} messages summarized."
+            )
+            self.history.append_message(compaction_marker)
+            compaction_summary = create_user_message(
+                f"Previous conversation context summary:\n{summary}"
+            )
+            self.history.append_message(compaction_summary)
+
+            # Clear old memory and store summary as role-based message
+            self.agent.clear_memory()
+            self.rewind_manager.on_messages_reset()
+            self.agent.add_role_message(role="system", content=summary)
+
+            # Update stats
+            tokens_after = self.stats.context_tokens
+            self.compaction_stats.record_compaction(
+                auto=auto_triggered,
+                tokens_before=tokens_before,
+                tokens_after=tokens_after
+            )
+
+            # Emit event if callback set
+            if self._compaction_callback:
+                self._compaction_callback({
+                    "type": "compaction_complete",
+                    "auto_triggered": auto_triggered,
+                    "tokens_before": tokens_before,
+                    "tokens_after": tokens_after,
+                    "saved": tokens_before - tokens_after,
+                    "messages_before": messages_before,
+                    "summary_length": len(summary)
+                })
+
+            return {
+                "success": True,
+                "tokens_before": tokens_before,
+                "tokens_after": tokens_after,
+                "saved": tokens_before - tokens_after,
+                "summary": summary[:200] + "..." if len(summary) > 200 else summary
+            }
+
+        except Exception as e:
+            self.compaction_stats.record_error()
+            return {"error": str(e)}
+        finally:
+            self._compaction_in_progress = False
+
+    async def _run_llm_summarization(
+        self,
+        extra_instructions: str | None,
+        strategy: CompactionStrategy
+    ) -> str:
+        """Run LLM-based summarization of conversation history."""
+        messages = self.messages
+
+        if not messages:
+            return "No conversation history to summarize."
+
+        # Build summarization prompt based on strategy
+        system_prompt = self._get_compaction_system_prompt(strategy)
+        user_prompt = self._build_compaction_user_prompt(messages, extra_instructions)
+
+        # Use the agent's LLM provider - use getattr to safely access the method
+        llm = self.agent.llm
+        create_completion = getattr(llm, 'create_chat_completion', None)
+        if not callable(create_completion):
+            return "LLM provider does not support create_chat_completion."
+
+        response = await create_completion(  # type: ignore[call-arg]
+            model=self.agent.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=4000,
+            temperature=0.3
+        )
+
+        # Handle the response - check for choices attribute
+        if hasattr(response, 'choices') and response.choices:
+            content = response.choices[0].message.content
+            return content if content else "Summarization failed."
+        return "Summarization failed: No response from LLM."
+
+    def _get_compaction_system_prompt(self, strategy: CompactionStrategy) -> str:
+        """Get system prompt for summarization based on strategy."""
+        base = """You are a conversation summarizer. Create a concise, comprehensive summary of the conversation history.
+
+Key requirements:
+- Preserve all important decisions, code changes, and task progress
+- Keep technical details, file paths, and specific instructions
+- Maintain user intent and agent responses
+- Focus on what was accomplished and what remains to do
+- Format as a clear, readable narrative"""
+
+        if strategy == CompactionStrategy.AGGRESSIVE:
+            base += "\n- Be very concise. Aim for 500-800 tokens total."
+        elif strategy == CompactionStrategy.CONSERVATIVE:
+            base += "\n- Be thorough. Keep more details than aggressive mode."
+        else:
+            base += "\n- Aim for 1000-1500 tokens."
+
+        return base
+
+    def _build_compaction_user_prompt(self, messages: list[LLMMessage], extra: str | None) -> str:
+        """Build the user prompt for summarization."""
+        # Take last N messages (or all if few)
+        max_messages = 20 if self._compaction_strategy != CompactionStrategy.AGGRESSIVE else 10
+        relevant_messages = messages[-max_messages:]
+
+        msg_text = "\n\n".join(
+            f"{m.role.value.upper()}: {m.content[:500]}"
+            for m in relevant_messages
+        )
+
+        prompt = f"""Summarize the following conversation history:
+
+{msg_text}
+
+Create a comprehensive summary that captures:
+1. What has been accomplished so far
+2. Current state of work
+3. Any pending tasks or decisions
+4. Key technical details that should be preserved
+
+{extra or ""}"""
+
+        return prompt
+
+    def check_auto_compaction(self) -> dict[str, Any] | None:
+        """
+        Check if auto-compaction should be triggered.
+
+        Returns:
+            Dict with warning info if action needed, None if OK
+        """
+        current_time = time.time()
+
+        # Throttle checks to once per second
+        if current_time - self._last_compaction_check < 1.0:
+            return None
+
+        self._last_compaction_check = current_time
+
+        # Update context window state
+        self.context_window.current_tokens = self.stats.context_tokens
+        self.context_window.messages_count = len(self.agent.memory)
+
+        # Check thresholds
+        if self.context_window.is_critical:
+            return {
+                "status": "critical",
+                "message": f"Context window at {self.context_window.usage_ratio:.1%} capacity. Immediate compaction recommended.",
+                "action": "compact"
+            }
+        elif self.context_window.should_warn:
+            self.compaction_stats.record_warning()
+            return {
+                "status": "warning",
+                "message": f"Context window at {self.context_window.usage_ratio:.1%} capacity. Consider compacting soon.",
+                "action": "warn"
+            }
+
+        return None
+
+    async def maybe_auto_compact(self) -> bool:
+        """
+        Check and perform auto-compaction if needed.
+
+        Returns:
+            True if compaction was performed, False otherwise
+        """
+        if not self._auto_compaction_enabled:
+            return False
+
+        if self._compaction_in_progress:
+            return False
+
+        warning = self.check_auto_compaction()
+        if warning and warning.get("status") in ("critical", "warning"):
+            # Perform auto-compaction
+            result = await self.compact(auto_triggered=True)
+            return result.get("success", False)
+
+        return False
+
+    def set_compaction_strategy(self, strategy: CompactionStrategy) -> None:
+        """Set the compaction strategy."""
+        self._compaction_strategy = strategy
+
+    def enable_auto_compaction(self, enabled: bool = True) -> None:
+        """Enable or disable auto-compaction."""
+        self._auto_compaction_enabled = enabled
+
+    def get_compaction_stats(self) -> dict[str, Any]:
+        """Get compaction statistics."""
+        return {
+            "total_compactions": self.compaction_stats.total_compactions,
+            "auto_compactions": self.compaction_stats.auto_compactions,
+            "manual_compactions": self.compaction_stats.manual_compactions,
+            "total_tokens_saved": self.compaction_stats.total_tokens_saved,
+            "last_compaction": self.compaction_stats.last_compaction_time,
+            "context_window": {
+                "current_tokens": self.context_window.current_tokens,
+                "max_tokens": self.context_window.max_tokens,
+                "usage_ratio": self.context_window.usage_ratio,
+                "status": self.context_window.status
+            }
+        }
+
+    async def wait_until_ready(self) -> None:
+        """Wait until agent is ready."""
+        # JARVIS agent is ready immediately after initialization
+        await asyncio.sleep(0)
+
+    def set_approval_callback(self, callback: Callable[[str, Any, str, list[Any] | None], Any]) -> None:
+        """Set approval callback for tool execution."""
+        self._approval_callback = callback
+        self.agent.set_approval_callback(callback)
+
+    def set_user_input_callback(self, callback: Callable[[Any], Any]) -> None:
+        """Set user input callback."""
+        self._user_input_callback = callback
+        self.agent.set_user_input_callback(callback)
+
+    def approve_always(self, tool_name: str, permissions: list[Any], save_permanently: bool = False) -> None:
+        """Approve tool always (store in config or agent state)."""
+        self.agent.approve_always(tool_name, permissions, save_permanently=save_permanently)
+
+    def emit_new_session_telemetry(self) -> None:
+        """Emit new session telemetry."""
+        if self.telemetry_client.is_active():
+            self.telemetry_client.send_telemetry_event("session_start", {
+                "model": self.agent.model,
+            })
+
+    def refresh_config(self) -> None:
+        """Refresh configuration."""
+        # Reload config if needed
+        pass
+
+    async def refresh_system_prompt(self) -> None:
+        """Refresh system prompt with current tool descriptions."""
+        self.agent.rebuild_system_prompt()
+
+    async def switch_agent(self, profile_name: str) -> None:
+        """Switch to a different agent profile."""
+        # Switch profile in agent manager
+        self.agent_manager.switch_profile(profile_name)
+        self.agent_profile = self.agent_manager.active_profile
+
+        # Update the config getter to use the new profile configuration
+        self.agent.set_config_getter(lambda: self.agent_manager.config)
+
+        # Filter tools based on profile's allowed tools
+        profile = self.agent_manager.active_profile
+        if profile.tools is not None:
+            self.agent.tools = self.tool_registry.get_filtered(profile.tools)
+        else:
+            self.agent.tools = self.tool_registry
+
+        # Update system prompt based on profile's system_prompt_id
+        system_prompt_id = self.agent_profile.overrides.get("system_prompt_id")
+        if system_prompt_id:
+            from jarvis.core.agents.jarvis_v2 import JarvisV2 as CodingAgent
+            new_system_prompt = CodingAgent.get_system_prompt_for_profile(system_prompt_id)
+            self.agent.set_system_prompt(new_system_prompt)
+
+        # Clear session rules when switching profiles
+        self.agent.clear_session_rules()
+
+        # Refresh system prompt if needed
+        await self.refresh_system_prompt()
+
+    async def inject_user_context(self, context: str) -> None:
+        """Inject user context into agent."""
+        self.agent.update_context("user_context", context)
+
+    def _setup_heartbeat(self) -> None:
+        """Set up heartbeat system with TUI notifications."""
+        # Create notifier callback that pushes events to the event queue
+        async def heartbeat_notifier(result: str) -> None:
+            """Notifier callback to deliver heartbeat results in TUI."""
+            if result and not result.startswith("HEARTBEAT_OK") and "skipped" not in result.lower():
+                # Emit heartbeat result as an assistant message
+                try:
+                    self._get_event_queue().put_nowait(AssistantEvent(
+                        content=f"🫀 **Heartbeat**: {result}",
+                        is_heartbeat=True
+                    ))
+                except Exception as e:
+                    logger.debug(f"Failed to queue heartbeat event: {e}")
+
+        # Initialize heartbeat on the agent if enabled in config
+        try:
+            self.agent.initialize_heartbeat(
+                config_getter=lambda: self.agent_manager.config,
+                notifier=heartbeat_notifier
+            )
+            # Heartbeat scheduler is created but not started yet
+            # It will be started when needed (e.g., on user command or background task)
+            logger.info("Heartbeat system configured")
+        except Exception as e:
+            logger.warning(f"Failed to initialize heartbeat: {e}")
+
+    async def start_heartbeat_if_enabled(self) -> None:
+        """Start heartbeat if configured (call after event loop is running)."""
+        # Some test agents/mocks don't implement the full heartbeat surface.
+        scheduler = getattr(self.agent, "heartbeat_scheduler", None)
+        if callable(scheduler):
+            try:
+                scheduler = scheduler()
+            except Exception:
+                scheduler = None
+
+        start_heartbeat = getattr(self.agent, "start_heartbeat", None)
+
+        if (
+            scheduler
+            and getattr(scheduler, "enabled", False)
+            and callable(start_heartbeat)
+        ):
+            self._heartbeat_running = True
+            try:
+                await start_heartbeat()
+            finally:
+                self._heartbeat_running = False
+
+    @property
+    def is_heartbeat_running(self) -> bool:
+        """Check if heartbeat subagent is currently running."""
+        return self._heartbeat_running
+
+    def _drain_event_queue(self) -> None:
+        """Discard stale events before starting a new turn."""
+        queue = self._get_event_queue()
+        while not queue.empty():
+            try:
+                queue.get_nowait()
+            except Exception:
+                break
+
+    def _get_event_queue(self) -> asyncio.Queue[Event]:
+        return self._event_queue
+
+    def _on_tool_call(self, tool_name: str, arguments: dict[str, Any]) -> None:
+        """Handle tool call event from agent."""
+        # Queue tool call event for UI synchronously
+        # Generate a unique tool_call_id for tracking
+        import uuid
+        tool_call_id = str(uuid.uuid4())
+
+        # Use arguments in key to support parallel calls of the same tool
+        import json
+        try:
+            args_str = json.dumps(arguments, sort_keys=True)
+            key = f"{tool_name}:{args_str}"
+        except Exception:
+            key = tool_name
+
+        self._tool_call_ids[key] = tool_call_id
+        # Try to get tool class from tool registry
+        tool_class = ""
+        try:
+            tool = self.tool_registry.get(tool_name)
+            if tool:
+                tool_class = tool.__class__.__name__
+        except Exception:
+            pass
+
+        # Capture file state BEFORE tool modifies it (for rewind snapshots)
+        self._capture_file_before(tool_name, arguments)
+
+        self._get_event_queue().put_nowait(ToolCallEvent(
+            tool_name=tool_name,
+            tool_args=arguments,
+            tool_call_id=tool_call_id,
+            tool_class=tool_class
+        ))
+
+    def _on_tool_stream(self, tool_call_id: str, content: str) -> None:
+        """Handle tool stream event from agent — live output from running tools."""
+        from jarvis.interface.textual_ui.types import ToolStreamEvent
+        self._get_event_queue().put_nowait(ToolStreamEvent(
+            content=content,
+            tool_call_id=tool_call_id,
+        ))
+
+    def _normalize_arguments(self, arguments: dict[str, Any] | str) -> dict[str, Any]:
+        """Normalize arguments to always be a dict."""
+        if isinstance(arguments, str):
+            try:
+                import json
+                return json.loads(arguments)
+            except json.JSONDecodeError:  # ty:ignore[possibly-unresolved-reference]
+                logger.warning(f"Failed to parse arguments as JSON: {arguments[:100]}")
+                return {}
+        return arguments if isinstance(arguments, dict) else {}
+
+    def _map_tool_result(self, tool_name: str, arguments: dict[str, Any], result: Any) -> Any:
+        """Map raw tool output to structured result models for TUI."""
+        # Normalize arguments to dict (might be JSON string from text-embedded tool calls)
+        arguments = self._normalize_arguments(arguments)
+
+        # If result is a ToolOutput (from core), use its inner result
+        raw_result = result
+        if hasattr(result, 'result'):
+            raw_result = result.result
+
+        # If result is already a string but we need an object, wrap it
+        if isinstance(raw_result, str):
+            if tool_name == "bash":
+                return BashResult(stdout=raw_result, returncode=0)
+            if tool_name == "grep":
+                # Convert string matches to GrepMatch objects if they follow the format
+                matches = []
+                for line in raw_result.splitlines():
+                    parts = line.split(":", 2)
+                    if len(parts) == 3:
+                        matches.append(GrepMatch(file=parts[0], line=int(parts[1]) if parts[1].isdigit() else 0, content=parts[2]))
+                    else:
+                        matches.append(GrepMatch(file="unknown", line=0, content=line))
+                return GrepResult(matches=matches)
+            if tool_name in ("read", "read_file"):
+                path = str(arguments.get("path") or arguments.get("filePath", ""))
+                return ReadFileResult(path=path, content=raw_result)
+            if tool_name in ("write", "write_file"):
+                path = str(arguments.get("path") or arguments.get("filePath", ""))
+                # Extract diff from metadata if available
+                diff = ""
+                if hasattr(result, 'metadata') and result.metadata:
+                    diff = result.metadata.get('diff', '')
+                return WriteFileResult(path=path, content=raw_result, bytes_written=len(raw_result), diff=diff)
+            if tool_name == "edit":
+                # For edit, return the diff showing changes
+                # Extract path from replacements array (edit args have replacements, not top-level path)
+                path = ""
+                replacements = arguments.get("replacements", [])
+                if replacements and isinstance(replacements, list):
+                    first = replacements[0] if isinstance(replacements[0], dict) else {}
+                    path = first.get("filePath") or first.get("file_path", "")
+                if not path:
+                    path = str(arguments.get("path") or arguments.get("filePath", ""))
+                # Extract diff from metadata (can be at top level or in results array)
+                diff = ""
+                status = "success"
+                occurrences_replaced = 0
+                if hasattr(result, 'metadata') and result.metadata:
+                    metadata = result.metadata
+                    # Check if diff is directly in metadata (for single replacements)
+                    diff = metadata.get('diff', '')
+                    status = "success" if metadata.get('successful', 0) > 0 else "failed"
+                    occurrences_replaced = metadata.get('successful', 0)
+                    # If not, check in results array (for multiple replacements)
+                    if not diff and 'results' in metadata and metadata['results']:
+                        first_result = metadata['results'][0]
+                        diff = first_result.get('diff', first_result.get('unified_diff', ''))
+                        status = first_result.get('status', 'success')
+                        occurrences_replaced = metadata.get('successful', 0)
+                return EditResult(
+                    file=path,
+                    file_path=path,
+                    status=status,
+                    occurrences_replaced=occurrences_replaced,
+                    diff=diff,
+                    unified_diff=diff
+                )
+
+        # Special case for grep: list of dicts to GrepMatch objects
+        if tool_name == "grep" and isinstance(raw_result, list):
+            matches = []
+            for m in cast(list[dict[str, Any]], raw_result):
+                matches.append(GrepMatch(
+                    file=str(m.get("file", "unknown")),
+                    line=int(m.get("line", 0)) if str(m.get("line", "")).isdigit() else 0,
+                    content=str(m.get("content", ""))
+                ))
+            return GrepResult(matches=matches)
+
+        return raw_result
+
+    def _on_tool_result(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
+        """Handle tool result event from agent."""
+        # Normalize arguments to dict (might be JSON string from text-embedded tool calls)
+        arguments = self._normalize_arguments(arguments)
+
+        # Queue tool result event for UI synchronously
+        # Use arguments in key to support parallel calls of the same tool
+        import json
+        try:
+            args_str = json.dumps(arguments, sort_keys=True)
+            key = f"{tool_name}:{args_str}"
+        except Exception:
+            key = tool_name
+
+        tool_call_id = self._tool_call_ids.get(key, "")
+        # Try to get tool class from tool registry
+        tool_class = ""
+        error = ""
+        try:
+            tool = self.tool_registry.get(tool_name)
+            if tool:
+                tool_class = tool.__class__.__name__
+        except Exception as e:
+            error = str(e)
+
+        # Determine if result indicates success or failure
+        if hasattr(result, 'success') and not result.success:
+            if hasattr(result, 'error'):
+                error = str(result.error)
+
+        # Track file changes for rewind snapshots
+        self._track_file_snapshot(tool_name, arguments, result)
+
+        # Map result to structured model for UI
+        mapped_result = self._map_tool_result(tool_name, arguments, result)
+
+        self._get_event_queue().put_nowait(ToolResultEvent(
+            tool_name=tool_name,
+            result=mapped_result,
+            tool_call_id=tool_call_id,
+            tool_class=tool_class,
+            error=error,
+            skipped=False,
+            skip_reason="",
+            cancelled=False,
+            duration=0.0
+        ))
+
+        # Clean up the tool_call_id after use
+        if key in self._tool_call_ids:
+            del self._tool_call_ids[key]
+
+    # Tools known to modify files on disk
+    FILE_MODIFYING_TOOLS = frozenset({
+        "write", "write_file", "edit", "str_replace_editor",
+        "delete", "remove", "rename", "move", "copy",
+    })
+    # Tools that may modify files indirectly (bash/shell)
+    SHELL_TOOLS = frozenset({"bash", "shell", "run_command", "repl"})
+
+    def _track_file_snapshot(self, tool_name: str, arguments: dict[str, Any], result: Any) -> None:
+        """Track file snapshots for rewind functionality.
+        
+        Called when file-modifying tools complete successfully.
+        Records the AFTER state of the file so rewind can detect changes.
+        For shell tools, uses git diff to find changed files.
+        """
+        if tool_name in self.FILE_MODIFYING_TOOLS:
+            path = self._extract_file_path(tool_name, arguments)
+            if path:
+                try:
+                    content = Path(path).read_bytes()
+                    self.add_file_snapshot(path, content)
+                except FileNotFoundError:
+                    self.add_file_snapshot(path, None)
+                except Exception:
+                    pass
+        elif tool_name in self.SHELL_TOOLS:
+            self._track_shell_file_changes()
+
+    def _capture_file_before(self, tool_name: str, arguments: dict[str, Any]) -> None:
+        """Capture file state BEFORE a tool modifies it (for rewind restore).
+        
+        This is called from _on_tool_call, before the tool actually runs.
+        The captured content represents the pre-modification state that
+        rewind can restore to.
+        """
+        if tool_name in self.FILE_MODIFYING_TOOLS:
+            path = self._extract_file_path(tool_name, arguments)
+            if path:
+                try:
+                    content = Path(path).read_bytes()
+                    self.add_file_snapshot(path, content)
+                except FileNotFoundError:
+                    self.add_file_snapshot(path, None)
+                except Exception:
+                    pass
+        elif tool_name in self.SHELL_TOOLS:
+            # Snapshot all currently-tracked files before shell runs
+            self._snapshot_tracked_files_before_shell()
+
+    def _snapshot_tracked_files_before_shell(self) -> None:
+        """Snapshot all files tracked in checkpoints before a shell command runs.
+        
+        This ensures we have the BEFORE state for any files that might be
+        modified by the shell command (e.g., sed, mv, cp, git checkout).
+        """
+        if not self.rewind_manager.checkpoints:
+            return
+        # Collect all file paths from existing checkpoints
+        known_paths: set[str] = set()
+        for cp in self.rewind_manager.checkpoints:
+            for snap in cp.files:
+                known_paths.add(snap.path)
+        # Re-snapshot all known files to capture their current (before) state
+        for path in known_paths:
+            try:
+                content = Path(path).read_bytes()
+                self.add_file_snapshot(path, content)
+            except FileNotFoundError:
+                self.add_file_snapshot(path, None)
+            except Exception:
+                pass
+
+    def _track_shell_file_changes(self) -> None:
+        """Detect and track file changes after a shell command.
+        
+        Uses git diff to find files that changed, falling back to
+        re-snapshotting known files.
+        """
+        changed_files = self._get_changed_files_from_git()
+        if changed_files:
+            for path in changed_files:
+                try:
+                    content = Path(path).read_bytes()
+                    self.add_file_snapshot(path, content)
+                except FileNotFoundError:
+                    self.add_file_snapshot(path, None)
+                except Exception:
+                    pass
+        else:
+            # No git or no changes detected via git - re-snapshot known files
+            self._snapshot_tracked_files_before_shell()
+
+    def _get_changed_files_from_git(self) -> list[str]:
+        """Get list of files changed since last git state using git diff."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["git", "diff", "--name-only"],
+                capture_output=True, text=True, timeout=5,
+                cwd=Path.cwd(),
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # Filter to only files that exist and are under cwd
+                changed: list[str] = []
+                for line in result.stdout.strip().splitlines():
+                    fpath = Path(line.strip())
+                    if not fpath.is_absolute():
+                        fpath = Path.cwd() / fpath
+                    if fpath.exists():
+                        changed.append(str(fpath))
+                return changed
+        except Exception:
+            pass
+        return []
+
+    def _extract_file_path(self, tool_name: str, arguments: dict[str, Any]) -> str:
+        """Extract file path from tool arguments."""
+        path = ""
+        # For edit tools, the path is inside replacements array
+        if tool_name in ("edit", "str_replace_editor"):
+            replacements = arguments.get("replacements", [])
+            if replacements and isinstance(replacements, list):
+                first = replacements[0] if isinstance(replacements[0], dict) else {}
+                path = first.get("filePath") or first.get("file_path", "")
+        if not path:
+            path = str(arguments.get("path") or arguments.get("filePath", ""))
+        return path
+
+    def _on_reasoning(self, reasoning: str) -> None:
+        """Handle reasoning content from agent."""
+        # Queue reasoning event for UI synchronously
+        if reasoning.strip():
+            self._get_event_queue().put_nowait(ReasoningEvent(content=reasoning))
+        # Also store in chunks for potential direct access
+        self._reasoning_chunks.append(reasoning)
+
+    async def process_message(self, message: str) -> AsyncGenerator[str, None]:
+        """Process a message and stream response using JARVIS agent."""
+        if self._user_input_callback:
+            yield message
+            return
+
+        self._is_running = True
+        self._stream_chunks = []
+        self._reasoning_chunks = []
+        self._drain_event_queue()
+
+        # We need an event queue for strings
+        string_queue: asyncio.Queue[str] = asyncio.Queue()
+
+        # Set up streaming callback
+        def stream_callback(chunk: str) -> None:
+            self._stream_chunks.append(chunk)
+            string_queue.put_nowait(chunk)
+
+        self.agent.stream_callback = stream_callback
+        # reasoning_callback is already set in __init__ to _on_reasoning which emits events
+
+        try:
+            # Process message with JARVIS agent in a background task
+            task = asyncio.create_task(self.agent.process(message))
+
+            while not task.done():
+                # Yield string chunks as they come in
+                while not string_queue.empty():
+                    yield string_queue.get_nowait()
+
+                # We also need to yield reasoning events if any show up
+                # process_message yields strings, so we convert reasoning events
+                while not self._get_event_queue().empty():
+                    event = self._get_event_queue().get_nowait()
+                    if isinstance(event, ReasoningEvent):
+                        yield f"<reasoning>{event.content}</reasoning>"
+
+                await asyncio.sleep(0.05)
+
+            # Check for exception
+            try:
+                response = await task
+            except Exception as e:
+                yield f"Error processing request: {str(e)}"
+                return
+
+            # Yield any remaining stream chunks
+            while not string_queue.empty():
+                yield string_queue.get_nowait()
+
+            # Yield any remaining reasoning
+            while not self._get_event_queue().empty():
+                event = self._get_event_queue().get_nowait()
+                if isinstance(event, ReasoningEvent):
+                    yield f"<reasoning>{event.content}</reasoning>"
+
+            # If no stream chunks, yield the response
+            if response and not self._stream_chunks:
+                yield response
+
+            # Update stats from agent memory
+            self.stats.update_from_agent(self.agent)
+            self.stats.trigger_listeners()
+
+            # Check for auto-compaction if enabled
+            if self._auto_compaction_enabled:
+                try:
+                    compaction_result = await self.maybe_auto_compact()
+                    if compaction_result:
+                        yield f"[Auto-compacted conversation: saved ~{self.compaction_stats.last_compaction_tokens_before - self.compaction_stats.last_compaction_tokens_after} tokens]"
+                except Exception:
+                    self.compaction_stats.record_error()
+
+        finally:
+            if 'task' in locals() and task and not task.done():
+                task.cancel()
+            self._is_running = False
+            self.agent.stream_callback = None
+
+    async def act(self, prompt: str) -> AsyncGenerator[Event, None]:
+        """Act on a prompt and yield events for the TUI.
+        
+        This is the main method the TUI uses to get agent responses.
+        It yields events like ReasoningEvent, AssistantEvent, ToolCallEvent, etc.
+        
+        Streaming support:
+        - Tool calls are emitted as ToolCallEvent via _on_tool_call callback
+        - Tool results are emitted as ToolResultEvent via _on_tool_result callback
+        - Reasoning/thinking is emitted as ReasoningEvent via _on_reasoning callback
+        - Assistant response chunks are emitted as AssistantEvent via stream_callback
+        """
+        self._is_running = True
+        self._stream_chunks = []
+        self._reasoning_chunks = []
+        self._drain_event_queue()
+
+        # Create checkpoint before processing user message (for rewind functionality)
+        self.rewind_manager.create_checkpoint()
+
+        # Set up streaming callback to emit assistant events
+        def stream_callback(chunk: str) -> None:
+            self._stream_chunks.append(chunk)
+            self._get_event_queue().put_nowait(AssistantEvent(content=chunk))
+
+        self.agent.stream_callback = stream_callback
+        # reasoning_callback is already set in __init__ to _on_reasoning which queues events
+        # tool_call_callback and tool_result_callback are also set in __init__
+
+        try:
+            # Yield user message event
+            yield UserMessageEvent(content=prompt)
+
+            # Save user message to history
+            user_msg = create_user_message(prompt)
+            self.history.append_message(user_msg)
+
+            # Process message with JARVIS agent
+            # We use a background task so we can yield events while it runs
+            task = asyncio.create_task(self.agent.process(prompt))
+
+            # Add a timeout to prevent indefinite hanging (30 minutes default)
+            timeout_task = asyncio.create_task(asyncio.sleep(1800))
+
+            # Yield events as they come in with a longer timeout
+            while not task.done() and not timeout_task.done():
+                try:
+                    # Wait for events with a timeout
+                    event = await asyncio.wait_for(self._get_event_queue().get(), timeout=0.1)
+                    yield event
+                except asyncio.TimeoutError:
+                    # No events yet, check if task is done
+                    continue
+
+            # Cancel timeout task if still running
+            if not timeout_task.done():
+                timeout_task.cancel()
+                try:
+                    await timeout_task
+                except asyncio.CancelledError:
+                    pass
+
+            # Check if we timed out
+            if timeout_task.done() and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                yield AssistantEvent(content="Request timed out. Please check your API key and connection.")
+                return
+
+            # Check if task raised an exception
+            try:
+                response = await task
+            except Exception as e:
+                # Yield error event if processing fails
+                import traceback
+                error_msg = f"Error processing request: {str(e)}\n\n{traceback.format_exc()}"
+                yield AssistantEvent(content=error_msg)
+                return
+
+            # Yield any remaining queued events (tool calls, reasoning, etc.)
+            while not self._get_event_queue().empty():
+                event = self._get_event_queue().get_nowait()
+                yield event
+
+            # Streaming callbacks have already yielded the assistant content. Only emit
+            # the final response when the provider did not stream any text chunks.
+            if response and not self._stream_chunks:
+                yield AssistantEvent(content=response)
+            elif not self._stream_chunks:
+                # If no response and no stream chunks, yield a message
+                yield AssistantEvent(content="No response generated.")
+
+            # Save assistant response to history
+            assistant_content = response or "".join(self._stream_chunks)
+            if assistant_content:
+                assistant_msg = create_assistant_message(assistant_content)
+                self.history.append_message(assistant_msg)
+
+            # Update stats from agent memory
+            self.stats.update_from_agent(self.agent)
+            self.stats.trigger_listeners()
+
+            # Check for auto-compaction if enabled
+            if self._auto_compaction_enabled:
+                try:
+                    compaction_result = await self.maybe_auto_compact()
+                    if compaction_result:
+                        yield AssistantEvent(content=f"[Auto-compacted conversation: saved ~{self.compaction_stats.last_compaction_tokens_before - self.compaction_stats.last_compaction_tokens_after} tokens]")
+                except Exception:
+                    # Log but don't fail the main task
+                    self.compaction_stats.record_error()
+
+        finally:
+            if 'task' in locals() and task and not task.done():
+                task.cancel()
+            if 'timeout_task' in locals() and timeout_task and not timeout_task.done():
+                timeout_task.cancel()
+            self._is_running = False
+            self.agent.stream_callback = None
+
+    async def run(self) -> None:
+        """Run the agent loop (not used in TUI mode)."""
+        pass
+
+    async def get_events(self) -> AsyncGenerator[Event, None]:
+        """Get events from the event queue."""
+        while self._is_running:
+            try:
+                event = await asyncio.wait_for(self._get_event_queue().get(), timeout=0.1)
+                yield event
+            except asyncio.TimeoutError:
+                continue
+
+    async def _save_messages(self) -> None:
+        """Save messages to session log."""
+        # SessionLoggerAdapter doesn't have save() method yet
+        # This is a placeholder for future implementation
+        logger.info("Save messages called during rewind")
+        pass
+
+    def _reset_session_callback(self) -> None:
+        """Reset session state after rewind."""
+        # Clear any running state
+        self._is_running = False
+        self._stream_chunks.clear()
+        self._reasoning_chunks.clear()
+        # Reset stats for the new forked session
+        self.stats = Stats()
+        # Clear any pending tool call IDs
+        self._tool_call_ids.clear()
+        # Drain the event queue to prevent stale events
+        self._drain_event_queue()
+        # Rebuild system prompt to reflect current tool state
+        try:
+            self.agent.rebuild_system_prompt()
+        except Exception:
+            pass
+
+    def create_checkpoint(self) -> None:
+        """Create a checkpoint - convenience method."""
+        if hasattr(self.rewind_manager, 'create_checkpoint'):
+            self.rewind_manager.create_checkpoint()
+
+    def add_file_snapshot(self, path: str, content: bytes | None) -> None:
+        """Add a file snapshot to checkpoints - convenience method."""
+        if hasattr(self.rewind_manager, 'add_snapshot'):
+            from jarvis.core.rewind import FileSnapshot
+            snapshot = FileSnapshot(path=path, content=content)
+            self.rewind_manager.add_snapshot(snapshot)
+
+
+class SkillManagerAdapter:
+    """Adapter for JARVIS SkillManager."""
+
+    def __init__(self) -> None:
+        self._core_manager = CoreSkillManager()
+
+    @property
+    def available_skills(self) -> dict[str, Any]:
+        return cast(dict[str, Any], self._core_manager.get_all_available_skills())
+
+    @property
+    def custom_skills_count(self) -> int:
+        all_skills = self._core_manager.get_all_available_skills()
+        builtin = self._core_manager.get_builtin_skills()
+        return len(all_skills) - len(builtin)
+
+    def parse_skill_command(self, command: str) -> Any:
+        """Parse skill command."""
+        if command.startswith("/skill "):
+            skill_name = command.split(" ", 1)[1].strip()
+            return self._core_manager.get_skill_profile(skill_name)
+        return None
+
+    def activate_skill(self, skill_name: str) -> tuple[bool, str, str | None]:
+        """Activate a skill and return the core manager result."""
+        return self._core_manager.activate_skill(skill_name)
+
+    @staticmethod
+    def build_skill_prompt(user_input: str, skill: Any) -> str:
+        """Build skill prompt."""
+        if skill and hasattr(skill, 'content') and skill.content:
+            return f"{user_input}\n\n--- Skill Context ---\n{skill.content}"
+        return user_input
+
+
+class MCPRegistryAdapter:
+    """Adapter for MCP Registry (Currently unsupported in JARVIS core)."""
+
+    def count_loaded(self, servers: list[Any]) -> int:
+        """Count loaded MCP servers."""
+        return 0
+
+
+class ConnectorRegistryAdapter:
+    """Adapter for Connector Registry (Currently unsupported in JARVIS core)."""
+
+    connector_count: int = 0
+
+    def get_connector_names(self) -> list[str]:
+        """Get connector names."""
+        return []
+
+
+class ToolManagerAdapter:
+    """Adapter for JARVIS ToolRegistry."""
+
+    def __init__(self, tool_registry: ToolRegistry):
+        self.tool_registry = tool_registry
+
+    @property
+    def available_tools(self) -> list[str]:
+        return list(self.tool_registry.get_tools().keys())
+
+    @property
+    def registered_tools(self) -> dict[str, Any]:
+        return self.tool_registry.get_tools()
+
+    def get_tool_config(self, tool_name: str) -> dict[str, Any] | None:
+        """Get tool configuration."""
+        tool = self.tool_registry.get(tool_name)
+        if tool:
+            return {"name": tool.name, "description": tool.description}
+        return None
+
+    async def refresh_remote_tools_async(self) -> None:
+        """Refresh remote tools (noop for now)."""
+        pass
+
+    async def integrate_connectors_async(self) -> None:
+        """Integrate connector tools (noop for now)."""
+        pass
+
+
+class SessionLoggerAdapter:
+    """Adapter for session logging."""
+
+    def __init__(self) -> None:
+        from pathlib import Path
+        self.enabled = False
+        self.session_id: str | None = None
+        self.session_dir = Path.cwd()
+        self.session_config: dict[str, Any] | None = None
+
+    def resume_existing_session(self, session_id: str, session_path: str) -> None:
+        """Resume an existing session."""
+        from pathlib import Path
+        self.session_id = session_id
+        self.session_dir = Path(session_path).parent
+
+
+class RewindManagerAdapter:
+    """Adapter for session rewinding."""
+
+    def has_file_changes_at(self, index: int) -> bool:
+        """Check if there are file changes at a specific message index."""
+        return False
+
+    async def rewind_to_message(self, index: int, restore_files: bool = False) -> tuple[str, list[Any]]:
+        """Rewind the session to a specific message index."""
+        return "Rewind successful (stub)", []

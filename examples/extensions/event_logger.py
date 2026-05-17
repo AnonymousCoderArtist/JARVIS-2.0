@@ -3,13 +3,13 @@
 Demonstrates the ``api.on()`` pattern for event-driven behaviour.
 """
 
-from core.events.types import ToolCallEnded, ToolCallStarted
+from jarvis.core.events.types import ToolCallEnded, ToolCallStarted
 
 __version__ = "1.0.0"
 __description__ = "Logs all tool execution events to console"
 
 
-async def jarvis_extension(api):
+async def jarvis(api):
     """Print a message every time a tool starts or ends."""
 
     async def on_tool_start(event):

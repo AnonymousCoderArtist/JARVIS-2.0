@@ -1,7 +1,7 @@
 """Test writer agent — specialized in writing and running tests."""
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
 
 
 def get_system_prompt() -> str:
@@ -26,9 +26,9 @@ Rules:
 TEST_WRITER = AgentDefinition(
     name="test-writer",
     agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    when_to_use="Write tests for existing code, add test cases, improve test coverage, or debug failing tests. Use when the user asks to write tests, add coverage, or fix test failures.",
+    description="Write tests for existing code, add test cases, improve test coverage, or debug failing tests. Use when the user asks to write tests, add coverage, or fix test failures.",
     tools=["read", "write", "edit", "grep", "find", "ls", "bash", "run_tests"],
     model="inherit",
     max_turns=50,
-    get_system_prompt=get_system_prompt,
+    system_prompt=get_system_prompt,
 )

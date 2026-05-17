@@ -1,7 +1,7 @@
 """Full-stack implementation agent — end-to-end feature development."""
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
 
 
 def get_system_prompt() -> str:
@@ -26,9 +26,9 @@ Rules:
 IMPLEMENTER = AgentDefinition(
     name="implementer",
     agent_type=AgentType.AGENT,  # Appears in Shift+Tab profiles AND agents tool
-    when_to_use="Implement features end-to-end: write code, run tests, fix issues, and commit changes. Use when the user asks to build, implement, create, or develop a feature.",
+    description="Implement features end-to-end: write code, run tests, fix issues, and commit changes. Use when the user asks to build, implement, create, or develop a feature.",
     tools=["read", "write", "edit", "grep", "find", "ls", "bash", "run_tests", "glob"],  # Full access
     model="inherit",
     max_turns=100,
-    get_system_prompt=get_system_prompt,
+    system_prompt=get_system_prompt,
 )

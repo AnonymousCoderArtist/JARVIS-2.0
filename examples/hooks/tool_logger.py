@@ -5,7 +5,7 @@ Register this hook at AFTER_TOOL_CALL to record tool execution details.
 
 import logging
 
-from core.events.hooks import HookContext, HookResult
+from jarvis.core.events.hooks import HookContext, HookResult
 
 logger = logging.getLogger("jarvis.tool_audit")
 

@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.tools.mcp_adapter import (
+from jarvis.core.tools.mcp_adapter import (
     MCPClient,
     MCPServerConfig,
     MCPToolSpec,
     MCPTransportType,
 )
-from core.tools.mcp_metadata_cache import (
+from jarvis.core.tools.mcp_metadata_cache import (
     MCPMetadataCache,
     ToolMetadata,
     compute_config_hash,

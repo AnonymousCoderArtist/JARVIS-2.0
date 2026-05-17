@@ -1,7 +1,7 @@
 """Code reviewer agent — read-only review focused on security, bugs, and style."""
 
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.core.agents.agent_definition import AgentDefinition
+from jarvis.core.agents.profiles import AgentType
 
 
 def get_system_prompt() -> str:
@@ -25,9 +25,9 @@ Rules:
 CODE_REVIEWER = AgentDefinition(
     name="code-review",
     agent_type=AgentType.SUBAGENT,  # Hidden from profiles, invoked via agents tool
-    when_to_use="Review code for security vulnerabilities, logic bugs, performance issues, and style problems. Use when the user asks to review, audit, or critique code.",
+    description="Review code for security vulnerabilities, logic bugs, performance issues, and style problems. Use when the user asks to review, audit, or critique code.",
     tools=["read", "grep", "find", "ls", "glob"],  # Read-only — no file modifications
     model="inherit",
     max_turns=50,
-    get_system_prompt=get_system_prompt,
+    system_prompt=get_system_prompt,
 )

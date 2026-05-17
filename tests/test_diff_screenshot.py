@@ -3,7 +3,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from interface.textual_ui.widgets.tools import DiffBlock, DiffLine
+from jarvis.interface.textual_ui.widgets.tools import DiffBlock, DiffLine
 
 
 class TestApp(App):
@@ -12,7 +12,7 @@ class TestApp(App):
             DiffLine(line_number=4, content="", prefix=" "),
             DiffLine(line_number=5, content="[project]", prefix=" "),
             DiffLine(line_number=6, content="name = \"jarvis\"", prefix=" "),
-            DiffLine(line_number=7, content="version = \"2.0.0\"", prefix="-"),
+            DiffLine(line_number=7, content="version = \"2.1.0\"", prefix="-"),
             DiffLine(line_number=7, content="version = \"2.0.1\"", prefix="+"),
             DiffLine(line_number=8, content="description = \"...\"", prefix=" "),
         ]

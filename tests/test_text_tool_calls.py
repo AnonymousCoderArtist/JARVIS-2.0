@@ -10,7 +10,7 @@ import pytest
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.llm_sdk.tool_parser import (
+from jarvis.core.llm_sdk.tool_parser import (
     extract_text_and_tool_calls,
     extract_tool_calls_from_text,
     has_text_tool_calls,

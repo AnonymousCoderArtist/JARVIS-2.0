@@ -5,10 +5,10 @@ After every `edit`, `write`, or `create` tool call, it runs `uvx ty check`
 and feeds any type errors back to the LLM so it can fix them immediately.
 """
 
-from core.extensions.api import ExtensionAPI
+from jarvis.core.extensions.api import ExtensionAPI
 
 
-async def jarvis_extension(api: ExtensionAPI):
+async def jarvis(api: ExtensionAPI):
     """Register the auto type-check hook."""
     # Placeholder - implement AutoTypeCheckHook or remove this extension
     pass

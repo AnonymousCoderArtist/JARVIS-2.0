@@ -3,30 +3,28 @@
 
 import pytest
 
-from core.tools.base import ToolInput
-from core.tools.file_tools import FileReadTool
+from jarvis.core.tools.base import ToolInput
+from jarvis.core.tools.file_tools import FileReadTool
 
 
 class TestFileReadToolSingleMode:
-    """Test backward-compatible single-file mode"""
+    """Test single-file mode using the files array API"""
 
     @pytest.mark.asyncio
     async def test_single_file_basic_read(self, tmp_path):
-        """Test basic single file reading works as before"""
+        """Test basic single file reading works"""
         test_file = tmp_path / "test.py"
         test_file.write_text("line1\nline2\nline3\n")
 
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
-            filePath=str(test_file),
-            offset=1,
-            limit=10,
+            files=[{"filePath": str(test_file), "offset": 1, "limit": 10}],
             encoding="utf-8"
         ))
 
         assert result.success
         assert "line1" in result.result
-        assert result.metadata is not None and result.metadata.get("filePath") == str(test_file)
+        assert result.metadata is not None and result.metadata.get("total_files_processed") == 1
 
     @pytest.mark.asyncio
     async def test_single_file_with_offset(self, tmp_path):
@@ -36,9 +34,7 @@ class TestFileReadToolSingleMode:
 
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
-            filePath=str(test_file),
-            offset=3,
-            limit=2
+            files=[{"filePath": str(test_file), "offset": 3, "limit": 2}]
         ))
 
         assert result.success
@@ -51,9 +47,7 @@ class TestFileReadToolSingleMode:
         """Test error handling for missing file"""
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
-            filePath=str(tmp_path / "nonexistent.py"),
-            offset=1,
-            limit=10
+            files=[{"filePath": str(tmp_path / "nonexistent.py"), "offset": 1, "limit": 10}]
         ))
 
         assert not result.success
@@ -61,18 +55,17 @@ class TestFileReadToolSingleMode:
 
     @pytest.mark.asyncio
     async def test_single_file_missing_offset_required(self, tmp_path):
-        """Test that offset is required for single file mode"""
+        """Test that reading without offset starts from beginning"""
         test_file = tmp_path / "test.py"
         test_file.write_text("content")
 
         tool = FileReadTool()
         result = await tool.execute(ToolInput(
-            filePath=str(test_file),
-            limit=10
+            files=[{"filePath": str(test_file)}]
         ))
 
-        assert not result.success
-        assert result.error is not None and "offset" in result.error.lower()
+        assert result.success
+        assert "content" in result.result
 
 
 class TestFileReadToolFilesArray:

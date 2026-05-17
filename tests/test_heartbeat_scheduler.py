@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from core.agents.heartbeat_scheduler import (
+from jarvis.core.agents.heartbeat_scheduler import (
     HeartbeatScheduler,
     is_deliverable,
     parse_heartbeat_file,
@@ -135,14 +135,14 @@ class TestHeartbeatScheduler:
             config={"enabled": True}
         )
 
-        with patch("core.agents.heartbeat_scheduler.get_heartbeat_file", return_value=None):
+        with patch("jarvis.core.agents.heartbeat_scheduler.get_heartbeat_file", return_value=None):
             result = await scheduler._run_heartbeat()
             assert "skipped" in result
 
     @pytest.mark.asyncio
     async def test_active_hours_check(self):
         # Mock outside active hours
-        with patch("core.agents.heartbeat_scheduler.is_within_active_hours", return_value=False):
+        with patch("jarvis.core.agents.heartbeat_scheduler.is_within_active_hours", return_value=False):
             async def mock_executor(prompt):
                 return "ok"
 
@@ -165,8 +165,8 @@ class TestHeartbeatScheduler:
         )
         scheduler.set_busy(True)
 
-        with patch("core.agents.heartbeat_scheduler.get_heartbeat_file", return_value=Path("/tmp/test.md")):
-            with patch("core.agents.heartbeat_scheduler.is_within_active_hours", return_value=True):
+        with patch("jarvis.core.agents.heartbeat_scheduler.get_heartbeat_file", return_value=Path("/tmp/test.md")):
+            with patch("jarvis.core.agents.heartbeat_scheduler.is_within_active_hours", return_value=True):
                 with patch("builtins.open", create=True) as mock_open:
                     mock_open.return_value.__enter__.return_value.read.return_value = "tasks"
                     result = await scheduler._run_heartbeat()
@@ -175,3 +175,5 @@ class TestHeartbeatScheduler:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+

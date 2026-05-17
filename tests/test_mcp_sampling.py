@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from core.tools.mcp_capabilities import (
+from jarvis.core.tools.mcp_capabilities import (
     MCPPromptSpec,
     MCPResourceSpec,
     MCPServerCapabilities,
@@ -16,13 +16,13 @@ class TestMCPServerConfigWithCapabilities:
     """Tests for MCPServerConfig with new capability and auth fields."""
 
     def test_auto_discover_capabilities_default(self):
-        from core.tools.mcp_adapter import MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPServerConfig
 
         config = MCPServerConfig(name="test")
         assert config.auto_discover_capabilities is True
 
     def test_auto_discover_capabilities_from_dict(self):
-        from core.tools.mcp_adapter import MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPServerConfig
 
         config = MCPServerConfig.from_dict({
             "name": "test",
@@ -31,7 +31,7 @@ class TestMCPServerConfigWithCapabilities:
         assert config.auto_discover_capabilities is False
 
     def test_auto_discover_capabilities_legacy_name(self):
-        from core.tools.mcp_adapter import MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPServerConfig
 
         config = MCPServerConfig.from_dict({
             "name": "test",
@@ -40,7 +40,7 @@ class TestMCPServerConfigWithCapabilities:
         assert config.auto_discover_capabilities is False
 
     def test_auth_config_from_dict(self):
-        from core.tools.mcp_adapter import MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPServerConfig
 
         config = MCPServerConfig.from_dict({
             "name": "test",
@@ -51,7 +51,7 @@ class TestMCPServerConfigWithCapabilities:
         assert config.auth.token == "abc123"
 
     def test_no_auth_by_default(self):
-        from core.tools.mcp_adapter import MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPServerConfig
 
         config = MCPServerConfig(name="test")
         assert config.auth is None
@@ -61,7 +61,7 @@ class TestMCPClientNewFields:
     """Tests for MCPClient with new resource/prompt/capability fields."""
 
     def test_client_has_resource_and_prompt_fields(self):
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         client = MCPClient(config)
@@ -71,7 +71,7 @@ class TestMCPClientNewFields:
         assert isinstance(client._capabilities, MCPServerCapabilities)
 
     def test_client_with_llm_provider(self):
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         mock_provider = MagicMock()
@@ -80,7 +80,7 @@ class TestMCPClientNewFields:
         assert client._model == "gpt-4o"
 
     def test_client_resource_count_property(self):
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         client = MCPClient(config)
@@ -94,7 +94,7 @@ class TestMCPClientNewFields:
         assert client.resource_count == 2
 
     def test_client_prompt_count_property(self):
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         client = MCPClient(config)
@@ -106,7 +106,7 @@ class TestMCPClientNewFields:
         assert client.prompt_count == 1
 
     def test_get_capabilities(self):
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         client = MCPClient(config)
@@ -119,7 +119,7 @@ class TestMCPRegistryUpdateCache:
     """Tests for MCPRegistry._update_cache_for_server with resources and prompts."""
 
     def test_update_cache_with_resources_and_prompts(self, tmp_path: Path):
-        from core.tools.mcp_adapter import MCPRegistry, MCPServerConfig, MCPToolSpec
+        from jarvis.core.tools.mcp_adapter import MCPRegistry, MCPServerConfig, MCPToolSpec
 
         registry = MCPRegistry(use_proxy=False)
         config = MCPServerConfig(name="test", command="echo")
@@ -140,7 +140,7 @@ class TestMCPRegistryUpdateCache:
         assert smeta.prompts[0].name == "review"
 
     def test_update_cache_without_resources_and_prompts(self, tmp_path: Path):
-        from core.tools.mcp_adapter import MCPRegistry, MCPServerConfig, MCPToolSpec
+        from jarvis.core.tools.mcp_adapter import MCPRegistry, MCPServerConfig, MCPToolSpec
 
         registry = MCPRegistry(use_proxy=False)
         config = MCPServerConfig(name="test", command="echo")
@@ -173,7 +173,7 @@ class TestSamplingHandler:
     @pytest.mark.asyncio
     async def test_sampling_handler_signature(self):
         """Verify the sampling handler matches the SDK's expected signature."""
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         mock_provider = AsyncMock()
@@ -192,7 +192,7 @@ class TestSamplingHandler:
         """Verify the sampling handler routes through the LLM provider."""
         from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
 
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         mock_provider = AsyncMock()
@@ -218,7 +218,7 @@ class TestSamplingHandler:
         """Verify the sampling handler raises when no LLM provider is available."""
         from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
 
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         client = MCPClient(config)  # No llm_provider
@@ -236,7 +236,7 @@ class TestSamplingHandler:
         """Verify the sampling handler passes system_prompt through."""
         from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
 
-        from core.tools.mcp_adapter import MCPClient, MCPServerConfig
+        from jarvis.core.tools.mcp_adapter import MCPClient, MCPServerConfig
 
         config = MCPServerConfig(name="test", command="echo")
         mock_provider = AsyncMock()

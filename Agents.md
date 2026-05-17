@@ -118,7 +118,7 @@ ty check .
 
 ```bash
 # Version is managed via jarvis/_version.py
-# Current version: 2.0.0
+# Current version: 2.1.0
 ```
 
 ## Architecture Overview

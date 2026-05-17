@@ -2,7 +2,7 @@
 
 import shutil
 
-from core.watchers.base import BaseWatcher
+from jarvis.core.watchers.base import BaseWatcher
 
 
 class DiskMonitor(BaseWatcher):

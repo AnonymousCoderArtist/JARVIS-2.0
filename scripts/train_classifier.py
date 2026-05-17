@@ -19,7 +19,7 @@ sys.modules["core.learn.Classification.training_data"] = td_module
 spec.loader.exec_module(td_module)
 
 # Now import the training pipeline
-from core.learn.Classification.train_classifier import predict, train_model
+from jarvis.core.learn.Classification.train_classifier import predict, train_model
 
 print("=" * 60)
 print("JARVIS Query Type Classifier - Training from Scratch")

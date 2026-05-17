@@ -4,7 +4,7 @@ Register this hook at BEFORE_SYSTEM_PROMPT to inject additional instructions
 or project-specific context into every LLM interaction.
 """
 
-from core.events.hooks import HookContext, HookResult
+from jarvis.core.events.hooks import HookContext, HookResult
 
 
 async def inject_project_rules(ctx: HookContext) -> HookResult:

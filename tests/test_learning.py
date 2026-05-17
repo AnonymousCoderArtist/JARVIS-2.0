@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from core.evals import (
+from jarvis.core.evals import (
     EvalConfig,
     EvalMetrics,
     QueryRouter,
@@ -13,8 +13,8 @@ from core.evals import (
     RewardFunction,
 )
 
-from core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
-from core.learn import (
+from jarvis.core.connectors import ConnectorConfig, ConnectorManager, FilesystemConnector
+from jarvis.core.learn import (
     LearningConfig,
     LearningManager,
     TraceAnalyzer,

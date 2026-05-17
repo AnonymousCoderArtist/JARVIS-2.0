@@ -13,7 +13,6 @@ JARVIS is a terminal-native AI engineering assistant with four UI modes (CLI, TU
 | `jarvis/` | CLI entry point (`cli.py`) — parses args, dispatches to TUI/CLI/WebUI/RPC |
 | `core/agents/` | Agent system: `BaseAgent`, `JarvisV2`, `AgentManager`, `AsyncAgentManager`, fork subagent, heartbeat scheduler, task scheduler, system prompts, builtin agent profiles |
 | `core/tools/` | Tool system: `BaseTool`, `ToolRegistry`/`AsyncToolRegistry`, `PermissionManager`/`PermissionContext`, 20+ tool implementations, MCP adapter |
-| `core/tools/operations/` | **Pluggable operation backends** — `OperationsRegistry`, `FileOperations`/`BashOperations`/`EditOperations` Protocols, default local implementations via `aiofiles`/`asyncio`. Extensions can swap backends (SSH, sandbox, Docker) without modifying tools. |
 | `core/events/` | **Event-driven architecture** — `EventBus` (pub/sub), `HookRegistry` (16 lifecycle stages), 24 event types (`AgentStarted`, `TurnStarted`, `ToolCallStarted`, `MessageDelta`, etc.). Foundation for the extension system. |
 | `core/extensions/` | **Extension/plugin system** — `ExtensionAPI` (register tools/hooks/commands/shortcuts), `ExtensionLoader` (dynamic import from `.jarvis/extensions/` and pip entry points), `ExtensionRunner` (bind/unbind lifecycle), `ExtensionRegistry` (conflict detection, metadata). |
 | `core/prompts/` | **Prompt template system** — markdown files with YAML frontmatter auto-register as slash commands (`/review`, `/testgen`, `/explain`). Supports `$1`, `$2`, `$@`, `${@:N}` argument substitution. |
@@ -38,7 +37,7 @@ JARVIS is a terminal-native AI engineering assistant with four UI modes (CLI, TU
 | `docs/` | Documentation: custom agents, custom tools, MCP, sandbox, watchers, WebUI theme, architecture |
 | `tests/` | Test suite |
 | `scripts/` | Utility scripts |
-| `examples/extensions/` | **Reference extension examples** (hello_world, audit_tool, safety_gate, event_logger, ssh_operations) |
+| `examples/extensions/` | **Reference extension examples** (hello_world, audit_tool, safety_gate, event_logger, ssh_tools, researcher_agent) |
 | `examples/prompts/` | **Prompt template examples** (review, testgen, explain) |
 
 ---
@@ -83,20 +82,20 @@ JARVIS is a terminal-native AI engineering assistant with four UI modes (CLI, TU
                                               │
                                     ┌─────────┴──────────┐
                                     ▼                    ▼
-                          ┌──────────────────┐  ┌──────────────────────┐
-                          │ OperationsRegistry│  │    EventBus +         │
-                          │ core/tools/ops/  │  │    HookRegistry        │
-                          │ File/Bash/Edit  │  │    core/events/        │
-                          │ Protocols (swap  │  │    24 event types     │
-                          │  at runtime)     │  │    16 lifecycle hooks │
-                          └──────────────────┘  └──────────┬───────────┘
-                                                           │
-                                                    ┌──────┴──────┐
-                                                    │  Extensions  │
-                                                    │  core/ext/   │
-                                                    │  .jarvis/    │
-                                                    │  pip install │
-                                                    └─────────────┘
+                          ┌──────────────────────┐
+                          │    EventBus +         │
+                          │    HookRegistry        │
+                          │    core/events/        │
+                          │    24 event types     │
+                          │    16 lifecycle hooks │
+                          └──────────┬───────────┘
+                                     │
+                              ┌──────┴──────┐
+                              │  Extensions  │
+                              │  core/ext/   │
+                              │  .jarvis/    │
+                              │  pip install │
+                              └─────────────┘
 ```
 
 ---
@@ -115,7 +114,7 @@ BaseAgent (ABC)          — core/agents/base.py
 `BaseAgent` provides:
 - **Agent loop** (`_process_with_tools`): calls LLM with full message history + tool definitions, executes any tool calls the model returns, appends results, and repeats until the model returns a plain-text response. Tool calls/results are persisted as **proper role-based messages** (assistant with `tool_calls`, tool with `tool_call_id`) — no more injecting into user messages.
 - **EventBus integration**: emits `TurnStarted`/`TurnEnded`, `MessageDelta`, `ThinkingDelta`, `AgentStarted`/`AgentEnded`/`AgentError`, `ProgressUpdated`, `StatusUpdated` events throughout the agent lifecycle. Extensions subscribe via `api.on(TurnStarted, handler)`.
-- **HookRegistry integration**: runs `BEFORE_TURN` / `AFTER_TURN` lifecycle hooks. Extensions can block tool calls via `api.register_hook(HookStage.BEFORE_TOOL_CALL, handler)`.
+- **HookRegistry integration**: runs `BEFORE_TURN` / `AFTER_TURN` lifecycle hooks. Extensions can block tool calls via `api.hook(HookStage.BEFORE_TOOL_CALL, handler)`.
 - **Full history pipeline**: `_build_messages()` loads ALL role-based messages from `self.memory` via `get_role_memory()`, not just the last 5 entries. Legacy format entries (pre-role dicts) are still supported as a summary context string.
 - **ConversationHistory integration**: tool calls and results are automatically saved to `self.history` (a `ConversationHistory` instance shared with the UI layer), ensuring complete conversation transcripts in JSONL format.
 - **Streaming**: when a `stream_callback` is set, the agent uses streaming LLM calls and emits text chunks in real time to the UI.
@@ -194,38 +193,9 @@ ToolRegistry                — core/tools/registry.py (dict-based, sync execute
   └── AsyncToolRegistry     — core/tools/async_registry.py (semaphore, concurrent, timeout, retry)
 ```
 
-- `ToolRegistry.register(tool)` — injects `tool_registry`, `llm_provider`, `model`, `operations_registry` refs into each tool.
+- `ToolRegistry.register(tool)` — injects `tool_registry`, `llm_provider`, and `model` refs into each tool.
 - `ToolRegistry.discover_and_register_plugins()` — auto-loads `.py` files from `~/.jarvis/tools/` and `.jarvis/tools/`.
 - `AsyncToolRegistry.execute_tools_concurrent()` — runs multiple tools in parallel with a configurable semaphore.
-- `ToolRegistry` now has an embedded `OperationsRegistry` — tools can access `self.file_ops`, `self.bash_ops`, `self.edit_ops` without knowing which backend is active.
-
-### Operations Backend
-
-The `OperationsRegistry` (`core/tools/operations/`) decouples tool implementations from the filesystem/OS:
-
-```
-Tool (ReadTool, BashTool, EditTool)
-  │
-  ▼
-tool.file_ops / tool.bash_ops / tool.edit_ops (BaseTool properties)
-  │
-  ▼
-OperationsRegistry
-  ├── FileOperations  (Protocol)     → LocalFileOperations (aiofiles) [default]
-  ├── BashOperations  (Protocol)     → LocalBashOperations  (asyncio)  [default]
-  └── EditOperations  (Protocol)     → LocalEditOperations            [default]
-                                         │
-                                   ┌─────┴─────┐
-                                   │           │
-                             Local (aiofiles)   SSH (extension)
-```
-
-Extensions can swap backends at runtime:
-```python
-# .jarvis/extensions/ssh_backend.py
-async def jarvis_extension(api):
-    api.operations_registry.set_bash_ops(SSHBashOps(), origin="ssh")
-```
 
 ### Tool Categories (20+ tools)
 
@@ -321,32 +291,31 @@ The extension system (`core/extensions/`) is the primary mechanism for customizi
 ```
 Extension (.jarvis/extensions/*.py or pip entry point)
   │
-  ├── async def jarvis_extension(api: ExtensionAPI) — factory function
+  ├── async def jarvis(api: ExtensionAPI) — factory function
   │       │
-  │       ├── api.register_tool(tool_instance)      — add/override tools
+  │       ├── api.tools(tool_instance)      — add/override tools
   │       ├── api.on(event_type, handler)            — subscribe to EventBus
-  │       ├── api.register_hook(stage, handler)       — lifecycle hooks
-  │       ├── api.register_command(name, handler)     — slash commands
-  │       └── api.register_shortcut(key, action_id)   — keyboard shortcuts
+  │       ├── api.hook(stage, handler)       — lifecycle hooks
+  │       ├── api.command(name, handler)     — slash commands
+  │       └── api.shortcut(key, action_id)   — keyboard shortcuts
   │
   └── ExtensionRunner.bind()  — flushes registrations into live session
         │
         ├── tool_registry.register(tool)              — ToolRegistry
         ├── event_bus.subscribe(type, handler)         — EventBus
-        ├── hook_registry.register(stage, handler)     — HookRegistry
-        └── api.operations_registry.set_*(...)         — OperationsRegistry
+        └── hook_registry.register(stage, handler)     — HookRegistry
 ```
 
 ### ExtensionAPI Surface
 
 | Method | Description | Example |
 |---|---|---|
-| `register_tool(tool)` | Register or override a tool | `api.register_tool(HelloTool())` |
+| `tools(tool)` | Register or override a tool | `api.tools(HelloTool())` |
+| `agents(definition)` | Register a custom agent | `api.agents(AgentDefinition(...))` |
 | `on(event_type, handler)` | Subscribe to EventBus events | `api.on(ToolCallStarted, log_it)` |
-| `register_hook(stage, handler)` | Lifecycle hook (block/modify) | `api.register_hook(BEFORE_TOOL_CALL, safety)` |
-| `register_command(name, handler)` | Slash command | `api.register_command("/hello", cmd)` |
-| `register_shortcut(key, action_id)` | Keyboard shortcut | `api.register_shortcut("ctrl+h", "app.hello")` |
-| `operations_registry` | Access to swap backends | `api.operations_registry.set_bash_ops(...)` |
+| `hook(stage, handler)` | Lifecycle hook (block/modify) | `api.hook(BEFORE_TOOL_CALL, safety)` |
+| `command(name, handler)` | Slash command | `api.command("/hello", cmd)` |
+| `shortcut(key, action_id)` | Keyboard shortcut | `api.shortcut("ctrl+h", "app.hello")` |
 | `event_bus` | Read-only EventBus access | `api.event_bus.subscribe(...)` |
 | `tool_registry` | Read-only ToolRegistry | `api.tool_registry.get("read")` |
 
@@ -384,7 +353,8 @@ When an extension registers a tool with the same name as a built-in tool, the `E
 | `audit_tool.py` | Hook-based tool call auditing |
 | `safety_gate.py` | Block destructive bash commands (`rm -rf`) |
 | `event_logger.py` | EventBus subscription pattern |
-| `ssh_operations.py` | Operations backend swap (SSH file/bash) |
+| `ssh_tools.py` | SSH-based bash tool override |
+| `researcher_agent.py` | Custom agent with tool classes |
 
 ---
 
@@ -832,7 +802,6 @@ When the context window approaches its limit (default 80% threshold), `compact()
 | **WebUI colors** | Full theme | `interface/webui/src/globals.css` → `:root` CSS variables |
 | **System prompt** | Agent instructions | `core/agents/prompts/` → `jarvis_v2.py`, `explore.py`, etc. |
 | **Extensions** | Add custom tools/hooks/commands | `.jarvis/extensions/*.py` — see `examples/extensions/` |
-| **Operation backends** | Swap file/bash/edit backends | Extensions calling `api.operations_registry.set_*(...)` |
 | **Custom tools** | New tool implementations | `.jarvis/extensions/` or `core/tools/` |
 | **Prompt templates** | Slash commands | `.jarvis/prompts/*.md` — see `examples/prompts/` |
 | **Context files** | Project-level agent instructions | `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md` in project tree |

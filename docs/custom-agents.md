@@ -1,10 +1,10 @@
 # Custom Agents
 
-JARVIS supports loading custom agents from `.jarvis/agents/`. This allows you to create specialized agents with custom system prompts, tool whitelists, and lifecycle controls — then invoke them via the `agents` tool or switch between them in the TUI.
+JARVIS supports loading custom agents as extensions. This allows you to create specialized agents with custom system prompts, tool whitelists, and lifecycle controls — then invoke them via the `agents` tool or switch between them in the TUI.
 
 ## How It Works
 
-Custom agents are Python files in `~/.jarvis/agents/` (global) or `.jarvis/agents/` (project-level). Each file defines an `AgentDefinition` that the system discovers at startup.
+Custom agents are Python files in `~/.jarvis/extensions/` (global) or `.jarvis/extensions/` (project-level). Each file exports a `jarvis(api)` factory function that registers agents via `api.agents()`.
 
 There are two kinds of agents, controlled by the `agent_type` field:
 
@@ -15,13 +15,29 @@ There are two kinds of agents, controlled by the `agent_type` field:
 
 ## Quick Start
 
-Create `.jarvis/agents/my-reviewer.py`:
+Create `.jarvis/extensions/my-reviewer.py`:
 
 ```python
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
 
-def get_system_prompt() -> str:
+
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="file contents")
+
+
+class GrepSearchTool(BaseTool):
+    name = "grep"
+    description = "Search file contents"
+    input_schema = {"type": "object", "properties": {"pattern": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
+
+
+def system_prompt() -> str:
     return """You are a code reviewer. Focus on:
 - Security vulnerabilities (OWASP Top 10)
 - Logic bugs and edge cases
@@ -29,15 +45,16 @@ def get_system_prompt() -> str:
 - Code style and conventions
 """
 
-MY_REVIEWER = AgentDefinition(
-    name="code-review",
-    agent_type=AgentType.AGENT,     # appears in profiles + agents tool
-    when_to_use="Review code for bugs, security issues, and style problems",
-    tools=["read", "grep", "find", "ls"],
-    model="inherit",
-    max_turns=50,
-    get_system_prompt=get_system_prompt,
-)
+async def jarvis(api: ExtensionAPI):
+    api.agents(AgentDefinition(
+        name="code-review",
+        agent_type=AgentType.AGENT,
+        description="Review code for bugs, security issues, and style problems",
+        tools=[FileReadTool, GrepSearchTool],
+        model="inherit",
+        max_turns=50,
+        system_prompt=system_prompt,
+    ))
 ```
 
 Restart JARVIS. The agent appears in:
@@ -49,162 +66,326 @@ Restart JARVIS. The agent appears in:
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `name` | Yes | — | Unique identifier (used to invoke via `agents` tool) |
-| `when_to_use` | Yes | — | Description shown to the LLM when deciding whether to delegate |
-| `agent_type` | No | `AgentType.AGENT` | `AGENT` (profile + tool) or `SUBAGENT` (tool only) |
-| `tools` | No | `None` | Tool access control — see below |
-| `model` | No | `"inherit"` | Model name or `"inherit"` to use parent's model |
-| `max_turns` | No | `100` | Maximum tool-calling turns before forced stop |
-| `get_system_prompt` | No | `None` | Callable returning a system prompt string |
-| `source` | No | `"built-in"` | Set automatically by the loader |
-| `base_dir` | No | `"built-in"` | Set automatically by the loader |
+| `description` | Yes | — | Description for the LLM to decide when to delegate |
+| `tools` | No | `None` | Tool whitelist: `None` = all, `["*"]` = all, `[FileReadTool, GrepSearchTool]` = restricted (accepts tool classes, instances, or string names) |
+| `disallowed_tools` | No | `None` | Tools to block (applied after `tools`) |
+| `model` | No | `"inherit"` | Model to use: `"inherit"` or specific model name |
+| `max_turns` | No | `100` | Max agentic loop iterations |
+| `agent_type` | No | `AGENT` | `AGENT` or `SUBAGENT` |
+| `system_prompt` | No | `None` | Callable returning the system prompt |
 
-## Tool Access Control (`tools` field)
+## Specifying Tools
 
-The `tools` field controls which tools the agent can see and call:
-
-| Value | Behavior |
-|-------|----------|
-| `None` (default) | **Inherit all tools** from the parent agent that spawned it. No filtering. |
-| `["*"]` | **Explicitly allow all tools**. Same effect as `None` but makes the intent clear. |
-| `["read", "grep", "find"]` | **Restrict to only these tools**. Everything else is blocked. The LLM won't even see other tools exist. |
-
-When `tools` is set to a specific list, a `_FilteredToolRegistry` wraps the real tool registry and returns `None` / error for any tool not in the list. This is enforced at two levels:
-
-1. **Tool listing** — `get_tools()` and `get_function_definitions()` only return allowed tools, so the LLM never sees blocked ones
-2. **Tool execution** — `execute_tool()` returns an error for disallowed tools
+The `tools` field accepts tool classes, tool instances, or string names:
 
 ```python
-# Read-only researcher — can't touch files or run commands
+from jarvis.api import BaseTool, ToolInput, ToolOutput
+
+# Define custom tool classes
+class MyReadTool(BaseTool):
+    name = "my_read"
+    description = "Custom read tool"
+    input_schema = {"type": "object", "properties": {}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+class MyGrepTool(BaseTool):
+    name = "my_grep"
+    description = "Custom grep tool"
+    input_schema = {"type": "object", "properties": {}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
+
+# Using tool classes (recommended)
+tools=[MyReadTool, MyGrepTool]
+
+# Using tool instances
+tools=[MyReadTool(), MyGrepTool()]
+
+# All tools (no filtering)
+tools=["*"]
+```
+
+Under the hood, `resolve_tool_ref()` extracts the `name` attribute from classes/instances, so `FileReadTool` resolves to `"read"`, `GrepSearchTool` resolves to `"grep"`, etc.
+
+## Creating Custom Tools
+
+You can create your own tools and use them in agents. Here's a complete example:
+
+```python
+# .jarvis/extensions/weather_agent.py
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
+
+
+class WeatherTool(BaseTool):
+    """Get current weather for a city."""
+    name = "get_weather"
+    description = "Get current weather information for a specified city"
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "city": {
+                "type": "string",
+                "description": "City name (e.g., 'London', 'New York')",
+            },
+        },
+        "required": ["city"],
+    }
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        city = input_data.model_dump().get("city", "Unknown")
+        # In a real tool, you'd call a weather API here
+        return ToolOutput(
+            success=True,
+            result=f"Weather in {city}: 22°C, Sunny",
+        )
+
+
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+
+async def jarvis(api: ExtensionAPI):
+    # Register the custom tool so it's available in the system
+    api.tools(WeatherTool())
+
+    # Create an agent that uses the custom tool alongside built-in tools
+    api.agents(AgentDefinition(
+        name="weather-assistant",
+        agent_type=AgentType.SUBAGENT,
+        description="Answer questions about weather and read weather-related files",
+        tools=[WeatherTool, FileReadTool],
+        model="inherit",
+        max_turns=10,
+        system_prompt=lambda: "You are a weather assistant. Use the get_weather tool to check conditions.",
+    ))
+```
+
+## Extension API
+
+The `api` object passed to `jarvis(api)` provides these methods:
+
+### `api.agents(definition)`
+
+Register a custom agent definition. The definition should be an `AgentDefinition` instance.
+
+```python
+from jarvis.api import AgentDefinition, ExtensionAPI
+
+async def jarvis(api: ExtensionAPI):
+    api.agents(AgentDefinition(
+        name="my-agent",
+        description="...",
+        tools=["read", "grep"],
+        system_prompt=lambda: "You are...",
+    ))
+```
+
+### Mixing Agents with Other Extensions
+
+An extension can register agents alongside tools, hooks, and events:
+
+```python
+from jarvis.api import AgentDefinition, ExtensionAPI, HookStage, BaseTool, ToolInput, ToolOutput
+
+# Define a custom tool class
+class MyCustomTool(BaseTool):
+    name = "my_tool"
+    description = "A custom tool"
+    input_schema = {"type": "object", "properties": {}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="done")
+
+async def jarvis(api: ExtensionAPI):
+    # Register a custom tool
+    api.tools(MyCustomTool())
+
+    # Register an agent that uses the custom tool (by class)
+    api.agents(AgentDefinition(
+        name="my-agent",
+        description="...",
+        tools=[MyCustomTool],
+        system_prompt=lambda: "...",
+    ))
+
+    # Register a hook
+    api.hook(HookStage.BEFORE_TOOL_CALL, my_safety_hook)
+```
+
+## Examples
+
+### Read-Only Reviewer (SUBAGENT)
+
+```python
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
+
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+class GrepSearchTool(BaseTool):
+    name = "grep"
+    description = "Search file contents"
+    input_schema = {"type": "object", "properties": {"pattern": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
+
+class FindTool(BaseTool):
+    name = "find"
+    description = "Find files"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="files")
+
+class LSTool(BaseTool):
+    name = "ls"
+    description = "List directory"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="listing")
+
+async def jarvis(api: ExtensionAPI):
+    api.agents(AgentDefinition(
+        name="reviewer",
+        agent_type=AgentType.SUBAGENT,
+        description="Review code for bugs and security issues",
+        tools=[FileReadTool, GrepSearchTool, FindTool, LSTool],
+        model="inherit",
+        max_turns=50,
+        system_prompt=lambda: "You are a code reviewer. Be thorough and specific.",
+    ))
+```
+
+### Full-Access Implementer (AGENT)
+
+```python
+from jarvis.api import AgentDefinition, AgentType, ExtensionAPI
+
+async def jarvis(api: ExtensionAPI):
+    api.agents(AgentDefinition(
+        name="implementer",
+        agent_type=AgentType.AGENT,
+        description="Implement features and fix bugs",
+        tools=["*"],
+        model="inherit",
+        max_turns=100,
+        system_prompt=lambda: "You are a senior engineer. Write clean, tested code.",
+    ))
+```
+
+### Custom Model
+
+```python
+from jarvis.api import AgentDefinition, AgentType, BaseTool, ExtensionAPI, ToolInput, ToolOutput
+
+class FileReadTool(BaseTool):
+    name = "read"
+    description = "Read file contents"
+    input_schema = {"type": "object", "properties": {"path": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="content")
+
+class GrepSearchTool(BaseTool):
+    name = "grep"
+    description = "Search file contents"
+    input_schema = {"type": "object", "properties": {"pattern": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="matches")
+
+class ExaWebSearchTool(BaseTool):
+    name = "web_search"
+    description = "Search the web"
+    input_schema = {"type": "object", "properties": {"query": {"type": "string"}}}
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        return ToolOutput(success=True, result="results")
+
+async def jarvis(api: ExtensionAPI):
+    api.agents(AgentDefinition(
+        name="fast-helper",
+        agent_type=AgentType.SUBAGENT,
+        description="Quick questions and simple tasks",
+        tools=[FileReadTool, GrepSearchTool, ExaWebSearchTool],
+        model="gpt-4o-mini",
+        max_turns=20,
+        system_prompt=lambda: "You are a helpful assistant. Be concise.",
+    ))
+```
+
+## Advanced
+
+### Custom Working Directory
+
+Agents run in the current working directory by default. To change this, override the agent's execution context by setting `base_dir` in the definition:
+
+```python
 AgentDefinition(
-    name="read-only-researcher",
-    tools=["read", "grep", "find", "ls", "web_search", "fetch_webpage"],
+    name="docs-agent",
+    base_dir="docs/",  # Agent sees docs/ as its working directory
     ...
 )
 ```
 
+### Discovery Order
+
+1. Built-in agents (explore, plan, general-purpose, fork, verification, rubber-duck)
+2. Project extensions (`.jarvis/extensions/*.py`)
+3. User extensions (`~/.jarvis/extensions/*.py`)
+
+If two agents have the same name, the first one discovered wins.
+
+### Disabling Agents
+
+Use `enabled_agents` or `disabled_agents` in your JARVIS settings:
+
+```json
+{
+    "enabled_agents": ["default", "plan", "explore", "my-agent"]
+}
+```
+
+Or disable specific agents:
+
+```json
+{
+    "disabled_agents": ["superagent"]
+}
+```
+
+## Legacy `.jarvis/agents/` Support
+
+The old `.jarvis/agents/` directory with `AGENT_DEFINITION` attribute is still supported but deprecated. Please migrate to `.jarvis/extensions/` using the `api.agents()` pattern.
+
+**Old pattern:**
 ```python
-# Full implementation agent — everything allowed
-AgentDefinition(
-    name="implementer",
-    tools=["*"],
-    ...
-)
+# .jarvis/agents/my_agent.py
+MY_AGENT = AgentDefinition(name="my-agent", ...)
 ```
 
-## Agent vs Subagent
-
-### AGENT (default)
-Appears in the TUI profile selector (Shift+Tab to cycle). The user can switch to it manually. Also available via the `agents` tool for LLM-driven delegation.
-
+**New pattern:**
 ```python
-from core.agents.profiles import AgentType
-
-AgentDefinition(
-    name="my-agent",
-    agent_type=AgentType.AGENT, # appears in profiles + agents tool
-    ...
-)
+# .jarvis/extensions/my_agent.py
+async def jarvis(api):
+    api.agents(AgentDefinition(name="my-agent", ...))
 ```
 
-### SUBAGENT
-Hidden from the profile selector. Only invocable via the `agents` tool. Best for specialized workers the LLM calls internally — the user doesn't need to know they exist.
+## Troubleshooting
 
-```python
-AgentDefinition(
-    name="data-analyzer",
-    agent_type=AgentType.SUBAGENT,  # profiles hidden, agents tool only
-    ...
-)
-```
+### Agent not appearing
 
-## The `get_system_prompt` Function
+1. Check the file is in `.jarvis/extensions/` (not `.jarvis/agents/`)
+2. Ensure the factory function is named `jarvis` (or `__jarvis__` or `default`)
+3. Check for syntax errors — JARVIS logs load failures to the console
+4. Verify the `name` doesn't conflict with an existing agent
 
-For dynamic prompts that depend on runtime context:
+### Agent not invoked by LLM
 
-```python
-import os
-from datetime import datetime
-
-def get_system_prompt() -> str:
-    return f"""You are a project auditor.
-
-Current project: {os.path.basename(os.getcwd())}
-Date: {datetime.now().strftime("%Y-%m-%d")}
-
-Audit the codebase for:
-1. Outdated dependencies
-2. Deprecated API usage
-3. Missing type annotations
-4. Test coverage gaps
-"""
-```
-
-## Example: Research Agent (Subagent)
-
-```python
-# .jarvis/agents/researcher.py
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
-
-RESEARCH_AGENT = AgentDefinition(
-    name="researcher",
-    agent_type=AgentType.SUBAGENT,
-    when_to_use="Deep research on technical topics, papers, and documentation",
-    tools=["web_search", "fetch_webpage", "read", "grep"],
-    model="inherit",
-    max_turns=30,
-)
-```
-
-## Example: Full-Stack Implementation Agent
-
-```python
-# .jarvis/agents/implementer.py
-from core.agents.agent_definition import AgentDefinition
-from core.agents.profiles import AgentType
-
-IMPLEMENTER = AgentDefinition(
-    name="implementer",
-    agent_type=AgentType.AGENT,
-    when_to_use="Implement features end-to-end: write code, run tests, fix issues",
-    tools=["read", "write", "edit", "grep", "find", "ls", "bash", "run_tests"],
-    model="inherit",
-    max_turns=100,
-)
-```
-
-## Loading Order & Discovery
-
-1. **Global**: `~/.jarvis/agents/*.py` (lower priority)
-2. **Project**: `.jarvis/agents/*.py` (higher priority, overrides globals with same `name`)
-
-The `name` field must be unique. If two agents have the same `name`, the project-level one wins.
-
-## Integration with the `agents` Tool
-
-When the LLM uses the `agents` tool, it sees:
-
-```
-Available agents:
-- explorer: Explore codebase structure and find files
-- plan: Break down tasks into implementation steps
-- researcher: Deep research on technical topics
-```
-
-The description comes from `when_to_use`. Make it LLM-friendly — describe what the agent does and when to delegate to it.
-
-## Tips
-
-- Use `agent_type=AgentType.SUBAGENT` for utility agents the user doesn't need to see in profiles
-- Keep `max_turns` proportional to task complexity (30 for focused tasks, 100 for complex builds)
-- Use a restrictive `tools` list to keep agents safe — read-only agents should only have `["read", "grep", "find", "ls"]`
-- `tools=None` (default) inherits all parent tools. If you want to explicitly allow everything, set `tools=["*"]`
-- Write `when_to_use` descriptions that help the LLM decide when to delegate
-- The `get_system_prompt` callable is re-invoked each time the agent starts — great for injecting dynamic context like dates or project names
-- For agents that only need a static prompt, omit `get_system_prompt` and rely on the base prompt
-
-## See Also
-
-- [Custom Tools](custom-tools.md) — register new tools that agents can use
-- [Agent Profiles](../core/agents/profiles.py) — the AgentType enum and safety system
-- [Agent Definition](../core/agents/agent_definition.py) — the dataclass backing custom agents
+1. Improve `description` — be specific about what triggers delegation
+2. Check `enabled_agents`/`disabled_agents` settings
+3. Ensure the agent's `tools` list includes tools needed for the task

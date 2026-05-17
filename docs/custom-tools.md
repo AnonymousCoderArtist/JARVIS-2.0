@@ -12,18 +12,16 @@ The recommended way to add custom tools is via the **extension system** — Pyth
 2. [Tool Architecture](#tool-architecture)
 3. [BaseTool Contract](#basetool-contract)
 4. [Tool Registry](#tool-registry)
-5. [Operations Backend](#operations-backend)
-6. [Permission System](#permission-system)
-7. [Event Integration](#event-integration)
-8. [Hook Integration](#hook-integration)
-9. [Tool Template](#tool-template)
-10. [Required Fields](#required-fields)
-11. [Return Format](#return-format)
-12. [Overriding Built-in Tools](#overriding-built-in-tools)
-13. [Using Operation Backends](#using-operation-backends-in-custom-tools)
-14. [Advanced Patterns](#advanced-patterns)
-15. [Tips](#tips)
-16. [See Also](#see-also)
+5. [Permission System](#permission-system)
+6. [Event Integration](#event-integration)
+7. [Hook Integration](#hook-integration)
+8. [Tool Template](#tool-template)
+9. [Required Fields](#required-fields)
+10. [Return Format](#return-format)
+11. [Overriding Built-in Tools](#overriding-built-in-tools)
+12. [Advanced Patterns](#advanced-patterns)
+13. [Tips](#tips)
+14. [See Also](#see-also)
 
 ---
 
@@ -37,10 +35,10 @@ Save as `.jarvis/extensions/calc_tool.py`:
 
 ```python
 """Calculator tool extension."""
-from core.tools.base import BaseTool, ToolInput, ToolOutput
+from jarvis.api import BaseTool, ExtensionAPI, ToolInput, ToolOutput
 
 
-async def jarvis_extension(api):
+async def jarvis(api: ExtensionAPI):
     """Register a calculator tool via the extension API."""
 
     class CalcTool(BaseTool):
@@ -65,7 +63,7 @@ async def jarvis_extension(api):
             except Exception as e:
                 return ToolOutput(success=False, result=None, error=str(e))
 
-    api.register_tool(CalcTool())
+    api.tools(CalcTool())
 ```
 
 ---
@@ -77,7 +75,7 @@ The tool system is organized into four layers:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Extension Layer                               │
-│  .jarvis/extensions/*.py  →  api.register_tool(MyTool())        │
+│  .jarvis/extensions/*.py  →  api.tools(MyTool())        │
 │  ~.jarvis/extensions/*.py  →  auto-discovered on startup        │
 └──────────────┬──────────────────────────────────────────────────┘
                │
@@ -88,7 +86,6 @@ The tool system is organized into four layers:
 │  - register(tool)                                                │
 │  - execute_tool(name, args) → ToolOutput                        │
 │  - get_function_definitions() → LLM tool format                 │
-│  - embedded OperationsRegistry                                   │
 └──────────────┬──────────────────────────────────────────────────┘
                │
                ▼
@@ -97,17 +94,7 @@ The tool system is organized into four layers:
 │  BaseTool (ABC) → 20+ built-in tools + custom tools             │
 │  - name, description, input_schema, execute()                   │
 │  - safe_execute() with error handling                           │
-│  - injected: tool_registry, llm_provider, model, ops_registry   │
-└──────────────┬──────────────────────────────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Operations Backend                            │
-│  OperationsRegistry → FileOps / BashOps / EditOps (Protocols)   │
-│  - LocalFileOperations (aiofiles) [default]                     │
-│  - LocalBashOperations (asyncio) [default]                      │
-│  - LocalEditOperations [default]                                │
-│  - Swappable at runtime by extensions (SSH, sandbox, Docker)    │
+│  - injected: tool_registry, llm_provider, model                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -115,15 +102,12 @@ The tool system is organized into four layers:
 
 | File | Purpose |
 |---|---|
-| `core/tools/base.py` | `BaseTool` ABC, `ToolInput`, `ToolOutput` |
-| `core/tools/registry.py` | `ToolRegistry` — dict-based registration, sync execution, event emission |
-| `core/tools/async_registry.py` | `AsyncToolRegistry` — semaphore-controlled concurrent execution with timeout/retry |
-| `core/tools/permissions.py` | Permission enums, `PermissionContext`, path resolution, wildcard matching |
-| `core/tools/permission_manager.py` | `PermissionManager` — session rules, config-based checks, path-aware resolution |
-| `core/tools/operations/registry.py` | `OperationsRegistry` — holds active File/Bash/Edit backend implementations |
-| `core/tools/operations/base.py` | `FileOperations`, `BashOperations`, `EditOperations` Protocols |
-| `core/tools/operations/local.py` | Default local implementations using `aiofiles`/`asyncio` |
-| `core/tools/__init__.py` | Lazy import surface — avoids circular imports and eager loading |
+| `jarvis/core/tools/base.py` | `BaseTool` ABC, `ToolInput`, `ToolOutput`, `resolve_tool_ref` |
+| `jarvis/core/tools/registry.py` | `ToolRegistry` — dict-based registration, sync execution, event emission |
+| `jarvis/core/tools/async_registry.py` | `AsyncToolRegistry` — semaphore-controlled concurrent execution with timeout/retry |
+| `jarvis/core/tools/permissions.py` | Permission enums, `PermissionContext`, path resolution, wildcard matching |
+| `jarvis/core/tools/permission_manager.py` | `PermissionManager` — session rules, config-based checks, path-aware resolution |
+| `jarvis/core/tools/__init__.py` | Lazy import surface — avoids circular imports and eager loading |
 
 ### Tool Categories (20+ built-in tools)
 
@@ -176,24 +160,6 @@ async def execute(self, input_data: ToolInput) -> ToolOutput:
     """Execute the tool with the given input."""
 ```
 
-### Convenience Properties
-
-`BaseTool` provides property accessors for the operations backends:
-
-```python
-@property
-def file_ops(self) -> FileOperations:
-    """Access the active file operations backend."""
-
-@property
-def bash_ops(self) -> BashOperations:
-    """Access the active bash operations backend."""
-
-@property
-def edit_ops(self) -> EditOperations:
-    """Access the active edit operations backend."""
-```
-
 ### Safe Execution
 
 `BaseTool.safe_execute(input_data)` wraps `execute()` with error handling:
@@ -213,7 +179,7 @@ async def safe_execute(self, input_data: dict) -> ToolOutput:
 
 ### ToolRegistry (Sync)
 
-`ToolRegistry` (`core/tools/registry.py`) is the primary tool management class:
+`ToolRegistry` (`jarvis/core/tools/registry.py`) is the primary tool management class:
 
 ```python
 registry = ToolRegistry(llm_provider=provider, model="gpt-4o")
@@ -233,7 +199,7 @@ await registry.execute_tool("read", {"filePath": "main.py"})  # ToolOutput
 
 ### AsyncToolRegistry (Concurrent)
 
-`AsyncToolRegistry` (`core/tools/async_registry.py`) extends `ToolRegistry` with:
+`AsyncToolRegistry` (`jarvis/core/tools/async_registry.py`) extends `ToolRegistry` with:
 
 ```python
 async_registry = AsyncToolRegistry(max_concurrent_tools=10)
@@ -251,62 +217,6 @@ results = await async_registry.execute_tools_concurrent([
 - **Semaphore control**: limits concurrent tool execution to `max_concurrent_tools`.
 - **Timeout support**: per-tool timeout via `execute_tool_async()`.
 - **Exception handling**: converts exceptions to error `ToolOutput` in `execute_tools_concurrent()`.
-
----
-
-## Operations Backend
-
-The `OperationsRegistry` (`core/tools/operations/`) decouples tool implementations from the filesystem/OS:
-
-### Protocol Interfaces
-
-```python
-@runtime_checkable
-class FileOperations(Protocol):
-    async def read_file(self, path, offset=1, limit=None) -> str: ...
-    async def write_file(self, path, content) -> None: ...
-    async def file_exists(self, path) -> bool: ...
-    async def list_dir(self, path) -> list[dict]: ...
-    async def delete_file(self, path) -> None: ...
-
-@runtime_checkable
-class BashOperations(Protocol):
-    async def run(self, command, timeout=None, cwd=None, env=None) -> dict: ...
-    async def spawn(self, command, cwd=None, env=None) -> dict: ...
-    async def terminate(self, pid) -> None: ...
-
-@runtime_checkable
-class EditOperations(Protocol):
-    async def apply_edit(self, path, old_string, new_string) -> dict: ...
-```
-
-### Default Implementations
-
-| Backend | Protocol | Default Implementation | Technology |
-|---|---|---|---|
-| File | `FileOperations` | `LocalFileOperations` | `aiofiles` + `pathlib` |
-| Bash | `BashOperations` | `LocalBashOperations` | `asyncio.create_subprocess_shell` |
-| Edit | `EditOperations` | `LocalEditOperations` | String search-and-replace |
-
-### Swapping Backends
-
-Extensions can swap backends at runtime:
-
-```python
-# .jarvis/extensions/ssh_backend.py
-async def jarvis_extension(api):
-    api.operations_registry.set_bash_ops(SSHBashOps(), origin="ssh")
-    api.operations_registry.set_file_ops(SSHFileOps(), origin="ssh")
-```
-
-The registry tracks which extension last changed each backend (for auditing):
-
-```python
-info = registry.get_backend_info()
-# {"file_ops": {"class": "LocalFileOperations", "origin": "builtin"},
-#  "bash_ops": {"class": "SSHBashOps", "origin": "ssh"},
-#  "edit_ops": {"class": "LocalEditOperations", "origin": "builtin"}}
-```
 
 ---
 
@@ -333,7 +243,7 @@ Each tool can have `always`/`never`/`ask` in settings JSON:
 
 ### 3. Granular Path/Command Permissions
 
-`PermissionManager` (`core/tools/permission_manager.py`) checks:
+`PermissionManager` (`jarvis/core/tools/permission_manager.py`) checks:
 
 | Check | Description |
 |---|---|
@@ -399,14 +309,14 @@ execute_tool(name, args)
 Extensions can subscribe to these events:
 
 ```python
-async def jarvis_extension(api):
+async def jarvis(api):
     async def log_tool_call(event):
         print(f"[TOOL] {event.tool_name} called with {event.args}")
 
     api.on(ToolCallStarted, log_tool_call)
 ```
 
-See [Event System](ARCHITECTURE.md#6-event-system) for the full event type catalog.
+See [Event System](HOOKS.md) for the full event type catalog.
 
 ---
 
@@ -415,10 +325,10 @@ See [Event System](ARCHITECTURE.md#6-event-system) for the full event type catal
 Hooks are higher-level lifecycle interceptors that can **block**, **modify**, or **inject** content at specific stages. Custom tools can register hooks via the extension API:
 
 ```python
-from core.events.hooks import HookContext, HookResult, HookStage
+from jarvis.api import HookContext, HookResult, HookStage
 
-async def jarvis_extension(api):
-    @api.register_hook(HookStage.BEFORE_TOOL_CALL)
+async def jarvis(api):
+    @api.hook(HookStage.BEFORE_TOOL_CALL)
     async def safety_gate(ctx: HookContext) -> HookResult:
         if ctx.tool_name == "bash" and "rm -rf" in ctx.tool_args.get("command", ""):
             return HookResult(block=True, reason="Destructive command blocked")
@@ -443,11 +353,10 @@ See [HookRegistry](ARCHITECTURE.md#hookregistry) for all 16 lifecycle stages.
 ```python
 """Description of what this tool does."""
 
-from core.events.hooks import HookResult, HookStage
-from core.tools.base import BaseTool, ToolInput, ToolOutput
+from jarvis.api import BaseTool, ExtensionAPI, HookResult, HookStage, ToolInput, ToolOutput
 
 
-async def jarvis_extension(api):
+async def jarvis(api: ExtensionAPI):
     """Register a custom tool using the extension API."""
 
     class MyTool(BaseTool):
@@ -474,7 +383,7 @@ async def jarvis_extension(api):
             except Exception as e:
                 return ToolOutput(success=False, result=None, error=str(e))
 
-    api.register_tool(MyTool())
+    api.tools(MyTool())
 ```
 
 ---
@@ -517,9 +426,10 @@ Extensions can override built-in tools by registering a tool with the same name.
 - Adding extra permission checks around `write`/`edit`
 
 ```python
-async def jarvis_extension(api):
+from jarvis.api import BaseTool, ExtensionAPI, ToolInput, ToolOutput
+
+async def jarvis(api: ExtensionAPI):
     """Override the 'read' tool with an audited version."""
-    from core.tools.base import BaseTool, ToolInput, ToolOutput
 
     class AuditedReadTool(BaseTool):
         name = "read"
@@ -534,7 +444,7 @@ async def jarvis_extension(api):
             content = await self.file_ops.read_file(file_path)
             return ToolOutput(success=True, result=content)
 
-    api.register_tool(AuditedReadTool())
+    api.tools(AuditedReadTool())
 ```
 
 When an extension registers a tool with the same name as a built-in tool, the `ExtensionRunner` logs a warning and tracks the conflict. The extension's tool replaces the built-in one in `ToolRegistry`.
@@ -628,22 +538,18 @@ class MyNotifyingTool(BaseTool):
 - Extensions are auto-discovered on startup — no registration needed
 - Use `/reload` in TUI to reload extensions without restarting
 - Project-level extensions (`.jarvis/extensions/`) override global ones (`~/.jarvis/extensions/`) with the same name
-- Use `self.file_ops`, `self.bash_ops`, `self.edit_ops` for backend-agnostic operations
 - Handle errors gracefully — the LLM will retry with corrected parameters if `success=False`
-- For long-running operations, consider using the background task system (`bash_ops.spawn()`)
 
 ---
 
 ## See Also
 
 - [Custom Agents](custom-agents.md) — Creating specialized agent profiles with tool restrictions
-- [Architecture: Tool System](ARCHITECTURE.md#5-tool-system) — Full tool architecture documentation
-- [Architecture: Extension System](ARCHITECTURE.md#7-extension-system) — Extension API and lifecycle
-- [Architecture: Event System](ARCHITECTURE.md#6-event-system) — EventBus and HookRegistry
-- [Architecture: Operations Backend](ARCHITECTURE.md#operations-backend) — Pluggable file/bash/edit backends
-- [Extension Examples](../examples/extensions/) — Hello world, safety gate, SSH tools, event logger
-- [BaseTool](../core/tools/base.py) — The base class for all tools
-- [ToolOutput](../core/tools/base.py) — The return type for tools
-- [ToolRegistry](../core/tools/registry.py) — Tool registration and execution
-- [Permissions](../core/tools/permissions.py) — Permission enums and resolution logic
-- [PermissionManager](../core/tools/permission_manager.py) — Session rules and config-based checks
+- [Extension System](EXTENSIONS.md) — Extension API and lifecycle
+- [Event & Hook System](HOOKS.md) — EventBus and HookRegistry
+- [Extension Example](../.jarvis/extensions/example_extension.py) — Template extension
+- [BaseTool](../jarvis/core/tools/base.py) — The base class for all tools
+- [ToolOutput](../jarvis/core/tools/base.py) — The return type for tools
+- [ToolRegistry](../jarvis/core/tools/registry.py) — Tool registration and execution
+- [Permissions](../jarvis/core/tools/permissions.py) — Permission enums and resolution logic
+- [PermissionManager](../jarvis/core/tools/permission_manager.py) — Session rules and config-based checks

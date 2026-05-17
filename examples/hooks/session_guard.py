@@ -6,7 +6,7 @@ Register this hook at BEFORE_SESSION_START to enforce session policies.
 import logging
 from pathlib import Path
 
-from core.events.hooks import HookContext, HookResult
+from jarvis.core.events.hooks import HookContext, HookResult
 
 logger = logging.getLogger(__name__)
 

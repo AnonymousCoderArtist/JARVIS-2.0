@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from core.watchers.base import BaseWatcher
+from jarvis.core.watchers.base import BaseWatcher
 
 
 class LogTailWatcher(BaseWatcher):
