@@ -30,14 +30,6 @@ class DisplayConfig:
     """Display configuration."""
     width: int = 80
     theme: str = "ml_intern"
-    refresh_rate: int = 4
-    show_timestamps: bool = False
-    show_line_numbers: bool = True
-    syntax_highlighting: bool = True
-    auto_scroll: bool = True
-    enable_boot_animation: bool = False  # CRT boot animation, disabled by default for fast startup
-    enable_typewriter: bool = False      # Typewriter effect, disabled by default for performance
-    typewriter_speed: float = 0.015      # Seconds between characters (15ms default)
 
 
 @dataclass
@@ -175,7 +167,6 @@ class ConfigManager:
         env_mappings = {
             "JARVIS_THEME": ("display", "theme"),
             "JARVIS_WIDTH": ("display", "width"),
-            "JARVIS_REFRESH_RATE": ("display", "refresh_rate"),
             "JARVIS_TIMEOUT": ("behavior", "timeout_seconds"),
             "JARVIS_MAX_RESPONSE": ("behavior", "max_response_length"),
             "JARVIS_KEY_MODE": ("keybindings", "mode"),
@@ -184,8 +175,7 @@ class ConfigManager:
         for env_var, (section, key) in env_mappings.items():
             value = os.getenv(env_var)
             if value is not None:
-                # Type conversion based on key
-                if key in ["width", "refresh_rate", "timeout_seconds", "max_response_length"]:
+                if key in ["width", "timeout_seconds", "max_response_length"]:
                     value = int(value)
                 elif key in ["auto_save_history", "confirm_on_exit", "show_tool_calls", "show_reasoning"]:
                     value = value.lower() in ("true", "1", "yes", "on")

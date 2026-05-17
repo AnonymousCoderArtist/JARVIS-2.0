@@ -1,4 +1,4 @@
-"""Modern command-line interface for JARVIS with rich display and modular architecture."""
+"""Command-line interface for JARVIS — raw ANSI output, prompt_toolkit input."""
 
 import asyncio
 import json
@@ -10,7 +10,6 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.output import DummyOutput
 from prompt_toolkit.styles import Style
 
 from core.agents.async_manager import AsyncAgentConfig, AsyncAgentManager
@@ -123,16 +122,7 @@ class CLIInterface:
         # Prompt toolkit setup
         history_path = Path.home() / ".jarvis_history"
 
-        # Handle terminal compatibility
-        output = None
-        try:
-            import os
-            if 'xterm' in os.environ.get('TERM', '') or 'WSL' in os.environ.get('OSTYPE', ''):
-                output = DummyOutput()
-        except Exception:
-            pass
-
-        self.session = PromptSession(history=FileHistory(str(history_path)), output=output)
+        self.session = PromptSession(history=FileHistory(str(history_path)))
         self.style = Style.from_dict({
             'prompt': f'bold {self.display_manager.theme["prompt"]}',
             'arrow': self.display_manager.theme["arrow"],
