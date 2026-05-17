@@ -66,13 +66,13 @@ JARVIS v2.1 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 git clone https://github.com/OEvortex/JARVIS.git
 cd JARVIS
 
-# Create and activate virtual environment
-python3 -m venv .venv
+# Create and activate virtual environment with uv
+uv venv
 source .venv/bin/activate     # Linux/macOS
 # .venv\Scripts\activate       # Windows
 
 # Install Python dependencies
-pip install -e .
+uv sync
 
 # Configure your API key
 cp .env.example .env
@@ -87,7 +87,6 @@ If you want the browser-based WebUI, do the extra step after installing Python d
 # Install WebUI frontend dependencies
 cd jarvis/interface/webui
 npm install
-# or: bun install
 cd ../../..
 ```
 
