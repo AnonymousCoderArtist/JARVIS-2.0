@@ -6,6 +6,10 @@ This document summarizes all the fixes, improvements, and UI updates made to the
 
 ---
 
+## Unreleased
+
+- Updated knowledge graph (graphify) for v2.1 codebase state
+
 ## v2.1.0 — Extension System, Event/Hook Architecture, Persistent Memory & RPC Mode
 
 ### Extension System (New)
