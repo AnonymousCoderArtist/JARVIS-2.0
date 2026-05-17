@@ -51,7 +51,6 @@ class CommandRegistry:
         self.register(Command("clear-history", "Clear current session history", self._cmd_clear_history))
         self.register(Command("sessions", "List available sessions", self._cmd_sessions))
         self.register(Command("copy", "Copy the last assistant answer to clipboard", self._cmd_copy))
-        self.register(Command("themes", "List and change UI themes", self._cmd_themes))
         self.register(Command("exit", "Exit JARVIS", self._cmd_exit))
         self.register(Command("quit", "Exit JARVIS", self._cmd_exit))
 
@@ -62,7 +61,6 @@ class CommandRegistry:
         self.add_alias("cls", "clear-screen")
         self.add_alias("st", "status")
         self.add_alias("rw", "rewind")
-        self.add_alias("th", "themes")
 
     def register(self, command: Command):
         """Register a new command."""
