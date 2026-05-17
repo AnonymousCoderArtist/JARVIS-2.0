@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
-from core.tools.base import BaseTool, ToolOutput
+from core.tools.base import BaseTool, ToolOutput, resolve_tool_ref
 
 
 class _FilteredToolRegistry:
     """Read-only filtered view over a tool registry.
-    
+
     This class provides a restricted view of the tool registry,
     allowing only specified tools to be accessed while blocking others.
-    
+
     Attributes:
         _source_registry: The underlying tool registry
         _allowed_tools: Set of tool names that are allowed
@@ -25,22 +26,22 @@ class _FilteredToolRegistry:
     def __init__(
         self,
         source_registry,
-        allowed_tools: Iterable[str],
+        allowed_tools: Iterable[str | Any],
         llm_provider=None,
         model=None,
         config_getter=None,
     ):
         """Initialize the filtered registry.
-        
+
         Args:
             source_registry: The underlying tool registry
-            allowed_tools: Iterable of tool names to allow
+            allowed_tools: Iterable of tool names (str), tool classes, or tool instances to allow
             llm_provider: LLM provider to use
             model: Model name to use
             config_getter: Configuration getter function
         """
         self._source_registry = source_registry
-        self._allowed_tools = set(allowed_tools)
+        self._allowed_tools = {resolve_tool_ref(t) for t in allowed_tools}
         self.llm_provider = llm_provider
         self.model = model
         self.config_getter = config_getter

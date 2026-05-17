@@ -132,7 +132,6 @@ class ExtensionRunner:
                     event_bus,
                     hook_registry,
                     session,
-                    operations_registry=getattr(tool_registry, "operations_registry", None),
                     agent_callback=_agent_registration_callback,
                 )
 

@@ -46,7 +46,6 @@ class ExtensionAPI:
         self._event_bus = None
         self._hook_registry = None
         self._session = None
-        self._operations_registry = None
 
         # Accumulated registrations (cleared on bind)
         self._tool_registrations: list[dict] = []
@@ -135,15 +134,6 @@ class ExtensionAPI:
         return self._session
 
     @property
-    def operations_registry(self) -> Any:
-        """The session's OperationsRegistry (read-only).
-
-        Extensions can call ``api.operations_registry.set_bash_ops(...)``
-        to swap the active backend.
-        """
-        return self._operations_registry
-
-    @property
     def name(self) -> str:
         return self._name
 
@@ -155,7 +145,7 @@ class ExtensionAPI:
     # Internal — called by ExtensionRunner
     # ------------------------------------------------------------------
 
-    async def _bind(self, tool_registry, event_bus, hook_registry, session, operations_registry=None, agent_callback=None) -> list[dict]:
+    async def _bind(self, tool_registry, event_bus, hook_registry, session, agent_callback=None) -> list[dict]:
         """Wire this API instance to the live session.
 
         Called once by ``ExtensionRunner.bind()``. Flushes all queued
@@ -167,7 +157,6 @@ class ExtensionAPI:
         self._event_bus = event_bus
         self._hook_registry = hook_registry
         self._session = session
-        self._operations_registry = operations_registry
 
         conflicts: list[dict] = []
 

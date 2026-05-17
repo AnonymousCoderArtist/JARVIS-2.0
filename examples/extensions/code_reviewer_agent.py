@@ -1,10 +1,14 @@
 """Code reviewer agent — read-only review focused on security, bugs, and style.
 
 Converted from examples/agents/code_reviewer.py to the extension API pattern.
+
+Demonstrates using imported tool classes in the tools list.
 """
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
 
 
 def get_system_prompt() -> str:
@@ -31,7 +35,7 @@ async def jarvis(api):
         name="code-review",
         agent_type=AgentType.SUBAGENT,
         description="Review code for security vulnerabilities, logic bugs, performance issues, and style problems. Use when the user asks to review, audit, or critique code.",
-        tools=["read", "grep", "find", "ls", "glob"],
+        tools=[FileReadTool, GrepSearchTool, FindTool, LSTool],
         model="inherit",
         max_turns=50,
         system_prompt=get_system_prompt,

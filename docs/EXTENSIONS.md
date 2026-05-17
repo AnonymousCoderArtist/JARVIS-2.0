@@ -8,7 +8,7 @@ The system is built around four core components:
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| **ExtensionAPI** | `api.py` | Public surface exposed to every extension — register tools, hooks, commands, shortcuts, and event subscriptions |
+| **ExtensionAPI** | `api.py` | Public surface exposed to every extension — register tools, hooks, commands, shortcuts, events, and agents |
 | **ExtensionLoader** | `loader.py` | Dynamic discovery and loading of extension modules from filesystem paths and pip entry points |
 | **ExtensionRunner** | `runner.py` | Orchestrates the full lifecycle — discover → load → bind → run → unbind |
 | **ExtensionRegistry** | `registry.py` | Tracks all loaded extensions, provides introspection and conflict detection |
@@ -173,7 +173,8 @@ Every extension receives an `ExtensionAPI` instance with these methods:
 
 | Method | Description |
 |--------|-------------|
-| `register_tool(tool)` | Register a `BaseTool` instance. If a tool with the same name exists, it is **overridden** (built-in tools can be replaced). |
+| `tools(tool)` | Register a `BaseTool` instance. If a tool with the same name exists, it is **overridden** (built-in tools can be replaced). |
+| `agents(definition)` | Register a custom agent definition (`AgentDefinition` instance). |
 | `command(name, handler, description)` | Register a slash command (e.g., `"/my-command"`). Handler returns `str` or `None`. |
 | `on(event_type, handler)` | Subscribe to an `EventBus` event. Handler receives the event instance. |
 | `hook(stage, handler)` | Register a lifecycle hook at a `HookStage`. Handler receives `HookContext`, returns `HookResult`. |
@@ -187,7 +188,6 @@ Every extension receives an `ExtensionAPI` instance with these methods:
 | `api.tool_registry` | The session's `ToolRegistry` (read-only) |
 | `api.hook_registry` | The session's `HookRegistry` (read-only) |
 | `api.session` | The current `AgentSession` (read-only) |
-| `api.operations_registry` | The session's `OperationsRegistry` — extensions can swap backends (SSH, sandbox, Docker) |
 | `api.name` | Extension name |
 | `api.version` | Extension version |
 
@@ -313,15 +313,6 @@ Extensions register hooks at lifecycle stages via `api.hook(stage, handler)`. Av
 - `BEFORE_MESSAGE_SEND`, `AFTER_MESSAGE_SEND`
 - And 12 more (see `core/events/hooks.py`)
 
-### With OperationsRegistry
-
-Extensions can swap operation backends at runtime:
-
-```python
-api.operations_registry.set_bash_ops(ssh_backend)
-api.operations_registry.set_file_ops(remote_backend)
-```
-
 ---
 
 ## 11. Example Extensions
@@ -334,8 +325,8 @@ Located in `examples/extensions/`:
 | `audit_tool.py` | Security audit tool that scans for common vulnerabilities |
 | `safety_gate.py` | Lifecycle hook that blocks dangerous tool calls |
 | `event_logger.py` | Subscribes to all events and logs them |
-| `ssh_operations.py` | Swaps file/bash operations to use SSH remote execution |
 | `ssh_tools.py` | SSH connection and command execution tools |
+| `researcher_agent.py` | Custom research agent using tool classes |
 
 ---
 

@@ -223,7 +223,7 @@ class BaseTool(ABC):
 
     def _get_param(self, input_data: ToolInput, *names: str) -> Any:
         """Extract a parameter from ToolInput using multiple possible names.
-        
+
         Handles both snake_case (Python convention) and camelCase (JSON convention)
         parameter naming.
 
@@ -239,3 +239,22 @@ class BaseTool(ABC):
             if value is not None:
                 return value
         return None
+
+
+def resolve_tool_ref(ref: str | type | BaseTool) -> str:
+    """Resolve a tool reference to its string name.
+
+    Accepts:
+        - str: tool name (returned as-is)
+        - type: tool class with ``name`` class attribute
+        - BaseTool instance: tool instance with ``name`` attribute
+
+    Raises:
+        ValueError: if the reference cannot be resolved to a tool name
+    """
+    if isinstance(ref, str):
+        return ref
+    name = getattr(ref, "name", None)
+    if name and isinstance(name, str):
+        return name
+    raise ValueError(f"Cannot resolve tool reference: {ref!r}")

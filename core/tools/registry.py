@@ -81,7 +81,7 @@ class ToolRegistry:
         """
         return self._tools.copy()
 
-    def get_filtered(self, allowed_tools: Iterable[str]) -> Any:
+    def get_filtered(self, allowed_tools: Iterable[str | Any]) -> Any:
         """Return a filtered view of this registry with only the specified tools.
 
         Args:

@@ -7,6 +7,10 @@ from typing import Any
 from core.agents.agent_definition import AgentDefinition
 from core.agents.base import BaseAgent
 from core.agents.profiles import AgentType
+from core.tools.code_tools import BashTool
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 
 
 def GetVerificationPrompt() -> str:
@@ -134,7 +138,7 @@ VERIFICATION_AGENT = AgentDefinition(
 - Attempting to break implementations through adversarial testing
 - Checking for edge cases and potential regressions
 - Providing detailed verification reports with actionable findings""",
-    tools=['bash', 'read', 'ls', 'find', 'grep', 'web_search', 'fetch_webpage'],
+    tools=[BashTool, FileReadTool, LSTool, FindTool, GrepSearchTool, ExaWebSearchTool, WebFetchTool],
     model='inherit',
     max_turns=10,
 )

@@ -8,6 +8,9 @@ from datetime import datetime
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 
 
 def GetStatuslineSetupPrompt() -> str:
@@ -169,7 +172,7 @@ STATUSLINE_SETUP_AGENT = AgentDefinition(
 - Troubleshooting tips for display issues
 - Font requirements (Nerd Fonts, Powerline)
 - Read-only approach - suggests configurations without modifying files""",
-    tools=['read', 'ls', 'find', 'grep', 'web_search', 'fetch_webpage'],
+    tools=[FileReadTool, LSTool, FindTool, GrepSearchTool, ExaWebSearchTool, WebFetchTool],
     model='inherit',
     system_prompt=GetStatuslineSetupPrompt,
 )

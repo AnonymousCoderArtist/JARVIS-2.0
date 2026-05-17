@@ -12,18 +12,16 @@ The recommended way to add custom tools is via the **extension system** — Pyth
 2. [Tool Architecture](#tool-architecture)
 3. [BaseTool Contract](#basetool-contract)
 4. [Tool Registry](#tool-registry)
-5. [Operations Backend](#operations-backend)
-6. [Permission System](#permission-system)
-7. [Event Integration](#event-integration)
-8. [Hook Integration](#hook-integration)
-9. [Tool Template](#tool-template)
-10. [Required Fields](#required-fields)
-11. [Return Format](#return-format)
-12. [Overriding Built-in Tools](#overriding-built-in-tools)
-13. [Using Operation Backends](#using-operation-backends-in-custom-tools)
-14. [Advanced Patterns](#advanced-patterns)
-15. [Tips](#tips)
-16. [See Also](#see-also)
+5. [Permission System](#permission-system)
+6. [Event Integration](#event-integration)
+7. [Hook Integration](#hook-integration)
+8. [Tool Template](#tool-template)
+9. [Required Fields](#required-fields)
+10. [Return Format](#return-format)
+11. [Overriding Built-in Tools](#overriding-built-in-tools)
+12. [Advanced Patterns](#advanced-patterns)
+13. [Tips](#tips)
+14. [See Also](#see-also)
 
 ---
 
@@ -88,7 +86,6 @@ The tool system is organized into four layers:
 │  - register(tool)                                                │
 │  - execute_tool(name, args) → ToolOutput                        │
 │  - get_function_definitions() → LLM tool format                 │
-│  - embedded OperationsRegistry                                   │
 └──────────────┬──────────────────────────────────────────────────┘
                │
                ▼
@@ -97,17 +94,7 @@ The tool system is organized into four layers:
 │  BaseTool (ABC) → 20+ built-in tools + custom tools             │
 │  - name, description, input_schema, execute()                   │
 │  - safe_execute() with error handling                           │
-│  - injected: tool_registry, llm_provider, model, ops_registry   │
-└──────────────┬──────────────────────────────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Operations Backend                            │
-│  OperationsRegistry → FileOps / BashOps / EditOps (Protocols)   │
-│  - LocalFileOperations (aiofiles) [default]                     │
-│  - LocalBashOperations (asyncio) [default]                      │
-│  - LocalEditOperations [default]                                │
-│  - Swappable at runtime by extensions (SSH, sandbox, Docker)    │
+│  - injected: tool_registry, llm_provider, model                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -115,14 +102,11 @@ The tool system is organized into four layers:
 
 | File | Purpose |
 |---|---|
-| `core/tools/base.py` | `BaseTool` ABC, `ToolInput`, `ToolOutput` |
+| `core/tools/base.py` | `BaseTool` ABC, `ToolInput`, `ToolOutput`, `resolve_tool_ref` |
 | `core/tools/registry.py` | `ToolRegistry` — dict-based registration, sync execution, event emission |
 | `core/tools/async_registry.py` | `AsyncToolRegistry` — semaphore-controlled concurrent execution with timeout/retry |
 | `core/tools/permissions.py` | Permission enums, `PermissionContext`, path resolution, wildcard matching |
 | `core/tools/permission_manager.py` | `PermissionManager` — session rules, config-based checks, path-aware resolution |
-| `core/tools/operations/registry.py` | `OperationsRegistry` — holds active File/Bash/Edit backend implementations |
-| `core/tools/operations/base.py` | `FileOperations`, `BashOperations`, `EditOperations` Protocols |
-| `core/tools/operations/local.py` | Default local implementations using `aiofiles`/`asyncio` |
 | `core/tools/__init__.py` | Lazy import surface — avoids circular imports and eager loading |
 
 ### Tool Categories (20+ built-in tools)
@@ -174,24 +158,6 @@ When `ToolRegistry.register(tool)` is called, these references are injected:
 @abstractmethod
 async def execute(self, input_data: ToolInput) -> ToolOutput:
     """Execute the tool with the given input."""
-```
-
-### Convenience Properties
-
-`BaseTool` provides property accessors for the operations backends:
-
-```python
-@property
-def file_ops(self) -> FileOperations:
-    """Access the active file operations backend."""
-
-@property
-def bash_ops(self) -> BashOperations:
-    """Access the active bash operations backend."""
-
-@property
-def edit_ops(self) -> EditOperations:
-    """Access the active edit operations backend."""
 ```
 
 ### Safe Execution
@@ -251,62 +217,6 @@ results = await async_registry.execute_tools_concurrent([
 - **Semaphore control**: limits concurrent tool execution to `max_concurrent_tools`.
 - **Timeout support**: per-tool timeout via `execute_tool_async()`.
 - **Exception handling**: converts exceptions to error `ToolOutput` in `execute_tools_concurrent()`.
-
----
-
-## Operations Backend
-
-The `OperationsRegistry` (`core/tools/operations/`) decouples tool implementations from the filesystem/OS:
-
-### Protocol Interfaces
-
-```python
-@runtime_checkable
-class FileOperations(Protocol):
-    async def read_file(self, path, offset=1, limit=None) -> str: ...
-    async def write_file(self, path, content) -> None: ...
-    async def file_exists(self, path) -> bool: ...
-    async def list_dir(self, path) -> list[dict]: ...
-    async def delete_file(self, path) -> None: ...
-
-@runtime_checkable
-class BashOperations(Protocol):
-    async def run(self, command, timeout=None, cwd=None, env=None) -> dict: ...
-    async def spawn(self, command, cwd=None, env=None) -> dict: ...
-    async def terminate(self, pid) -> None: ...
-
-@runtime_checkable
-class EditOperations(Protocol):
-    async def apply_edit(self, path, old_string, new_string) -> dict: ...
-```
-
-### Default Implementations
-
-| Backend | Protocol | Default Implementation | Technology |
-|---|---|---|---|
-| File | `FileOperations` | `LocalFileOperations` | `aiofiles` + `pathlib` |
-| Bash | `BashOperations` | `LocalBashOperations` | `asyncio.create_subprocess_shell` |
-| Edit | `EditOperations` | `LocalEditOperations` | String search-and-replace |
-
-### Swapping Backends
-
-Extensions can swap backends at runtime:
-
-```python
-# .jarvis/extensions/ssh_backend.py
-async def jarvis(api):
-    api.operations_registry.set_bash_ops(SSHBashOps(), origin="ssh")
-    api.operations_registry.set_file_ops(SSHFileOps(), origin="ssh")
-```
-
-The registry tracks which extension last changed each backend (for auditing):
-
-```python
-info = registry.get_backend_info()
-# {"file_ops": {"class": "LocalFileOperations", "origin": "builtin"},
-#  "bash_ops": {"class": "SSHBashOps", "origin": "ssh"},
-#  "edit_ops": {"class": "LocalEditOperations", "origin": "builtin"}}
-```
 
 ---
 
@@ -628,9 +538,7 @@ class MyNotifyingTool(BaseTool):
 - Extensions are auto-discovered on startup — no registration needed
 - Use `/reload` in TUI to reload extensions without restarting
 - Project-level extensions (`.jarvis/extensions/`) override global ones (`~/.jarvis/extensions/`) with the same name
-- Use `self.file_ops`, `self.bash_ops`, `self.edit_ops` for backend-agnostic operations
 - Handle errors gracefully — the LLM will retry with corrected parameters if `success=False`
-- For long-running operations, consider using the background task system (`bash_ops.spawn()`)
 
 ---
 
@@ -640,7 +548,6 @@ class MyNotifyingTool(BaseTool):
 - [Architecture: Tool System](ARCHITECTURE.md#5-tool-system) — Full tool architecture documentation
 - [Architecture: Extension System](ARCHITECTURE.md#7-extension-system) — Extension API and lifecycle
 - [Architecture: Event System](ARCHITECTURE.md#6-event-system) — EventBus and HookRegistry
-- [Architecture: Operations Backend](ARCHITECTURE.md#operations-backend) — Pluggable file/bash/edit backends
 - [Extension Examples](../examples/extensions/) — Hello world, safety gate, SSH tools, event logger
 - [BaseTool](../core/tools/base.py) — The base class for all tools
 - [ToolOutput](../core/tools/base.py) — The return type for tools

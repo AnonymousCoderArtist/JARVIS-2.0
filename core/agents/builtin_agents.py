@@ -7,6 +7,10 @@ from __future__ import annotations
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
+from core.tools.code_tools import BashTool
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 
 # Import agent definitions from their modules
 from .builtin.jarvis_help_agent import JARVIS_HELP_AGENT
@@ -24,7 +28,7 @@ EXPLORE_AGENT = AgentDefinition(
 - Analyzing code dependencies and relationships
 - Investigating technical implementation details
 - Researching how specific features work''',
-    tools=['read', 'ls', 'find', 'grep', 'bash(read-only)', 'web_search', 'fetch_webpage'],
+    tools=[FileReadTool, LSTool, FindTool, GrepSearchTool, BashTool, ExaWebSearchTool, WebFetchTool],
     model='inherit',
 )
 
@@ -38,7 +42,7 @@ PLAN_AGENT = AgentDefinition(
 - Estimating effort and identifying dependencies
 - Organizing work into logical sequences
 - Creating detailed implementation roadmaps''',
-    tools=['read', 'ls', 'find', 'grep', 'bash(read-only)', 'web_search', 'fetch_webpage'],
+    tools=[FileReadTool, LSTool, FindTool, GrepSearchTool, BashTool, ExaWebSearchTool, WebFetchTool],
     model='inherit',
 )
 
@@ -65,7 +69,7 @@ FORK_AGENT = AgentDefinition(
 - Handles independent work that doesn't require main context
 - Returns results when complete for main agent to review
 - Useful for research, exploration, or background analysis tasks''',
-    tools=['read', 'ls', 'find', 'grep', 'bash(read-only)', 'web_search', 'fetch_webpage'],
+    tools=[FileReadTool, LSTool, FindTool, GrepSearchTool, BashTool, ExaWebSearchTool, WebFetchTool],
     model='inherit',
 )
 

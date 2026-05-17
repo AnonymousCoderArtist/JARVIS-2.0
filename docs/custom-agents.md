@@ -20,6 +20,8 @@ Create `.jarvis/extensions/my-reviewer.py`:
 ```python
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
 
 def system_prompt() -> str:
     return """You are a code reviewer. Focus on:
@@ -34,7 +36,7 @@ async def jarvis(api):
         name="code-review",
         agent_type=AgentType.AGENT,     # appears in profiles + agents tool
         description="Review code for bugs, security issues, and style problems",
-        tools=["read", "grep", "find", "ls"],
+        tools=[FileReadTool, GrepSearchTool, FindTool, LSTool],  # import tool classes
         model="inherit",
         max_turns=50,
         system_prompt=system_prompt,
@@ -51,12 +53,88 @@ Restart JARVIS. The agent appears in:
 |-------|----------|---------|-------------|
 | `name` | Yes | — | Unique identifier (used to invoke via `agents` tool) |
 | `description` | Yes | — | Description for the LLM to decide when to delegate |
-| `tools` | No | `None` | Tool whitelist: `None` = all, `["*"]` = all, `["read", "grep"]` = restricted |
+| `tools` | No | `None` | Tool whitelist: `None` = all, `["*"]` = all, `[FileReadTool, GrepSearchTool]` = restricted (accepts tool classes, instances, or string names) |
 | `disallowed_tools` | No | `None` | Tools to block (applied after `tools`) |
 | `model` | No | `"inherit"` | Model to use: `"inherit"` or specific model name |
 | `max_turns` | No | `100` | Max agentic loop iterations |
 | `agent_type` | No | `AGENT` | `AGENT` or `SUBAGENT` |
 | `system_prompt` | No | `None` | Callable returning the system prompt |
+
+## Specifying Tools
+
+The `tools` field accepts tool classes, tool instances, or string names (for backward compatibility):
+
+```python
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.code_tools import BashTool
+
+# Using tool classes (recommended)
+tools=[FileReadTool, GrepSearchTool, FindTool, LSTool]
+
+# Using tool instances
+tools=[FileReadTool(), GrepSearchTool(), FindTool(), LSTool()]
+
+# Mixing with custom tools registered via api.tools()
+tools=[FileReadTool, MyCustomTool]
+
+# All tools (no filtering)
+tools=["*"]
+```
+
+Under the hood, `resolve_tool_ref()` extracts the `name` attribute from classes/instances, so `FileReadTool` resolves to `"read"`, `GrepSearchTool` resolves to `"grep"`, etc.
+
+## Creating Custom Tools
+
+You can create your own tools and use them in agents. Here's a complete example:
+
+```python
+# .jarvis/extensions/weather_agent.py
+from core.agents.agent_definition import AgentDefinition
+from core.agents.profiles import AgentType
+from core.tools.base import BaseTool, ToolInput, ToolOutput
+from core.tools.file_tools import FileReadTool
+
+
+class WeatherTool(BaseTool):
+    """Get current weather for a city."""
+    name = "get_weather"
+    description = "Get current weather information for a specified city"
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "city": {
+                "type": "string",
+                "description": "City name (e.g., 'London', 'New York')",
+            },
+        },
+        "required": ["city"],
+    }
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput:
+        city = input_data.get("city", "Unknown")
+        # In a real tool, you'd call a weather API here
+        return ToolOutput(
+            success=True,
+            result=f"Weather in {city}: 22°C, Sunny",
+        )
+
+
+async def jarvis(api):
+    # Register the custom tool so it's available in the system
+    api.tools(WeatherTool())
+
+    # Create an agent that uses the custom tool alongside built-in tools
+    api.agents(AgentDefinition(
+        name="weather-assistant",
+        agent_type=AgentType.SUBAGENT,
+        description="Answer questions about weather and read weather-related files",
+        tools=[WeatherTool, FileReadTool],  # custom + built-in
+        model="inherit",
+        max_turns=10,
+        system_prompt=lambda: "You are a weather assistant. Use the get_weather tool to check conditions.",
+    ))
+```
 
 ## Extension API
 
@@ -67,11 +145,14 @@ The `api` object passed to `jarvis(api)` provides these methods:
 Register a custom agent definition. The definition should be an `AgentDefinition` instance.
 
 ```python
+from core.tools.file_tools import FileReadTool
+from core.tools.grep_tool import GrepSearchTool
+
 async def jarvis(api):
     api.agents(AgentDefinition(
         name="my-agent",
         description="...",
-        tools=["read", "grep"],
+        tools=[FileReadTool, GrepSearchTool],  # import tool classes
         system_prompt=lambda: "You are...",
     ))
 ```
@@ -81,15 +162,17 @@ async def jarvis(api):
 An extension can register agents alongside tools, hooks, and events:
 
 ```python
+from core.tools.file_tools import FileReadTool
+
 async def jarvis(api):
-    # Register a tool
+    # Register a custom tool
     api.tools(MyCustomTool())
 
-    # Register an agent that uses the custom tool
+    # Register an agent that uses the custom tool (by class or instance)
     api.agents(AgentDefinition(
         name="my-agent",
         description="...",
-        tools=["read", "my_custom_tool"],
+        tools=[FileReadTool, MyCustomTool],  # mix built-in and custom
         system_prompt=lambda: "...",
     ))
 
@@ -104,13 +187,15 @@ async def jarvis(api):
 ```python
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
 
 async def jarvis(api):
     api.agents(AgentDefinition(
         name="reviewer",
         agent_type=AgentType.SUBAGENT,
         description="Review code for bugs and security issues",
-        tools=["read", "grep", "find", "ls"],
+        tools=[FileReadTool, GrepSearchTool, FindTool, LSTool],
         model="inherit",
         max_turns=50,
         system_prompt=lambda: "You are a code reviewer. Be thorough and specific.",
@@ -140,13 +225,16 @@ async def jarvis(api):
 ```python
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
+from core.tools.file_tools import FileReadTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.web_tools import ExaWebSearchTool
 
 async def jarvis(api):
     api.agents(AgentDefinition(
         name="fast-helper",
         agent_type=AgentType.SUBAGENT,
         description="Quick questions and simple tasks",
-        tools=["read", "grep", "web_search"],
+        tools=[FileReadTool, GrepSearchTool, ExaWebSearchTool],
         model="gpt-4o-mini",  # Use a cheaper model for simple tasks
         max_turns=20,
         system_prompt=lambda: "You are a helpful assistant. Be concise.",

@@ -1,10 +1,15 @@
 """Research agent — deep research with web search and documentation tools.
 
 Converted from examples/agents/researcher.py to the extension API pattern.
+
+Demonstrates using imported tool classes in the tools list.
 """
 
 from core.agents.agent_definition import AgentDefinition
 from core.agents.profiles import AgentType
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 
 
 def get_system_prompt() -> str:
@@ -26,7 +31,7 @@ async def jarvis(api):
         name="researcher",
         agent_type=AgentType.SUBAGENT,
         description="Deep research on technical topics, APIs, libraries, frameworks, or any topic requiring web search and documentation lookup. Use when the user asks to research, investigate, or find information.",
-        tools=["web_search", "fetch_webpage", "read", "grep", "find", "ls"],
+        tools=[ExaWebSearchTool, WebFetchTool, FileReadTool, GrepSearchTool, FindTool, LSTool],
         model="inherit",
         max_turns=30,
         system_prompt=get_system_prompt,

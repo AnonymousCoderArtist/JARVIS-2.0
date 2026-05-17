@@ -7,6 +7,9 @@ from typing import Any
 from core.agents.agent_definition import AgentDefinition
 from core.agents.base import BaseAgent
 from core.agents.profiles import AgentType
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 
 
 def GetJarvisHelpPrompt() -> str:
@@ -112,7 +115,7 @@ JARVIS_HELP_AGENT = AgentDefinition(
     name="jarvis-help",
     agent_type=AgentType.SUBAGENT,
     description="Use this agent when users need help understanding JARVIS features, tools, or configuration.",
-    tools=["read", "ls", "find", "grep", "web_search", "fetch_webpage"],
+    tools=[FileReadTool, LSTool, FindTool, GrepSearchTool, ExaWebSearchTool, WebFetchTool],
     model="inherit",
     max_turns=50,
     system_prompt=GetJarvisHelpPrompt,

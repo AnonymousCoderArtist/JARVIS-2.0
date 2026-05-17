@@ -12,7 +12,7 @@ import logging
 import uuid
 from typing import Any
 
-from core.tools.base import BaseTool, ToolInput, ToolOutput
+from core.tools.base import BaseTool, ToolInput, ToolOutput, resolve_tool_ref
 
 from .agent_lifecycle import _run_agent_in_background
 from .background_task import (
@@ -367,15 +367,20 @@ class AgentTool(BaseTool):
         allowed_tools = getattr(definition, "tools", None)
         disallowed_tools = getattr(definition, "disallowed_tools", None)
 
-        if allowed_tools and "*" not in allowed_tools:
-            # Explicit tool whitelist (not wildcard)
-            custom_registry = _FilteredToolRegistry(
-                tool_registry,
-                allowed_tools=allowed_tools,
-                llm_provider=llm_provider,
-                model=model,
-                config_getter=custom_config_getter,
-            )
+        if allowed_tools:
+            # Resolve tool refs (str/class/instance) to string names
+            resolved = [resolve_tool_ref(t) for t in allowed_tools]
+            if "*" not in resolved:
+                # Explicit tool whitelist (not wildcard)
+                custom_registry = _FilteredToolRegistry(
+                    tool_registry,
+                    allowed_tools=resolved,
+                    llm_provider=llm_provider,
+                    model=model,
+                    config_getter=custom_config_getter,
+                )
+            else:
+                custom_registry = tool_registry
         elif disallowed_tools:
             # Filter out disallowed tools from the full set
             all_tools = set(tool_registry.get_tools().keys())

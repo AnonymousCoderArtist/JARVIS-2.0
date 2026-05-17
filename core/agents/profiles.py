@@ -33,7 +33,7 @@ class AgentProfile:
     description: str
     safety: AgentSafety
     agent_type: AgentType = AgentType.AGENT
-    tools: list[str] | None = None
+    tools: list[str | Any] | None = None
     overrides: dict[str, Any] = field(default_factory=dict)
 
     def apply_to_config(self, base_config: dict) -> dict:

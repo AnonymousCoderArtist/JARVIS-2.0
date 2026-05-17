@@ -7,6 +7,10 @@ from typing import Any
 from core.agents.agent_definition import AgentDefinition
 from core.agents.base import BaseAgent
 from core.agents.profiles import AgentType
+from core.tools.code_tools import BashTool
+from core.tools.file_tools import FileReadTool, FindTool, LSTool
+from core.tools.grep_tool import GrepSearchTool
+from core.tools.web_tools import ExaWebSearchTool, WebFetchTool
 
 
 def GetRubberDuckPrompt() -> str:
@@ -150,7 +154,7 @@ RUBBER_DUCK_AGENT = AgentDefinition(
 - Providing actionable feedback categorized by severity (Blocking, Non-Blocking, Suggestions)
 - Helping course-correct early before significant effort is wasted
 Call this agent after planning but before implementing, or early during development""",
-    tools=['read', 'ls', 'find', 'grep', 'bash(read-only)', 'web_search', 'fetch_webpage'],
+    tools=[FileReadTool, LSTool, FindTool, GrepSearchTool, BashTool, ExaWebSearchTool, WebFetchTool],
     model='inherit',
     max_turns=10,
 )
