@@ -14,7 +14,7 @@
 
 <div align="center">
 
-[📖 Docs](docs/SUMMARY.md) • [🚀 Setup](docs/SETUP.md) • [🏗️ Architecture](docs/ARCHITECTURE.md) • [📡 API](docs/API.md) • [💻 Contributing](docs/CONTRIBUTING.md)
+[📖 Docs](docs/SUMMARY.md) • [🚀 Setup](docs/SETUP.md) • [🏗️ Architecture](docs/ARCHITECTURE.md) • [🔌 Extensions](docs/EXTENSIONS.md) • [📡 API](docs/API.md) • [💻 Contributing](docs/CONTRIBUTING.md)
 
 </div>
 
@@ -75,14 +75,14 @@ JARVIS v2.0 is a **Personal AI Assistant (PI)** - a next-generation agentic harn
 graph TB
     %% Nodes definition
     subgraph "JARVIS Agent Layer"
-        Jarvis["JarvisV2 (Main Agent)<br/>core/agents/jarvis_v2.py"]
+        Jarvis["JarvisV2 (Main Agent)<br/>jarvis/core/agents/jarvis_v2.py"]
     end
 
     subgraph "Core Managers & Controllers"
-        AgentMgr["AgentManager<br/>core/agents/manager.py"]
-        ToolReg["ToolRegistry<br/>core/tools/registry.py"]
-        Config["Settings & Models<br/>core/config/settings.py"]
-        History["ConversationHistory<br/>core/history.py"]
+        AgentMgr["AgentManager<br/>jarvis/core/agents/manager.py"]
+        ToolReg["ToolRegistry<br/>jarvis/core/tools/registry.py"]
+        Config["Settings & Models<br/>jarvis/core/config/settings.py"]
+        History["ConversationHistory<br/>jarvis/core/history.py"]
     end
 
     subgraph "Specialized Agents"
@@ -102,17 +102,17 @@ graph TB
     end
 
     subgraph "Supporting Systems"
-        Skills["SkillManager<br/>core/skills/manager.py"]
-        Safety["PermissionManager<br/>core/tools/permissions.py"]
-        Learn["LearningManager<br/>core/learn/learning_manager.py"]
-        Connectors["ConnectorManager<br/>core/connectors/manager.py"]
+        Skills["SkillManager<br/>jarvis/core/skills/manager.py"]
+        Safety["PermissionManager<br/>jarvis/core/tools/permissions.py"]
+        Learn["LearningManager<br/>jarvis/core/learn/learning_manager.py"]
+        Connectors["ConnectorManager<br/>jarvis/core/connectors/manager.py"]
     end
 
     subgraph "LLM Provider Layer"
-        SDK["LLM SDK Adapter<br/>core/llm/sdk_adapter.py"]
-        OpenAI["OpenAI SDK<br/>core/llm_sdk/openai"]
-        Anthropic["Anthropic SDK<br/>core/llm_sdk/anthropic"]
-        Gemini["Gemini SDK<br/>core/llm_sdk/geminicli"]
+        SDK["LLM SDK Adapter<br/>jarvis/core/llm/sdk_adapter.py"]
+        OpenAI["OpenAI SDK<br/>jarvis/core/llm_sdk/openai"]
+        Anthropic["Anthropic SDK<br/>jarvis/core/llm_sdk/anthropic"]
+        Gemini["Gemini SDK<br/>jarvis/core/llm_sdk/geminicli"]
     end
 
     %% Relationships & Flow
@@ -173,25 +173,31 @@ graph TB
 
 ```
 JARVIS/
-├── core/                   # Python backend
-│   ├── agents/                # Agent system (base.py, jarvis_v2.py, manager.py, profiles, prompts/)
-│   ├── tools/                 # Tool system (registry, base, permissions, 20+ tools, MCP, sandbox)
-│   ├── llm/                   # LLM provider abstraction (SDKAdapter, model info)
-│   ├── llm_sdk/               # Provider SDKs (openai/, anthropic/)
-│   ├── provider/              # Provider manager & models
-│   ├── config/                # Settings (JSON + env overrides)
-│   ├── connectors/            # External data connectors (github, http, rss, weather, filesystem)
-│   ├── learn/                 # Learning system (pattern detection, skill crystallization)
-│   ├── skills/                # Skill management (CRUD, sources, trace collection)
-│   ├── rewind/                # Conversation checkpointing with file snapshots
-│   ├── watchers/              # Passive file/event watchers
-│   ├── web/                   # FastAPI web server (REST + WebSocket endpoints)
-│   └── agents/                # Agent lifecycle, prompts, builtins
-├── interface/             # User interfaces
-│   ├── cli/                   # prompt_toolkit-based CLI
-│   ├── textual_ui/            # Textual-based TUI (30+ widgets)
-│   └── webui/                 # React/TypeScript WebUI (Vite + Tailwind + shadcn)
-├── jarvis/                # Entry point & launcher
+├── jarvis/                # Main Python package
+│   ├── core/                  # Core systems
+│   │   ├── agents/            # Agent system (base.py, jarvis_v2.py, manager.py, profiles, prompts/)
+│   │   ├── tools/             # Tool system (registry, base, permissions, 20+ tools, MCP, sandbox)
+│   │   ├── extensions/        # Extension system (api, loader, runner, registry, types)
+│   │   ├── events/            # Event bus and hook registry
+│   │   ├── llm/               # LLM provider abstraction (SDKAdapter, model info)
+│   │   ├── llm_sdk/           # Provider SDKs (openai/, anthropic/)
+│   │   ├── provider/          # Provider manager & models
+│   │   ├── config/            # Settings (JSON + env overrides)
+│   │   ├── connectors/        # External data connectors (github, http, rss, weather, filesystem)
+│   │   ├── learn/             # Learning system (pattern detection, skill crystallization)
+│   │   ├── skills/            # Skill management (CRUD, sources, trace collection)
+│   │   ├── rewind/            # Conversation checkpointing with file snapshots
+│   │   ├── watchers/          # Passive file/event watchers
+│   │   └── web/               # FastAPI web server (REST + WebSocket endpoints)
+│   ├── interface/             # User interfaces
+│   │   ├── cli/               # prompt_toolkit-based CLI
+│   │   ├── textual_ui/        # Textual-based TUI (30+ widgets)
+│   │   └── webui/             # React/TypeScript WebUI (Vite + Tailwind + shadcn)
+│   ├── api.py                 # Public extension API (stable surface)
+│   └── _version.py            # Version management
+├── .jarvis/               # Project-local config & extensions
+│   ├── extensions/            # Project extension files (*.py)
+│   └── settings.json          # Project settings
 ├── tests/                 # Python test suite (pytest)
 ├── docs/                  # 📖 Documentation
 │   ├── SUMMARY.md            # Entry point with quick-links
@@ -199,6 +205,8 @@ JARVIS/
 │   ├── ARCHITECTURE.md       # Full system architecture
 │   ├── API.md                # REST + WebSocket API reference
 │   ├── CONTRIBUTING.md       # Development guide
+│   ├── EXTENSIONS.md         # Extension system documentation
+│   ├── HOOKS.md              # Lifecycle hooks reference
 │   ├── custom-agents.md      # Custom agent profiles
 │   ├── custom-tools.md       # Writing new tools
 │   ├── MCP.md                # MCP server integration
@@ -505,6 +513,96 @@ JARVIS supports connecting to external MCP servers for extended capabilities:
 
 ---
 
+## 🔌 Extension System
+
+JARVIS has a full plugin architecture. Extensions are plain Python files loaded from `.jarvis/extensions/` or `~/.jarvis/extensions/`:
+
+```
+.jarvis/extensions/
+├── my_tool.py          # Register custom tools
+├── safety_gate.py      # Block dangerous operations via hooks
+└── my_backend.py       # Swap tool implementations
+```
+
+```python
+# .jarvis/extensions/example.py
+from jarvis.api import ExtensionAPI, BaseTool, ToolInput, ToolOutput
+from jarvis.api import HookStage, HookContext, HookResult
+from jarvis.api import ToolCallStarted
+
+async def jarvis(api: ExtensionAPI):
+    api.tools(MyTool())
+    api.on(ToolCallStarted, my_handler)
+    api.hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
+    api.command("/hello", hello_cmd, "Say hello")
+    api.shortcut("ctrl+h", "app.hello", "Hello")
+```
+
+See [docs/EXTENSIONS.md](docs/EXTENSIONS.md) for the full reference.
+
+### ExtensionAPI Methods
+
+| Method | Description |
+|--------|-------------|
+| `tools(tool)` | Register a `BaseTool` instance (overrides built-ins if name matches) |
+| `agents(definition)` | Register a custom `AgentDefinition` |
+| `command(name, handler, desc)` | Register a slash command |
+| `on(event_type, handler)` | Subscribe to an `EventBus` event |
+| `hook(stage, handler)` | Register a lifecycle hook at a `HookStage` |
+| `shortcut(key, action_id, desc)` | Register a keyboard shortcut |
+
+### Discovery & Precedence
+
+Extensions are loaded from three sources (highest → lowest priority):
+1. **Project-local**: `.jarvis/extensions/*.py`
+2. **User global**: `~/.jarvis/extensions/*.py`
+3. **pip entry points**: packages registered under `jarvis.extensions`
+
+If the same filename exists in multiple locations, the higher-precedence version wins.
+
+---
+
+## 🔔 Event & Hook System
+
+Dual-layer architecture for observability and interception:
+
+### EventBus (Pub/Sub)
+- **24 event types** across 8 categories (Agent, Turn, Message, Tool, Session, Extension, Status, System)
+- Priority-ordered handlers, polymorphic dispatch (MRO walking)
+- Per-session instances, introspection stats
+
+### HookRegistry (Lifecycle Interception)
+- **16 hook stages** covering agent/turn/tool/session/skill lifecycles
+- Handlers can block, modify arguments, or inject content
+- Short-circuit on block, error-tolerant execution
+
+```python
+from jarvis.api import HookStage, HookContext, HookResult
+
+async def safety_gate(ctx: HookContext) -> HookResult:
+    if ctx.tool_name == "bash" and "rm -rf" in str(ctx.args):
+        return HookResult(proceed=False, message="Blocked: dangerous command")
+    return HookResult(proceed=True)
+```
+
+See [docs/HOOKS.md](docs/HOOKS.md) for the full reference.
+
+---
+
+## 📡 RPC Mode
+
+Embed JARVIS in IDEs, web UIs, or other processes via JSONL over stdin/stdout:
+
+```bash
+echo '{"id":"1","type":"prompt","message":"Hello"}' | jarvis --mode rpc
+```
+
+**Commands**: `prompt`, `steer`, `follow_up`, `bash`, `compact`, `new_session`, `get_state`, `get_messages`, `get_tools`, `set_model`
+
+**Events**: `text_delta`, `thinking_delta`, `tool_call_start`, `tool_call_end`, `turn_start`, `turn_end`, `status`, `session_started`
+
+---
+
 ## 💡 Learning System
 
 JARVIS includes an intelligent learning system that:
@@ -655,6 +753,8 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 | [🏗️ ARCHITECTURE.md](docs/ARCHITECTURE.md) | Understanding the full system — agents, tools, LLM, frontends |
 | [📡 API.md](docs/API.md) | REST + WebSocket API reference for building on top |
 | [💻 CONTRIBUTING.md](docs/CONTRIBUTING.md) | Developing JARVIS — code style, tests, PRs |
+| [🔌 EXTENSIONS.md](docs/EXTENSIONS.md) | Extension system — writing plugins, API reference |
+| [🪝 HOOKS.md](docs/HOOKS.md) | Lifecycle hooks — stages, context, results |
 | [🤖 custom-agents.md](docs/custom-agents.md) | Creating custom agent profiles |
 | [🔧 custom-tools.md](docs/custom-tools.md) | Writing new tools |
 | [🔌 MCP.md](docs/MCP.md) | Connecting MCP servers |
@@ -673,24 +773,26 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 | **LLM model/provider** | Edit `providers.json` or `settings.json` |
 | **Agent behavior** | Switch profile or write a custom agent (`~/.jarvis/agents/`) |
 | **Safety level** | `settings.json` → `agent.safety_profile` or Shift+Tab |
-| **WebUI colors** | Edit CSS variables in `interface/webui/src/globals.css` |
-| **System prompt** | Edit files in `core/agents/prompts/` |
+| **WebUI colors** | Edit CSS variables in `jarvis/interface/webui/src/globals.css` |
+| **System prompt** | Edit files in `jarvis/core/agents/prompts/` |
 | **Tool permissions** | `settings.json` → `permissions` |
 | **MCP servers** | Configure in `.mcp.json` |
 | **Custom tools** | Write a `BaseTool` subclass — see [custom-tools.md](docs/custom-tools.md) |
+| **Extensions** | Drop `.py` files in `.jarvis/extensions/` — see [EXTENSIONS.md](docs/EXTENSIONS.md) |
 | **All settings** | `~/.jarvis/settings.json` or `.jarvis/settings.json` |
 
 ### Don't Touch (Internal Invariants)
 
 | File(s) | Why |
 |---------|-----|
-| `core/agents/base.py` | Agent loop — streaming, tool dispatch, approval |
-| `core/tools/base.py` | `ToolInput`/`ToolOutput` — all tools inherit these |
-| `core/tools/registry.py` | Tool discovery — changing breaks every tool |
-| `core/llm/base.py` + `sdk_adapter.py` | All LLM communication goes through these |
-| `core/history.py` | Message store — all consumers depend on its format |
-| `core/web/server.py` | API routes — changing endpoints breaks all frontends |
-| `core/config/models.py` | Settings schema — existing configs will fail to load |
+| `jarvis/core/agents/base.py` | Agent loop — streaming, tool dispatch, approval |
+| `jarvis/core/tools/base.py` | `ToolInput`/`ToolOutput` — all tools inherit these |
+| `jarvis/core/tools/registry.py` | Tool discovery — changing breaks every tool |
+| `jarvis/core/llm/base.py` + `sdk_adapter.py` | All LLM communication goes through these |
+| `jarvis/core/history.py` | Message store — all consumers depend on its format |
+| `jarvis/core/web/server.py` | API routes — changing endpoints breaks all frontends |
+| `jarvis/core/config/models.py` | Settings schema — existing configs will fail to load |
+| `jarvis/api.py` | Public extension surface — changing breaks all extensions |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full breakdown.
 
@@ -705,8 +807,8 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the full development guide.
 pytest tests/ -v
 
 # Lint & format
-ruff check core/ interface/ jarvis/
-ruff format core/ interface/ jarvis/
+ruff check jarvis/
+ruff format jarvis/
 ```
 
 ---
