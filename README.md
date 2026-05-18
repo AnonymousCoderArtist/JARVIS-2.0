@@ -872,6 +872,12 @@ JARVIS_HEARTBEAT_SHOW_OK=false
 
 # Remote sessions (optional)
 JARVIS_REMOTE_URL=https://your-remote-jarvis.com
+
+# Agent Loop Configuration (optional)
+# Maximum number of turns before stopping (default: 100)
+JARVIS_MAX_TURNS=100
+# Maximum consecutive skipped tool calls before stopping (default: 5)
+JARVIS_MAX_CONSECUTIVE_SKIPS=5
 ```
 
 ### Full Configuration (settings.json)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 from textual import events
@@ -85,7 +85,7 @@ class ApprovalApp(Container):
     def __init__(
         self,
         tool_name: str,
-        tool_args: BaseModel,
+        tool_args: BaseModel | dict[str, Any],
         config: VibeConfig,
         required_permissions: list[RequiredPermission] | None = None,
     ) -> None:

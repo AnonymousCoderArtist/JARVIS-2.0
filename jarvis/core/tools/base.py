@@ -151,6 +151,23 @@ class BaseTool(ABC):
         except Exception:
             return False
 
+    def validate_required_args(self, input_data: ToolArgs) -> str | None:
+        """Validate that all required arguments from input_schema are present.
+
+        Args:
+            input_data: Dictionary of input parameters
+
+        Returns:
+            Error message if validation fails, None if valid
+        """
+        required = self.input_schema.get("required", [])
+        properties = self.input_schema.get("properties", {})
+        for field in required:
+            value = input_data.get(field)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                return f"Missing required argument: '{field}'"
+        return None
+
     def get_function_definition(self) -> ToolDefDict:
         """
         Get the tool definition in OpenAI function calling format
@@ -178,6 +195,14 @@ class BaseTool(ABC):
             ToolOutput with success/error information
         """
         try:
+            required_error = self.validate_required_args(input_data)
+            if required_error:
+                return ToolOutput(
+                    success=False,
+                    result=None,
+                    error=required_error,
+                )
+
             if not self.validate_input(input_data):
                 return ToolOutput(
                     success=False,

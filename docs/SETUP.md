@@ -248,6 +248,8 @@ cp .env.example .env
 | `JARVIS_MAX_INPUT_TOKENS`      | `111616` (109K)      | Maximum input tokens                      |
 | `JARVIS_MAX_OUTPUT_TOKENS`     | `16384` (16K)        | Maximum output tokens                     |
 | `JARVIS_REMOTE_URL`            | —                    | Connect to a remote JARVIS instance       |
+| `JARVIS_MAX_TURNS`             | `100`                | Maximum agent loop turns before stopping  |
+| `JARVIS_MAX_CONSECUTIVE_SKIPS` | `5`                  | Max consecutive skipped tool calls        |
 
 #### Example .env
 
@@ -264,6 +266,10 @@ JARVIS_HEARTBEAT_EVERY=30m
 
 # Token Limits (optional)
 JARVIS_MAX_CONTEXT_TOKENS=131072
+
+# Agent Loop (optional)
+JARVIS_MAX_TURNS=100
+JARVIS_MAX_CONSECUTIVE_SKIPS=5
 ```
 
 ### Provider Configuration

@@ -98,10 +98,14 @@ def get_global_memory_dir() -> Path:
 def get_scope_dir(memory_dir: Path, scope: str) -> Path:
     """Get the directory for a specific scope (private, team, or global)"""
     if scope == "team":
-        return memory_dir / "team"
+        scope_dir = memory_dir / "team"
+        scope_dir.mkdir(parents=True, exist_ok=True)
+        return scope_dir
     elif scope == "global":
         return get_global_memory_dir()
-    return memory_dir / "private"
+    scope_dir = memory_dir / "private"
+    scope_dir.mkdir(parents=True, exist_ok=True)
+    return scope_dir
 
 
 def generate_memory_filename(name: str, timestamp: datetime, memory_type: str = "user") -> str:
@@ -476,13 +480,13 @@ Returns: Matching memories with metadata (name, type, scope, priority, tags)."""
     }
 
     async def execute(self, input_data: ToolInput) -> ToolOutput:
-        scope = getattr(input_data, "scope", "all")
-        memory_type = getattr(input_data, "type", "all")
+        scope = getattr(input_data, "scope", "all") or "all"
+        memory_type = getattr(input_data, "type", "all") or "all"
         query = getattr(input_data, "query", None)
-        tags = getattr(input_data, "tags", [])
+        tags = getattr(input_data, "tags", []) or []
         priority = getattr(input_data, "priority", None)
         project = getattr(input_data, "project", None)
-        limit = getattr(input_data, "limit", 10)
+        limit = getattr(input_data, "limit", 10) or 10
 
         try:
             results = []

@@ -1328,7 +1328,7 @@ class VibeApp(App):  # noqa: PLR0904
     async def _approval_callback(
         self,
         tool: str,
-        args: BaseModel,
+        args: BaseModel | dict[str, Any],
         tool_call_id: str,
         required_permissions: list[RequiredPermission] | None,
     ) -> tuple[ApprovalResponse, str | None]:
@@ -1338,12 +1338,18 @@ class VibeApp(App):  # noqa: PLR0904
             if self._is_tool_enabled_in_main_agent(tool):
                 return (ApprovalResponse.YES, None)
 
+        # Ensure args is a dict for the approval widget
+        if isinstance(args, BaseModel):
+            args_dict = args.model_dump()
+        else:
+            args_dict = args
+
         async with self._user_interaction_lock:
             self._pending_approval = asyncio.Future()
             self._terminal_notifier.notify(NotificationContext.ACTION_REQUIRED)
             try:
                 with paused_timer(self._loading_widget):
-                    await self._switch_to_approval_app(tool, args, required_permissions)
+                    await self._switch_to_approval_app(tool, args_dict, required_permissions)
                     result = await self._pending_approval
                 return result
             finally:
@@ -2360,7 +2366,7 @@ class VibeApp(App):  # noqa: PLR0904
     async def _switch_to_approval_app(
         self,
         tool_name: str,
-        tool_args: BaseModel,
+        tool_args: BaseModel | dict[str, Any],
         required_permissions: list[RequiredPermission] | None = None,
     ) -> None:
         approval_app = ApprovalApp(

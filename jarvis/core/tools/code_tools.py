@@ -122,7 +122,11 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
     def __init__(self):
         super().__init__()
         self.is_windows = platform.system() == "Windows"
-        self.shell = "powershell" if self.is_windows else "/bin/bash"
+        if self.is_windows:
+            self.shell = "powershell"
+        else:
+            import shutil
+            self.shell = shutil.which("bash") or "/bin/bash"
         self.deny_patterns = [
             r"\brm\s+-[rf]{1,2}\b",          # rm -r, rm -rf, rm -fr
             r"\bdel\s+/[fq]\b",              # del /f, del /q

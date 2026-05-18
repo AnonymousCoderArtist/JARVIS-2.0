@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
@@ -455,6 +456,32 @@ class BaseAgent(ABC):
         Returns:
             ToolDecision with verdict and approval type
         """
+        # Validate required arguments before any permission checks
+        tool = self.tools.get(tool_name)
+        if tool and hasattr(tool, "validate_required_args"):
+            validation_error = tool.validate_required_args(tool_args)
+            if validation_error:
+                # Build helpful error message with schema info
+                required_fields = tool.input_schema.get("required", [])
+                properties = tool.input_schema.get("properties", {})
+                schema_hint = ""
+                if required_fields:
+                    schema_hint = f" Required fields: {', '.join(required_fields)}"
+                    if properties:
+                        field_descs = []
+                        for field in required_fields:
+                            if field in properties:
+                                desc = properties[field].get("description", "")
+                                field_descs.append(f"{field}: {desc}" if desc else field)
+                        if field_descs:
+                            schema_hint = f" Required fields: {'; '.join(field_descs)}"
+                
+                return ToolDecision(
+                    verdict="skip",
+                    approval_type=ToolPermission.ASK,
+                    feedback=f"Tool '{tool_name}' called with missing arguments: {validation_error}.{schema_hint}. You must provide all required parameters in your tool call.",
+                )
+
         # Special handling for AskUserQuestion tool - get user input before execution
         if tool_name == "AskUserQuestion" and self.user_input_callback:
             try:
@@ -809,7 +836,15 @@ class BaseAgent(ABC):
             # Inject content as a user message
             updated_messages.append({"role": "user", "content": prompt_result.inject})
 
+        max_turns = int(os.environ.get("JARVIS_MAX_TURNS", "100"))
+        turn_count = 0
+        consecutive_skips = 0
+        max_consecutive_skips = int(os.environ.get("JARVIS_MAX_CONSECUTIVE_SKIPS", "5"))
+
         while True:
+            turn_count += 1
+            if turn_count > max_turns:
+                return f"Agent loop exceeded maximum {max_turns} turns. Stopping to prevent infinite loop."
             # Run BEFORE_TURN hooks
             turn_ctx = HookContext(
                 agent_name=getattr(self, "name", ""),
@@ -1116,7 +1151,10 @@ class BaseAgent(ABC):
 
                 try:
                     if isinstance(tool_args_raw, str):
-                        tool_args = cast(dict[str, Any], json.loads(tool_args_raw))
+                        if not tool_args_raw.strip():
+                            tool_args = {}
+                        else:
+                            tool_args = cast(dict[str, Any], json.loads(tool_args_raw))
                     else:
                         tool_args = cast(dict[str, Any], tool_args_raw)
                 except json.JSONDecodeError:
@@ -1127,6 +1165,9 @@ class BaseAgent(ABC):
 
                 if decision.verdict == "skip":
                     # Tool execution skipped
+                    consecutive_skips += 1
+                    if consecutive_skips >= max_consecutive_skips:
+                        return f"Stopped: {max_consecutive_skips} consecutive tool calls were skipped. The model appears unable to provide valid tool arguments. Error: {decision.feedback}"
                     tool_result_content = decision.feedback or f"Tool '{tool_name}' execution was skipped."
                     tool_results.append({
                         "tool": tool_name,
@@ -1141,6 +1182,9 @@ class BaseAgent(ABC):
                 # Use updated args if provided by decision (e.g., from user input)
                 if decision.updated_args:
                     tool_args = decision.updated_args
+
+                # Reset consecutive skips counter since we're executing a tool
+                consecutive_skips = 0
 
                 # Invoke tool call callback if set
                 if self.tool_call_callback:
@@ -1349,7 +1393,10 @@ class BaseAgent(ABC):
 
             try:
                 if isinstance(tool_args_raw, str):
-                    tool_args = json.loads(tool_args_raw)
+                    if not tool_args_raw.strip():
+                        tool_args = {}
+                    else:
+                        tool_args = json.loads(tool_args_raw)
                 else:
                     tool_args = tool_args_raw
             except json.JSONDecodeError:

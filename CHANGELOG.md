@@ -8,7 +8,23 @@ This document summarizes all the fixes, improvements, and UI updates made to the
 
 ## Unreleased
 
-- Updated knowledge graph (graphify) for v2.1 codebase state
+### Agent Loop Stability
+- **Max turns from env** — `JARVIS_MAX_TURNS` (default: 100) and `JARVIS_MAX_CONSECUTIVE_SKIPS` (default: 5) configurable via `.env`
+- **Infinite loop prevention** — Agent loop stops after max turns or consecutive skipped tool calls
+- **Required args validation** — Tools validate required arguments before permission checks, preventing empty tool calls
+- **Empty args handling** — Empty string arguments parsed correctly instead of causing JSON decode errors
+
+### Tool System Fixes
+- **Approval widget crash** — Empty dicts skip pydantic validation in `get_approval_widget()`, preventing `BashArgs` ValidationError
+- **read_memory tool** — Fixed `None` default values causing `'>=' not supported between instances of 'int' and 'NoneType'` error
+- **Memory directory creation** — `get_scope_dir()` now creates `private`/`team` directories automatically if they don't exist
+- **Cross-platform shell detection** — `BashTool` uses `shutil.which("bash")` instead of hardcoded `/bin/bash` for Linux distro compatibility
+
+### TUI/Approval Flow
+- **ApprovalApp type flexibility** — Accepts both `BaseModel` and `dict` for `tool_args`
+- **Approval callback** — Properly converts `BaseModel` to dict before passing to approval widget
+
+### Updated knowledge graph (graphify) for v2.1 codebase state
 
 ## v2.1.0 — Extension System, Event/Hook Architecture, Persistent Memory & RPC Mode
 
