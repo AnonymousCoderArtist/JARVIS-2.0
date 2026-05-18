@@ -11,9 +11,9 @@ import io
 import sys
 
 from jarvis.core.watchers.base import BaseWatcher
-from .client import WorldMonitorClient
-from .extractors import ContentExtractors
-from .registry import EndpointRegistry
+from .client import WorldMonitorClient  # ty:ignore
+from .extractors import ContentExtractors # ty:ignore
+from .registry import EndpointRegistry # ty:ignore
 
 # Suppress ALL terminal output for this watcher - prevents干扰 jarvis --cli
 class QuietLogger:
@@ -219,7 +219,7 @@ class WorldMonitorWatcher(BaseWatcher):
         # Data is still stored in COP via update_cop() for agents to access
         pass
     
-    async def _send_telegram(self, title: str, message: str, level: str, chat_id: int = None):
+    async def _send_telegram(self, title: str, message: str, level: str, chat_id: int = None): #ty :ignore
         """Send notification to Telegram, suppressing errors and ignoring Markdown."""
         text = f"{title}\n\n{message}" if title else message
         
