@@ -6,7 +6,7 @@ This extension registers the ``ml-intern`` SUBAGENT with its own system prompt
 and a full set of ML-focused tools for the Hugging Face ecosystem:
 
 - hf_papers: Paper discovery, citations, and reading
-- explore_hf_docs / fetch_hf_docs: HF documentation search
+- explore_hf_docs / fetch_hf_docs / find_hf_api: HF documentation & API search
 - hf_inspect_dataset: Dataset analysis and validation
 - github_find_examples / github_list_repos / github_read_file: GitHub research
 - hf_repo_files / hf_repo_git: HF repo management
@@ -26,10 +26,13 @@ from jarvis.api import AgentDefinition, AgentType, ExtensionAPI
 
 if TYPE_CHECKING:
     from .papers_tool import HfPapersTool  # type: ignore
-    from .docs_tool import ExploreHfDocsTool, FetchHfDocsTool  # type: ignore
-    from .dataset_tool import HfInspectDatasetTool  # type: ignore
-    from .github_tools import GithubFindExamplesTool, GithubListReposTool, GithubReadFileTool  # type: ignore
-    from .hf_repo_tools import HfRepoFilesTool, HfRepoGitTool  # type: ignore
+    from .docs_tools import ExploreHfDocsTool, FetchHfDocsTool, FindHfApiTool  # type: ignore
+    from .dataset_tools import HfInspectDatasetTool  # type: ignore
+    from .github_find_examples import GithubFindExamplesTool  # type: ignore
+    from .github_list_repos import GithubListReposTool  # type: ignore
+    from .github_read_file import GithubReadFileTool  # type: ignore
+    from .hf_repo_files_tool import HfRepoFilesTool  # type: ignore
+    from .hf_repo_git_tool import HfRepoGitTool  # type: ignore
     from .web_search_tool import WebSearchTool  # type: ignore
     from .research_tool import ResearchTool  # type: ignore
     from .plan_tool import PlanTool  # type: ignore
@@ -57,20 +60,23 @@ async def jarvis(api: ExtensionAPI) -> None:
         logger.warning("ml-intern: failed to load HfPapersTool: %s", e)
 
     try:
-        from .docs_tool import ExploreHfDocsTool, FetchHfDocsTool  # type: ignore
+        from .docs_tools import ExploreHfDocsTool, FetchHfDocsTool, FindHfApiTool  # type: ignore
         tools.append(ExploreHfDocsTool())
         tools.append(FetchHfDocsTool())
+        tools.append(FindHfApiTool())
     except Exception as e:
         logger.warning("ml-intern: failed to load docs tools: %s", e)
 
     try:
-        from .dataset_tool import HfInspectDatasetTool  # type: ignore
+        from .dataset_tools import HfInspectDatasetTool  # type: ignore
         tools.append(HfInspectDatasetTool())
     except Exception as e:
         logger.warning("ml-intern: failed to load HfInspectDatasetTool: %s", e)
 
     try:
-        from .github_tools import GithubFindExamplesTool, GithubListReposTool, GithubReadFileTool  # type: ignore
+        from .github_find_examples import GithubFindExamplesTool  # type: ignore
+        from .github_list_repos import GithubListReposTool  # type: ignore
+        from .github_read_file import GithubReadFileTool  # type: ignore
         tools.append(GithubFindExamplesTool())
         tools.append(GithubListReposTool())
         tools.append(GithubReadFileTool())
@@ -78,7 +84,8 @@ async def jarvis(api: ExtensionAPI) -> None:
         logger.warning("ml-intern: failed to load github tools: %s", e)
 
     try:
-        from .hf_repo_tools import HfRepoFilesTool, HfRepoGitTool  # type: ignore
+        from .hf_repo_files_tool import HfRepoFilesTool  # type: ignore
+        from .hf_repo_git_tool import HfRepoGitTool  # type: ignore
         tools.append(HfRepoFilesTool())
         tools.append(HfRepoGitTool())
     except Exception as e:
