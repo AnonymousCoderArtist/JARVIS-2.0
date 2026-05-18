@@ -9,12 +9,31 @@ An extension is a Python file that exports a default async function::
         api.hook(HookStage.BEFORE_TOOL_CALL, safety_gate)
         api.command("/hello", hello_cmd, "Say hello")
         api.shortcut("ctrl+alt+h", "app.hello", "Hello shortcut")
+
+Extensions can read their own config from ``settings.json`` under
+``extension.<extension_name>``, similar to how watchers use
+``watcher.<watcher_name>``::
+
+    // .jarvis/settings.json
+    {
+        "extension": {
+            "ml_intern": {
+                "enabled": true,
+                "agent_local_tools": ["hf_papers", "hf_jobs", ...]
+            }
+        }
+    }
+
+Call ``api.load_config()`` from your extension's factory function to
+retrieve your extension's config dict.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable, Coroutine
+from pathlib import Path
 from typing import Any
 
 from jarvis.core.events.hooks import HookContext, HookResult, HookStage
@@ -159,6 +178,36 @@ class ExtensionAPI:
     @property
     def version(self) -> str:
         return self._version
+
+    def load_config(self) -> dict:
+        """Load extension-specific config from ``settings.json``.
+
+        Config must be under ``extension.<extension_name>``, matching the
+        watcher pattern ``watcher.<watcher_name>``::
+
+            // .jarvis/settings.json
+            {
+                "extension": {
+                    "ml_intern": {
+                        "enabled": true,
+                        "agent_local_tools": ["hf_papers", "hf_jobs"]
+                    }
+                }
+            }
+
+        Returns:
+            dict: The extension's config dict, or empty dict if not found.
+        """
+        settings_path = Path(".jarvis") / "settings.json"
+        if settings_path.exists():
+            try:
+                with open(settings_path, encoding="utf-8") as f:
+                    settings = json.load(f)
+                    ext_section = settings.get("extension", {})
+                    return ext_section.get(self._name, {})
+            except Exception as e:
+                logger.debug("Extension %s failed to load config: %s", self._name, e)
+        return {}
 
     # ------------------------------------------------------------------
     # Internal — called by ExtensionRunner

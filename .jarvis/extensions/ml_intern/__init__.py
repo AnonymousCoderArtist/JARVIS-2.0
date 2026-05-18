@@ -149,7 +149,7 @@ async def jarvis(api: ExtensionAPI) -> None:
         ),
         tools=[t.name for t in tools],
         model="inherit",
-        agent_type=AgentType.SUBAGENT,
+        agent_type=AgentType.AGENT,
         max_turns=200,
         system_prompt=_get_prompt,
     ))
