@@ -201,7 +201,7 @@ class BaseConnector(ABC):
 
         if Path(cred_path).exists():
             try:
-                with open(cred_path) as f:
+                with open(cred_path, encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
                 logger.warning(f"Failed to load credentials for {self.connector_name}: {e}")
@@ -221,7 +221,7 @@ class BaseConnector(ABC):
         )
 
         Path(cred_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(cred_path, "w") as f:
+        with open(cred_path, "w", encoding="utf-8") as f:
             json.dump(credentials, f, indent=2)
 
     def auth_url(self) -> str:

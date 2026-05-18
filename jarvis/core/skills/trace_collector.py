@@ -52,7 +52,7 @@ class TraceCollector:
         """Persist trace to disk."""
         trace_file = self.trace_dir / f"{trace.skill_name}_traces.jsonl"
 
-        with open(trace_file, "a") as f:
+        with open(trace_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(trace.to_dict()) + "\n")
 
     def get_traces(self, skill_name: str | None = None, limit: int = 100) -> list[SkillTrace]:
@@ -63,7 +63,7 @@ class TraceCollector:
                 return []
 
             traces = []
-            with open(trace_file) as f:
+            with open(trace_file, encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         traces.append(SkillTrace.from_dict(json.loads(line)))
@@ -72,7 +72,7 @@ class TraceCollector:
         # Get all traces
         all_traces = []
         for trace_file in self.trace_dir.glob("*_traces.jsonl"):
-            with open(trace_file) as f:
+            with open(trace_file, encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         all_traces.append(SkillTrace.from_dict(json.loads(line)))

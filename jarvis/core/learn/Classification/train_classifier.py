@@ -236,11 +236,11 @@ class SimpleTfidfVectorizer:
             "max_df": self.max_df,
             "ngram_range": self.ngram_range,
         }
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding="utf-8") as f:
             json.dump(data, f)
 
     def load(self, path: Path):
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         self.vocabulary_ = data["vocabulary"]
         self.idf_ = np.array(data["idf"], dtype=np.float32)
@@ -508,7 +508,7 @@ def train_model(texts: list[str], labels: list[str],
             "epochs_trained": len(history["train_loss"]),
         },
     }
-    with open(META_PATH, 'w') as f:
+    with open(META_PATH, 'w', encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
 
     acc = history["val_acc"][-1]
@@ -537,7 +537,7 @@ def _ensure_loaded():
     _vectorizer = SimpleTfidfVectorizer()
     _vectorizer.load(VECTORIZER_PATH)
 
-    with open(META_PATH) as f:
+    with open(META_PATH, encoding="utf-8") as f:
         meta = json.load(f)
 
     _model = TextClassifier(input_dim=meta["input_dim"])

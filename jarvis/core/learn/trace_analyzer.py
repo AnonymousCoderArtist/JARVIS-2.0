@@ -33,7 +33,7 @@ class TraceAnalyzer:
         success = 0
 
         for f_path in trace_files:
-            with open(f_path) as f:
+            with open(f_path, encoding="utf-8") as f:
                 for line in f:
                     try:
                         data = json.loads(line)
@@ -65,7 +65,7 @@ class TraceAnalyzer:
 
         successful_traces = []
         for f_path in self.sessions_dir.glob("*.jsonl"):
-            with open(f_path) as f:
+            with open(f_path, encoding="utf-8") as f:
                 for line in f:
                     try:
                         data = json.loads(line)

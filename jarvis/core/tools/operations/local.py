@@ -136,9 +136,13 @@ class LocalBashOperations:
     async def terminate(self, pid: int) -> None:
         try:
             import signal
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass  # Already dead
+            import sys
+            if sys.platform == "win32":
+                os.kill(pid, signal.SIGTERM)
+            else:
+                os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass  # Already dead or no permission
 
 
 class LocalEditOperations:

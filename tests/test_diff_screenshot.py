@@ -27,7 +27,9 @@ async def test_diff_dom():
         # Find all Static widgets with class diff-line
         diff_lines = pilot.app.query(Static).filter(".diff-line")
 
-        with open(r"C:\Users\koula\.gemini\antigravity\brain\640aec36-8f83-44ef-bd87-1736e8bd9897\scratch\diff_dom.log", "w", encoding="utf-8") as f:
+        import tempfile, os
+        log_path = os.path.join(tempfile.gettempdir(), "diff_dom.log")
+        with open(log_path, "w", encoding="utf-8") as f:
             f.write(f"Found {len(diff_lines)} diff lines\n")
             if len(diff_lines) > 0:
                 line = diff_lines[0]

@@ -156,7 +156,7 @@ def main() -> None:
                 print("Available sessions:")
                 for s in sorted(sessions, key=lambda p: p.stat().st_mtime, reverse=True):
                     # Get first line to get session info
-                    with open(s) as f:
+                    with open(s, encoding="utf-8") as f:
                         first_line = f.readline()
                         if first_line:
                             import json

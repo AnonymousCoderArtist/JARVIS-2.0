@@ -321,7 +321,7 @@ Returns stdout/stderr. Dangerous commands (rm -rf, etc.) require approval."""
 
         # Workspace restriction check
         if self.restrict_to_workspace:
-            if "..\\" in cmd or "../" in cmd:
+            if "../" in cmd or "..\\" in cmd:
                 return "Error: Command blocked by safety guard (path traversal detected)"
 
             # Extract absolute paths and check if they're outside workspace

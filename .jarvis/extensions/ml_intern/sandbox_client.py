@@ -262,8 +262,11 @@ def bash(req: BashReq):
             return {"success": proc.returncode == 0, "output": output, "error": "" if proc.returncode == 0 else f"Exit code {proc.returncode}"}
         except subprocess.TimeoutExpired:
             try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except OSError:
+                if sys.platform != "win32":
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                else:
+                    proc.kill()
+            except (OSError, AttributeError):
                 proc.kill()
             proc.wait()
             return {"success": False, "output": "", "error": f"Timeout after {req.timeout}s"}

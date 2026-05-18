@@ -207,6 +207,9 @@ class WeatherWatcher(BaseWatcher):
     
     def _send_windows_notification(self, title: str, message: str):
         """Send Windows toast notification using PowerShell."""
+        import sys
+        if sys.platform != "win32":
+            return
         try:
             # Try using Windows.UI.Notifications (Windows 10+)
             ps_command = f'''
