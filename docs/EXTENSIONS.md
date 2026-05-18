@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The JARVIS extension system is a **plugin architecture** that allows users and third-party developers to extend JARVIS with custom tools, lifecycle hooks, slash commands, keyboard shortcuts, and event handlers. Extensions are plain Python files — no build step, no package manager required — loaded dynamically at session startup.
+The JARVIS extension system is a **plugin architecture** that allows users and third-party developers to extend JARVIS with custom tools, lifecycle hooks, slash commands, keyboard shortcuts, and event handlers. Extensions are plain Python files or subfolder packages — no build step, no package manager required — loaded dynamically at session startup.
 
 All extension development imports from `jarvis.api` — a stable public API that works whether JARVIS is installed from source or via PyPI.
 
@@ -23,8 +23,10 @@ The system is built around four core components:
 |------|---------|
 | `jarvis/core/extensions/` | Extension system core — API, loader, runner, registry, types |
 | `jarvis/api.py` | **Public API** — all extension imports come from here |
-| `.jarvis/extensions/*.py` | Project-local extensions (highest precedence) |
-| `~/.jarvis/extensions/*.py` | Global user extensions |
+| `.jarvis/extensions/*.py` | Project-local single-file extensions (highest precedence) |
+| `.jarvis/extensions/<name>/` | Project-local package extensions (subfolder with `__init__.py`) |
+| `~/.jarvis/extensions/*.py` | Global user single-file extensions |
+| `~/.jarvis/extensions/<name>/` | Global user package extensions |
 | `.jarvis/extensions/example_extension.py` | Reference extension example |
 
 ---
@@ -37,16 +39,19 @@ The system is built around four core components:
 │                                                                      │
 │  1. discover_and_load()                                              │
 │     ┌──────────────────────────────────────────────────────────┐    │
-│     │  Scan .jarvis/extensions/*.py  (project, highest prio)   │    │
-│     │  Scan ~/.jarvis/extensions/*.py  (user global)           │    │
+│     │  Scan .jarvis/extensions/  (project, highest prio)       │    │
+│     │    *.py files + subdirs with __init__.py                 │    │
+│     │  Scan ~/.jarvis/extensions/  (user global)               │    │
+│     │    *.py files + subdirs with __init__.py                 │    │
 │     │  Scan pip entry points (jarvis.extensions group)         │    │
 │     │  De-duplicate by filename stem (higher prio wins)        │    │
 │     └──────────────────────────────────────────────────────────┘    │
 │                              │                                       │
 │                              ▼                                       │
-│  2. load_from_file()                                                 │
+│  2. load_from_file() / load_from_package_dir()                       │
 │     ┌──────────────────────────────────────────────────────────┐    │
 │     │  importlib.util.spec_from_file_location()                │    │
+│     │    (for packages: submodule_search_locations set)        │    │
 │     │  spec.loader.exec_module()                               │    │
 │     │  Find factory: jarvis / jarvis_extension / default       │    │
 │     │  Build ExtensionManifest from module attrs               │    │
@@ -81,7 +86,11 @@ The system is built around four core components:
 
 ## 4. Writing an Extension
 
-An extension is a single Python file that exports an async factory function:
+An extension can be a single Python file or a subfolder package.
+
+### Single-File Extension
+
+A single Python file that exports an async factory function:
 
 ```python
 # .jarvis/extensions/my_extension.py
@@ -160,6 +169,35 @@ The loader looks for the factory function in this order:
 | `__description__` | `str` | Human-readable description |
 | `__author__` | `str` | Author name or handle |
 
+### Package Extension (Multi-File)
+
+A subfolder with `__init__.py` is recognized as a package extension. The `__init__.py` is the entry point and must export the `async def jarvis(api)` factory function. Submodules can be imported with relative imports.
+
+**Directory structure:**
+
+```
+.jarvis/extensions/my_extension/
+    __init__.py      # entry point: async def jarvis(api): ...
+    models.py        # helper modules
+    utils.py
+```
+
+**Example `__init__.py`:**
+
+```python
+__version__ = "2.0.0"
+__description__ = "A multi-file extension"
+
+from jarvis.api import ExtensionAPI
+from .models import MyTool
+
+
+async def jarvis(api: ExtensionAPI):
+    api.tools(MyTool())
+```
+
+**Precedence:** If both `my_extension.py` and `my_extension/` exist in the same directory, the `.py` file wins.
+
 ---
 
 ## 5. ExtensionAPI Reference
@@ -237,13 +275,15 @@ Passed to extension factories and handlers:
 
 Extensions are discovered from three sources, in precedence order (highest → lowest):
 
-1. **Project-local**: `.jarvis/extensions/*.py` — highest priority, project-specific
-2. **User global**: `~/.jarvis/extensions/*.py` — shared across all projects
+1. **Project-local**: `.jarvis/extensions/` — highest priority, project-specific
+2. **User global**: `~/.jarvis/extensions/` — shared across all projects
 3. **pip entry points**: packages registered under the `jarvis.extensions` entry point group
+
+Each directory is scanned for both single `.py` files and subfolder packages (directories containing `__init__.py`).
 
 ### De-duplication
 
-If the same filename (stem) exists in multiple locations, the **higher-precedence** version wins. For example, `.jarvis/extensions/ssh.py` overrides `~/.jarvis/extensions/ssh.py`.
+If the same name exists in multiple locations, the **higher-precedence** version wins. For example, `.jarvis/extensions/ssh.py` overrides `~/.jarvis/extensions/ssh.py`. If both `foo.py` and `foo/` exist in the same directory, the `.py` file takes precedence.
 
 ---
 
