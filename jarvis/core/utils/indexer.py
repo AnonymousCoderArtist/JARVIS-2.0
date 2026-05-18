@@ -40,7 +40,7 @@ class ProjectIndexer:
                 check=True,
                 **kwargs
             )
-            self._files = result.stdout.splitlines()
+            self._files = [line.replace("\\", "/") for line in result.stdout.splitlines()]
             self._last_index_time = time.time()
             logger.debug(f"Indexed {len(self._files)} files using ripgrep")
         except Exception as e:
