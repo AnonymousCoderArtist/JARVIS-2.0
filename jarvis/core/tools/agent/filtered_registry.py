@@ -14,14 +14,9 @@ class _FilteredToolRegistry:
     This class provides a restricted view of the tool registry,
     allowing only specified tools to be accessed while blocking others.
 
-    Supports optional ``extra_tools`` — tool instances that are NOT in the
-    source registry (e.g. extension-private tools). These are injected
-    directly and take precedence over source registry tools with the same name.
-
     Attributes:
         _source_registry: The underlying tool registry
         _allowed_tools: Set of tool names that are allowed
-        _extra_tools: Optional dict of extra tools (extension-private)
         llm_provider: LLM provider to use
         model: Model name to use
         config_getter: Configuration getter function
@@ -35,7 +30,6 @@ class _FilteredToolRegistry:
         llm_provider=None,
         model=None,
         config_getter=None,
-        extra_tools: dict[str, BaseTool] | None = None,
     ):
         """Initialize the filtered registry.
 
@@ -45,12 +39,9 @@ class _FilteredToolRegistry:
             llm_provider: LLM provider to use
             model: Model name to use
             config_getter: Configuration getter function
-            extra_tools: Optional dict of extra tools not in source_registry
-                        (e.g. extension-private tools). These take precedence.
         """
         self._source_registry = source_registry
         self._allowed_tools = {resolve_tool_ref(t) for t in allowed_tools}
-        self._extra_tools = extra_tools or {}
         self.llm_provider = llm_provider
         self.model = model
         self.config_getter = config_getter
@@ -58,9 +49,6 @@ class _FilteredToolRegistry:
 
     def get(self, name: str):
         """Get a tool by name if allowed.
-        
-        Checks extra_tools first (extension-private), then falls back to
-        the source registry.
         
         Args:
             name: Tool name to retrieve
@@ -70,28 +58,19 @@ class _FilteredToolRegistry:
         """
         if name not in self._allowed_tools:
             return None
-        if name in self._extra_tools:
-            return self._extra_tools[name]
         return self._source_registry.get(name)
 
     def get_tools(self) -> dict[str, BaseTool]:
         """Get all allowed tools.
         
-        Merges tools from the source registry with extra_tools.
-        Extra tools take precedence (same name in both → extra wins).
-        
         Returns:
             Dictionary of allowed tool names to tool instances
         """
-        tools = {
+        return {
             name: tool
             for name, tool in self._source_registry.get_tools().items()
             if name in self._allowed_tools
         }
-        for name, tool in self._extra_tools.items():
-            if name in self._allowed_tools:
-                tools[name] = tool
-        return tools
 
     def list_tools(self) -> list[dict[str, object]]:
         """List all allowed tools with metadata.

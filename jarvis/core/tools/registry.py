@@ -20,9 +20,6 @@ class ToolRegistry:
         self.active_skills: dict[str, str] = {}
         self.event_queue = None
         self.event_bus = None
-        # Extension-private tools: {extension_name: {tool_name: tool_instance}}
-        # These are NOT registered in _tools, and are only visible to extension agents.
-        self.extension_private_tools: dict[str, dict[str, BaseTool]] = {}
 
     def register(self, tool: BaseTool):
         """

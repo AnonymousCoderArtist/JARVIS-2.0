@@ -110,9 +110,7 @@ class ExtensionRunner:
 
         # Agent callback that also registers with the extension registry
         def _agent_registration_callback(definition):
-            # Tag the definition so subagent creation can look up private tools
-            definition.extension_name = manifest.name
-            self._registry.register_agent(manifest.name, definition)
+            self._registry.register_agent(definition)
             if agent_callback is not None:
                 agent_callback(definition)
 
@@ -129,7 +127,7 @@ class ExtensionRunner:
                     await result
 
                 # Flush queued registrations into the live components
-                conflicts, private_tools = await api._bind(
+                conflicts = await api._bind(
                     tool_registry,
                     event_bus,
                     hook_registry,
@@ -144,15 +142,6 @@ class ExtensionRunner:
                             "Extension '%s' overrode tool '%s'",
                             manifest.name, c["tool"],
                         )
-
-                # Store extension-private tools (not in global ToolRegistry)
-                if private_tools:
-                    self._registry.register_private_tools(manifest.name, private_tools)
-
-                # Store private tools on the tool registry too so subagent
-                # creation can look them up without needing the extension registry
-                if private_tools and hasattr(tool_registry, 'extension_private_tools'):
-                    tool_registry.extension_private_tools[manifest.name] = private_tools
 
                 # Update manifest with tools that were registered
                 # (approximate — we track from the API registrations)

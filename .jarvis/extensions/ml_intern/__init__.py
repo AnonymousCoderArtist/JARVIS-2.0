@@ -129,8 +129,9 @@ async def jarvis(api: ExtensionAPI) -> None:
         def get_system_prompt(num_tools=None):
             return "You are ML Intern, an autonomous ML engineering assistant."
 
-    # ── Register tools (extension-private — only visible to ml-intern agent) ──
-    api.extension_tools(*tools)
+    # ── Register tools ──
+    for tool in tools:
+        api.tools(tool)
 
     # ── Register agent ──
     num_tools = len(tools)

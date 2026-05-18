@@ -367,14 +367,6 @@ class AgentTool(BaseTool):
         allowed_tools = getattr(definition, "tools", None)
         disallowed_tools = getattr(definition, "disallowed_tools", None)
 
-        # Collect extension-private tools if this agent belongs to an extension
-        extra_tools: dict[str, BaseTool] = {}
-        extension_name = getattr(definition, "extension_name", None)
-        if extension_name:
-            from jarvis.core.tools.base import BaseTool as _BT
-            ext_private = getattr(tool_registry, "extension_private_tools", {}).get(extension_name, {})
-            extra_tools.update(ext_private)
-
         if allowed_tools:
             # Resolve tool refs (str/class/instance) to string names
             resolved = [resolve_tool_ref(t) for t in allowed_tools]
@@ -386,7 +378,6 @@ class AgentTool(BaseTool):
                     llm_provider=llm_provider,
                     model=model,
                     config_getter=custom_config_getter,
-                    extra_tools=extra_tools,
                 )
             else:
                 custom_registry = tool_registry
@@ -400,7 +391,6 @@ class AgentTool(BaseTool):
                 llm_provider=llm_provider,
                 model=model,
                 config_getter=custom_config_getter,
-                extra_tools=extra_tools or None,
             )
         else:
             custom_registry = tool_registry
