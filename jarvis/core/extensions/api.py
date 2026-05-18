@@ -49,6 +49,7 @@ class ExtensionAPI:
 
         # Accumulated registrations (cleared on bind)
         self._tool_registrations: list[dict] = []
+        self._private_tool_registrations: list[dict] = []
         self._command_registrations: list[dict] = []
         self._event_subscriptions: list[tuple[type, EventHandler]] = []
         self._hook_registrations: list[tuple[HookStage, HookHandler]] = []
@@ -65,8 +66,25 @@ class ExtensionAPI:
         *tool* can be any object that has ``name``, ``description``,
         ``input_schema``, and an ``async execute(input_data) -> ToolOutput``
         method (i.e. a ``BaseTool`` instance).
+
+        Tools registered this way are visible to ALL agents (global scope).
+        Use :meth:`extension_tools` to register tools that only the
+        extension's own agent(s) can see.
         """
         self._tool_registrations.append({"tool": tool})
+
+    def extension_tools(self, *tools: Any) -> None:
+        """Register tools that are ONLY available to this extension's agent(s).
+
+        Unlike :meth:`tools` (which registers globally), extension-private
+        tools are not added to the session-wide ToolRegistry. They are only
+        visible to agent definitions created by the same extension via
+        :meth:`agents`.
+
+        Each *tool* must be a ``BaseTool`` instance.
+        """
+        for tool in tools:
+            self._private_tool_registrations.append({"tool": tool})
 
     def command(self, name: str, handler: CommandHandler, description: str = "") -> None:
         """Register a slash command (e.g. ``/my-command``)."""
@@ -145,13 +163,15 @@ class ExtensionAPI:
     # Internal — called by ExtensionRunner
     # ------------------------------------------------------------------
 
-    async def _bind(self, tool_registry, event_bus, hook_registry, session, agent_callback=None) -> list[dict]:
+    async def _bind(self, tool_registry, event_bus, hook_registry, session, agent_callback=None) -> tuple[list[dict], dict[str, Any]]:
         """Wire this API instance to the live session.
 
         Called once by ``ExtensionRunner.bind()``. Flushes all queued
         registrations.
 
-        Returns a list of conflict info dicts for tool overrides.
+        Returns a tuple of (conflicts, private_tools_dict).
+        *conflicts* is a list of conflict info dicts for tool overrides.
+        *private_tools_dict* maps tool name → tool instance for extension-private tools.
         """
         self._tool_registry = tool_registry
         self._event_bus = event_bus
@@ -160,7 +180,7 @@ class ExtensionAPI:
 
         conflicts: list[dict] = []
 
-        # --- Flush tool registrations ---
+        # --- Flush public tool registrations (global scope) ---
         for reg in self._tool_registrations:
             tool = reg["tool"]
             existing = tool_registry.get(tool.name)
@@ -175,6 +195,12 @@ class ExtensionAPI:
                     "type": "override",
                 })
             tool_registry.register(tool)
+
+        # --- Collect private tool registrations (extension-scoped) ---
+        private_tools: dict[str, Any] = {}
+        for reg in self._private_tool_registrations:
+            tool = reg["tool"]
+            private_tools[tool.name] = tool
 
         # --- Flush event subscriptions ---
         if event_bus is not None:
@@ -191,7 +217,7 @@ class ExtensionAPI:
             for definition in self._agent_registrations:
                 agent_callback(definition)
 
-        return conflicts
+        return conflicts, private_tools
 
     async def _unbind(self) -> None:
         """Disconnect this API instance from the session (called on shutdown)."""
