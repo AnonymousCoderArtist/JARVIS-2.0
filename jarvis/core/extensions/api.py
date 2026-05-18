@@ -18,6 +18,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from jarvis.core.events.hooks import HookContext, HookResult, HookStage
+from jarvis.core.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class ExtensionAPI:
 
         # Accumulated registrations (cleared on bind)
         self._tool_registrations: list[dict] = []
+        self._agent_tool_registrations: list[BaseTool] = []
         self._command_registrations: list[dict] = []
         self._event_subscriptions: list[tuple[type, EventHandler]] = []
         self._hook_registrations: list[tuple[HookStage, HookHandler]] = []
@@ -65,8 +67,25 @@ class ExtensionAPI:
         *tool* can be any object that has ``name``, ``description``,
         ``input_schema``, and an ``async execute(input_data) -> ToolOutput``
         method (i.e. a ``BaseTool`` instance).
+
+        Tools registered via this method are visible globally — all agents
+        can discover and call them. For extension-private tools that should
+        ONLY be available to this extension's own agent(s), use
+        ``agent_tools()`` instead.
         """
         self._tool_registrations.append({"tool": tool})
+
+    def agent_tools(self, tool: BaseTool) -> None:
+        """Register a tool that is ONLY available to this extension's agents.
+
+        Unlike ``tools()``, agent-local tools are never included in the main
+        agent's function definitions or tool listings. They can only be
+        resolved by name from within a ``_FilteredToolRegistry`` that
+        explicitly includes them (i.e. from the extension's own subagent).
+
+        *tool* must be a ``BaseTool`` instance.
+        """
+        self._agent_tool_registrations.append(tool)
 
     def command(self, name: str, handler: CommandHandler, description: str = "") -> None:
         """Register a slash command (e.g. ``/my-command``)."""
@@ -175,6 +194,10 @@ class ExtensionAPI:
                     "type": "override",
                 })
             tool_registry.register(tool)
+
+        # --- Flush agent-local tool registrations (excluded from global listings) ---
+        for tool in self._agent_tool_registrations:
+            tool_registry.register_agent_local_tool(tool)
 
         # --- Flush event subscriptions ---
         if event_bus is not None:

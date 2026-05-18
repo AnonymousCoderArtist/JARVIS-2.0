@@ -14,6 +14,7 @@ class ToolRegistry:
 
     def __init__(self, llm_provider=None, model=None, config_getter=None):
         self._tools: dict[str, BaseTool] = {}
+        self._agent_local_tools: dict[str, BaseTool] = {}
         self.llm_provider = llm_provider
         self.model = model
         self.config_getter = config_getter
@@ -23,7 +24,7 @@ class ToolRegistry:
 
     def register(self, tool: BaseTool):
         """
-        Register a tool
+        Register a tool globally (visible to all agents).
 
         Args:
             tool: Tool instance to register
@@ -38,6 +39,25 @@ class ToolRegistry:
 
         self._tools[tool.name] = tool
 
+    def register_agent_local_tool(self, tool: BaseTool):
+        """Register a tool that is ONLY available to extension-defined subagents.
+
+        Unlike register(), agent-local tools are excluded from
+        get_function_definitions() and list_tools(), so they never appear
+        in the main agent's tool list. They can still be resolved by name
+        via get() for use with _FilteredToolRegistry.
+
+        Args:
+            tool: Tool instance to register as agent-local
+        """
+        tool.tool_registry = self
+        tool.llm_provider = self.llm_provider
+        tool.model = self.model
+        if self.event_queue is not None:
+            tool.event_queue = self.event_queue
+
+        self._agent_local_tools[tool.name] = tool
+
     def update_tool_providers(self, llm_provider=None, model=None, config_getter=None, event_queue=None):
         if llm_provider is not None:
             self.llm_provider = llm_provider
@@ -47,7 +67,7 @@ class ToolRegistry:
             self.config_getter = config_getter
         if event_queue is not None:
             self.event_queue = event_queue
-        for tool in self._tools.values():
+        for tool in list(self._tools.values()) + list(self._agent_local_tools.values()):
             tool.tool_registry = self
             if llm_provider is not None:
                 tool.llm_provider = llm_provider
@@ -57,7 +77,10 @@ class ToolRegistry:
                 tool.event_queue = self.event_queue
 
     def get(self, name: str) -> BaseTool | None:
-        return self._tools.get(name)
+        tool = self._tools.get(name)
+        if tool is not None:
+            return tool
+        return self._agent_local_tools.get(name)
 
     def list_tools(self) -> list[dict[str, Any]]:
         return [
