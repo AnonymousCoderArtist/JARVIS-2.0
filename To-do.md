@@ -1,20 +1,25 @@
 # JARVIS v2.0 Development Todo List
 
+- [X] Added Prompt Cache (Anthropic cache_control, always-on)
+- [X] Switched to official openai/anthropic SDK packages instead of custom HTTP client
+- [X] AgentDefinition fields: renamed agent_type→name, added agent_type (AGENT/SUBAGENT) flag
+- [X] Per-agent profile registration control (AGENT→profiles+tools, SUBAGENT→tools only)
+- [X] Updated custom-agents.md documentation
 - [ ] Add support for any ACP client as SDK providers
 - [ ] Implement connector system for external services
 - [X] Add AskUserTool for agents to ask users for input when needed
 - [x] TUI uses ansi-dark theme with transparent backgrounds
-- [ ] Enhance Web UI with better interface and user experience
+- [X] Enhance Web UI with better interface and user experience
 - [ ] Add support for custom themes in Web UI
 - [x] Update HEARTBEAT system to be 2-phased instead of 1
 - [X] Implement HEARTBEAT system for periodic tasks and monitoring
 - [X] Make HEARTBEAT to run as a non blocking background subagent
 - [ ] Make the agent's memory more efficient and scalable
 - [ ] Make Skill system better and more flexible
-- [ ] Add support for multiple agents working together in a team
+- [X] Add support for multiple agents working together in a team
 - [ ] Implement Connectors for popular services like Google Drive, Slack, etc.
 - [X] Implement Coding Agent
-- [X] Subagents
+- [X] Subagents 
 - [X] TUI/CLI interface
 - [ ] Implement Rewind feature for agents to undo actions
 - [ ] UI improvements for Subagents
@@ -24,7 +29,24 @@
 - [X] Make !bang commands to be non-blocking and run via async subprocess for better latency
 - [X] Add more built-in agents for specific tasks (e.g. research, data analysis, etc.)
 - [ ] Implement better error handling and recovery mechanisms for agents
-- [ ] Add support for agent collaboration and communication
+- [X] Lazy MCP proxy architecture (single `mcp` proxy tool)
+- [X] MCP lifecycle modes (lazy / eager / keep-alive)
+- [X] Persistent metadata cache (~/.jarvis/mcp-cache.json)
+- [X] Direct tools support (register high-frequency tools individually)
+- [X] Idle timeout with auto-disconnect
+- [ ] Multi-server parallel lazy initialization
+- [ ] MCP server health monitoring dashboard (TUI)
+- [ ] Auto-reconnect on connection drops
+- [ ] Tool result streaming for long-running MCP tools
+- [X] MCP server capability negotiation (resources, prompts, sampling)
+- [ ] Dynamic tool exclusion via runtime patterns (regex)
+- [ ] Cache warm-up on startup for frequently-used servers
+- [X] MCP OAuth/auth flow support for protected servers
+- [ ] Tool composition: chain MCP tool outputs as inputs to other tools
+- [ ] Persistent connection pooling across sessions
+- [ ] MCP server sandboxing (resource limits, timeouts per tool)
+- [ ] Cross-session MCP usage analytics and token savings reporting
+- [X] Add support for agent collaboration and communication
 - [X] Implement worktree tools for better code management in coding agents
 - [X] user Can add own tools in jarvis
 - [X] Pasive Watchers 
@@ -32,28 +54,25 @@
  ### WEBUI IMPLEMENTATION
 
 - [X]  Command System - Slash commands (WEBUI)
-- [ ]  Safety Profiles - 5 safety levels (Cycle with Shift+Tab)
+- [X]  Safety Profiles - 5 safety levels (Cycle with Shift+Tab)
 - [X]  Thinking Picker - Control AI reasoning detail level
-- [ ]  Model Picker - Switch between available LLM models
+- [X]  Model Picker - Switch between available LLM models
 - [X]  Tool Results Display - Rich display of tool outputs
-- [ ] MCP Integration - Model Context Protocol server support
-- [ ]  Voice Input - Voice recording capability (UI elements present)
-- [ ] Heartbeat System - Background task monitoring with notifications 
+- [X] MCP Integration - Model Context Protocol server support
+- [X]  Voice Input - Voice recording capability (UI elements present)
+- [X] Heartbeat System - Background task monitoring with notifications 
 - [X] Session & History: 
     - [X] Session Management - Resume/load previous sessions
     - [X] History Navigation - Load more historical messages
     - [X] Local Session Storage - Save and restore sessions
     - [X] Remote Sessions - Access sessions from remote instances
-- [ ] Rewind App - Navigate and restore previous conversation states
-- [ ] Config Menu - In-app settings and preferences UI
-- [ ] Approval Dialog - Enhanced tool approval popup
-- [ ] Question App - Ask user structured questions UI
-- [ ] Feedback Bar - User feedback collection
-- [ ] Debug Console - Developer debugging tools
+- [X] Rewind App - Navigate and restore previous conversation states
+- [X] Config Menu - In-app settings and preferences UI
+- [X] Approval Dialog - Enhanced tool approval popup
+- [X] Question App - Ask user structured questions UI
+- [X] Feedback Bar - User feedback collection
+- [X] Debug Console - Developer debugging tools
 - [ ] Teleport - Git sync / teleport integration
-- [ ] Session Picker - Detailed session picker with filtering
-- [ ] Narrator Mode - AI narrator voice output UI
-- [ ] Proxy Setup - Proxy configuration UI
-- [ ] Connector Auth - External service authentication UI
+- [X] Connector Auth - External service authentication UI
 - [ ] Load More - Load more historical messages button
-- [ ] Context Progress - Token usage detailed display
+- [X] Context Progress - Token usage detailed display

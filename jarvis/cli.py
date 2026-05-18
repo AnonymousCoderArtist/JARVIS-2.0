@@ -35,7 +35,7 @@ def _load_env_config() -> dict[str, str]:
     }
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int, str | None]:
+def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, bool, str, int, int, str | None, str | None]:
     # Load .env configuration as defaults
     env_config = _load_env_config()
 
@@ -107,6 +107,14 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
         help="Resume a session (default: most recent). Use 'list' to show available sessions."
     )
 
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["interactive", "cli", "tui", "webui", "rpc", "print"],
+        default=None,
+        help="Execution mode: interactive (default), cli, tui, webui, rpc, or print"
+    )
+
     # WebUI specific arguments
     parser.add_argument(
         "--host", "-H",
@@ -131,16 +139,16 @@ def _parse_args(argv: list[str]) -> tuple[bool, bool, bool, str, str, str, str, 
 
     args = parser.parse_args(argv)
 
-    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port, args.resume_session
+    return args.cli, args.tui, args.webui, args.model, args.base_url, args.apikey, args.sdk, args.bypass, args.host, args.port, args.backend_port, args.resume_session, args.mode
 
 
 def main() -> None:
     """Entry point for the jarvis command."""
-    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port, resume_session = _parse_args(sys.argv[1:])
+    launch_cli, launch_tui, launch_webui, model, base_url, apikey, sdk, bypass, webui_host, webui_port, backend_port, resume_session, mode = _parse_args(sys.argv[1:])
 
     # Handle --resume list to show available sessions
     if resume_session == "list":
-        from core.history import ConversationHistory
+        from jarvis.core.history import ConversationHistory
         history_dir = ConversationHistory().history_dir
         if history_dir.exists():
             sessions = list(history_dir.glob("*.jsonl"))
@@ -148,7 +156,7 @@ def main() -> None:
                 print("Available sessions:")
                 for s in sorted(sessions, key=lambda p: p.stat().st_mtime, reverse=True):
                     # Get first line to get session info
-                    with open(s) as f:
+                    with open(s, encoding="utf-8") as f:
                         first_line = f.readline()
                         if first_line:
                             import json
@@ -167,8 +175,8 @@ def main() -> None:
 
     # Auto-resume latest session if -r was used without argument
     if resume_session == "latest":
-        from core.history import ConversationHistory
-        from pathlib import Path
+
+        from jarvis.core.history import ConversationHistory
         history_dir = ConversationHistory().history_dir
         if history_dir.exists():
             sessions = list(history_dir.glob("*.jsonl"))
@@ -183,6 +191,19 @@ def main() -> None:
             print("No sessions to resume.")
             resume_session = None
 
+    # Handle mode flag
+    if mode == "rpc":
+        import asyncio
+
+        from jarvis.core.rpc import run_rpc_mode
+        asyncio.run(run_rpc_mode(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass))
+        return
+
+    if mode == "print":
+        launch_cli = True
+        # Print mode uses CLI but outputs to stdout and exits
+        # For now, falls through to CLI mode
+
     # Default to TUI if no mode specified
     if not launch_cli and not launch_tui and not launch_webui:
         launch_tui = True
@@ -193,17 +214,17 @@ def main() -> None:
 
     # Launch appropriate interface
     if launch_tui:
-        from interface.textual_ui.tui_main import main as tui_main
+        from jarvis.interface.textual_ui.tui_main import main as tui_main
         # TUI needs to be run synchronously (Textual handles its own event loop)
         tui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session)
     elif launch_webui:
-        from interface.webui.webui_main import main as webui_main
+        from jarvis.interface.webui.webui_main import main as webui_main
         webui_main(model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, host=webui_host, port=webui_port, backend_port=backend_port, resume_session=resume_session)
     else:
         # CLI is now async
         import asyncio
 
-        from interface.cli.cli import main as cli_main
+        from jarvis.interface.cli.cli import main as cli_main
         asyncio.run(cli_main(launch_cli=launch_cli, model=model, base_url=base_url, apikey=apikey, sdk=sdk, bypass=bypass, resume_session=resume_session))
 
 

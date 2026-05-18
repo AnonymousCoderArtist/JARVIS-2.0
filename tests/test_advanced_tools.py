@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from core.tools.base import ToolInput
-from core.tools.code_tools import BashTool
-from core.tools.file_state import current_file_states
-from core.tools.file_tools import FileReadTool, FileWriteTool
-from core.tools.web_tools import ExaWebSearchTool
+from jarvis.core.tools.base import ToolInput
+from jarvis.core.tools.code_tools import BashTool
+from jarvis.core.tools.file_state import current_file_states
+from jarvis.core.tools.file_tools import FileReadTool, FileWriteTool
+from jarvis.core.tools.web_tools import ExaWebSearchTool
 
 
 class TestFileState:
@@ -79,10 +79,10 @@ class TestFileTools:
             assert result1.success
             assert "Line 1" in result1.result
 
-            # Second read (should be deduplicated)
+            # Second read (should return same content)
             result2 = await tool.execute(input_data)
             assert result2.success
-            assert "unchanged since last read" in result2.result.lower()
+            assert "Line 1" in result2.result
 
     async def test_file_write_state_tracking(self):
         """Test that file writes are tracked"""

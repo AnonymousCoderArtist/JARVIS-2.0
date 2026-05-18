@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "event_bus", "target": "hook_registry", "relation": "complementary_to", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "docs/HOOKS.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

@@ -1,0 +1,305 @@
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { Send } from "lucide-react";
+import { COMMANDS, type Command } from "./SlashCommands";
+import { VoiceInput } from "./VoiceInput";
+
+interface ChatInputProps {
+  onSend: (content: string) => void;
+  disabled?: boolean;
+  onOpenModelPicker?: () => void;
+  onOpenMcpPanel?: () => void;
+  onOpenHeartbeat?: () => void;
+  onOpenRewind?: () => void;
+  onOpenConfig?: () => void;
+  onOpenDebug?: () => void;
+  onOpenFeedback?: () => void;
+}
+
+export function ChatInput({
+  onSend, disabled,
+  onOpenModelPicker, onOpenMcpPanel, onOpenHeartbeat,
+  onOpenRewind, onOpenConfig, onOpenDebug, onOpenFeedback,
+}: ChatInputProps) {
+  const [value, setValue] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [wasCommandSelected, setWasCommandSelected] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const getCurrentWord = useCallback(() => {
+    const cursorPosition = textareaRef.current?.selectionStart ?? value.length;
+    const textBeforeCursor = value.slice(0, cursorPosition);
+    const match = textBeforeCursor.match(/(\/[\w]*)$/);
+    if (match) {
+      return {
+        word: match[1],
+        start: match.index ?? 0,
+      };
+    }
+    return null;
+  }, [value]);
+
+  const matchingCommands = useMemo(() => {
+    const current = getCurrentWord();
+    if (!current || !current.word.startsWith("/")) return [];
+
+    const searchTerm = current.word.toLowerCase();
+    return COMMANDS.filter(cmd => 
+      cmd.name.toLowerCase().includes(searchTerm) ||
+      cmd.aliases.some(alias => alias.toLowerCase().startsWith(searchTerm))
+    ).slice(0, 8);
+  }, [getCurrentWord]);
+
+  useEffect(() => {
+    const current = getCurrentWord();
+    if (current && current.word.startsWith("/") && current.word.length > 0) {
+      const matches = matchingCommands;
+      setShowSuggestions(matches.length > 0);
+      setSelectedIndex(0);
+    } else {
+      setShowSuggestions(false);
+    }
+  }, [value, getCurrentWord, matchingCommands]);
+
+  const selectCommand = useCallback((command: Command) => {
+    const current = getCurrentWord();
+    if (!current) return;
+    const newValue = value.slice(0, current.start) + command.aliases[0] + " ";
+    setValue(newValue);
+    setShowSuggestions(false);
+    setWasCommandSelected(true);
+    textareaRef.current?.focus();
+  }, [value, getCurrentWord]);
+
+  const handleCommand = useCallback((command: string, args: string) => {
+    switch (command) {
+      case "clear":
+        window.location.reload();
+        break;
+      case "help":
+        onSend("Please list all available commands with descriptions.");
+        break;
+      case "status":
+        onSend("Show system status");
+        break;
+      case "profile":
+        onSend(args ? `Switch to profile: ${args}` : "Show available profiles");
+        break;
+      case "tools":
+        onSend("List all available tools");
+        break;
+      case "skills":
+        onSend(args ? `Activate skill: ${args}` : "List all skills");
+        break;
+      case "config":
+        onOpenConfig?.();
+        break;
+      case "mcp":
+        onOpenMcpPanel?.();
+        break;
+      case "rewind":
+        onOpenRewind?.();
+        break;
+      case "model":
+        onOpenModelPicker?.();
+        break;
+      case "debug":
+        onOpenDebug?.();
+        break;
+      case "feedback":
+        onOpenFeedback?.();
+        break;
+      case "heartbeat":
+        onOpenHeartbeat?.();
+        break;
+      default:
+        onSend(value.trim());
+    }
+  }, [onSend, value, onOpenConfig, onOpenMcpPanel, onOpenRewind, onOpenModelPicker, onOpenDebug, onOpenFeedback, onOpenHeartbeat]);
+
+  const submit = useCallback(() => {
+    const trimmed = value.trim();
+    if (!trimmed || disabled) return;
+
+    if (trimmed.startsWith("/") && showSuggestions && matchingCommands[selectedIndex]) {
+      selectCommand(matchingCommands[selectedIndex]);
+      return;
+    }
+
+    if (wasCommandSelected) {
+      setWasCommandSelected(false);
+      onSend(trimmed);
+      setValue("");
+      setShowSuggestions(false);
+      return;
+    }
+    
+    if (trimmed.startsWith("/")) {
+      const parts = trimmed.split(" ");
+      const command = parts[0].toLowerCase();
+      const args = parts.slice(1).join(" ");
+      
+      const matchedCmd = COMMANDS.find(cmd => 
+        cmd.aliases.map(a => a.toLowerCase()).includes(command)
+      );
+      
+      if (matchedCmd) {
+        handleCommand(matchedCmd.name, args);
+        setValue("");
+        setWasCommandSelected(false);
+        return;
+      }
+    }
+    
+    onSend(trimmed);
+    setValue("");
+    setShowSuggestions(false);
+    setWasCommandSelected(false);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.style.height = "auto";
+      }
+    });
+  }, [disabled, onSend, value, showSuggestions, matchingCommands, selectedIndex, selectCommand, wasCommandSelected, handleCommand]);
+
+  const onKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
+    if (showSuggestions) {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          e.stopPropagation();
+          setSelectedIndex(i => (i + 1) % matchingCommands.length);
+          return;
+        case "ArrowUp":
+          e.preventDefault();
+          e.stopPropagation();
+          setSelectedIndex(i => (i - 1 + matchingCommands.length) % matchingCommands.length);
+          return;
+        case "Enter":
+          if (matchingCommands[selectedIndex]) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectCommand(matchingCommands[selectedIndex]);
+          }
+          return;
+        case "Escape":
+          e.preventDefault();
+          e.stopPropagation();
+          setShowSuggestions(false);
+          return;
+        case "Tab":
+          if (matchingCommands[selectedIndex]) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectCommand(matchingCommands[selectedIndex]);
+          }
+          return;
+      }
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
+  };
+
+  const onInput: React.FormEventHandler<HTMLTextAreaElement> = (e) => {
+    const el = e.currentTarget;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  };
+
+  const handleTranscript = useCallback((text: string) => {
+    if (text.trim()) {
+      setValue(prev => prev + text);
+    }
+  }, []);
+
+  return (
+    <div
+      className="relative w-full max-w-xl"
+    >
+      {showSuggestions && matchingCommands.length > 0 && (
+        <div
+          className="absolute bottom-full left-0 mb-2 w-72 techy-suggestions"
+        >
+          <div className="px-3 py-2 text-[10px] uppercase tracking-wider" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
+            Commands
+          </div>
+          {matchingCommands.map((cmd, index) => (
+            <button
+              key={cmd.name}
+              onClick={() => selectCommand(cmd)}
+              className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-blue-500/10"
+              style={{
+                background: index === selectedIndex ? "rgba(var(--brand-r), var(--brand-g), var(--brand-b), 0.1)" : "transparent",
+              }}
+            >
+              <div className="flex flex-1 flex-col">
+                <span className="text-sm font-medium" style={{ color: "rgba(var(--text-bright-r), var(--text-bright-g), var(--text-bright-b), 0.95)" }}>
+                  {cmd.aliases[0]}
+                </span>
+                <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.6)" }}>
+                  {cmd.description}
+                </span>
+              </div>
+              {cmd.usage && (
+                <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
+                  {cmd.usage}
+                </span>
+              )}
+            </button>
+          ))}
+          <div className="flex items-center justify-between px-3 py-1.5 border-t border-[rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.1)]">
+            <span className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
+              ↑↓ Navigate
+            </span>
+            <span className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
+              Enter Select
+            </span>
+            <span className="text-[9px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
+              Esc Close
+            </span>
+          </div>
+        </div>
+      )}
+      <div
+        className="flex items-end gap-3 rounded-2xl px-5 py-3 techy-input-bar"
+      >
+        <div className="flex flex-1 flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px]" style={{ color: "rgba(var(--text-muted-r), var(--text-muted-g), var(--text-muted-b), 0.4)" }}>
+              Type / for commands · Enter send · Shift+Enter newline
+            </span>
+          </div>
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (wasCommandSelected) setWasCommandSelected(false);
+            }}
+            onInput={onInput}
+            onKeyDown={onKeyDown}
+            rows={1}
+            placeholder="Enter command..."
+            disabled={disabled}
+            className="min-h-[24px] max-h-[120px] w-full resize-none bg-transparent text-sm leading-relaxed text-blue-100 placeholder:text-slate-500 focus:outline-none disabled:cursor-not-allowed"
+          />
+        </div>
+        <div className="flex items-center gap-2 pb-0.5">
+          <VoiceInput onTranscript={handleTranscript} />
+          <button
+            onClick={submit}
+            disabled={disabled || !value.trim()}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-blue-300 transition-all hover:bg-blue-500/20 hover:shadow-[0_0_10px_rgba(var(--brand-r),var(--brand-g),var(--brand-b),0.3)] disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

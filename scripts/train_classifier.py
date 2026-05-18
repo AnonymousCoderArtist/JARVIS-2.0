@@ -1,7 +1,9 @@
 """
 Standalone script to train the JARVIS classifier from scratch.
 """
-import sys, os, importlib.util
+import importlib.util
+import os
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SCRIPT_DIR)
@@ -17,7 +19,7 @@ sys.modules["core.learn.Classification.training_data"] = td_module
 spec.loader.exec_module(td_module)
 
 # Now import the training pipeline
-from core.learn.Classification.train_classifier import train_model, predict
+from jarvis.core.learn.Classification.train_classifier import predict, train_model
 
 print("=" * 60)
 print("JARVIS Query Type Classifier - Training from Scratch")

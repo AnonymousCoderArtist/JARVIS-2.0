@@ -7,15 +7,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import core.tools.permissions as permissions_module
-from core.agents.base import BaseAgent
-from core.config.settings import Settings
-from core.tools.agent_tool import AgentsTool
-from core.tools.base import BaseTool, ToolInput, ToolOutput
-from core.tools.file_tools import FileReadTool, FindTool, LSTool
-from core.tools.grep_tool import GrepSearchTool
-from core.tools.permission_manager import PermissionManager
-from core.tools.permissions import (
+import jarvis.core.tools.permissions as permissions_module
+from jarvis.core.agents.base import BaseAgent
+from jarvis.core.config.settings import Settings
+from jarvis.core.tools.agent_tool import AgentsTool
+from jarvis.core.tools.base import BaseTool, ToolInput, ToolOutput
+from jarvis.core.tools.file_tools import FileReadTool, FindTool, LSTool
+from jarvis.core.tools.grep_tool import GrepSearchTool
+from jarvis.core.tools.permission_manager import PermissionManager
+from jarvis.core.tools.permissions import (
     PermissionContext,
     PermissionScope,
     ToolPermission,
@@ -147,7 +147,7 @@ async def test_session_allow_applies_to_generic_tools(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_agents_applies_explore_profile_to_subagent(monkeypatch) -> None:
-    import core.agents as agents_module
+    import jarvis.core.agents as agents_module
 
     captured: dict[str, object] = {}
 

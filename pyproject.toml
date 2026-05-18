@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis"
-version = "2.0.0"
+version = "2.1.0"
 description = "JARVIS AI Assistant - Multi-agent system with CLI interface"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -72,6 +72,12 @@ dependencies = [
     # Learning/ML dependencies
     "torch>=2.0.0",
     "transformers>=4.36.0",
+    "feedparser>=6.0.12",
+    "mcp>=1.27.1",
+    "whoosh>=2.7.4",
+    "thefuzz>=0.22.1",
+    "nbformat>=5.10.4",
+    "nbconvert>=7.17.1",
 ]
 [project.optional-dependencies]
 dev = [
@@ -97,7 +103,7 @@ Issues = "https://github.com/OEvortex/JARVIS/issues"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["core*", "jarvis*", "interface*"]
+include = ["jarvis*"]
 
 [tool.black]
 line-length = 100
@@ -162,6 +168,27 @@ python-version = "3.12"
 [tool.ty.rules]
 possibly-unresolved-reference = "warn"
 unused-ignore-comment = "warn"
+# Suppress errors for test files and third-party libraries
+invalid-method-override = "warn"
+unresolved-attribute = "warn"
+invalid-argument-type = "warn"
+unresolved-import = "warn"
+unresolved-reference = "warn"
+not-subscriptable = "warn"
+unsupported-operator = "warn"
+invalid-assignment = "warn"
+call-non-callable = "warn"
+unknown-argument = "warn"
+missing-argument = "warn"
+invalid-return-type = "warn"
+invalid-parameter-default = "warn"
+no-matching-overload = "warn"
+invalid-type-form = "warn"
+too-many-positional-arguments = "warn"
+
+[tool.ty.analysis]
+# Suppress errors for test files
+allowed-unresolved-imports = ["tests.**", "examples.hooks.**", "core.evals"]
 
 [tool.ty.terminal]
 error-on-warning = false

@@ -140,10 +140,12 @@ typings/
 *.tfstate.backup
 .devin
 .openclaude
-.jarvis
+.jarvis/settings.json
 .gemini
 PLANS/
 tmp/
 .mcp.json
 .pi
 .kilo/
+.opencode/
+

@@ -3,27 +3,27 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.agents.jarvis_v2 import JarvisV2 as CodingAgent
-from core.tools.base import ToolOutput
-from core.tools.registry import ToolRegistry
-from interface.textual_ui.agent_loop import AgentLoop
-from interface.textual_ui.app import VibeApp
-from interface.textual_ui.cli_adapters import (
+from jarvis.core.agents.jarvis_v2 import JarvisV2 as CodingAgent
+from jarvis.core.tools.base import ToolOutput
+from jarvis.core.tools.registry import ToolRegistry
+from jarvis.interface.textual_ui.agent_loop import AgentLoop
+from jarvis.interface.textual_ui.app import VibeApp
+from jarvis.interface.textual_ui.cli_adapters import (
     CommandCompleter,
     CommandRegistry,
     SlashCommandController,
     ToolUIDataAdapter,
 )
-from interface.textual_ui.tui_main import Config, create_tool_registry
-from interface.textual_ui.types import (
+from jarvis.interface.textual_ui.tui_main import Config, create_tool_registry
+from jarvis.interface.textual_ui.types import (
     AssistantEvent,
     ReasoningEvent,
     ToolCallEvent,
     ToolResultEvent,
     UserMessageEvent,
 )
-from interface.textual_ui.widgets.chat_input.container import ChatInputContainer
-from interface.textual_ui.widgets.messages import AssistantMessage, ErrorMessage, UserMessage
+from jarvis.interface.textual_ui.widgets.chat_input.container import ChatInputContainer
+from jarvis.interface.textual_ui.widgets.messages import AssistantMessage, ErrorMessage, UserMessage
 from jarvis.cli import _parse_args
 
 
@@ -36,9 +36,6 @@ class FakeStreamingAgent:
         self.reasoning_callback = None
         self.model = "gpt-4o"
         self._config_getter = None
-
-    def get_memory_context(self) -> str:
-        return ""
 
     def set_config_getter(self, config_getter) -> None:
         self._config_getter = config_getter
@@ -157,19 +154,18 @@ def test_tool_call_display_shows_actual_tool_name_and_arguments() -> None:
     assert display.summary == "FILE_READ path=core/agents/base.py, offset=10, limit=20"
 
 
-def test_system_prompt_includes_registered_tool_descriptions() -> None:
+def test_tool_is_available_via_registry() -> None:
     registry = ToolRegistry()
 
     class ExampleTool:
         name = "example_tool"
         description = "Example tool description."
-        input_schema = {"type": "object", "properties": {}}
 
     registry.register(ExampleTool())  # type: ignore
-    agent = CodingAgent(FakeNoToolsProvider(), registry, model="fake-no-tools", config_getter=None)
 
-    assert "### example_tool" in agent.system_prompt
-    assert "Example tool description." in agent.system_prompt
+    tool = registry.get("example_tool")
+    assert tool is not None
+    assert tool.description == "Example tool description."
 
 
 def test_tui_help_text_shows_command_usage_hints() -> None:

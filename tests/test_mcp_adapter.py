@@ -3,11 +3,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.tools.mcp_adapter import (
+from jarvis.core.tools.mcp_adapter import (
     MCPClient,
     MCPServerConfig,
     MCPToolSpec,
     MCPTransportType,
+)
+from jarvis.core.tools.mcp_metadata_cache import (
+    MCPMetadataCache,
+    ToolMetadata,
+    compute_config_hash,
 )
 
 
@@ -157,3 +162,204 @@ async def test_mcp_client_retries_once_after_closed_loop_call_error() -> None:
 
                 assert call_count == 2
                 assert result is not None
+
+
+# ============================================================================
+# Lazy MCP Tests
+# ============================================================================
+
+
+class TestMCPServerConfigExtensions:
+    """Test extended MCPServerConfig with lazy fields."""
+
+    def test_default_lifecycle_is_lazy(self):
+        config = MCPServerConfig(name="test")
+        assert config.lifecycle == "lazy"
+
+    def test_default_idle_timeout(self):
+        config = MCPServerConfig(name="test")
+        assert config.idle_timeout == 15.0
+
+    def test_default_direct_tools_is_false(self):
+        config = MCPServerConfig(name="test")
+        assert config.direct_tools is False
+
+    def test_from_dict_with_new_fields(self):
+        data = {
+            "name": "my-server",
+            "command": "npx",
+            "args": ["-y", "my-mcp"],
+            "lifecycle": "eager",
+            "idleTimeout": 30,
+            "directTools": ["tool1", "tool2"],
+            "excludeTools": ["internal"],
+        }
+        config = MCPServerConfig.from_dict(data)
+        assert config.lifecycle == "eager"
+        assert config.idle_timeout == 30
+        assert config.direct_tools == ["tool1", "tool2"]
+        assert config.exclude_tools == ["internal"]
+
+    def test_from_dict_direct_tools_true(self):
+        data = {"name": "test", "directTools": True}
+        config = MCPServerConfig.from_dict(data)
+        assert config.direct_tools is True
+
+    def test_from_dict_legacy_field_names(self):
+        data = {
+            "name": "test",
+            "idle_timeout": 20,
+            "direct_tools": ["t1"],
+            "exclude_tools": ["t2"],
+        }
+        config = MCPServerConfig.from_dict(data)
+        assert config.idle_timeout == 20
+        assert config.direct_tools == ["t1"]
+        assert config.exclude_tools == ["t2"]
+
+    def test_from_dict_defaults(self):
+        data = {"name": "test"}
+        config = MCPServerConfig.from_dict(data)
+        assert config.lifecycle == "lazy"
+        assert config.idle_timeout == 15.0
+        assert config.direct_tools is False
+        assert config.exclude_tools == []
+
+
+class TestMCPMetadataCache:
+    """Test MCPMetadataCache."""
+
+    def test_empty_cache(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        assert cache.total_tools == 0
+        assert cache.server_names == []
+
+    def test_update_and_get_server(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        tools = [
+            ToolMetadata(
+                name="mcp_test_echo",
+                original_name="echo",
+                description="Echo input",
+                input_schema={"type": "object"},
+                server_name="test",
+            ),
+        ]
+        config_dict = {"command": "test", "url": "", "transport": "stdio"}
+        cache.update_server("test", tools, config_dict)
+
+        assert cache.total_tools == 1
+        assert "test" in cache.server_names
+
+        smeta = cache.get_server("test")
+        assert smeta is not None
+        assert len(smeta.tools) == 1
+        assert smeta.tools[0].original_name == "echo"
+
+    def test_search_tools_by_name(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        tools = [
+            ToolMetadata("mcp_test_echo", "echo", "Echo input", {}, "test"),
+            ToolMetadata("mcp_test_search", "search", "Search code", {}, "test"),
+        ]
+        cache.update_server("test", tools, {"command": "test"})
+
+        matches = cache.search_tools("echo")
+        assert len(matches) == 1
+        assert matches[0].original_name == "echo"
+
+    def test_search_tools_by_description(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        tools = [
+            ToolMetadata("mcp_test_echo", "echo", "Echo input", {}, "test"),
+            ToolMetadata("mcp_test_search", "search", "Search code", {}, "test"),
+        ]
+        cache.update_server("test", tools, {"command": "test"})
+
+        matches = cache.search_tools("search code")
+        assert len(matches) == 1
+        assert matches[0].original_name == "search"
+
+    def test_search_tools_with_regex(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        tools = [
+            ToolMetadata("mcp_test_echo", "echo", "Echo input", {}, "test"),
+            ToolMetadata("mcp_test_search", "search", "Search code", {}, "test"),
+        ]
+        cache.update_server("test", tools, {"command": "test"})
+
+        matches = cache.search_tools("ech.+", regex=True)
+        assert len(matches) == 1
+
+    def test_search_tools_server_filter(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        tools_a = [ToolMetadata("mcp_a_echo", "echo", "Echo from A", {}, "a")]
+        tools_b = [ToolMetadata("mcp_b_echo", "echo", "Echo from B", {}, "b")]
+        cache.update_server("a", tools_a, {"command": "a"})
+        cache.update_server("b", tools_b, {"command": "b"})
+
+        matches = cache.search_tools("echo", server="a")
+        assert len(matches) == 1
+        assert matches[0].server_name == "a"
+
+    def test_remove_server(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        tools = [ToolMetadata("mcp_test_echo", "echo", "Echo", {}, "test")]
+        cache.update_server("test", tools, {"command": "test"})
+
+        cache.remove_server("test")
+        assert cache.get_server("test") is None
+        assert cache.total_tools == 0
+
+    def test_persistence_across_instances(self, tmp_path):
+        path = tmp_path / "test-cache.json"
+        cache1 = MCPMetadataCache(cache_path=path)
+        tools = [ToolMetadata("mcp_test_echo", "echo", "Echo", {}, "test")]
+        cache1.update_server("test", tools, {"command": "test"})
+
+        # Create a new instance loading from the same file
+        cache2 = MCPMetadataCache(cache_path=path)
+        assert cache2.total_tools == 1
+        assert cache2.get_server("test") is not None
+
+    def test_is_valid_with_matching_config(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        config_dict = {"command": "my-server", "url": "", "transport": "stdio"}
+        tools = [ToolMetadata("mcp_test_echo", "echo", "Echo", {}, "test")]
+        cache.update_server("test", tools, config_dict)
+
+        assert cache.is_valid("test", config_dict) is True
+        assert cache.is_valid("test", {"command": "different"}) is False
+
+    def test_get_tool_by_prefixed_name(self, tmp_path):
+        cache = MCPMetadataCache(cache_path=tmp_path / "test-cache.json")
+        tools = [ToolMetadata("mcp_test_echo", "echo", "Echo", {}, "test")]
+        cache.update_server("test", tools, {"command": "test"})
+
+        found = cache.get_tool_by_prefixed_name("mcp_test_echo")
+        assert found is not None
+        assert found.original_name == "echo"
+
+        not_found = cache.get_tool_by_prefixed_name("mcp_test_nonexistent")
+        assert not_found is None
+
+
+class TestComputeConfigHash:
+    """Test config hash computation."""
+
+    def test_same_config_same_hash(self):
+        d = {"command": "test", "args": ["-y", "foo"]}
+        h1 = compute_config_hash(d)
+        h2 = compute_config_hash(d)
+        assert h1 == h2
+
+    def test_different_config_different_hash(self):
+        h1 = compute_config_hash({"command": "test1"})
+        h2 = compute_config_hash({"command": "test2"})
+        assert h1 != h2
+
+    def test_irrelevant_keys_ignored(self):
+        h1 = compute_config_hash({"command": "test", "name": "a"})
+        h2 = compute_config_hash({"command": "test", "name": "b"})
+        # 'name' is not in relevant_keys, so hash should be the same
+        assert h1 == h2
