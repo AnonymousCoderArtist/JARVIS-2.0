@@ -74,6 +74,8 @@ dependencies = [
     "transformers>=4.36.0",
     "feedparser>=6.0.12",
     "mcp>=1.27.1",
+    "whoosh>=2.7.4",
+    "thefuzz>=0.22.1",
 ]
 [project.optional-dependencies]
 dev = [
