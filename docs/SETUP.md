@@ -10,7 +10,7 @@ A comprehensive guide to installing, configuring, and running JARVIS — your pe
 - [Quick Start](#quick-start)
 - [Installation Methods](#installation-methods)
   - [From Source](#from-source)
-  - [pip Install](#pip-install)
+  - [PyPI Install](#pypi-install)
 - [Configuration](#configuration)
   - [Settings File Locations](#settings-file-locations)
   - [Environment Variables](#environment-variables)
@@ -55,13 +55,13 @@ A comprehensive guide to installing, configuring, and running JARVIS — your pe
 git clone https://github.com/OEvortex/JARVIS.git
 cd JARVIS
 
-# 2. Create and activate a virtual environment
-python3.11 -m venv .venv
-source .venv/bin/activate   # Linux/macOS
-# .venv\Scripts\activate    # Windows
+# 2. Create and activate virtual environment with uv
+uv venv
+source .venv/bin/activate     # Linux/macOS
+# .venv\Scripts\activate       # Windows
 
 # 3. Install Python dependencies
-pip install -e .
+uv sync
 
 # 4. Set up your API key
 echo 'JARVIS_API_KEY=sk-...' >> .env
@@ -86,25 +86,15 @@ git clone https://github.com/OEvortex/JARVIS.git
 cd JARVIS
 ```
 
-#### 2. Set Up Python Virtual Environment
-
-Using `uv` (fast, recommended):
+#### 2. Install Python Dependencies with uv
 
 ```bash
 uv venv
-source .venv/bin/activate
-uv pip install -e .
+source .venv/bin/activate     # Linux/macOS
+# .venv\Scripts\activate       # Windows
+
+uv sync
 ```
-
-Using `pip`:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-> **Note**: On Windows, activate with `.venv\Scripts\activate`.
 
 #### 3. Install Web UI Dependencies (optional — only needed for `--webui`)
 
@@ -138,12 +128,12 @@ jarvis --help
 
 You should see the help output with all available CLI flags.
 
-### pip Install
+### PyPI Install
 
 If JARVIS is published to PyPI:
 
 ```bash
-pip install jarvis-ai
+uv pip install jarvis-ai
 ```
 
 > **Note**: At this time, installing from source is recommended for the latest features. PyPI availability may vary.
@@ -383,6 +373,22 @@ python -m interface.webui.webui_main
 3. Open your browser to the frontend
 4. Handle graceful shutdown on Ctrl+C
 
+### RPC Mode
+
+For embedding JARVIS in IDEs, web UIs, or external processes via JSONL over stdin/stdout:
+
+```bash
+# Single prompt
+echo '{"id":"1","type":"prompt","message":"Hello"}' | jarvis --mode rpc
+
+# With specific model
+jarvis --mode rpc --model gpt-4o --apikey sk-... < commands.jsonl
+```
+
+**RPC Commands**: `prompt`, `steer`, `follow_up`, `bash`, `compact`, `new_session`, `get_state`, `get_messages`, `get_tools`, `set_model`
+
+**RPC Events**: `text_delta`, `thinking_delta`, `tool_call_start`, `tool_call_end`, `turn_start`, `turn_end`, `status`, `session_started`
+
 ### Web UI Dev Mode
 
 For development on the Web UI frontend:
@@ -545,6 +551,7 @@ Configure the LLM model via CLI flags:
 | `--sdk`       | SDK provider (`openai` or `anthropic`)           | `openai` or `anthropic`                   |
 | `--base_url`  | Custom API base URL (for local/proxy LLMs)       | `http://localhost:8000/v1`                |
 | `--apikey`    | API key for the provider                         | `sk-...` or `sk-ant-...`                  |
+| `--mode`      | Interface mode: `tui`, `cli`, `webui`, `rpc`     | `tui` (default)                           |
 
 Example — using a local LLM:
 
@@ -690,7 +697,7 @@ JARVIS supports connecting to external MCP servers for extended capabilities. Cr
 source .venv/bin/activate
 
 # Verify installation
-pip list | grep jarvis
+uv pip list | grep jarvis
 
 # Run directly via Python
 python main.py
@@ -758,10 +765,10 @@ jarvis --webui --port 8080 --backend-port 8766
 
 ```bash
 # Ensure all dependencies are installed
-pip install -e .
+uv sync
 
 # If using development extras
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 ### TUI rendering issues
@@ -789,9 +796,6 @@ export JARVIS_BASE_URL=http://localhost:8000/v1
 ```bash
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Or use pip instead
-pip install -e .
 ```
 
 ### Getting help

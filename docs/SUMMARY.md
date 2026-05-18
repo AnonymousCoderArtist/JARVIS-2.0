@@ -6,7 +6,7 @@
 
 | Doc | For |
 |-----|-----|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Understanding the full system — agents, tools, LLM layer, frontends |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Understanding the full system — agents, tools, LLM layer, frontends, events, extensions |
 | [SETUP.md](SETUP.md) | Installing, configuring, and running JARVIS |
 | [API.md](API.md) | Building on top of JARVIS — REST + WebSocket API reference |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Developing JARVIS itself — code style, tests, PRs |
@@ -14,6 +14,8 @@
 | [custom-tools.md](custom-tools.md) | Writing new tools for JARVIS |
 | [MCP.md](MCP.md) | Connecting MCP (Model Context Protocol) servers |
 | [SANDBOX.md](SANDBOX.md) | Sandboxed command execution with bubblewrap |
+| [EXTENSIONS.md](EXTENSIONS.md) | Extension plugin system — custom tools, hooks, commands, shortcuts |
+| [HOOKS.md](HOOKS.md) | Event & hook system — EventBus pub/sub + lifecycle HookRegistry |
 | [watchers.md](watchers.md) | Passive file/event watchers |
 | [webui-theme.md](webui-theme.md) | Customizing the WebUI look and feel |
 
@@ -23,7 +25,7 @@ When an AI agent is asked to work on JARVIS:
 
 1. **Read SUMMARY.md** (this file) to understand what's available
 2. **Read ARCHITECTURE.md** to understand which subsystem your task involves
-3. **Read the specific doc** for your task (e.g., custom-tools.md for adding a tool)
+3. **Read the specific doc** for your task (e.g., custom-tools.md for adding a tool, EXTENSIONS.md for plugin development)
 4. **Read the relevant source files** guided by the doc's "Key Files" section
 
 ### Conventions
@@ -32,3 +34,4 @@ When an AI agent is asked to work on JARVIS:
 - **TypeScript**: React 18, Vite, Tailwind CSS, shadcn/ui components
 - **Config**: JSON files in `~/.jarvis/` and `.jarvis/` (project-local)
 - **Colors**: All WebUI colors are CSS variables in `globals.css` — never hardcode
+- **Extensions**: Plain Python files in `.jarvis/extensions/` — no build step

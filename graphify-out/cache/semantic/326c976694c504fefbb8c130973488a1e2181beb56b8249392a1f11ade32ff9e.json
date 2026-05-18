@@ -1,0 +1,1 @@
+{"nodes": [{"id": "jarvis_v2_agent", "label": "JarvisV2 (Main Agent)", "file_type": "code", "source_file": "core/agents/jarvis_v2.py", "source_location": null}], "edges": [], "hyperedges": []}

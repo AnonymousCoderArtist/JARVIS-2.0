@@ -28,18 +28,32 @@ If no `.pre-commit-config.yaml` exists yet, run linting manually before committi
 ```
 JARVIS/
 ├── core/                  # Python backend
-│   ├── agents/            # Agent system (base, managers, subagents)
-│   ├── tools/             # Tool system (BaseTool, registry, 20+ tools)
+│   ├── agents/            # Agent system (base, managers, subagents, prompts)
+│   ├── tools/             # Tool system (BaseTool, registry, 25+ tools, MCP, sandbox)
+│   ├── tools/operations/  # Pluggable operation backends (file/bash/edit)
+│   ├── tools/agent/       # Agent activity tracking + memory snapshots
+│   ├── events/            # EventBus (pub/sub) + HookRegistry (16 lifecycle stages)
+│   ├── extensions/        # Extension plugin system (API, loader, runner, registry)
+│   ├── llm/               # LLM provider abstraction layer
 │   ├── llm_sdk/           # LLM provider SDKs (Anthropic, OpenAI, base)
 │   ├── provider/          # Dynamic provider configuration
-│   ├── config/            # Settings & models
-│   ├── connectors/        # External integrations
-│   └── llm/               # LLM provider abstraction layer
-├── jarvis/                # CLI entry point
+│   ├── config/            # Settings, models, themes, keybindings
+│   ├── connectors/        # External integrations (GitHub, HTTP, RSS, Weather, FS)
+│   ├── learn/             # Learning pipeline (pattern detection, skill crystallization)
+│   ├── skills/            # Skills CRUD management
+│   ├── prompts/           # Prompt template system (markdown → slash commands)
+│   ├── resources/         # Tiered resource discovery
+│   ├── rewind/            # Conversation checkpointing with file snapshots
+│   ├── rpc/               # RPC mode (JSONL stdin/stdout protocol)
+│   └── watchers/          # Passive file/event watchers
+├── jarvis/                # CLI entry point & launcher
 ├── interface/
 │   ├── cli/               # Rich CLI (prompt_toolkit)
-│   ├── textual_ui/        # TUI (Textual framework)
-│   └── webui/             # WebUI (React + Vite + FastAPI)
+│   ├── textual_ui/        # TUI (Textual framework, 30+ widgets)
+│   └── webui/             # WebUI (React + Vite + FastAPI + shadcn)
+├── examples/
+│   ├── extensions/        # Extension examples (hello_world, audit, safety, ssh)
+│   └── prompts/           # Prompt template examples (review, testgen, explain)
 ├── tests/                 # Python test suite (pytest)
 ├── docs/                  # Documentation
 └── main.py                # Root entry point
