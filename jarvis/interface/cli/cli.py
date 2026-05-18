@@ -66,6 +66,9 @@ class CommandCompleter(Completer):
             if '/' in text:
                 base_path = text[:text.rfind('/') + 1]
                 prefix = text[text.rfind('/') + 1:]
+            elif os.sep == '\\' and '\\' in text:
+                base_path = text[:text.rfind('\\') + 1]
+                prefix = text[text.rfind('\\') + 1:]
             else:
                 base_path = './'
                 prefix = text
@@ -377,7 +380,7 @@ class CLIInterface:
         for config_path in config_paths:
             if config_path.exists():
                 try:
-                    with open(config_path) as f:
+                    with open(config_path, encoding="utf-8") as f:
                         data = json.load(f)
 
                     # Handle both formats: {"mcpServers": {...}} or [...]

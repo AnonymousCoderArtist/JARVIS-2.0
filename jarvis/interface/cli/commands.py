@@ -329,7 +329,7 @@ class CommandRegistry:
 
             for session_file in sessions[:10]:  # Show max 10 sessions
                 session_id = session_file.stem
-                msg_count = sum(1 for _ in open(session_file))
+                msg_count = sum(1 for _ in open(session_file, encoding="utf-8"))
                 lines.append(f"\n{session_id[:8]}... ({msg_count} messages)")
 
             self.display_manager.show_success("\n".join(lines), title="Sessions")

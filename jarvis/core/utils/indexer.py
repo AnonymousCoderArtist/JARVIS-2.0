@@ -29,15 +29,18 @@ class ProjectIndexer:
         """Index files using ripgrep or fallback to os.walk"""
         try:
             # Use rg --files which is extremely fast and respects .gitignore
+            kwargs = {}
+            if os.name == 'nt':
+                kwargs['creationflags'] = CREATE_NO_WINDOW
             result = subprocess.run(
                 ["rg", "--files", "--hidden", "--glob", "!.git/*"],
                 cwd=self.root_dir,
                 capture_output=True,
                 text=True,
                 check=True,
-                creationflags=CREATE_NO_WINDOW
+                **kwargs
             )
-            self._files = result.stdout.splitlines()
+            self._files = [line.replace("\\", "/") for line in result.stdout.splitlines()]
             self._last_index_time = time.time()
             logger.debug(f"Indexed {len(self._files)} files using ripgrep")
         except Exception as e:

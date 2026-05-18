@@ -141,6 +141,7 @@ def is_path_within_workdir(path_str: str) -> bool:
 
 def is_scratchpad_path(path_str: str) -> bool:
     """Check if path is in scratchpad directory."""
+    import tempfile
     from pathlib import Path
 
     path = Path(path_str).expanduser()
@@ -156,8 +157,12 @@ def is_scratchpad_path(path_str: str) -> bool:
     if resolved.is_relative_to(jarvis_scratchpad):
         return True
 
-    # Check for /tmp scratchpad patterns
-    if "/tmp/scratchpad" in str(resolved) or "scratchpad" in resolved.parts:
+    # Check for system temp scratchpad patterns (cross-platform)
+    temp_scratchpad = Path(tempfile.gettempdir()) / "scratchpad"
+    if resolved == temp_scratchpad or resolved.is_relative_to(temp_scratchpad):
+        return True
+
+    if "scratchpad" in resolved.parts:
         return True
 
     return False

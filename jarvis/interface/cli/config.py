@@ -151,7 +151,7 @@ class ConfigManager:
         # Then load from config file if it exists
         if self.config_file.exists():
             try:
-                with open(self.config_file) as f:
+                with open(self.config_file, encoding="utf-8") as f:
                     if self.config_file.suffix.lower() == '.json':
                         file_config = json.load(f)
                     else:
@@ -210,7 +210,7 @@ class ConfigManager:
         try:
             config_dict = asdict(self.config)
 
-            with open(self.config_file, 'w') as f:
+            with open(self.config_file, 'w', encoding="utf-8") as f:
                 if self.config_file.suffix.lower() == '.json':
                     json.dump(config_dict, f, indent=2)
                 else:

@@ -1,0 +1,749 @@
+#!/usr/bin/env python3
+"""Sandbox Tools — Agent-native primitives for HF Space dev-mode sandboxes."""
+
+from __future__ import annotations
+
+import io
+import secrets as secrets_lib
+import sys
+import time
+import uuid
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+import httpx
+from huggingface_hub import CommitOperationAdd, HfApi
+
+TEMPLATE_SPACE = "burtenshaw/sandbox"
+HARDWARE_OPTIONS = [
+    "cpu-basic",
+    "cpu-upgrade",
+    "t4-small",
+    "t4-medium",
+    "a10g-small",
+    "a10g-large",
+    "a100-large",
+]
+OUTPUT_LIMIT = 25000
+LINE_LIMIT = 4000
+DEFAULT_READ_LIMIT = 2000
+DEFAULT_TIMEOUT = 240
+MAX_TIMEOUT = 1200
+WAIT_TIMEOUT = 600
+WAIT_INTERVAL = 5
+API_WAIT_TIMEOUT = 180
+CPU_BASIC_HARDWARE = "cpu-basic"
+
+
+def _is_transient_space_visibility_error(error: Exception) -> bool:
+    response = getattr(error, "response", None)
+    if getattr(response, "status_code", None) == 404:
+        return True
+    message = str(error)
+    return "Repository Not Found" in message or "404 Client Error" in message
+
+
+_DOCKERFILE = """\
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+RUN apt-get update && \\
+    apt-get install -y \\
+    bash git git-lfs wget curl procps \\
+    htop vim nano jq tmux \\
+    build-essential && \\
+    rm -rf /var/lib/apt/lists/*
+
+RUN uv pip install --system fastapi uvicorn python-multipart
+
+RUN useradd -m -u 1000 user
+USER user
+
+ENV HOME=/home/user \\
+    PATH=/home/user/.local/bin:$PATH \\
+    PIP_USER=1 \\
+    HF_HUB_DISABLE_PROGRESS_BARS=1 \\
+    TQDM_DISABLE=1 \\
+    HF_HUB_ENABLE_HF_TRANSFER=1 \\
+    UV_NO_PROGRESS=1 \\
+    PYTHONWARNINGS=ignore::DeprecationWarning
+
+WORKDIR /app
+COPY --chown=user . /app
+
+EXPOSE 7860
+
+CMD ["python", "sandbox_server.py"]
+"""
+
+_SANDBOX_SERVER = '''\
+"""Minimal FastAPI server for sandbox operations."""
+import hmac, os, subprocess, pathlib, signal, threading, re, tempfile
+from fastapi import Depends, FastAPI, HTTPException, Request
+from pydantic import BaseModel
+from typing import Optional
+import uvicorn
+
+_ANSI_RE = re.compile(r'\\\\x1b\\\\[[0-9;]*[a-zA-Z]|\\\\x1b\\\\].*?\\\\x07')
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub('', text)
+
+def _truncate_output(output: str, max_chars: int = 25000, head_ratio: float = 0.25) -> str:
+    if len(output) <= max_chars:
+        return output
+    spill_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', prefix='bash_output_', dir='/tmp', delete=False) as f:
+            f.write(output)
+            spill_path = f.name
+    except Exception:
+        pass
+    head_budget = int(max_chars * head_ratio)
+    tail_budget = max_chars - head_budget
+    head = output[:head_budget]
+    tail = output[-tail_budget:]
+    total = len(output)
+    omitted = total - max_chars
+    meta = f"\\\\n\\\\n... ({omitted:,} of {total:,} chars omitted, showing first {head_budget:,} + last {tail_budget:,}) ...\\\\n"
+    if spill_path:
+        meta += f"Full output saved to {spill_path} \\u2014 use the read tool with offset/limit to inspect specific sections.\\\\n"
+    return head + meta + tail
+
+def _atomic_write(path: pathlib.Path, content: str):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = None
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        os.write(fd, content.encode("utf-8"))
+        os.fsync(fd)
+        os.close(fd)
+        fd = None
+        os.replace(tmp_path, str(path))
+        tmp_path = None
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+app = FastAPI()
+
+def _bearer_token(header: str) -> str:
+    scheme, _, supplied = header.partition(" ")
+    if scheme.lower() != "bearer" or not supplied:
+        return ""
+    return supplied
+
+def _require_auth(request: Request) -> None:
+    sandbox_token = os.environ.get("SANDBOX_API_TOKEN") or ""
+    if not sandbox_token:
+        raise HTTPException(status_code=503, detail="Sandbox API token not configured")
+    supplied = _bearer_token(request.headers.get("x-sandbox-authorization", ""))
+    if not supplied:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    if not hmac.compare_digest(supplied, sandbox_token):
+        raise HTTPException(status_code=401, detail="Invalid bearer token")
+
+_AUTH = [Depends(_require_auth)]
+
+class BashReq(BaseModel):
+    command: str
+    work_dir: str = "/app"
+    timeout: int = 120
+
+class ReadReq(BaseModel):
+    path: str
+    offset: Optional[int] = None
+    limit: Optional[int] = 2000
+
+class WriteReq(BaseModel):
+    path: str
+    content: str
+
+class EditReq(BaseModel):
+    path: str
+    old_str: str
+    new_str: str
+    replace_all: bool = False
+    mode: str = "replace"
+
+class ExistsReq(BaseModel):
+    path: str
+
+UNICODE_MAP = {
+    "\\\\u2013": "-", "\\\\u2014": "-", "\\\\u2212": "-",
+    "\\\\u2018": "'", "\\\\u2019": "'",
+    "\\\\u201c": '"', "\\\\u201d": '"',
+    "\\\\u00a0": " ", "\\\\u2003": " ", "\\\\u2002": " ",
+    "\\\\u200b": "", "\\\\ufeff": "",
+}
+
+def _normalize_unicode(s):
+    return "".join(UNICODE_MAP.get(c, c) for c in s)
+
+def _fuzzy_find_original(content, pattern):
+    if pattern in content:
+        return pattern, None
+    c_lines = content.split("\\\\n")
+    c_rt = "\\\\n".join(l.rstrip() for l in c_lines)
+    p_rt = "\\\\n".join(l.rstrip() for l in pattern.split("\\\\n"))
+    if p_rt in c_rt:
+        idx = c_rt.index(p_rt)
+        start_line = c_rt[:idx].count("\\\\n")
+        n_lines = p_rt.count("\\\\n") + 1
+        matched = "\\\\n".join(c_lines[start_line:start_line + n_lines])
+        return matched, "(matched after trimming trailing whitespace)"
+    c_st = "\\\\n".join(l.strip() for l in c_lines)
+    p_st = "\\\\n".join(l.strip() for l in pattern.split("\\\\n"))
+    if p_st in c_st:
+        idx = c_st.index(p_st)
+        start_line = c_st[:idx].count("\\\\n")
+        n_lines = p_st.count("\\\\n") + 1
+        matched = "\\\\n".join(c_lines[start_line:start_line + n_lines])
+        return matched, "(matched after trimming whitespace)"
+    c_norm = _normalize_unicode(c_st)
+    p_norm = _normalize_unicode(p_st)
+    if p_norm in c_norm:
+        idx = c_norm.index(p_norm)
+        start_line = c_norm[:idx].count("\\\\n")
+        n_lines = p_norm.count("\\\\n") + 1
+        matched = "\\\\n".join(c_lines[start_line:start_line + n_lines])
+        return matched, "(matched after unicode normalization)"
+    return None, None
+
+def _apply_edit(content, old_str, new_str, mode="replace", replace_all=False):
+    if mode == "replace_all":
+        replace_all = True
+        mode = "replace"
+    fuzzy_note = None
+    if old_str not in content:
+        matched, fuzzy_note = _fuzzy_find_original(content, old_str)
+        if matched is None:
+            raise ValueError("old_str not found in file.")
+        old_str = matched
+    count = content.count(old_str)
+    if mode == "replace":
+        if count > 1 and not replace_all:
+            raise ValueError(f"old_str appears {count} times. Use replace_all=true or provide more context.")
+        if replace_all:
+            return content.replace(old_str, new_str), count, fuzzy_note
+        return content.replace(old_str, new_str, 1), 1, fuzzy_note
+    elif mode == "append_after":
+        if replace_all:
+            return content.replace(old_str, old_str + new_str), count, fuzzy_note
+        idx = content.index(old_str) + len(old_str)
+        return content[:idx] + new_str + content[idx:], 1, fuzzy_note
+    elif mode == "prepend_before":
+        if replace_all:
+            return content.replace(old_str, new_str + old_str), count, fuzzy_note
+        idx = content.index(old_str)
+        return content[:idx] + new_str + content[idx:], 1, fuzzy_note
+    raise ValueError(f"Unknown mode: {mode}")
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}
+
+@app.post("/api/bash", dependencies=_AUTH)
+def bash(req: BashReq):
+    try:
+        proc = subprocess.Popen(
+            req.command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, cwd=req.work_dir, start_new_session=True,
+        )
+        try:
+            stdout, stderr = proc.communicate(timeout=req.timeout)
+            output = _strip_ansi(stdout + stderr)
+            output = _truncate_output(output)
+            return {"success": proc.returncode == 0, "output": output, "error": "" if proc.returncode == 0 else f"Exit code {proc.returncode}"}
+        except subprocess.TimeoutExpired:
+            try:
+                if sys.platform != "win32":
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                else:
+                    proc.kill()
+            except (OSError, AttributeError):
+                proc.kill()
+            proc.wait()
+            return {"success": False, "output": "", "error": f"Timeout after {req.timeout}s"}
+    except Exception as e:
+        return {"success": False, "output": "", "error": str(e)}
+
+@app.post("/api/read", dependencies=_AUTH)
+def read(req: ReadReq):
+    try:
+        p = pathlib.Path(req.path)
+        if not p.exists():
+            return {"success": False, "output": "", "error": f"File not found: {req.path}"}
+        if p.is_dir():
+            return {"success": False, "output": "", "error": f"Is a directory: {req.path}"}
+        lines = p.read_text().splitlines()
+        start = (req.offset or 1) - 1
+        end = start + (req.limit or len(lines))
+        selected = lines[start:end]
+        numbered = "\\\\n".join(f"{start + i + 1}\\\\t{line}" for i, line in enumerate(selected))
+        return {"success": True, "output": numbered, "error": ""}
+    except Exception as e:
+        return {"success": False, "output": "", "error": str(e)}
+
+@app.post("/api/write", dependencies=_AUTH)
+def write(req: WriteReq):
+    try:
+        p = pathlib.Path(req.path)
+        _atomic_write(p, req.content)
+        return {"success": True, "output": f"Wrote {len(req.content)} bytes to {req.path}", "error": ""}
+    except Exception as e:
+        return {"success": False, "output": "", "error": str(e)}
+
+@app.post("/api/edit", dependencies=_AUTH)
+def edit(req: EditReq):
+    try:
+        p = pathlib.Path(req.path)
+        if not p.exists():
+            return {"success": False, "output": "", "error": f"File not found: {req.path}"}
+        content = p.read_text()
+        if req.old_str == req.new_str:
+            return {"success": False, "output": "", "error": "old_str and new_str must differ."}
+        try:
+            new_content, count, fuzzy_note = _apply_edit(
+                content, req.old_str, req.new_str, mode=req.mode, replace_all=req.replace_all
+            )
+        except ValueError as e:
+            return {"success": False, "output": "", "error": str(e)}
+        _atomic_write(p, new_content)
+        msg = f"Edited {req.path} ({count} replacement{'s' if count > 1 else ''})"
+        if fuzzy_note:
+            msg += f" {fuzzy_note}"
+        return {"success": True, "output": msg, "error": ""}
+    except Exception as e:
+        return {"success": False, "output": "", "error": str(e)}
+
+@app.post("/api/exists", dependencies=_AUTH)
+def exists(req: ExistsReq):
+    return {"success": True, "output": str(pathlib.Path(req.path).exists()).lower(), "error": ""}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=7860)
+'''
+
+
+@dataclass
+class ToolResult:
+    success: bool
+    output: str = ""
+    error: str = ""
+
+    def __str__(self):
+        if self.success:
+            return self.output or "(no output)"
+        return f"ERROR: {self.error}"
+
+    def to_dict(self) -> dict:
+        return {"success": self.success, "output": self.output, "error": self.error}
+
+
+@dataclass
+class Sandbox:
+    space_id: str
+    token: str | None = None
+    api_token: str | None = field(default=None, repr=False)
+    work_dir: str = "/app"
+    timeout: int = DEFAULT_TIMEOUT
+    _owns_space: bool = field(default=False, repr=False)
+    _base_url: str = field(init=False, repr=False)
+    _client: httpx.Client = field(init=False, repr=False)
+    _hf_api: HfApi = field(init=False, repr=False)
+    _files_read: set = field(init=False, repr=False, default_factory=set)
+
+    def __post_init__(self):
+        slug = self.space_id.replace("/", "-")
+        self._base_url = f"https://{slug}.hf.space/api/"
+        self._client = httpx.Client(
+            base_url=self._base_url,
+            headers=self._auth_headers(),
+            timeout=httpx.Timeout(MAX_TIMEOUT, connect=30),
+            follow_redirects=True,
+        )
+        self._hf_api = HfApi(token=self.token)
+
+    def _auth_headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        if self.api_token:
+            headers["X-Sandbox-Authorization"] = f"Bearer {self.api_token}"
+        return headers
+
+    class Cancelled(Exception):
+        pass
+
+    @classmethod
+    def create(
+        cls,
+        owner: str,
+        *,
+        name: str | None = None,
+        template: str = TEMPLATE_SPACE,
+        hardware: str = CPU_BASIC_HARDWARE,
+        private: bool = True,
+        sleep_time: int | None = None,
+        token: str | None = None,
+        secrets: dict[str, str] | None = None,
+        wait_timeout: int = WAIT_TIMEOUT,
+        log: "Callable[[str], object] | None" = None,
+        cancel_event: "Any | None" = None,
+    ) -> Sandbox:
+        _log = log or print
+        api = HfApi(token=token)
+
+        def _check_cancel():
+            if cancel_event and cancel_event.is_set():
+                _log("Sandbox creation cancelled by user, cleaning up...")
+                try:
+                    api.delete_repo(space_id, repo_type="space")
+                    _log(f"Deleted Space {space_id}")
+                except Exception:
+                    pass
+                raise cls.Cancelled(f"Sandbox creation cancelled: {space_id}")
+
+        base = name or "sandbox"
+        suffix = uuid.uuid4().hex[:8]
+        space_id = f"{owner}/{base}-{suffix}"
+        sandbox_api_token = secrets_lib.token_urlsafe(32)
+
+        _log(f"Creating sandbox: {space_id} (from {template})...")
+
+        kwargs = {
+            "from_id": template,
+            "to_id": space_id,
+            "repo_type": "space",
+            "private": private,
+            "space_hardware": hardware,
+        }
+        if sleep_time is not None:
+            kwargs["space_sleep_time"] = sleep_time
+
+        api.duplicate_repo(**kwargs)
+        _log(f"Space created: https://huggingface.co/spaces/{space_id}")
+
+        _check_cancel()
+
+        sandbox_secrets = {**(secrets or {}), "SANDBOX_API_TOKEN": sandbox_api_token}
+        if sandbox_secrets:
+            for key, val in sandbox_secrets.items():
+                api.add_space_secret(space_id, key, val)
+
+        cls._setup_server(space_id, api, log=_log)
+
+        _check_cancel()
+
+        _log(f"Waiting for Space to start (timeout: {wait_timeout}s)...")
+        deadline = time.time() + wait_timeout
+        while time.time() < deadline:
+            _check_cancel()
+            try:
+                runtime = api.get_space_runtime(space_id)
+            except Exception as e:
+                if _is_transient_space_visibility_error(e):
+                    _log("  Space runtime not visible yet...")
+                    time.sleep(WAIT_INTERVAL)
+                    continue
+                raise
+            if runtime.stage == "RUNNING":
+                _log(f"Space is running (hardware: {runtime.hardware})")
+                break
+            if runtime.stage in ("RUNTIME_ERROR", "BUILD_ERROR"):
+                raise RuntimeError(
+                    f"Space failed to start: {runtime.stage}. "
+                    f"Check https://huggingface.co/spaces/{space_id}"
+                )
+            _log(f"  {runtime.stage}...")
+            time.sleep(WAIT_INTERVAL)
+        else:
+            raise TimeoutError(
+                f"Space did not start within {wait_timeout}s. "
+                f"Check https://huggingface.co/spaces/{space_id}"
+            )
+
+        _check_cancel()
+
+        sb = cls(
+            space_id=space_id,
+            token=token,
+            api_token=sandbox_api_token,
+            _owns_space=True,
+        )
+        try:
+            sb._wait_for_api(timeout=API_WAIT_TIMEOUT, log=_log)
+        except TimeoutError as e:
+            _log(f"Warning: API health check timed out ({e}), but Space is RUNNING. Continuing.")
+        return sb
+
+    @staticmethod
+    def _setup_server(
+        space_id: str, api: HfApi, *, log: Callable[[str], object] = print
+    ) -> None:
+        log(f"Uploading sandbox server to {space_id}...")
+        api.create_commit(
+            repo_id=space_id,
+            repo_type="space",
+            operations=[
+                CommitOperationAdd(
+                    path_in_repo="sandbox_server.py",
+                    path_or_fileobj=io.BytesIO(_SANDBOX_SERVER.encode()),
+                ),
+                CommitOperationAdd(
+                    path_in_repo="Dockerfile",
+                    path_or_fileobj=io.BytesIO(_DOCKERFILE.encode()),
+                ),
+            ],
+            commit_message="Setup sandbox server",
+        )
+        log("Server files uploaded, rebuild triggered.")
+
+    @classmethod
+    def connect(
+        cls,
+        space_id: str,
+        *,
+        token: str | None = None,
+        api_token: str | None = None,
+    ) -> Sandbox:
+        sb = cls(
+            space_id=space_id,
+            token=token,
+            api_token=api_token,
+            _owns_space=False,
+        )
+        sb._wait_for_api(timeout=60)
+        return sb
+
+    def _wait_for_api(
+        self, timeout: int = API_WAIT_TIMEOUT, log: Callable[[str], object] = print
+    ):
+        deadline = time.time() + timeout
+        last_err = None
+        last_status = None
+        while time.time() < deadline:
+            try:
+                resp = self._client.get("health", timeout=10)
+                last_status = resp.status_code
+                if resp.status_code == 200:
+                    log(f"API is responsive at {self._base_url}")
+                    return
+            except Exception as e:
+                last_err = e
+            time.sleep(3)
+        raise TimeoutError(
+            f"Sandbox API at {self._base_url} not responding after {timeout}s. "
+            f"Last status: {last_status}, last error: {last_err}"
+        )
+
+    def delete(self, log: Callable[[str], object] | None = None):
+        if not self._owns_space:
+            raise RuntimeError(f"This Sandbox did not create {self.space_id}.")
+        if log:
+            log(f"Deleting sandbox: {self.space_id}...")
+        self._hf_api.delete_repo(self.space_id, repo_type="space")
+        self._owns_space = False
+        self._client.close()
+        if log:
+            log("Deleted.")
+
+    def pause(self):
+        self._hf_api.pause_space(self.space_id)
+
+    def restart(self):
+        self._hf_api.restart_space(self.space_id)
+        self._wait_for_api()
+
+    @property
+    def url(self) -> str:
+        return f"https://huggingface.co/spaces/{self.space_id}"
+
+    @property
+    def status(self) -> str:
+        return self._hf_api.get_space_runtime(self.space_id).stage
+
+    def __enter__(self) -> Sandbox:
+        return self
+
+    def __exit__(self, *exc):
+        if self._owns_space:
+            try:
+                self.delete()
+            except Exception as e:
+                print(f"Warning: failed to delete sandbox: {e}", file=sys.stderr)
+        self._client.close()
+
+    def _call(
+        self, endpoint: str, payload: dict, timeout: float | None = None
+    ) -> ToolResult:
+        endpoint = endpoint.lstrip("/")
+        effective_timeout = timeout or self.timeout
+        last_error = ""
+
+        for attempt in range(3):
+            try:
+                resp = self._client.post(
+                    endpoint,
+                    json=payload,
+                    timeout=effective_timeout,
+                )
+                try:
+                    data = resp.json()
+                except (ValueError, UnicodeDecodeError):
+                    body_preview = resp.text[:200] if resp.text else "(empty)"
+                    last_error = f"Sandbox returned non-JSON response (HTTP {resp.status_code}): {body_preview}"
+                    if attempt < 2:
+                        time.sleep(3 * (attempt + 1))
+                        continue
+                    return ToolResult(success=False, error=last_error)
+
+                if resp.status_code == 200:
+                    return ToolResult(
+                        success=data.get("success", True),
+                        output=data.get("output", ""),
+                        error=data.get("error", ""),
+                    )
+                return ToolResult(
+                    success=False,
+                    error=data.get("error", f"HTTP {resp.status_code}"),
+                )
+            except httpx.TimeoutException:
+                return ToolResult(success=False, error=f"Timeout after {effective_timeout}s")
+            except httpx.ConnectError:
+                last_error = f"Cannot connect to sandbox. Is {self.space_id} running? Status: {self.status}"
+                if attempt < 2:
+                    time.sleep(3 * (attempt + 1))
+                    continue
+                return ToolResult(success=False, error=last_error)
+            except Exception as e:
+                return ToolResult(success=False, error=str(e))
+
+        return ToolResult(success=False, error=last_error or "Unknown error")
+
+    def bash(
+        self,
+        command: str,
+        *,
+        work_dir: str | None = None,
+        timeout: int | None = None,
+        description: str | None = None,
+    ) -> ToolResult:
+        return self._call(
+            "bash",
+            {
+                "command": command,
+                "work_dir": work_dir or self.work_dir,
+                "timeout": min(timeout or self.timeout, MAX_TIMEOUT),
+            },
+            timeout=timeout,
+        )
+
+    def read(self, path: str, *, offset: int | None = None, limit: int | None = None) -> ToolResult:
+        self._files_read.add(path)
+        return self._call(
+            "read",
+            {"path": path, "offset": offset, "limit": limit or (DEFAULT_READ_LIMIT if offset is None else None)},
+        )
+
+    def write(self, path: str, content: str) -> ToolResult:
+        if path not in self._files_read:
+            check = self._call("exists", {"path": path})
+            if check.success and check.output == "true":
+                return ToolResult(
+                    success=False,
+                    error=f"File {path} exists but has not been read this session. Read it first.",
+                )
+        result = self._call("write", {"path": path, "content": content})
+        if result.success:
+            self._files_read.add(path)
+        return result
+
+    def edit(self, path: str, old_str: str, new_str: str, *, replace_all: bool = False, mode: str = "replace") -> ToolResult:
+        if old_str == new_str:
+            return ToolResult(success=False, error="old_str and new_str are identical.")
+        if path not in self._files_read:
+            return ToolResult(success=False, error=f"File {path} has not been read this session. Read it first.")
+        return self._call("edit", {"path": path, "old_str": old_str, "new_str": new_str, "replace_all": replace_all, "mode": mode})
+
+    def kill_all(self) -> ToolResult:
+        return self._call("kill", {})
+
+    TOOLS = {
+        "bash": {
+            "description": "Run a shell command in the remote sandbox and return stdout/stderr.",
+            "parameters": {
+                "type": "object",
+                "required": ["command"],
+                "additionalProperties": False,
+                "properties": {
+                    "command": {"type": "string", "description": "The shell command to execute."},
+                    "description": {"type": "string", "description": "Short description (5-10 words, active voice)."},
+                    "work_dir": {"type": "string", "description": "Working directory (default: /app)."},
+                    "timeout": {"type": "integer", "description": "Optional timeout in seconds (default: 240, max: 1200)."},
+                },
+            },
+        },
+        "read": {
+            "description": "Reads a file from the sandbox filesystem with line numbers.",
+            "parameters": {
+                "type": "object",
+                "required": ["path"],
+                "additionalProperties": False,
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute path to the file to read."},
+                    "offset": {"type": "integer", "description": "The line number to start from (1-based)."},
+                    "limit": {"type": "integer", "description": "The number of lines to read."},
+                },
+            },
+        },
+        "write": {
+            "description": "Writes a file to the sandbox filesystem. Overwrites existing file.",
+            "parameters": {
+                "type": "object",
+                "required": ["path", "content"],
+                "additionalProperties": False,
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute path to the file to write."},
+                    "content": {"type": "string", "description": "The complete file content to write."},
+                },
+            },
+        },
+        "edit": {
+            "description": "Performs string replacements in files with exact matching and fuzzy fallback.",
+            "parameters": {
+                "type": "object",
+                "required": ["path", "old_str", "new_str"],
+                "additionalProperties": False,
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute path to the file to edit."},
+                    "old_str": {"type": "string", "description": "The text to find in the file."},
+                    "new_str": {"type": "string", "description": "The replacement text."},
+                    "replace_all": {"type": "boolean", "description": "Replace all occurrences (default: false)."},
+                    "mode": {"type": "string", "enum": ["replace", "append_after", "prepend_before"], "description": "Edit mode (default: replace)."},
+                },
+            },
+        },
+    }
+
+    @classmethod
+    def tool_definitions(cls) -> list[dict]:
+        return [{"name": name, **spec} for name, spec in cls.TOOLS.items()]
+
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> ToolResult:
+        dispatch = {
+            "bash": lambda a: self.bash(a["command"], work_dir=a.get("work_dir"), timeout=a.get("timeout"), description=a.get("description")),
+            "read": lambda a: self.read(a["path"], offset=a.get("offset"), limit=a.get("limit")),
+            "write": lambda a: self.write(a["path"], a["content"]),
+            "edit": lambda a: self.edit(a["path"], a["old_str"], a["new_str"], replace_all=a.get("replace_all", False), mode=a.get("mode", "replace")),
+        }
+        fn = dispatch.get(name)
+        if not fn:
+            return ToolResult(success=False, error=f"Unknown tool: {name}")
+        return fn(arguments)

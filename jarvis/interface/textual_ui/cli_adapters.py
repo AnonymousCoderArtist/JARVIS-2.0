@@ -1057,15 +1057,19 @@ class PathCompleter:
 
         if text.startswith('/') or text.startswith('~') or text.startswith('.'):
             import os
+            import sys
             base_path = text
-            if '/' in text or '\\' in text:
+            if '/' in text or ('\\' in text and sys.platform == 'win32'):
                 # Use split to handle both separators
                 if '/' in text:
                     base_path = text[:text.rfind('/') + 1]
                     prefix = text[text.rfind('/') + 1:]
-                else:
+                elif '\\' in text:
                     base_path = text[:text.rfind('\\') + 1]
                     prefix = text[text.rfind('\\') + 1:]
+                else:
+                    base_path = './'
+                    prefix = text
             else:
                 base_path = './'
                 prefix = text

@@ -20,7 +20,7 @@ class ExternalEditor:
         editor = self.get_editor()
         fd, filepath = tempfile.mkstemp(suffix=".md", prefix="vibe_")
         try:
-            with os.fdopen(fd, "w") as f:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(initial_content)
 
             parts = shlex.split(editor)

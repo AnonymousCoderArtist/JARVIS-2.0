@@ -45,7 +45,7 @@ class LearningManager:
             return
 
         trace_file = Path(self.config.trace_dir) / f"trace_{datetime.now().strftime('%Y%m%d')}.jsonl"
-        with open(trace_file, 'a') as f:
+        with open(trace_file, 'a', encoding="utf-8") as f:
             json.dump({
                 "timestamp": datetime.now().isoformat(),
                 "trajectory": session_data,
@@ -128,7 +128,7 @@ class LearningManager:
 
         # Save optimized policies
         policy_path = Path(self.config.dataset_dir) / "optimized_policy.json"
-        with open(policy_path, 'w') as f:
+        with open(policy_path, 'w', encoding="utf-8") as f:
             json.dump({"optimized_patterns": patterns}, f, indent=2)
 
     async def _generate_m2_dataset(self) -> Path:
@@ -139,7 +139,7 @@ class LearningManager:
         # Filter for successful traces only
         successful_traces = await self.trace_analyzer.get_successful_traces()
 
-        with open(dataset_path, 'w') as f:
+        with open(dataset_path, 'w', encoding="utf-8") as f:
             for trace in successful_traces:
                 instruction_data = {
                     "instruction": trace.get("user_input", ""),
@@ -166,7 +166,7 @@ class LearningManager:
         """Load learned preferences from disk."""
         pref_file = Path(self.config.dataset_dir) / "preferences.json"
         if pref_file.exists():
-            with open(pref_file) as f:
+            with open(pref_file, encoding="utf-8") as f:
                 return json.load(f)
         return {"preferred_output_format": "code_with_explanation", "preferred_tools": []}
 
@@ -174,5 +174,5 @@ class LearningManager:
         """Save learned preferences to disk."""
         pref_file = Path(self.config.dataset_dir) / "preferences.json"
         pref_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(pref_file, 'w') as f:
+        with open(pref_file, 'w', encoding="utf-8") as f:
             json.dump(preferences, f, indent=2)

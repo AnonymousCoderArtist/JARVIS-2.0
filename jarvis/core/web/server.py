@@ -68,7 +68,7 @@ _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 def _save_session(chat_id: str, session_data: dict) -> None:
     """Save session data to disk."""
     session_file = _SESSIONS_DIR / f"{chat_id}.json"
-    with open(session_file, "w") as f:
+    with open(session_file, "w", encoding="utf-8") as f:
         json.dump(session_data, f, indent=2)
 
 
@@ -76,7 +76,7 @@ def _load_session(chat_id: str) -> dict | None:
     """Load session data from disk."""
     session_file = _SESSIONS_DIR / f"{chat_id}.json"
     if session_file.exists():
-        with open(session_file) as f:
+        with open(session_file, encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -86,7 +86,7 @@ def _list_sessions() -> list[dict]:
     sessions = []
     for session_file in _SESSIONS_DIR.glob("*.json"):
         try:
-            with open(session_file) as f:
+            with open(session_file, encoding="utf-8") as f:
                 data = json.load(f)
                 sessions.append(data)
         except (OSError, json.JSONDecodeError):
@@ -1152,7 +1152,7 @@ async def api_submit_feedback(request: Request):
         })
         fb_file = Path.home() / ".jarvis" / "feedback.jsonl"
         fb_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(fb_file, "a") as f:
+        with open(fb_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(feedback_store[-1]) + "\n")
         return {"success": True}
     except Exception as e:

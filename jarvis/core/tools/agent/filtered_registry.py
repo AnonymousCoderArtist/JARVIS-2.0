@@ -66,11 +66,12 @@ class _FilteredToolRegistry:
         Returns:
             Dictionary of allowed tool names to tool instances
         """
-        return {
-            name: tool
-            for name, tool in self._source_registry.get_tools().items()
-            if name in self._allowed_tools
-        }
+        result: dict[str, BaseTool] = {}
+        for name in self._allowed_tools:
+            tool = self.get(name)
+            if tool is not None:
+                result[name] = tool
+        return result
 
     def list_tools(self) -> list[dict[str, object]]:
         """List all allowed tools with metadata.

@@ -38,6 +38,9 @@ def get_user_cancellation_message(reason: Any) -> str:
 
 def is_dangerous_directory(path: Path | str) -> tuple[bool, str]:
     """Check if a directory is potentially dangerous to operate on"""
+    import os
+    import platform
+
     dangerous_paths = {
         "/",
         "/usr",
@@ -48,15 +51,29 @@ def is_dangerous_directory(path: Path | str) -> tuple[bool, str]:
         "/sys",
         "/proc",
         "/dev",
-        "C:\\",
-        "C:\\Windows",
-        "C:\\Program Files",
-        "C:\\Program Files (x86)",
     }
 
+    # Add macOS-specific system paths
+    if platform.system() == "Darwin":
+        dangerous_paths.update({
+            "/System",
+            "/Library",
+            "/Applications",
+            "/Volumes",
+            "/private",
+        })
+    elif platform.system() == "Windows":
+        dangerous_paths.update({
+            "C:\\",
+            "C:\\Windows",
+            "C:\\Program Files",
+            "C:\\Program Files (x86)",
+        })
+
     path_str = str(path)
+    sep = os.sep
     for dangerous in dangerous_paths:
-        if path_str == dangerous or path_str.startswith(dangerous + "/") or path_str.startswith(dangerous + "\\"):
+        if path_str == dangerous or path_str.startswith(dangerous + sep):
             return True, f"Running in system directory: {path_str}"
 
     return False, ""

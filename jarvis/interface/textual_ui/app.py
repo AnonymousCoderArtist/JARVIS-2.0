@@ -198,7 +198,7 @@ def _compute_connectors_count(
         return 0
 
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             data = json.load(f)
 
         # Handle Claude MCP format: {"mcpServers": {"name": {...}}}
@@ -1854,7 +1854,7 @@ class VibeApp(App):  # noqa: PLR0904
             return []
 
         try:
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             servers = []

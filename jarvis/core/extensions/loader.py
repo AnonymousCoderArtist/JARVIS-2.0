@@ -1,12 +1,17 @@
 """Dynamic loading of JARVIS extension modules.
 
-Extensions are Python files that export an async factory function.
+Extensions are either single Python files or subfolder packages that
+export an async factory function.
 Loading uses standard ``importlib`` — no JIT compiler needed.
 
 Discovery paths (in precedence order):
-1. ``.jarvis/extensions/*.py`` (project-local, highest priority)
-2. ``~/.jarvis/extensions/*.py`` (global user extensions)
+1. ``.jarvis/extensions/`` (project-local, highest priority)
+2. ``~/.jarvis/extensions/`` (global user extensions)
 3. pip-installed packages registered via entry point ``jarvis.extensions``
+
+Each discovery directory may contain:
+- ``*.py`` files (single-file extensions)
+- Subdirectories with ``__init__.py`` (package extensions)
 """
 
 from __future__ import annotations
@@ -34,31 +39,45 @@ USER_EXTENSIONS_DIR = Path.home() / ".jarvis" / "extensions"
 # ---------------------------------------------------------------------------
 
 
+def _is_package_dir(p: Path) -> bool:
+    """Return True if *p* is a directory containing an ``__init__.py``."""
+    return p.is_dir() and not p.name.startswith("__") and (p / "__init__.py").exists()
+
+
 def discover_extension_paths(
     project_dir: str | Path | None = None,
 ) -> list[Path]:
-    """Return a list of ``.py`` file paths from all discovery directories.
+    """Return paths from all discovery directories.
 
-    Results are ordered by precedence (project-first, then user, then pip).
-    Duplicate filenames (same stem) de-duplicate in favour of higher
-    precedence.
+    Each path is either a ``.py`` file or a subfolder package directory
+    (containing ``__init__.py``).  Results are ordered by precedence
+    (project-first, then user, then pip).  Duplicate names de-duplicate
+    in favour of higher precedence.  A ``.py`` file wins over a folder
+    with the same stem.
     """
     seen: set[str] = set()
     paths: list[Path] = []
 
-    # 1. Project-local
-    if project_dir is not None:
-        proj = Path(project_dir) / PROJECT_EXTENSIONS_DIR
-        for p in sorted(proj.glob("*.py")):
+    def _scan_dir(directory: Path) -> None:
+        # Phase 1: single-file extensions (*.py)
+        for p in sorted(directory.glob("*.py")):
             if p.stem not in seen:
                 seen.add(p.stem)
                 paths.append(p)
+        # Phase 2: package extensions (subdirectories with __init__.py)
+        if directory.is_dir():
+            for p in sorted(directory.iterdir()):
+                if _is_package_dir(p) and p.name not in seen:
+                    seen.add(p.name)
+                    paths.append(p)
+
+    # 1. Project-local
+    if project_dir is not None:
+        proj = Path(project_dir) / PROJECT_EXTENSIONS_DIR
+        _scan_dir(proj)
 
     # 2. User global
-    for p in sorted(USER_EXTENSIONS_DIR.glob("*.py")):
-        if p.stem not in seen:
-            seen.add(p.stem)
-            paths.append(p)
+    _scan_dir(USER_EXTENSIONS_DIR)
 
     # 3. pip entry points
     try:
@@ -147,6 +166,82 @@ def load_from_file(file_path: str | Path) -> ExtensionLoadResult:
         )
 
 
+def load_from_package_dir(dir_path: str | Path) -> ExtensionLoadResult:
+    """Load a single extension from a subfolder package.
+
+    The directory must contain an ``__init__.py`` that exports a factory
+    function (same conventions as :func:`load_from_file`).
+    Submodules can use relative imports (e.g. ``from .models import Foo``).
+    """
+    path = Path(dir_path)
+    if not path.is_dir():
+        return ExtensionLoadResult(
+            success=False,
+            error=f"Not a directory: {path}",
+        )
+
+    init_path = path / "__init__.py"
+    if not init_path.exists():
+        return ExtensionLoadResult(
+            success=False,
+            error=f"No __init__.py in {path}",
+        )
+
+    module_name = f"_jarvis_ext_{path.name}"
+
+    try:
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            init_path,
+            submodule_search_locations=[str(path)],
+        )
+        if spec is None or spec.loader is None:
+            return ExtensionLoadResult(
+                success=False,
+                error=f"Failed to create module spec for {path}",
+            )
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+
+        # Look for the factory function — same convention as load_from_file
+        factory = None
+        for attr_name in ("jarvis", "jarvis_extension", "__jarvis_extension__", "default"):
+            fn = getattr(module, attr_name, None)
+            if fn is not None and callable(fn):
+                factory = fn
+                break
+
+        if factory is None:
+            return ExtensionLoadResult(
+                success=False,
+                error=f"No factory function found in {init_path}. "
+                      f"Export 'async def jarvis(api): ...'",
+            )
+
+        manifest = ExtensionManifest(
+            name=path.name,
+            version=getattr(module, "__version__", "1.0.0"),
+            description=getattr(module, "__description__", ""),
+            author=getattr(module, "__author__", ""),
+            source_path=str(path.resolve()),
+        )
+
+        return ExtensionLoadResult(
+            success=True,
+            manifest=manifest,
+            factory_fn=factory,
+        )
+
+    except Exception as exc:
+        logger.exception("Failed to load extension package from %s", path)
+        return ExtensionLoadResult(
+            success=False,
+            error=str(exc),
+        )
+
+
 def load_from_directory(dir_path: str | Path) -> list[ExtensionLoadResult]:
     """Load all ``.py`` files from *dir_path*."""
     results: list[ExtensionLoadResult] = []
@@ -200,14 +295,20 @@ def discover_and_load_all(
     if extra_paths:
         for p in extra_paths:
             pp = Path(p)
-            if pp.exists() and pp.suffix == ".py":
+            if pp.exists() and pp.is_file() and pp.suffix == ".py":
                 paths.append(pp)
             elif pp.exists() and pp.is_dir():
-                paths.extend(sorted(pp.glob("*.py")))
+                if _is_package_dir(pp):
+                    paths.append(pp)
+                else:
+                    paths.extend(sorted(pp.glob("*.py")))
 
     results: list[ExtensionLoadResult] = []
     for path in paths:
-        result = load_from_file(path)
+        if path.is_dir():
+            result = load_from_package_dir(path)
+        else:
+            result = load_from_file(path)
         results.append(result)
 
     return results

@@ -138,7 +138,7 @@ def load_mcp_servers_from_config(config_path: Path | None = None) -> list[dict]:
 
     try:
         import json
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             data = json.load(f)
 
         # Handle both formats:
